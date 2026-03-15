@@ -263,7 +263,7 @@ pub fn convert_merkle_proof_strings(proof_strings: &[String]) -> Result<Vec<[u8;
 }
 
 /// TryFrom implementation to convert gov_v1 StakeMerkleLeaf to IDL-compatible StakeMerkleLeaf type
-impl TryFrom<StakeMerkleLeaf> for crate::govcontract::types::StakeMerkleLeaf {
+impl TryFrom<StakeMerkleLeaf> for crate::svmgov_program::types::StakeMerkleLeaf {
     type Error = anyhow::Error;
 
     fn try_from(gov_v1_leaf: StakeMerkleLeaf) -> Result<Self, Self::Error> {
@@ -278,7 +278,7 @@ impl TryFrom<StakeMerkleLeaf> for crate::govcontract::types::StakeMerkleLeaf {
 /// Convert API StakeMerkleLeafData directly to IDL-compatible StakeMerkleLeaf type
 pub fn convert_stake_merkle_leaf_data_to_idl_type(
     stake_merkle_leaf_data: &StakeMerkleLeafData,
-) -> Result<crate::govcontract::types::StakeMerkleLeaf> {
+) -> Result<crate::svmgov_program::types::StakeMerkleLeaf> {
     // First convert to gov_v1 type, then to IDL type
     let gov_v1_leaf: StakeMerkleLeaf = stake_merkle_leaf_data.try_into()?;
     gov_v1_leaf.try_into()

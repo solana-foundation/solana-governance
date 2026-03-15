@@ -1,8 +1,8 @@
-# Solana Governance Contract
+# Solana Governance Program
 A decentralized governance system built on the Solana blockchain.
 
 ## Overview
-This repository contains a Solana program that enables a decentralized governance system. The contract allows validators to create proposals, vote on them, and tally the results.
+This repository contains a Solana program that enables a decentralized governance system. The program allows validators to create proposals, vote on them, and tally the results.
 
 ## Features
 
@@ -13,14 +13,14 @@ This repository contains a Solana program that enables a decentralized governanc
 * **Vote override**: When a validator has already voted, delegators can override their validator's vote using stake account verification and merkle proofs.
 * **Vote caching**: When delegators vote before their validator, their votes are cached and will be applied when the validator eventually votes.
 * **Merkle proof verification**: Comprehensive integration with external snapshot programs for stake verification.
-* **PDA utilities**: Robust program-derived address derivation for all contract accounts.
-* **Enhanced validation**: Improved error handling and input validation throughout the contract.
+* **PDA utilities**: Robust program-derived address derivation for all program accounts.
+* **Enhanced validation**: Improved error handling and input validation throughout the program.
 
 ## Contract Structure
 
-The contract is organized into several modules:
+The program is organized into several modules:
 
-* `error.rs`: Defines custom error codes used throughout the contract with enhanced validation messages.
+* `error.rs`: Defines custom error codes used throughout the program with enhanced validation messages.
 * `lib.rs`: Contains the main program logic, including functions for creating proposals, casting votes, and finalizing results.
 * `merkle_helpers.rs`: Provides utilities for merkle proof verification and cross-program invocation.
 * `utils.rs`: Provides utility functions, such as calculating stake weights in basis points and PDA derivation.
@@ -30,13 +30,13 @@ The contract is organized into several modules:
 
 ## CLI Interface
 
-This repository also includes a command-line interface (CLI) program, `svmgov`, which provides a convenient way to interact with the contract. The `svmgov` CLI allows validators and delegators to create proposals, cast votes, override votes, and perform other actions on the contract with a simple CLI interface. The validator/delegator identity keypair is necessary for most commands, and supports API integration for real-time stake verification.
+This repository also includes a command-line interface (CLI) program, `svmgov`, which provides a convenient way to interact with the program. The `svmgov` CLI allows validators and delegators to create proposals, cast votes, override votes, and perform other actions on the program with a simple CLI interface. The validator/delegator identity keypair is necessary for most commands, and supports API integration for real-time stake verification.
 
 ## Usage
 
-To use this contract, you'll need to:
+To use this program, you'll need to:
 
-1. **Build and deploy**: Build the contract using `anchor build` and deploy it to a Solana cluster.
+1. **Build and deploy**: Build the program using `anchor build` and deploy it to a Solana cluster.
 2. **Initialize index**: Use the `initialize_index` instruction to set up the proposal index PDA.
 3. **Create a proposal**: Use the `create_proposal` instruction to create a new proposal with merkle proof verification for stake validation.
 4. **Support a proposal**: Use the `support_proposal` instruction to show support for a proposal with stake verification.
@@ -50,7 +50,7 @@ To use this contract, you'll need to:
 
 ## Events
 
-The contract emits comprehensive events for all major governance actions. Frontend applications and external services can listen to these events to track governance activity in real-time. All events are automatically included in the generated IDL.
+The program emits comprehensive events for all major governance actions. Frontend applications and external services can listen to these events to track governance activity in real-time. All events are automatically included in the generated IDL.
 
 ### ProposalCreated
 Emitted when a new proposal is created.
@@ -212,5 +212,5 @@ Events are strongly typed and included in the generated TypeScript types from th
 To contribute to this project, you'll need:
 
 1. **Rust and Solana tools**: Install Rust and the Solana(agave) CLI using the official instructions.
-2. **Cargo**: Use Cargo to build and manage dependencies for the contract.
-3. **Anchor**: Use Anchor to generate and manage the contract's IDL files.
+2. **Cargo**: Use Cargo to build and manage dependencies for the program.
+3. **Anchor**: Use Anchor to generate and manage the program's IDL files.

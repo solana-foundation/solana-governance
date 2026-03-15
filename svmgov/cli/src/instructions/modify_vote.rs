@@ -7,7 +7,7 @@ use gov_v1::ID as SNAPSHOT_PROGRAM_ID;
 
 use crate::{
     constants::*,
-    govcontract::{accounts::Proposal, client::{accounts, args}},
+    svmgov_program::{accounts::Proposal, client::{accounts, args}},
     utils::{
         api_helpers::{self, get_vote_account_proof},
         utils::{create_spinner, derive_vote_pda, setup_all},

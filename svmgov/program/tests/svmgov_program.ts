@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { Govcontract } from "../target/types/govcontract";
+import { SvmgovProgram } from "../target/types/svmgov_program";
 import { MockGovV1 } from "../target/types/mock_gov_v1";
 import { randomBytes } from "crypto";
 import { LAMPORTS_PER_SOL, StakeProgram, SystemProgram } from "@solana/web3.js";
@@ -30,12 +30,12 @@ import {
   logVoteState
 } from "./test-helpers";
 
-describe("govcontract", () => {
+describe("svmgov_program", () => {
   // Configure the client to use the local cluster.
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
-  const program = anchor.workspace.govcontract as Program<Govcontract>;
+  const program = anchor.workspace.svmgov_program as Program<SvmgovProgram>;
   const mockProgram = anchor.workspace.mock_gov_v1 as Program<MockGovV1>;
 
   const seed = new anchor.BN(randomBytes(8));
@@ -642,11 +642,11 @@ describe("govcontract", () => {
 });
 
 // Error Tests Structure
-describe("govcontract - Error Cases", () => {
+describe("svmgov_program - Error Cases", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
-  const program = anchor.workspace.govcontract as Program<Govcontract>;
+  const program = anchor.workspace.svmgov_program as Program<SvmgovProgram>;
   const mockProgram = anchor.workspace.mock_gov_v1 as Program<MockGovV1>;
 
   // Error tests run against the state set up by the main test suite above

@@ -607,7 +607,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "govcontract"
+name = "svmgov_program"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",

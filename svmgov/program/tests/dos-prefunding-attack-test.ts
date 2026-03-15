@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { Govcontract } from "../target/types/govcontract";
+import { SvmgovProgram } from "../target/types/svmgov_program";
 import { MockGovV1 } from "../target/types/mock_gov_v1";
 import { randomBytes } from "crypto";
 import {
@@ -24,7 +24,7 @@ describe("DoS Prefunding Attack Test", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
-  const program = anchor.workspace.govcontract as Program<Govcontract>;
+  const program = anchor.workspace.svmgov_program as Program<SvmgovProgram>;
   const mockProgram = anchor.workspace.mock_gov_v1 as Program<MockGovV1>;
 
   const seed = new anchor.BN(randomBytes(8));
@@ -350,10 +350,10 @@ describe("DoS Prefunding Attack Test", () => {
 
     if (!voteOverrideSucceeded) {
       console.log("✅ VULNERABILITY CONFIRMED - DoS attack works");
-      console.log("The contract is vulnerable to prefunding attacks");
+      console.log("The program is vulnerable to prefunding attacks");
     } else {
       console.log("✅ FIX VERIFIED - DoS attack prevented");
-      console.log("The contract is protected against prefunding attacks");
+      console.log("The program is protected against prefunding attacks");
     }
 
     // For this test, we expect the attack to succeed (vulnerability to be present)
@@ -510,7 +510,7 @@ describe("DoS Prefunding Attack Test", () => {
 
     if (voteOverrideSucceeded) {
       console.log("✅ FIX VERIFIED - Delegator can vote without prefunding");
-      console.log("The contract is working correctly");
+      console.log("The program is working correctly");
     } else {
       console.log("❌ FIX NOT APPLIED - Delegator still cannot vote");
       console.log("The vulnerability may still exist");

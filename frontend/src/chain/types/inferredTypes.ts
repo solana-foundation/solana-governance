@@ -1,10 +1,10 @@
 import type { IdlAccounts, Program } from "@coral-xyz/anchor";
 
-import { Govcontract } from "./govcontractV2";
+import { SvmgovProgram } from "./svmgov_programV2";
 
-export type GovContractProgram = Program<Govcontract>;
+export type SvmgovProgramType = Program<SvmgovProgram>;
 
-export type ProposalAccount = IdlAccounts<Govcontract>["proposal"];
-export type VoteAccount = IdlAccounts<Govcontract>["vote"];
-export type VoteOverrideAccount = IdlAccounts<Govcontract>["voteOverride"];
-export type SupportAccount = IdlAccounts<Govcontract>["support"];
+export type ProposalAccount = IdlAccounts<SvmgovProgram>["proposal"];
+export type VoteAccount = IdlAccounts<SvmgovProgram>["vote"];
+export type VoteOverrideAccount = IdlAccounts<SvmgovProgram>["voteOverride"];
+export type SupportAccount = IdlAccounts<SvmgovProgram>["support"];

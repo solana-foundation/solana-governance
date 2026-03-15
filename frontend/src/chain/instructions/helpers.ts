@@ -1,6 +1,6 @@
 import { PublicKey, Connection, Keypair } from "@solana/web3.js";
 import { AnchorProvider, Program, BN } from "@coral-xyz/anchor";
-import idl from "@/chain/idl/govcontract.json";
+import idl from "@/chain/idl/svmgov_program.json";
 import govV1Idl from "@/chain/idl/gov-v1.json";
 import {
   VoteAccountProofResponse,
@@ -10,7 +10,7 @@ import {
   StakeMerkleLeafConverted,
 } from "./types";
 import { AnchorWallet } from "@solana/wallet-adapter-react";
-import { Govcontract, GovV1 } from "../types";
+import { SvmgovProgram, GovV1 } from "../types";
 import { RPC_URLS } from "@/contexts/EndpointContext";
 
 // PDA derivation functions (based on test implementation)
@@ -105,7 +105,7 @@ export function createProgramWithWallet(
     commitment: "confirmed",
   });
 
-  const program = new Program(idl, provider) as Program<Govcontract>;
+  const program = new Program(idl, provider) as Program<SvmgovProgram>;
 
   return program;
 }
@@ -145,7 +145,7 @@ export function createProgramWitDummyWallet(endpoint?: string) {
     commitment: "confirmed",
   });
 
-  const program = new Program(idl, provider) as Program<Govcontract>;
+  const program = new Program(idl, provider) as Program<SvmgovProgram>;
 
   return program;
 }

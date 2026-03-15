@@ -16,7 +16,7 @@ use utils::{
     utils::*,
 };
 
-declare_program!(govcontract);
+declare_program!(svmgov_program);
 
 // anchor idl init --provider.cluster http://86.109.14.141:8899 --provider.wallet /path/to/wallet.json -f target/idl/my_program.json 4igPvJuaCVUCwqaQ3q7L8Y5JL5G1vsDCfLGMMoNthmSt
 
@@ -114,7 +114,7 @@ enum Commands {
                       Example:\n\
                       $ svmgov --identity-keypair /path/to/key.json --rpc-url https://api.mainnet-beta.solana.com cast-vote --proposal-id 123 --for-votes 6000 --against-votes 3000 --abstain-votes 1000"
     )]
-    /// Voters submit their votes via the smart contract, specifying how they allocate their
+    /// Voters submit their votes via the program, specifying how they allocate their
     /// stake weight across the three options. For example, a voter with 100 SOL might assign
     /// 6,000 basis points (60%) to "for," 3,000 (30%) to "against," and 1,000 (10%) to "abstain."
     /// Each voter’s allocation must sum to 10,000 basis points (100% of their stake).

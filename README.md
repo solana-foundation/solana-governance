@@ -7,8 +7,8 @@ A decentralized governance platform for Solana validators featuring merkle proof
 ### [`frontend/`](./frontend)
 Next.js web interface for monitoring governance proposals, viewing active proposals, voting status, and real-time results.
 
-### [`svmgov/contract/`](./svmgov/contract)
-Anchor/Solana smart contract implementing the on-chain governance program — proposals, voting, merkle verification, and config management.
+### [`svmgov/program/`](./svmgov/program)
+Anchor/Solana program implementing the on-chain governance logic — proposals, voting, merkle verification, and config management.
 
 ### [`svmgov/cli/`](./svmgov/cli)
 Rust CLI tool for interacting with the governance program — creating proposals, casting votes, and managing governance operations from the terminal.

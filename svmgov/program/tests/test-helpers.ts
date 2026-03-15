@@ -1,10 +1,10 @@
 import * as anchor from "@coral-xyz/anchor";
-import { Govcontract } from "../target/types/govcontract";
+import { SvmgovProgram } from "../target/types/svmgov_program";
 import { MockGovV1 } from "../target/types/mock_gov_v1";
 import { BALLOT_ID, MERKLE_ROOT_HASH } from "./test-constants";
 
 // Account derivation helpers
-export function deriveProposalIndexAccount(program: anchor.Program<Govcontract>): anchor.web3.PublicKey {
+export function deriveProposalIndexAccount(program: anchor.Program<SvmgovProgram>): anchor.web3.PublicKey {
   return anchor.web3.PublicKey.findProgramAddressSync(
     [Buffer.from("index")],
     program.programId
@@ -12,7 +12,7 @@ export function deriveProposalIndexAccount(program: anchor.Program<Govcontract>)
 }
 
 export function deriveProposalAccount(
-  program: anchor.Program<Govcontract>,
+  program: anchor.Program<SvmgovProgram>,
   seed: anchor.BN,
   splVoteAccount: anchor.web3.PublicKey
 ): anchor.web3.PublicKey {
@@ -27,7 +27,7 @@ export function deriveProposalAccount(
 }
 
 export function deriveSupportAccount(
-  program: anchor.Program<Govcontract>,
+  program: anchor.Program<SvmgovProgram>,
   proposalAccount: anchor.web3.PublicKey,
   splVoteAccount: anchor.web3.PublicKey
 ): anchor.web3.PublicKey {
@@ -42,7 +42,7 @@ export function deriveSupportAccount(
 }
 
 export function deriveVoteAccount(
-  program: anchor.Program<Govcontract>,
+  program: anchor.Program<SvmgovProgram>,
   proposalAccount: anchor.web3.PublicKey,
   splVoteAccount: anchor.web3.PublicKey
 ): anchor.web3.PublicKey {
@@ -82,7 +82,7 @@ export function deriveMetaMerkleProofAccount(
 }
 
 export function deriveVoteOverrideAccount(
-  program: anchor.Program<Govcontract>,
+  program: anchor.Program<SvmgovProgram>,
   proposalAccount: anchor.web3.PublicKey,
   stakeAccount: anchor.web3.PublicKey,
   validatorVote: anchor.web3.PublicKey
@@ -99,7 +99,7 @@ export function deriveVoteOverrideAccount(
 }
 
 export function deriveVoteOverrideCacheAccount(
-  program: anchor.Program<Govcontract>,
+  program: anchor.Program<SvmgovProgram>,
   proposalAccount: anchor.web3.PublicKey,
   validatorVote: anchor.web3.PublicKey
 ): anchor.web3.PublicKey {
@@ -115,7 +115,7 @@ export function deriveVoteOverrideCacheAccount(
 
 // Event listener helpers
 export function createEventListener<T>(
-  program: anchor.Program<Govcontract>,
+  program: anchor.Program<SvmgovProgram>,
   eventName: string,
   callback: (event: T, slot: number) => void
 ): number {
@@ -123,7 +123,7 @@ export function createEventListener<T>(
 }
 
 export function removeEventListener(
-  program: anchor.Program<Govcontract>,
+  program: anchor.Program<SvmgovProgram>,
   listenerId: number
 ): void {
   program.removeEventListener(listenerId);

@@ -48,7 +48,7 @@ export const useProposalVotes = (proposalPublicKey: PublicKey | undefined) => {
         throw new Error("Missing proposal public key");
       }
 
-      // 1. Fetch votes and voteOverride data from gov contract program
+      // 1. Fetch votes and voteOverride data from governance program
       const [votes, voteOverrides] = await Promise.all([
         getProposalVotes(proposalPublicKey, endpoint),
         getProposalVoteOverrides(proposalPublicKey, endpoint),

@@ -7,7 +7,7 @@ use gov_v1::ID as SNAPSHOT_PROGRAM_ID;
 
 use crate::{
     constants::*,
-    govcontract::{
+    svmgov_program::{
         accounts::Proposal,
         client::{accounts, args},
     },

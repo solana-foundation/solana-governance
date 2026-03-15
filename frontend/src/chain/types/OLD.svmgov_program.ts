@@ -1,10 +1,10 @@
 /**
  * @deprecated old program types
  */
-export type GovcontractOLD = {
+export type SvmgovProgramOLD = {
   address: "GoVpHPV3EY89hwKJjfw19jTdgMsGKG4UFSE2SfJqTuhc";
   metadata: {
-    name: "govcontract";
+    name: "svmgov_program";
     version: "0.1.0";
     spec: "0.1.0";
     description: "Created with Anchor";

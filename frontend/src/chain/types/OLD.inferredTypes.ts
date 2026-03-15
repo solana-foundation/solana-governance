@@ -1,12 +1,12 @@
 import type { BN, Program, ProgramAccount } from "@coral-xyz/anchor";
 
 import { PublicKey } from "@solana/web3.js";
-import { GovcontractOLD } from "./OLD.govcontract";
+import { SvmgovProgramOLD } from "./OLD.svmgov_program";
 
 /**
  * @deprecated old code
  */
-export type GovContract = Program<GovcontractOLD>;
+export type GovProgram = Program<SvmgovProgramOLD>;
 /**
  * @deprecated old code
  */

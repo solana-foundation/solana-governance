@@ -14,7 +14,7 @@ use gov_v1::StakeMerkleLeaf;
 declare_id!("EKwRPoyRactBV2z2XhUSVU1YbZuyTVq4kU5U5dM2JyZY");
 
 #[program]
-pub mod govcontract {
+pub mod svmgov_program {
     use super::*;
 
     pub fn initialize_config(

@@ -8,7 +8,7 @@ use log::info;
 
 use crate::{
     constants::*,
-    govcontract::{
+    svmgov_program::{
         accounts::Proposal,
         client::{accounts, args},
     },

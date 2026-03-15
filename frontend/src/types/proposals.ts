@@ -53,7 +53,7 @@ export type ProposalRecord = {
   };
 };
 
-// RAW DATA, that will come from our govcontract program. we will later transform into frontend data structure
+// RAW DATA, that will come from our governance program. we will later transform into frontend data structure
 
 // Input type depends on your data source
 

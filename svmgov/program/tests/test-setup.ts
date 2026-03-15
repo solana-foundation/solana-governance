@@ -1,5 +1,5 @@
 import * as anchor from "@coral-xyz/anchor";
-import { Govcontract } from "../target/types/govcontract";
+import { SvmgovProgram } from "../target/types/svmgov_program";
 import { MockGovV1 } from "../target/types/mock_gov_v1";
 import {
   Connection,
@@ -158,7 +158,7 @@ export async function fundSPLVoteAccounts(
 
 // Initialize proposal index
 export async function initializeProposalIndex(
-  program: anchor.Program<Govcontract>,
+  program: anchor.Program<SvmgovProgram>,
   proposalIndexAccount: anchor.web3.PublicKey
 ): Promise<void> {
   const tx = await program.methods
@@ -233,7 +233,7 @@ export async function createMetaMerkleProofs(
 
 // Complete test setup
 export async function setupTestEnvironment(
-  program: anchor.Program<Govcontract>,
+  program: anchor.Program<SvmgovProgram>,
   mockProgram: anchor.Program<MockGovV1>,
   seed: anchor.BN
 ): Promise<TestAccounts> {

@@ -4,7 +4,7 @@ use anchor_lang::system_program;
 use anyhow::Result;
 
 use crate::{
-    govcontract::client::{accounts, args},
+    svmgov_program::client::{accounts, args},
     utils::utils::{create_spinner, derive_proposal_index_pda, derive_proposal_pda, setup_all},
 };
 

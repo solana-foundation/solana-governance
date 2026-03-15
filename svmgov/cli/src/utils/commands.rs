@@ -11,7 +11,7 @@ use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::{Cell, Table, presets::UTF8_FULL};
 use serde::{Deserialize, Serialize};
 
-use crate::{anchor_client_setup, govcontract::accounts::Proposal};
+use crate::{anchor_client_setup, svmgov_program::accounts::Proposal};
 
 /// Detect terminal width using various methods
 fn detect_terminal_width() -> Option<u16> {

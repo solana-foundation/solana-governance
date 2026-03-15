@@ -6,13 +6,13 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-govcontract = "AXnkQnEEMBsKcJ1gSXP1aW6tZMGWodzEaoB6b3bRib2r"
+svmgov_program = "AXnkQnEEMBsKcJ1gSXP1aW6tZMGWodzEaoB6b3bRib2r"
 
 [programs.devnet]
-govcontract = "GoVpHPV3EY89hwKJjfw19jTdgMsGKG4UFSE2SfJqTuhc"
+svmgov_program = "GoVpHPV3EY89hwKJjfw19jTdgMsGKG4UFSE2SfJqTuhc"
 
 [programs.testnet]
-govcontract = "EKwRPoyRactBV2z2XhUSVU1YbZuyTVq4kU5U5dM2JyZY"
+svmgov_program = "EKwRPoyRactBV2z2XhUSVU1YbZuyTVq4kU5U5dM2JyZY"
 
 [registry]
 url = "https://api.apr.dev"

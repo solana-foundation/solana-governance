@@ -8,7 +8,7 @@ export const useMDXComponents = (components) => ({
 });
 
 // RepoLink component removed - use regular markdown links instead
-// Example: [link text](https://github.com/3uild-3thos/govcontract/blob/main/path/to/file.rs)
+// Example: [link text](https://github.com/3uild-3thos/svmgov_program/blob/main/path/to/file.rs)
 
 // ArgTable component for displaying command arguments
 export const ArgTable = ({ children }) => {

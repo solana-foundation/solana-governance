@@ -8,7 +8,7 @@ use log::info;
 
 use crate::{
     constants::*,
-    govcontract::{accounts::Proposal, client::{accounts, args}},
+    svmgov_program::{accounts::Proposal, client::{accounts, args}},
     utils::{
         api_helpers::{self, get_vote_account_proof},
         utils::{create_spinner, derive_vote_override_cache_pda, derive_vote_pda, setup_all},

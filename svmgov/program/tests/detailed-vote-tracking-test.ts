@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { Govcontract } from "../target/types/govcontract";
+import { SvmgovProgram } from "../target/types/svmgov_program";
 import { MockGovV1 } from "../target/types/mock_gov_v1";
 import { randomBytes } from "crypto";
 import { LAMPORTS_PER_SOL, StakeProgram, SystemProgram } from "@solana/web3.js";
@@ -20,7 +20,7 @@ import {
 
 // Helper function to log account states with unique identifiers
 async function logAccountStates(
-  program: Program<Govcontract>,
+  program: Program<SvmgovProgram>,
   testAccounts: TestAccounts,
   stepName: string,
   voteOverrideAccount?: anchor.web3.PublicKey,
@@ -189,7 +189,7 @@ describe.only("Detailed Vote Tracking Test", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
-  const program = anchor.workspace.govcontract as Program<Govcontract>;
+  const program = anchor.workspace.svmgov_program as Program<SvmgovProgram>;
   const mockProgram = anchor.workspace.mock_gov_v1 as Program<MockGovV1>;
 
   const seed = new anchor.BN(randomBytes(8));

@@ -13,9 +13,9 @@ use textwrap::wrap;
 
 use crate::{
     constants::*,
-    govcontract::{
+    svmgov_program::{
         accounts::{Proposal, Vote},
-        program::Govcontract,
+        program::SvmgovProgram,
     },
 };
 
@@ -51,7 +51,7 @@ pub async fn setup_all(
 
     // Step 3: Create the Anchor client and program
     let client = Client::new(cluster.clone(), identity_keypair_arc.clone());
-    let program = client.program(Govcontract::id())?;
+    let program = client.program(SvmgovProgram::id())?;
 
     let merkle_proof_program = client.program(gov_v1::id())?;
     // Step 4: Find the vote account using the program's RpcClient
@@ -88,7 +88,7 @@ pub fn setup_all_with_staker(
 
     // Step 3: Create the Anchor client and program
     let client = Client::new(cluster.clone(), staker_keypair_arc.clone());
-    let program = client.program(Govcontract::id())?;
+    let program = client.program(SvmgovProgram::id())?;
 
     let merkle_proof_program = client.program(gov_v1::id())?;
 
@@ -273,7 +273,7 @@ pub fn anchor_client_setup(
 
     // Create the Anchor client
     let client = Client::new(cluster, payer.clone());
-    let program = client.program(Govcontract::id())?;
+    let program = client.program(SvmgovProgram::id())?;
     Ok(program)
 }
 

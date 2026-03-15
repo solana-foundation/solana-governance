@@ -1,7 +1,7 @@
 {
   "address": "EKwRPoyRactBV2z2XhUSVU1YbZuyTVq4kU5U5dM2JyZY",
   "metadata": {
-    "name": "govcontract",
+    "name": "svmgov_program",
     "version": "0.1.0",
     "spec": "0.1.0",
     "description": "Created with Anchor"

@@ -7,7 +7,7 @@ use gov_v1::ID as SNAPSHOT_PROGRAM_ID;
 
 use crate::{
     constants::{DISCUSSION_EPOCHS, SNAPSHOT_EPOCH_EXTENSION},
-    govcontract::client::{accounts, args},
+    svmgov_program::client::{accounts, args},
     utils::utils::{
         create_spinner, derive_program_config_pda, derive_support_pda, get_epoch_slot_range,
         setup_all,

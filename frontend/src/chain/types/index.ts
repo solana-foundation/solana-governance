@@ -1,7 +1,7 @@
 export * from "./inferredTypes";
-export * from "./govcontractV2";
+export * from "./svmgov_programV2";
 export * from "./gov-v1";
 
 // DEPRECATED
-export * from "./OLD.govcontract";
+export * from "./OLD.svmgov_program";
 export * from "./OLD.inferredTypes";
