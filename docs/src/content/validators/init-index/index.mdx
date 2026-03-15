@@ -1,0 +1,37 @@
+# Initialize Index
+
+Initialize the proposal index PDA. This is a one-time setup that must be run before creating any proposals.
+
+## Description
+
+The proposal index PDA tracks all proposals created in the governance program. This command initializes it and must be executed once before any proposals can be created.
+
+## Arguments
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| None | - | - | - | This command takes no arguments |
+
+## Global Arguments
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `--identity-keypair`, `-i` | String | No | `SVMGOV_KEY` env var | Path to identity keypair JSON file |
+| `--rpc-url`, `-r` | String | No | `SVMGOV_RPC` env var | Custom RPC URL |
+
+> Using config: When `~/.svmgov/config.toml` is set (via `svmgov init`), you typically don't need to pass `--identity-keypair` or `--rpc-url`.
+
+## Example
+
+```bash
+# With config (recommended)
+svmgov init-index
+
+# Without config (explicit flags)
+svmgov --identity-keypair /path/to/key.json --rpc-url https://api.mainnet-beta.solana.com init-index
+```
+
+## Related
+
+- [Create Proposal](/validators/create-proposal) - Create a new proposal (requires index to be initialized)
+

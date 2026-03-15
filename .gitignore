@@ -1,2 +1,16 @@
 
 .vscode
+.DS_Store
+
+# Rust
+target/
+
+# Node
+node_modules/
+.next/
+
+# Anchor
+.anchor/
+
+# Env
+.env

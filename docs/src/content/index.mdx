@@ -1,0 +1,207 @@
+# svmgov Governance CLI
+
+Welcome to the svmgov Governance CLI documentation. svmgov is a command-line interface tool designed for Solana validators and delegators to interact with the Solana Validator Governance program.
+
+## What is svmgov?
+
+svmgov enables validators and delegators to:
+
+- **Create governance proposals** - Validators can propose new governance rules
+- **Support proposals** - Validators can support proposals to help them reach the cluster support threshold
+- **Cast votes** - Validators can vote on active proposals
+- **Override votes** - Delegators can override their validator's vote using stake account verification
+- **View proposals and votes** - List and inspect governance proposals and votes
+
+## Installation
+
+### Using the Install Script (Recommended)
+
+Run the install script from the `svmgov` directory:
+
+```bash
+git clone https://github.com/3uild-3thos/govcontract.git
+cd govcontract/svmgov
+./install.sh
+```
+
+### Installation Paths
+
+The binary is installed to one of the following locations based on write permissions:
+
+| Location                | Condition                                       |
+| ----------------------- | ----------------------------------------------- |
+| `/usr/local/bin/svmgov` | If `/usr/local/bin` is writable                 |
+| `~/.local/bin/svmgov`   | Fallback location (added to PATH automatically) |
+
+The installer will automatically update your shell configuration (`~/.bashrc`, `~/.zshrc`, or `~/.config/fish/config.fish`) to include the install directory in your PATH.
+
+### Manual Build
+
+Or build from source manually:
+
+```bash
+git clone https://github.com/3uild-3thos/govcontract.git
+cd govcontract/svmgov
+cargo build --release
+# Binary will be at ./target/release/svmgov
+```
+
+### Verify Installation
+
+After installation, reload your shell and verify:
+
+```bash
+source ~/.zshrc    # or ~/.bashrc
+svmgov --version
+```
+
+## Configuration
+
+svmgov stores its configuration at `~/.svmgov/config.toml`.
+
+### Environment Variables
+
+svmgov also supports environment variables for global options:
+
+- `SVMGOV_KEY` - Path to identity keypair (equivalent to `--identity-keypair`)
+- `SVMGOV_RPC` - RPC URL (equivalent to `--rpc-url`)
+
+svmgov resolves values in this order: **explicit flags > environment variables > config file > built-in defaults**.
+
+## Documentation Structure
+
+This documentation is organized by user type:
+
+- **[For Validators](/validators)** - Commands for validators to create proposals, support proposals, and cast votes
+- **[For Stakers](/stakers)** - Commands for delegators to override validator votes
+- **[Reference](/reference)** - Detailed reference for arguments and configuration
+
+## Quick Start (Recommended)
+
+svmgov reads a global config stored at `~/.svmgov/config.toml`. Configure it once, then run commands without repeating flags.
+
+### Step 1: Initialize Configuration
+
+Run the interactive setup:
+
+```bash
+svmgov init
+```
+
+The init process will guide you through:
+
+1. **User Type Selection**: Choose between `Validator` or `Staker`
+
+   - **Validator**: For those running a Solana validator node
+   - **Staker**: For those who delegate stake to validators
+
+2. **Keypair Configuration**:
+
+   - **Validators**: Path to your validator identity keypair (default: `~/.config/solana/id.json`)
+   - **Stakers**: Path to your staker keypair (default: `~/.config/solana/id.json`)
+
+3. **Network Selection**: Choose `mainnet` or `testnet`
+
+Example init flow:
+
+```
+$ svmgov init
+Welcome to svmgov CLI setup!
+
+> Are you a validator or staker? Validator
+> Enter the path to your validator identity keypair (default: ~/.config/solana/id.json): /path/to/validator-keypair.json
+> Which network do you want to use by default? mainnet
+
+✓ Configuration saved successfully!
+  User type: Validator
+  Network: mainnet
+  Keypair path: /path/to/validator-keypair.json
+
+You can update your configuration anytime using 'svmgov config'
+```
+
+The config file created at `~/.svmgov/config.toml` looks like:
+
+```toml
+user_type = "Validator"
+identity_keypair_path = "/path/to/validator.json"
+network = "mainnet"
+rpc_url = "https://api.mainnet-beta.solana.com"
+operator_api_url = "https://operator.example.com"
+```
+
+### Step 2: Set the Operator API URL (Required)
+
+Before using commands that fetch stake/proof data, you **must** set the operator API URL:
+
+```bash
+svmgov config set operator-api-url https://your-operator-api.example.com
+```
+
+### Step 3: Adjust Configuration (Optional)
+
+You can adjust any value later using the config command:
+
+```bash
+# Show entire config
+svmgov config show
+
+# Get a specific value
+svmgov config get network
+
+# Set values
+svmgov config set network mainnet
+svmgov config set rpc-url https://api.mainnet-beta.solana.com
+
+# Keypair depends on user type selected during init
+svmgov config set identity-keypair /path/to/validator.json   # for validators
+svmgov config set staker-keypair /path/to/staker.json        # for stakers
+```
+
+### Step 4: Run Commands
+
+Now you can run commands without repeating flags:
+
+```bash
+# List proposals using defaults from ~/.svmgov/config.toml
+svmgov list-proposals
+
+# Create a proposal (validators)
+svmgov create-proposal \
+  --title "Update Fee Structure" \
+  --description "https://github.com/repo/issue/123" \
+  --network mainnet
+
+# Cast a vote (validators)
+svmgov cast-vote \
+  --proposal-id <ID> \
+  --for-votes 7000 --against-votes 2000 --abstain-votes 1000 \
+  --network mainnet
+
+# Override a vote (stakers)
+svmgov cast-vote-override \
+  --proposal-id <ID> \
+  --for-votes 6000 --against-votes 3000 --abstain-votes 1000 \
+  --stake-account <STAKE_PUBKEY> \
+  --network mainnet
+```
+
+**Notes:**
+
+- The CLI merges sources in this order: explicit flags > environment variables > config file > built-in defaults.
+- `svmgov config set` supports keys: `network`, `rpc-url`, `operator-api-url`, `identity-keypair`, `staker-keypair`.
+- The `operator-api-url` is **required** and must be set before using commands that fetch stake/proof data.
+
+## Getting Help
+
+For command-specific help, use:
+
+```bash
+svmgov <command> --help
+```
+
+For example:
+```bash
+svmgov create-proposal --help
+```
+

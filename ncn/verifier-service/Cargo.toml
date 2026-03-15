@@ -1,0 +1,45 @@
+[package]
+name = "verifier-service"
+version = "0.1.6"
+edition = "2021"
+build = "build.rs"
+
+[[bin]]
+name = "verifier-service"
+path = "src/main.rs"
+
+[[bin]]
+name = "verifier-loadtest"
+path = "src/bin/loadtest.rs"
+
+[dependencies]
+axum = { version = "0.8.4", features = ["multipart"] }
+tokio = { version = "1.0", features = ["full"] }
+tower = "0.5.2"
+tower-http = { version = "0.6.6", features = ["cors", "trace"] }
+tower_governor = "0.7.0"
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "chrono"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"] }
+rand = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1.0"
+thiserror = "2.0.12"
+flate2 = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+log = { workspace = true }
+env_logger = { workspace = true }
+anchor-lang = { workspace = true }
+solana-sdk = { workspace = true }
+gov-v1 = { path = "../programs/gov-v1" }
+borsh = { version = "1.5.7" }
+bs58 = "0.5"
+meta-merkle-tree = { workspace = true }
+cli = { path = "../cli"}
+once_cell = "1"
+sysinfo = { version = "0.30", default-features = false, features = ["multithread"] }
+
+[dev-dependencies]
+serial_test = "3.0"

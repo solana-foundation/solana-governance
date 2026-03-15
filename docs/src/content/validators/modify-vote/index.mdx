@@ -1,0 +1,52 @@
+# Modify Vote
+
+Modify an existing vote on an active governance proposal.
+
+## Description
+
+This command allows a validator to update their existing vote on a proposal. The vote allocation can be changed as long as the proposal is still in the voting phase.
+
+## Arguments
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `--proposal-id` | String | Yes | - | The proposal's ID (PDA) |
+| `--for-votes` | u64 | Yes | - | Basis points for 'For' vote (0-10000) |
+| `--against-votes` | u64 | Yes | - | Basis points for 'Against' vote (0-10000) |
+| `--abstain-votes` | u64 | Yes | - | Basis points for 'Abstain' vote (0-10000) |
+| `--network` | String | Yes | - | Network for fetching merkle proofs (e.g., `mainnet`, `testnet`) |
+
+## Global Arguments
+
+| Name | Type | Required | Default | Description |
+|------|----------|---------|-------------|
+| `--identity-keypair`, `-i` | String | No | `SVMGOV_KEY` env var | Path to identity keypair JSON file |
+| `--rpc-url`, `-r` | String | No | `SVMGOV_RPC` env var | Custom RPC URL |
+
+> Using config: With `~/.svmgov/config.toml`, identity and RPC URL are resolved automatically. Pass `--network` only to override the configured default.
+
+## Example
+
+```bash
+# With config (recommended)
+svmgov modify-vote \
+  --proposal-id "ABC123..." \
+  --for-votes 8000 \
+  --against-votes 1000 \
+  --abstain-votes 1000 \
+  --network mainnet
+
+# Without config (explicit flags)
+svmgov modify-vote \
+  --proposal-id "ABC123..." \
+  --for-votes 8000 \
+  --against-votes 1000 \
+  --abstain-votes 1000 \
+  --network mainnet \
+  --identity-keypair /path/to/key.json
+```
+
+## Related Smart Contract
+
+See [modify_vote.rs](https://github.com/3uild-3thos/govcontract/blob/main/contract/programs/govcontract/src/instructions/modify_vote.rs) in the smart contract.
+

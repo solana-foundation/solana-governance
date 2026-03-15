@@ -1,0 +1,23 @@
+[package]
+name = "gov-v1"
+version = "1.0.0"
+description = "Governance NCN Voting Program"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "gov_v1"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+skip-pda-check = []
+
+
+[dependencies]
+anchor-lang = { workspace = true }
+

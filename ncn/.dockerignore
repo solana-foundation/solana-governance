@@ -1,0 +1,23 @@
+target/
+**/target/
+.git
+.github
+tmp
+**/tmp
+test-ledger
+**/test-ledger
+deps/**
+programs/**
+!programs/gov-v1/**
+*.log
+**/*.rs.bk
+**/.DS_Store
+**/node_modules
+**/dist
+**/build
+**/.env
+**/.env.*
+**/.cache
+
+# Keep the release binary for docker runtime build
+!target/release/verifier-service

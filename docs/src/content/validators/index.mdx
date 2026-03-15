@@ -1,0 +1,30 @@
+# For Validators
+
+Commands available to validators for creating and managing governance proposals.
+
+## Available Commands
+
+- **[Initialize Index](/validators/init-index)** - Initialize the proposal index PDA (one-time setup)
+- **[Create Proposal](/validators/create-proposal)** - Create a new governance proposal
+- **[Support Proposal](/validators/support-proposal)** - Support an existing proposal
+- **[Cast Vote](/validators/cast-vote)** - Cast a vote on an active proposal
+- **[Modify Vote](/validators/modify-vote)** - Modify an existing vote
+- **[Finalize Proposal](/validators/finalize-proposal)** - Finalize a proposal after voting ends
+- **[Proposal](/validators/proposal)** - Display a specific proposal's details
+- **[List Proposals](/validators/list-proposals)** - List all governance proposals
+
+## Requirements
+
+- Validator identity keypair with sufficient stake
+- For creating proposals: minimum 100,000 SOL staked
+- Access to Solana RPC endpoint
+
+## Global Arguments
+
+All commands support these global arguments:
+
+- `--identity-keypair <PATH>` (or `-i`) - Path to identity keypair JSON file
+- `--rpc-url <URL>` (or `-r`) - Custom RPC URL
+
+These can also be set via environment variables `SVMGOV_KEY` and `SVMGOV_RPC`.
+

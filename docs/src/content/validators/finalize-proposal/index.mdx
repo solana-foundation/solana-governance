@@ -1,0 +1,41 @@
+# Finalize Proposal
+
+Finalize a proposal after its voting period has ended.
+
+## Description
+
+This command finalizes a governance proposal after its voting period has ended. Once finalized, the proposal's results are locked and cannot be changed.
+
+## Arguments
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `--proposal-id` | String | Yes | - | The proposal's ID (PDA) to finalize |
+
+## Global Arguments
+
+| Name | Type | Required | Default | Description |
+|------|----------|---------|-------------|
+| `--identity-keypair`, `-i` | String | No | `SVMGOV_KEY` env var | Path to identity keypair JSON file |
+| `--rpc-url`, `-r` | String | No | `SVMGOV_RPC` env var | Custom RPC URL |
+
+> Using config: With `~/.svmgov/config.toml`, identity and RPC URL are resolved automatically.
+
+## Example
+
+```bash
+# With config (recommended)
+svmgov finalize-proposal \
+  --proposal-id "ABC123..."
+
+# Without config (explicit flags)
+svmgov finalize-proposal \
+  --proposal-id "ABC123..." \
+  --identity-keypair /path/to/key.json \
+  --rpc-url https://api.mainnet-beta.solana.com
+```
+
+## Related Smart Contract
+
+See [finalize_proposal.rs](https://github.com/3uild-3thos/govcontract/blob/main/contract/programs/govcontract/src/instructions/finalize_proposal.rs) in the smart contract.
+

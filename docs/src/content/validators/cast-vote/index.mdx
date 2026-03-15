@@ -1,0 +1,67 @@
+# Cast Vote
+
+Cast a vote on an active governance proposal.
+
+## Description
+
+This command allows a validator to cast a vote on an active proposal. Votes are allocated using basis points (bp), where 10,000 basis points equals 100% of the validator's stake. The allocation must be split across three options: For, Against, and Abstain.
+
+## Arguments
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `--proposal-id` | String | Yes | - | The proposal's ID (PDA) |
+| `--for-votes` | u64 | Yes | - | Basis points for 'For' vote (0-10000) |
+| `--against-votes` | u64 | Yes | - | Basis points for 'Against' vote (0-10000) |
+| `--abstain-votes` | u64 | Yes | - | Basis points for 'Abstain' vote (0-10000) |
+| `--network` | String | Yes | - | Network for fetching merkle proofs (e.g., `mainnet`, `testnet`) |
+
+## Global Arguments
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `--identity-keypair`, `-i` | String | No | `SVMGOV_KEY` env var | Path to identity keypair JSON file |
+| `--rpc-url`, `-r` | String | No | `SVMGOV_RPC` env var | Custom RPC URL |
+
+> Using config: With `~/.svmgov/config.toml`, identity and RPC URL are resolved automatically. Pass `--network` only to override the configured default.
+
+## Requirements
+
+- Proposal must be in voting phase (activated after reaching 5% cluster support)
+- `for_votes + against_votes + abstain_votes` must equal **10,000** (100%)
+- Validator must not have already voted on this proposal
+
+## Examples
+
+```bash
+# With config (recommended) — 70% For, 20% Against, 10% Abstain
+svmgov cast-vote \
+  --proposal-id "ABC123..." \
+  --for-votes 7000 \
+  --against-votes 2000 \
+  --abstain-votes 1000 \
+  --network mainnet
+
+# Without config (explicit flags) — 60% For, 30% Against, 10% Abstain
+svmgov cast-vote \
+  --proposal-id "ABC123..." \
+  --for-votes 6000 \
+  --against-votes 3000 \
+  --abstain-votes 1000 \
+  --network mainnet \
+  --identity-keypair /path/to/key.json
+```
+
+## Vote Allocation
+
+Basis points represent percentages:
+- 10,000 bp = 100% of stake
+- 7,000 bp = 70% of stake
+- 1,000 bp = 10% of stake
+
+Example: A validator with 100 SOL staked allocating 7,000 bp to "For" means 70 SOL (70%) supports the proposal.
+
+## Related Smart Contract
+
+See [cast_vote.rs](https://github.com/3uild-3thos/govcontract/blob/main/contract/programs/govcontract/src/instructions/cast_vote.rs) in the smart contract.
+

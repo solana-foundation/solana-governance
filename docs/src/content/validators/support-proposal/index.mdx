@@ -1,0 +1,50 @@
+# Support Proposal
+
+Support an existing proposal to help it reach the cluster support threshold.
+
+## Description
+
+This command allows a validator to support a governance proposal. Each validator's support contributes to the proposal's cluster support. Voting activates when the proposal reaches **500 basis points (5%)** of total cluster support.
+
+## Arguments
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `--proposal-id` | String | Yes | - | The proposal's ID (PDA) to support |
+| `--network` | String | Yes | - | Network for fetching merkle proofs (e.g., `mainnet`, `testnet`) |
+
+## Global Arguments
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `--identity-keypair`, `-i` | String | No | `SVMGOV_KEY` env var | Path to identity keypair JSON file |
+| `--rpc-url`, `-r` | String | No | `SVMGOV_RPC` env var | Custom RPC URL |
+
+> Using config: When `~/.svmgov/config.toml` is set (via `svmgov init`), identity keypair and RPC URL are read from config. Only pass `--network` if you want to override the configured default.
+
+## Example
+
+```bash
+# With config (recommended)
+svmgov support-proposal \
+  --proposal-id "ABC123..." \
+  --network mainnet
+
+# Without config (explicit flags)
+svmgov support-proposal \
+  --proposal-id "ABC123..." \
+  --network mainnet \
+  --identity-keypair /path/to/key.json \
+  --rpc-url https://api.mainnet-beta.solana.com
+```
+
+## Notes
+
+- Each validator's support contributes their stake weight to the proposal's cluster support
+- Once a proposal reaches 5% cluster support, voting is automatically activated
+- The proposal's `snapshot_slot` and `consensus_result` are set during the first support
+
+## Related Smart Contract
+
+See [support_proposal.rs](https://github.com/3uild-3thos/govcontract/blob/main/contract/programs/govcontract/src/instructions/support_proposal.rs) in the smart contract.
+
