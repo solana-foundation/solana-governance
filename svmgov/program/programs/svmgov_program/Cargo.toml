@@ -1,0 +1,21 @@
+[package]
+name = "svmgov_program"
+version = "0.1.0"
+description = "Created with Anchor"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "svmgov_program"
+
+[features]
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+
+[dependencies]
+anchor-lang = { version = "0.31.1", features = ["init-if-needed"]}
+gov-v1 = { git = "https://github.com/dhruvsol/gov-v1-testnet", branch = "update-3.0-testnet",features = ["cpi"] }
+

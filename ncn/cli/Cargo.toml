@@ -1,0 +1,29 @@
+[package]
+name = "cli"
+version = "1.0.0"
+edition = "2021"
+
+[dependencies]
+anchor-client = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+meta-merkle-tree = { workspace = true }
+tip-router-operator-cli = { workspace = true }
+solana-accounts-db = { workspace = true }
+solana-runtime = { workspace = true }
+solana-program = { workspace = true }
+solana-vote-program = { workspace = true }
+solana-vote = { workspace = true }
+solana-sdk = { workspace = true }
+solana-stake-interface = { workspace = true }
+anchor-lang = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+flate2 = "1.0"
+tokio = { version = "1.36.0", features = ["full"] }
+anyhow = "1.0.86"
+im = "15.1"
+itertools = "0.11"
+borsh = { version = "0.10.3" }
+ncn-snapshot = { path = "../programs/ncn-snapshot" }
+spl-stake-pool = { version = "2.0.0", default-features = false, features = ["no-entrypoint"] }
+borsh_stake = { package = "borsh", version = "1.5", default-features = false }

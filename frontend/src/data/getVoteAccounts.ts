@@ -11,7 +11,7 @@ export const getVoteAccounts = async (
 
   // TODO: implement filter. we cant fetch all vote accounts at once.
   // fetch vote accounts for a specific proposals or stake account owner only
-  //  (stake account owner to be added to contract, revisit this method once contract is updated)
+  //  (stake account owner to be added to program, revisit this method once program is updated)
   const voteAccs = await program.account.vote.all();
 
   return voteAccs.map(mapVoteAccountDto);

@@ -21,7 +21,7 @@ export default withSentryConfig(nextConfig, {
 
   org: "turbin3",
 
-  project: "govcontract",
+  project: "svmgov_program",
 
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,

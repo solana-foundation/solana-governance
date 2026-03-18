@@ -27,7 +27,7 @@ export const getProposalVoteOverrides = async (
   const proposalOverrides = await program.account.voteOverride.all([
     {
       memcmp: {
-        // Offset updated according to latest govcontract.json.
+        // Offset updated according to latest svmgov_program.json.
         // Now: 8 (discriminator) + 32 (stakeAccount) + 32 (validator) + 1 (bump) = 73
         offset: 104,
         bytes: proposalPublicKey.toBase58(),

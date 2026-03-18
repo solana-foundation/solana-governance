@@ -1,0 +1,2064 @@
+{
+  "address": "EKwRPoyRactBV2z2XhUSVU1YbZuyTVq4kU5U5dM2JyZY",
+  "metadata": {
+    "name": "svmgov_program",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "adjust_proposal_timing",
+      "discriminator": [
+        82,
+        66,
+        219,
+        217,
+        123,
+        150,
+        223,
+        224
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "proposal",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "creation_timestamp",
+          "type": {
+            "option": "i64"
+          }
+        },
+        {
+          "name": "creation_epoch",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "start_epoch",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "end_epoch",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "snapshot_slot",
+          "type": {
+            "option": "u64"
+          }
+        }
+      ]
+    },
+    {
+      "name": "cast_vote",
+      "discriminator": [
+        20,
+        212,
+        15,
+        189,
+        69,
+        180,
+        69,
+        151
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "proposal",
+          "writable": true
+        },
+        {
+          "name": "vote",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "proposal"
+              },
+              {
+                "kind": "account",
+                "path": "spl_vote_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "spl_vote_account"
+        },
+        {
+          "name": "vote_override_cache",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101,
+                  95,
+                  111,
+                  118,
+                  101,
+                  114,
+                  114,
+                  105,
+                  100,
+                  101,
+                  95,
+                  99,
+                  97,
+                  99,
+                  104,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "proposal"
+              },
+              {
+                "kind": "account",
+                "path": "vote"
+              }
+            ]
+          }
+        },
+        {
+          "name": "snapshot_program"
+        },
+        {
+          "name": "consensus_result"
+        },
+        {
+          "name": "meta_merkle_proof"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "for_votes_bp",
+          "type": "u64"
+        },
+        {
+          "name": "against_votes_bp",
+          "type": "u64"
+        },
+        {
+          "name": "abstain_votes_bp",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "cast_vote_override",
+      "discriminator": [
+        225,
+        8,
+        137,
+        98,
+        214,
+        156,
+        183,
+        62
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "proposal",
+          "writable": true
+        },
+        {
+          "name": "validator_vote",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "proposal"
+              },
+              {
+                "kind": "account",
+                "path": "spl_vote_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "spl_vote_account"
+        },
+        {
+          "name": "vote_override",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101,
+                  95,
+                  111,
+                  118,
+                  101,
+                  114,
+                  114,
+                  105,
+                  100,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "proposal"
+              },
+              {
+                "kind": "account",
+                "path": "spl_stake_account"
+              },
+              {
+                "kind": "account",
+                "path": "validator_vote"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vote_override_cache",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101,
+                  95,
+                  111,
+                  118,
+                  101,
+                  114,
+                  114,
+                  105,
+                  100,
+                  101,
+                  95,
+                  99,
+                  97,
+                  99,
+                  104,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "proposal"
+              },
+              {
+                "kind": "account",
+                "path": "validator_vote"
+              }
+            ]
+          }
+        },
+        {
+          "name": "spl_stake_account"
+        },
+        {
+          "name": "snapshot_program"
+        },
+        {
+          "name": "consensus_result"
+        },
+        {
+          "name": "meta_merkle_proof"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "for_votes_bp",
+          "type": "u64"
+        },
+        {
+          "name": "against_votes_bp",
+          "type": "u64"
+        },
+        {
+          "name": "abstain_votes_bp",
+          "type": "u64"
+        },
+        {
+          "name": "stake_merkle_proof",
+          "type": {
+            "vec": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        },
+        {
+          "name": "stake_merkle_leaf",
+          "type": {
+            "defined": {
+              "name": "StakeMerkleLeaf"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "create_proposal",
+      "discriminator": [
+        132,
+        116,
+        68,
+        174,
+        216,
+        160,
+        198,
+        22
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "proposal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  112,
+                  111,
+                  115,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "seed"
+              },
+              {
+                "kind": "account",
+                "path": "spl_vote_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "proposal_index",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  110,
+                  100,
+                  101,
+                  120
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "spl_vote_account"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "seed",
+          "type": "u64"
+        },
+        {
+          "name": "title",
+          "type": "string"
+        },
+        {
+          "name": "description",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "finalize_proposal",
+      "discriminator": [
+        23,
+        68,
+        51,
+        167,
+        109,
+        173,
+        187,
+        164
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "signer": true
+        },
+        {
+          "name": "proposal",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "flush_merkle_root",
+      "discriminator": [
+        10,
+        71,
+        17,
+        246,
+        162,
+        57,
+        144,
+        87
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "proposal",
+          "writable": true
+        },
+        {
+          "name": "spl_vote_account"
+        },
+        {
+          "name": "ballot_box"
+        },
+        {
+          "name": "ballot_program"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_index",
+      "discriminator": [
+        204,
+        67,
+        3,
+        74,
+        139,
+        139,
+        233,
+        10
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "proposal_index",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  110,
+                  100,
+                  101,
+                  120
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "modify_vote",
+      "discriminator": [
+        116,
+        52,
+        102,
+        0,
+        121,
+        145,
+        27,
+        139
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "signer": true
+        },
+        {
+          "name": "proposal",
+          "writable": true
+        },
+        {
+          "name": "vote",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "proposal"
+              },
+              {
+                "kind": "account",
+                "path": "spl_vote_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "spl_vote_account"
+        },
+        {
+          "name": "snapshot_program"
+        },
+        {
+          "name": "consensus_result"
+        },
+        {
+          "name": "meta_merkle_proof"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "for_votes_bp",
+          "type": "u64"
+        },
+        {
+          "name": "against_votes_bp",
+          "type": "u64"
+        },
+        {
+          "name": "abstain_votes_bp",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "modify_vote_override",
+      "discriminator": [
+        42,
+        54,
+        123,
+        87,
+        239,
+        152,
+        22,
+        186
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "signer": true
+        },
+        {
+          "name": "proposal",
+          "writable": true
+        },
+        {
+          "name": "validator_vote",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "proposal"
+              },
+              {
+                "kind": "account",
+                "path": "spl_vote_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "spl_vote_account"
+        },
+        {
+          "name": "vote_override",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101,
+                  95,
+                  111,
+                  118,
+                  101,
+                  114,
+                  114,
+                  105,
+                  100,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "proposal"
+              },
+              {
+                "kind": "account",
+                "path": "spl_stake_account"
+              },
+              {
+                "kind": "account",
+                "path": "validator_vote"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vote_override_cache",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101,
+                  95,
+                  111,
+                  118,
+                  101,
+                  114,
+                  114,
+                  105,
+                  100,
+                  101,
+                  95,
+                  99,
+                  97,
+                  99,
+                  104,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "proposal"
+              },
+              {
+                "kind": "account",
+                "path": "validator_vote"
+              }
+            ]
+          }
+        },
+        {
+          "name": "spl_stake_account"
+        },
+        {
+          "name": "snapshot_program"
+        },
+        {
+          "name": "consensus_result"
+        },
+        {
+          "name": "meta_merkle_proof"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "for_votes_bp",
+          "type": "u64"
+        },
+        {
+          "name": "against_votes_bp",
+          "type": "u64"
+        },
+        {
+          "name": "abstain_votes_bp",
+          "type": "u64"
+        },
+        {
+          "name": "stake_merkle_proof",
+          "type": {
+            "vec": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        },
+        {
+          "name": "stake_merkle_leaf",
+          "type": {
+            "defined": {
+              "name": "StakeMerkleLeaf"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "support_proposal",
+      "discriminator": [
+        95,
+        239,
+        233,
+        199,
+        201,
+        62,
+        90,
+        27
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "proposal",
+          "writable": true
+        },
+        {
+          "name": "support",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  117,
+                  112,
+                  112,
+                  111,
+                  114,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "proposal"
+              },
+              {
+                "kind": "account",
+                "path": "spl_vote_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "spl_vote_account"
+        },
+        {
+          "name": "ballot_box",
+          "writable": true
+        },
+        {
+          "name": "ballot_program"
+        },
+        {
+          "name": "program_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  80,
+                  114,
+                  111,
+                  103,
+                  114,
+                  97,
+                  109,
+                  67,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "ballot_program"
+            }
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Proposal",
+      "discriminator": [
+        26,
+        94,
+        189,
+        187,
+        116,
+        136,
+        53,
+        33
+      ]
+    },
+    {
+      "name": "ProposalIndex",
+      "discriminator": [
+        83,
+        97,
+        143,
+        58,
+        176,
+        46,
+        177,
+        195
+      ]
+    },
+    {
+      "name": "Support",
+      "discriminator": [
+        247,
+        108,
+        3,
+        111,
+        84,
+        51,
+        217,
+        107
+      ]
+    },
+    {
+      "name": "Vote",
+      "discriminator": [
+        96,
+        91,
+        104,
+        57,
+        145,
+        35,
+        172,
+        155
+      ]
+    },
+    {
+      "name": "VoteOverride",
+      "discriminator": [
+        130,
+        93,
+        172,
+        50,
+        168,
+        151,
+        176,
+        188
+      ]
+    },
+    {
+      "name": "VoteOverrideCache",
+      "discriminator": [
+        195,
+        82,
+        50,
+        219,
+        140,
+        34,
+        108,
+        57
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "MerkleRootFlushed",
+      "discriminator": [
+        120,
+        37,
+        53,
+        216,
+        119,
+        172,
+        17,
+        144
+      ]
+    },
+    {
+      "name": "ProposalCreated",
+      "discriminator": [
+        186,
+        8,
+        160,
+        108,
+        81,
+        13,
+        51,
+        206
+      ]
+    },
+    {
+      "name": "ProposalFinalized",
+      "discriminator": [
+        159,
+        104,
+        210,
+        220,
+        86,
+        209,
+        61,
+        51
+      ]
+    },
+    {
+      "name": "ProposalSupported",
+      "discriminator": [
+        248,
+        220,
+        71,
+        30,
+        127,
+        209,
+        67,
+        231
+      ]
+    },
+    {
+      "name": "ProposalTimingAdjusted",
+      "discriminator": [
+        151,
+        58,
+        224,
+        49,
+        142,
+        133,
+        182,
+        107
+      ]
+    },
+    {
+      "name": "VoteCast",
+      "discriminator": [
+        39,
+        53,
+        195,
+        104,
+        188,
+        17,
+        225,
+        213
+      ]
+    },
+    {
+      "name": "VoteModified",
+      "discriminator": [
+        192,
+        64,
+        130,
+        9,
+        210,
+        47,
+        57,
+        175
+      ]
+    },
+    {
+      "name": "VoteOverrideCast",
+      "discriminator": [
+        111,
+        204,
+        225,
+        252,
+        254,
+        218,
+        120,
+        236
+      ]
+    },
+    {
+      "name": "VoteOverrideModified",
+      "discriminator": [
+        235,
+        74,
+        153,
+        225,
+        242,
+        72,
+        228,
+        9
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "NotEnoughStake",
+      "msg": "Minimum stake required to create proposal is 100k"
+    },
+    {
+      "code": 6001,
+      "name": "TitleEmpty",
+      "msg": "The title of the proposal cannot be empty"
+    },
+    {
+      "code": 6002,
+      "name": "TitleTooLong",
+      "msg": "The title of the proposal is too long, max 50 char"
+    },
+    {
+      "code": 6003,
+      "name": "DescriptionEmpty",
+      "msg": "The description of the proposal cannot be empty"
+    },
+    {
+      "code": 6004,
+      "name": "DescriptionTooLong",
+      "msg": "The description of the proposal is too long, max 250 char"
+    },
+    {
+      "code": 6005,
+      "name": "DescriptionInvalid",
+      "msg": "The description of the proposal must point to a github link"
+    },
+    {
+      "code": 6006,
+      "name": "InvalidProposalId",
+      "msg": "Invalid proposal ID"
+    },
+    {
+      "code": 6007,
+      "name": "VotingNotStarted",
+      "msg": "Voting on proposal not yet started"
+    },
+    {
+      "code": 6008,
+      "name": "ProposalClosed",
+      "msg": "Proposal closed"
+    },
+    {
+      "code": 6009,
+      "name": "ProposalFinalized",
+      "msg": "Proposal finalized"
+    },
+    {
+      "code": 6010,
+      "name": "InvalidVoteDistribution",
+      "msg": "Vote distribution must add up to 100% in Basis Points"
+    },
+    {
+      "code": 6011,
+      "name": "VotingPeriodNotEnded",
+      "msg": "Voting period not yet ended"
+    },
+    {
+      "code": 6012,
+      "name": "InvalidVoteAccount",
+      "msg": "Invalid vote account, proposal id mismatch"
+    },
+    {
+      "code": 6013,
+      "name": "FailedDeserializeNodePubkey",
+      "msg": "Failed to deserialize node_pubkey from Vote account"
+    },
+    {
+      "code": 6014,
+      "name": "VoteNodePubkeyMismatch",
+      "msg": "Deserialized node_pubkey from Vote accounts does not match"
+    },
+    {
+      "code": 6015,
+      "name": "NotEnoughAccounts",
+      "msg": "Not enough accounts for tally"
+    },
+    {
+      "code": 6016,
+      "name": "InvalidClusterStake",
+      "msg": "Cluster stake cannot be zero"
+    },
+    {
+      "code": 6017,
+      "name": "InvalidStartEpoch",
+      "msg": "Start epoch must be current or future epoch"
+    },
+    {
+      "code": 6018,
+      "name": "InvalidVotingLength",
+      "msg": "Voting length must be bigger than 0"
+    },
+    {
+      "code": 6019,
+      "name": "InvalidVoteAccountVersion",
+      "msg": "Invalid Vote account version"
+    },
+    {
+      "code": 6020,
+      "name": "InvalidVoteAccountSize",
+      "msg": "Invalid Vote account size"
+    },
+    {
+      "code": 6021,
+      "name": "InvalidStakeAccount",
+      "msg": "Stake account invalid"
+    },
+    {
+      "code": 6022,
+      "name": "InvalidStakeState",
+      "msg": "Stake account invalid"
+    },
+    {
+      "code": 6023,
+      "name": "InvalidStakeAccountSize",
+      "msg": "Invalid Stake account size"
+    },
+    {
+      "code": 6024,
+      "name": "InvalidSnapshotProgram",
+      "msg": "Invalid Snapshot program: provided program ID does not match the expected Merkle Verifier Service program"
+    },
+    {
+      "code": 6025,
+      "name": "UnauthorizedMerkleRootUpdate",
+      "msg": "Only the original proposal author can add the merkle root hash"
+    },
+    {
+      "code": 6026,
+      "name": "MerkleRootAlreadySet",
+      "msg": "Merkle root hash is already set for this proposal"
+    },
+    {
+      "code": 6027,
+      "name": "InvalidMerkleRoot",
+      "msg": "Merkle root hash cannot be all zeros"
+    },
+    {
+      "code": 6028,
+      "name": "InvalidSnapshotSlot",
+      "msg": "Invalid snapshot slot: snapshot slot must be less past or current slot"
+    },
+    {
+      "code": 6029,
+      "name": "MustBeOwnedBySnapshotProgram",
+      "msg": "Account must be owned by Snapshot program"
+    },
+    {
+      "code": 6030,
+      "name": "InvalidConsensusResultPDA",
+      "msg": "Invalid consensus result PDA"
+    },
+    {
+      "code": 6031,
+      "name": "CantDeserializeMMPPDA",
+      "msg": "Can't deserialize MetaMerkleProof PDA"
+    },
+    {
+      "code": 6032,
+      "name": "CantDeserializeConsensusResult",
+      "msg": "Can't deserialize ConsensusResult"
+    },
+    {
+      "code": 6033,
+      "name": "CannotModifyAfterStart",
+      "msg": "Cannot modify proposal after voting has started"
+    },
+    {
+      "code": 6034,
+      "name": "VotingLengthTooLong",
+      "msg": "Voting length exceeds maximum allowed epochs"
+    },
+    {
+      "code": 6035,
+      "name": "ArithmeticOverflow",
+      "msg": "Arithmetic overflow occurred"
+    },
+    {
+      "code": 6036,
+      "name": "SnapshotProgramUpgraded",
+      "msg": "Snapshot program has been upgraded, update protection triggered"
+    },
+    {
+      "code": 6037,
+      "name": "MerkleRootNotSet",
+      "msg": "Merkle root hash has not been set for this proposal"
+    },
+    {
+      "code": 6038,
+      "name": "SupportPeriodExpired",
+      "msg": "Support period has expired for this proposal"
+    },
+    {
+      "code": 6039,
+      "name": "ConsensusResultNotSet",
+      "msg": "Consensus result has not been set for this proposal"
+    },
+    {
+      "code": 6040,
+      "name": "Unauthorized",
+      "msg": "Unauthorized: caller is not authorized to perform this action"
+    }
+  ],
+  "types": [
+    {
+      "name": "MerkleRootFlushed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "proposal_id",
+            "type": "pubkey"
+          },
+          {
+            "name": "author",
+            "type": "pubkey"
+          },
+          {
+            "name": "new_snapshot_slot",
+            "type": "u64"
+          },
+          {
+            "name": "flush_timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Proposal",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "author",
+            "docs": [
+              "The public key of the validator who created this proposal"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "title",
+            "type": "string"
+          },
+          {
+            "name": "description",
+            "type": "string"
+          },
+          {
+            "name": "creation_epoch",
+            "type": "u64"
+          },
+          {
+            "name": "start_epoch",
+            "type": "u64"
+          },
+          {
+            "name": "end_epoch",
+            "type": "u64"
+          },
+          {
+            "name": "proposer_stake_weight_bp",
+            "type": "u64"
+          },
+          {
+            "name": "cluster_support_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "for_votes_lamports",
+            "docs": [
+              "Total lamports voted in favor of this proposal"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "against_votes_lamports",
+            "docs": [
+              "Total lamports voted against this proposal"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "abstain_votes_lamports",
+            "docs": [
+              "Total lamports that abstained from voting on this proposal"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "voting",
+            "type": "bool"
+          },
+          {
+            "name": "finalized",
+            "type": "bool"
+          },
+          {
+            "name": "proposal_bump",
+            "type": "u8"
+          },
+          {
+            "name": "creation_timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "vote_count",
+            "type": "u32"
+          },
+          {
+            "name": "index",
+            "type": "u32"
+          },
+          {
+            "name": "consensus_result",
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "snapshot_slot",
+            "docs": [
+              "Slot number when the validator stake snapshot was taken"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "proposal_seed",
+            "type": "u64"
+          },
+          {
+            "name": "vote_account_pubkey",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProposalCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "proposal_id",
+            "type": "pubkey"
+          },
+          {
+            "name": "author",
+            "type": "pubkey"
+          },
+          {
+            "name": "title",
+            "type": "string"
+          },
+          {
+            "name": "description",
+            "type": "string"
+          },
+          {
+            "name": "start_epoch",
+            "type": "u64"
+          },
+          {
+            "name": "end_epoch",
+            "type": "u64"
+          },
+          {
+            "name": "snapshot_slot",
+            "type": "u64"
+          },
+          {
+            "name": "creation_timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProposalFinalized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "proposal_id",
+            "type": "pubkey"
+          },
+          {
+            "name": "finalizer",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_for_votes",
+            "type": "u64"
+          },
+          {
+            "name": "total_against_votes",
+            "type": "u64"
+          },
+          {
+            "name": "total_abstain_votes",
+            "type": "u64"
+          },
+          {
+            "name": "total_votes_count",
+            "type": "u32"
+          },
+          {
+            "name": "finalization_timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProposalIndex",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "current_index",
+            "type": "u32"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProposalSupported",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "proposal_id",
+            "type": "pubkey"
+          },
+          {
+            "name": "supporter",
+            "type": "pubkey"
+          },
+          {
+            "name": "cluster_support_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "voting_activated",
+            "type": "bool"
+          },
+          {
+            "name": "snapshot_slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProposalTimingAdjusted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "proposal_id",
+            "type": "pubkey"
+          },
+          {
+            "name": "author",
+            "type": "pubkey"
+          },
+          {
+            "name": "new_creation_timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "new_creation_epoch",
+            "type": "u64"
+          },
+          {
+            "name": "new_start_epoch",
+            "type": "u64"
+          },
+          {
+            "name": "new_end_epoch",
+            "type": "u64"
+          },
+          {
+            "name": "new_snapshot_slot",
+            "type": "u64"
+          },
+          {
+            "name": "adjustment_timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "StakeMerkleLeaf",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "voting_wallet",
+            "docs": [
+              "Wallet designated for governance voting for the stake account."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "stake_account",
+            "docs": [
+              "The stake account address."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "active_stake",
+            "docs": [
+              "Active delegated stake amount."
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Support",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "proposal",
+            "type": "pubkey"
+          },
+          {
+            "name": "validator",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Vote",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "validator",
+            "type": "pubkey"
+          },
+          {
+            "name": "proposal",
+            "type": "pubkey"
+          },
+          {
+            "name": "for_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "against_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "abstain_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "for_votes_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "against_votes_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "abstain_votes_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "stake",
+            "type": "u64"
+          },
+          {
+            "name": "override_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "vote_timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VoteCast",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "proposal_id",
+            "type": "pubkey"
+          },
+          {
+            "name": "voter",
+            "type": "pubkey"
+          },
+          {
+            "name": "vote_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "for_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "against_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "abstain_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "for_votes_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "against_votes_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "abstain_votes_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "vote_timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VoteModified",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "proposal_id",
+            "type": "pubkey"
+          },
+          {
+            "name": "voter",
+            "type": "pubkey"
+          },
+          {
+            "name": "vote_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "old_for_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "old_against_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "old_abstain_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "new_for_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "new_against_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "new_abstain_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "for_votes_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "against_votes_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "abstain_votes_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "modification_timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VoteOverride",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "delegator",
+            "type": "pubkey"
+          },
+          {
+            "name": "stake_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "validator",
+            "type": "pubkey"
+          },
+          {
+            "name": "proposal",
+            "type": "pubkey"
+          },
+          {
+            "name": "vote_account_validator",
+            "type": "pubkey"
+          },
+          {
+            "name": "for_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "against_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "abstain_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "for_votes_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "against_votes_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "abstain_votes_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "stake_amount",
+            "type": "u64"
+          },
+          {
+            "name": "vote_override_timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VoteOverrideCache",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "validator",
+            "type": "pubkey"
+          },
+          {
+            "name": "proposal",
+            "type": "pubkey"
+          },
+          {
+            "name": "vote_account_validator",
+            "type": "pubkey"
+          },
+          {
+            "name": "for_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "against_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "abstain_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "for_votes_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "against_votes_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "abstain_votes_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "total_stake",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VoteOverrideCast",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "proposal_id",
+            "type": "pubkey"
+          },
+          {
+            "name": "delegator",
+            "type": "pubkey"
+          },
+          {
+            "name": "stake_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "validator",
+            "type": "pubkey"
+          },
+          {
+            "name": "for_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "against_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "abstain_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "for_votes_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "against_votes_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "abstain_votes_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "stake_amount",
+            "type": "u64"
+          },
+          {
+            "name": "vote_timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VoteOverrideModified",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "proposal_id",
+            "type": "pubkey"
+          },
+          {
+            "name": "delegator",
+            "type": "pubkey"
+          },
+          {
+            "name": "stake_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "validator",
+            "type": "pubkey"
+          },
+          {
+            "name": "old_for_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "old_against_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "old_abstain_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "new_for_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "new_against_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "new_abstain_votes_bp",
+            "type": "u64"
+          },
+          {
+            "name": "for_votes_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "against_votes_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "abstain_votes_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "stake_amount",
+            "type": "u64"
+          },
+          {
+            "name": "modification_timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    }
+  ]
+}

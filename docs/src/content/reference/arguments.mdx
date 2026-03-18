@@ -1,0 +1,133 @@
+# Arguments Reference
+
+Complete reference for all command-line arguments used in svmgov.
+
+## Global Arguments
+
+These arguments are available to all commands:
+
+| Name | Short | Type | Required | Default | Description |
+|------|-------|------|----------|---------|-------------|
+| `--identity-keypair` | `-i` | String | No | `SVMGOV_KEY` env var | Path to the identity keypair JSON file |
+| `--rpc-url` | `-r` | String | No | `SVMGOV_RPC` env var | Custom RPC URL for Solana network |
+
+### Environment Variables
+
+You can set these environment variables instead of using flags:
+
+- `SVMGOV_KEY` - Equivalent to `--identity-keypair`
+- `SVMGOV_RPC` - Equivalent to `--rpc-url`
+
+Flags override environment variables if both are provided.
+
+### Resolution order (flags vs env vs config)
+
+svmgov resolves values in this order:
+
+- **Explicit flags** (e.g. `--rpc-url`, `--identity-keypair`)
+- **Environment variables** (`SVMGOV_RPC`, `SVMGOV_KEY`)
+- **Config file** (`~/.svmgov/config.toml`, set via `svmgov init` / `svmgov config`)
+- **Built-in defaults**
+
+## Common Argument Types
+
+### Basis Points
+
+Basis points (bp) represent percentages where:
+- **10,000 bp = 100%**
+- **7,000 bp = 70%**
+- **1,000 bp = 10%**
+
+When voting, basis points must sum to exactly 10,000 (100% of stake).
+
+### Proposal ID
+
+A proposal ID is a Program Derived Address (PDA) represented as a base58-encoded string. You can find proposal IDs using the `list-proposals` command.
+
+### Network
+
+Network identifier for fetching merkle proofs. Common values:
+- `mainnet` - Solana mainnet
+- `testnet` - Solana testnet
+- `devnet` - Solana devnet
+
+### Keypair Paths
+
+Paths to JSON keypair files. These files contain the private key needed to sign transactions.
+
+## Validator Commands Arguments
+
+### Create Proposal
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `--seed` | u64 | No | Random | Unique seed for proposal PDA derivation |
+| `--title` | String | Yes | - | Proposal title (max 50 chars) |
+| `--description` | String | Yes | - | GitHub link (must start with `https://github.com`, max 250 chars) |
+| `--network` | String | Yes | - | Network for merkle proofs |
+
+### Support Proposal
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `--proposal-id` | String | Yes | - | Proposal ID (PDA) |
+| `--network` | String | Yes | - | Network for merkle proofs |
+
+### Cast Vote / Modify Vote
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `--proposal-id` | String | Yes | - | Proposal ID (PDA) |
+| `--for-votes` | u64 | Yes | - | Basis points for 'For' (0-10000) |
+| `--against-votes` | u64 | Yes | - | Basis points for 'Against' (0-10000) |
+| `--abstain-votes` | u64 | Yes | - | Basis points for 'Abstain' (0-10000) |
+| `--network` | String | Yes | - | Network for merkle proofs |
+
+### List Proposals
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `--status` | String | No | - | Filter by status (e.g., `active`) |
+| `--limit` | usize | No | - | Limit results (if omitted, no limit) |
+| `--json` | bool | No | `false` | Output in JSON format (supports `--json` or `--json true`) |
+
+### Proposal
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `<PROPOSAL_ID>` | String | Yes | Proposal ID (PDA, base58) |
+
+## Staker Commands Arguments
+
+### Cast Vote Override / Modify Vote Override
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `--proposal-id` | String | Yes | - | Proposal ID (PDA) |
+| `--for-votes` | u64 | Yes | - | Basis points for 'For' (0-10000) |
+| `--against-votes` | u64 | Yes | - | Basis points for 'Against' (0-10000) |
+| `--abstain-votes` | u64 | Yes | - | Basis points for 'Abstain' (0-10000) |
+| `--stake-account` | String | Yes | - | Stake account pubkey (base58) |
+| `--network` | String | Yes | - | Network for merkle proofs |
+| `--staker-keypair` | String | Yes | - | Staker keypair path for signing |
+| `--vote-account` | String | Yes | - | Validator vote account pubkey (base58) |
+| (no flag) | - | - | - | Operator API URL is read from config key `operator-api-url` (required) |
+
+## Configuration keys (`svmgov config`)
+
+Keys you can view/set with `svmgov config get|set`:
+
+- `network`
+- `rpc-url`
+- `operator-api-url` (required for commands that fetch snapshot/proof data)
+- `program-id`
+- `identity-keypair` (validators)
+- `staker-keypair` (stakers)
+- `user-type` (read-only via `get` / shown in `show`)
+
+## Related Program References
+
+- [Proposal State](https://github.com/3uild-3thos/svmgov_program/blob/main/contract/programs/svmgov_program/src/state/proposal.rs)
+- [Vote State](https://github.com/3uild-3thos/svmgov_program/blob/main/contract/programs/svmgov_program/src/state/vote.rs)
+- [Support State](https://github.com/3uild-3thos/svmgov_program/blob/main/contract/programs/svmgov_program/src/state/support.rs)
+

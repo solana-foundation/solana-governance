@@ -1,0 +1,37 @@
+# For Stakers
+
+Commands available to delegators (stakers) for overriding validator votes.
+
+## Available Commands
+
+- **[Cast Vote Override](/stakers/cast-vote-override)** - Override a validator's vote as a delegator
+- **[Modify Vote Override](/stakers/modify-vote-override)** - Modify an existing vote override
+
+## Overview
+
+Delegators can override their validator's vote on governance proposals using stake account verification. This allows delegators to express their own voting preferences independently of their validator.
+
+## Requirements
+
+- Stake account owned by the delegator
+- Stake account must be delegated to a validator
+- Active stake in the account
+- Access to operator API for snapshot data (or use default)
+
+## How Vote Overrides Work
+
+When a delegator casts a vote override:
+1. The CLI fetches snapshot data from the operator API
+2. Verifies the delegator owns the stake account
+3. Submits the override vote to the governance program
+4. The override vote takes precedence over the validator's vote for that specific stake account
+
+## Global Arguments
+
+All commands support these global arguments:
+
+- `--identity-keypair <PATH>` (or `-i`) - Path to identity keypair JSON file
+- `--rpc-url <URL>` (or `-r`) - Custom RPC URL
+
+These can also be set via environment variables `SVMGOV_KEY` and `SVMGOV_RPC`.
+

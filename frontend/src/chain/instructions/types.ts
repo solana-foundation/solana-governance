@@ -2,7 +2,7 @@ import { AnchorWallet } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
 
-import govContractIdl from "@/chain/idl/govcontract.json";
+import svmgovProgramIdl from "@/chain/idl/svmgov_program.json";
 import govV1idl from "@/chain/idl/gov-v1.json";
 import { RPCEndpoint } from "@/types";
 
@@ -149,5 +149,5 @@ export interface NetworkMetaResponse {
 
 // Constants
 export const BASIS_POINTS_TOTAL = 10000;
-export const GOVCONTRACT_PROGRAM_ID = new PublicKey(govContractIdl.address);
+export const SVMGOV_PROGRAM_ID = new PublicKey(svmgovProgramIdl.address);
 export const SNAPSHOT_PROGRAM_ID = new PublicKey(govV1idl.address);

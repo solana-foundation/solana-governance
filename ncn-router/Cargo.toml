@@ -1,0 +1,26 @@
+[package]
+name = "ncn-route"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "ncn-meta-cron"
+path = "src/main.rs"
+
+[[bin]]
+name = "ncn-router"
+path = "src/router.rs"
+
+[dependencies]
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+job_scheduler = "1.2"
+solana-client = "2.1"
+solana-sdk = "2.1"
+borsh = { version = "1.5", features = ["derive"] }
+dotenvy = "0.15"
+rand = "0.8"
+tiny_http = "0.12"

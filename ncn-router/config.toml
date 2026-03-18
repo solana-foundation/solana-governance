@@ -1,0 +1,45 @@
+# NCN verifiers: name and verification domain
+
+[[verifiers]]
+name = "BrewlabsHQ"
+verification_domain = "https://ncn.brewlabs.so/"
+
+[[verifiers]]
+name = "Ha1iad3"
+verification_domain = "https://ncn.ha1iad3.com/"
+
+[[verifiers]]
+name = "Astralane"
+verification_domain = "https://governance.astralane.io/"
+
+[[verifiers]]
+name = "lantern"
+verification_domain = "https://gov.lantern.one/"
+
+[[verifiers]]
+name = "Titan Analytics"
+verification_domain = "https://verifier.titananalytics.io"
+
+[[verifiers]]
+name = "Adra finance"
+verification_domain = "https://solgov.com"
+
+[[verifiers]]
+name = "Blocksize"
+verification_domain = "https://verifier.nops.blocksize.dev/"
+
+[[verifiers]]
+name = "Digital Energy"
+verification_domain = "https://ncn-verifier.digital-energy.io"
+
+[[verifiers]]
+name = "stakeware.xyz"
+verification_domain = "https://ncn.stakeware.xyz:3000/"
+
+[[verifiers]]
+name = "Prompt Logic"
+verification_domain = "https://verifier.promptlogic.systems"
+
+[[verifiers]]
+name = "Exo Tech"
+verification_domain = "http://ncn-verifier.exotechnologies.xyz:3000"

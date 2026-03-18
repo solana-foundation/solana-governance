@@ -1,0 +1,42 @@
+# List Proposals
+
+List governance proposals on-chain.
+
+## Description
+
+This command fetches all proposals and prints a table by default, or JSON when requested.
+
+## Arguments
+
+None.
+
+## Options
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `--status` | String | No | Filter by status: `active`, `finalized`, or `support` |
+| `--limit` | usize | No | Limit number of results returned |
+| `--json` | bool | No | Output JSON (supports `--json` or `--json true`) |
+
+## Global Arguments
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `--rpc-url`, `-r` | String | No | `SVMGOV_RPC` env var | Custom RPC URL |
+
+## Examples
+
+```bash
+# Default (table output)
+svmgov list-proposals
+
+# Filter only active (voting) proposals
+svmgov list-proposals --status active
+
+# Limit to 5 newest proposals
+svmgov list-proposals --limit 5
+
+# JSON output
+svmgov list-proposals --json
+```
+

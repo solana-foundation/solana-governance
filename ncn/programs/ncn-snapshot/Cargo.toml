@@ -1,0 +1,23 @@
+[package]
+name = "ncn-snapshot"
+version = "1.0.0"
+description = "Governance NCN Voting Program"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "ncn_snapshot"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+skip-pda-check = []
+
+
+[dependencies]
+anchor-lang = { workspace = true }
+
