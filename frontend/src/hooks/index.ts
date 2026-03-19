@@ -48,6 +48,7 @@ export * from "./useVoterWalletSummary";
 
 export * from "./useEpochToDate";
 export * from "./useEpochInfo";
+export * from "./useGovernanceConfig";
 
 // DEPRECATED
 export * from "./DEPRECATED/useGetValidatorsBubbleChart";

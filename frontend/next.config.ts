@@ -5,8 +5,7 @@ import path from "path";
 const nextConfig: NextConfig = {
   /* config options here */
 
-  // Critical for Cloudflare Pages deployment
-  output: "export",
+  cacheComponents: true,
 
   // Optimize for edge
   compress: true,
