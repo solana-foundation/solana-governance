@@ -7,6 +7,17 @@ The Verifier Service is a standalone Rust/Axum HTTP service that operators run a
 **Default port:** `3000`
 
 ---
+## Start Here (Server)
+
+For a user-friendly server install flow, use the dropdown in the left sidebar:
+
+- `Requirements`
+- `Install & Start`
+- `Upgrade / Re-deploy`
+
+The rest of this page mainly documents environment variables and API endpoints.
+
+---
 
 ## Purpose
 
@@ -36,7 +47,77 @@ Rather than computing these from the raw snapshot file, clients query the verifi
 | `NCN_SNAPSHOT_MAX_MB` | `256` | No | Max decompressed snapshot size (MiB) |
 
 ---
+## Server Requirements
 
+- Ubuntu server (recommended) with `sudo` access
+- Docker installed (the provided `setup.sh` script can install it if missing)
+- Disk space for the persistent SQLite DB and indexed snapshot data (Docker volume at `/srv/verifier/data`)
+- Network access to your chosen host port (you will map host `PORT_HOST` -> container port `3000`)
+- The operator’s base58 `OPERATOR_PUBKEY` (used to authenticate snapshot uploads)
+- A `METRICS_AUTH_TOKEN` (used for `/admin/stats`)
+
+---
+## Install & Start on the Server (Docker)
+
+Deploy flow (single path):
+
+1. SSH into your server.
+2. Build the binary and Docker image locally:
+
+```bash
+cd ~/solana-governance/ncn
+cargo build --release --bin verifier-service
+
+# Build an explicit tag (this tag becomes the IMAGE you enter in setup.sh)
+sudo docker build -f verifier-service/Dockerfile -t verifier-service:latest .
+```
+
+3. Start the container using the script:
+
+```bash
+cd ~/solana-governance/ncn/verifier-service/src/scripts
+sudo bash setup.sh
+```
+
+When prompted, enter:
+- `IMAGE` = the tag you built above (example: `verifier-service:latest`)
+- `OPERATOR_PUBKEY`
+- `METRICS_AUTH_TOKEN`
+- `PORT_HOST` (example: `8000`, which maps `8000 -> 3000`)
+
+<Callout type="info">
+  `setup.sh` will start container `verifier`, persist data under `/srv/verifier/data`, and (because it checks locally) will skip `docker pull` if the image tag already exists on the server.
+</Callout>
+
+---
+## Verify the Deployment
+
+Run these commands on the server:
+
+```bash
+sudo docker ps
+# Replace <PORT_HOST> with the port you entered when running setup.sh
+curl -i http://127.0.0.1:<PORT_HOST>/healthz
+curl -s http://127.0.0.1:<PORT_HOST>/version
+```
+
+If `curl` fails, check logs:
+
+```bash
+sudo docker logs --tail=200 verifier
+```
+
+---
+## Upgrade / Re-deploy
+
+To upgrade to a new version:
+
+1. Rebuild and re-tag the Docker image (Step 2 in “Install & Start”).
+2. Re-run `setup.sh` and enter that new tag as `IMAGE`.
+
+Persistent data stays mounted under `/srv/verifier/data`, so upgrades should not require re-uploading everything.
+
+---
 ## API Reference
 
 ### `POST /upload`
@@ -256,7 +337,7 @@ The service uses SQLite with three tables:
 
 ---
 
-## Running the Service
+## Local Development (Cargo)
 
 ```bash
 # Set required env vars

@@ -86,7 +86,7 @@ export default async function RootLayout({ children }) {
         <Layout
           navbar={navbar}
           pageMap={await getPageMap()}
-          docsRepositoryBase="https://github.com/3uild-3thos/svmgov_program/tree/main/docs"
+          docsRepositoryBase="https://github.com/solana-foundation/solana-governance/tree/main/docs"
           footer={footer}
           sidebar={{ defaultMenuCollapseLevel: 1 }}
           editLink="Edit this page on GitHub"

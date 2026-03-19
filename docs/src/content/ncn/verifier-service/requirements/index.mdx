@@ -1,0 +1,21 @@
+import { Callout } from 'nextra/components'
+
+# Requirements (Server)
+
+## What you need
+
+- A Linux server with `sudo` access (Ubuntu is recommended)
+- Docker installed (the repo includes a `setup.sh` that can install it if needed)
+- Basic firewall/network access for your chosen host port
+  - The container listens on port `3000`
+  - You map `PORT_HOST -> 3000` (for example, `8000 -> 3000`)
+- The operator’s base58 `OPERATOR_PUBKEY` (required for snapshot uploads)
+- A `METRICS_AUTH_TOKEN` for `/admin/stats`
+- Enough disk space for the persistent SQLite DB and indexed snapshot data
+  - The default persistent directory is `/srv/verifier/data`
+
+---
+<Callout type="info">
+  The verifier service is operator infrastructure: validators and stakers use the public read endpoints (`/proof/*`) and do not run their own instance.
+</Callout>
+

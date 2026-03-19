@@ -1,0 +1,38 @@
+import { Callout } from 'nextra/components'
+
+# Upgrade / Re-deploy
+
+Upgrade flow (single path):
+1. Rebuild the Docker image locally with a new explicit tag
+2. Re-run `setup.sh` and enter that same tag as `IMAGE`
+
+---
+## Step 1: Rebuild locally (version ordering)
+
+```bash
+cd ~/solana-governance/ncn
+
+cargo build --release --bin verifier-service
+
+# Build with an explicit tag (example).
+sudo docker build -f verifier-service/Dockerfile -t verifier-service:latest .
+```
+
+---
+## Step 2: Re-run `setup.sh`
+
+```bash
+cd ~/solana-governance/ncn/verifier-service/src/scripts
+sudo bash setup.sh
+```
+
+When prompted, set:
+
+- `IMAGE` = `verifier-service:latest` (the tag you built above)
+- `OPERATOR_PUBKEY`, `METRICS_AUTH_TOKEN`
+- `PORT_HOST` (example: `8000`)
+
+<Callout type="info">
+  Persistent data stays mounted at `/srv/verifier/data`, so upgrades should not require re-uploading everything.
+</Callout>
+
