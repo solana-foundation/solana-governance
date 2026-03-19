@@ -23,6 +23,4 @@ export * from "./supportProposalMutation";
 
 export * from "./getVoterWalletSummary";
 
-// DEPRECATED
-export * from "./OLD/getAllProposals";
-export * from "./OLD/getValidators";
+export * from "./getValidators";

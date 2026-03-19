@@ -9,6 +9,7 @@ import {
   createProgramWithWallet,
   getVoteAccountProof,
   deriveProposalIndexPda,
+  deriveGlobalConfigPda,
 } from "./helpers";
 import { deriveProposalAccount } from "../helpers";
 
@@ -18,7 +19,7 @@ import { deriveProposalAccount } from "../helpers";
 export async function createProposal(
   params: CreateProposalParams,
   blockchainParams: BlockchainParams,
-  slot: number | undefined
+  slot: number | undefined,
 ): Promise<TransactionResult> {
   const { title, description, seed, wallet } = params;
   if (!wallet || !wallet.publicKey) {
@@ -31,19 +32,19 @@ export async function createProposal(
 
   // Generate random seed if not provided
   const seedValue = new BN(
-    seed ?? Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)
+    seed ?? Math.floor(Math.random() * Number.MAX_SAFE_INTEGER),
   );
 
   const program = createProgramWithWallet(wallet, blockchainParams.endpoint);
 
   const voteAccounts = await program.provider.connection.getVoteAccounts();
   const validatorVoteAccount = voteAccounts.current.find(
-    (acc) => acc.nodePubkey === wallet.publicKey.toBase58()
+    (acc) => acc.nodePubkey === wallet.publicKey.toBase58(),
   );
 
   if (!validatorVoteAccount) {
     throw new Error(
-      `No SPL vote account found for validator identity ${wallet.publicKey.toBase58()}`
+      `No SPL vote account found for validator identity ${wallet.publicKey.toBase58()}`,
     );
   }
 
@@ -53,7 +54,7 @@ export async function createProposal(
   const voteAccountProof = await getVoteAccountProof(
     validatorVoteAccount.votePubkey,
     blockchainParams.network,
-    slot
+    slot,
   );
   console.log("fetched voteAccountProof", voteAccountProof);
 
@@ -66,6 +67,7 @@ export async function createProposal(
       splVoteAccount,
       systemProgram: SystemProgram.programId,
       proposalIndex: deriveProposalIndexPda(program.programId),
+      globalConfig: deriveGlobalConfigPda(program.programId),
     })
     .instruction();
 
@@ -79,7 +81,7 @@ export async function createProposal(
   const tx = await wallet.signTransaction(transaction);
 
   const signature = await program.provider.connection.sendRawTransaction(
-    tx.serialize()
+    tx.serialize(),
   );
 
   return {

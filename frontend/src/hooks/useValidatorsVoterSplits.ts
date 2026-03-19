@@ -1,4 +1,4 @@
-import { useGetValidators } from "../useGetValidators";
+import { useGetValidators } from "./useGetValidators";
 import { useVotes } from "./useVotes";
 import { useQuery } from "@tanstack/react-query";
 
