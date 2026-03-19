@@ -4,14 +4,7 @@ import path from "path";
 
 const nextConfig: NextConfig = {
   /* config options here */
-
   cacheComponents: true,
-
-  // Optimize for edge
-  compress: true,
-  turbopack: {
-    root: path.join(__dirname, "."),
-  },
 };
 
 export default withSentryConfig(nextConfig, {
