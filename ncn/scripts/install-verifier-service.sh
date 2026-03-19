@@ -13,6 +13,13 @@ NCN_DIR="$REPO_ROOT/ncn"
 JITO_DIR="$REPO_ROOT/jito-tip-router"
 JITO_BRANCH="gov-v1"
 
+if [ "${EUID:-$(id -u)}" -eq 0 ]; then
+  echo -e "${RED}Do not run this script with sudo.${NC}" >&2
+  echo "Run it as your normal user so Cargo/Rust from your user PATH is available." >&2
+  echo "Use: bash ncn/scripts/install-verifier-service.sh" >&2
+  exit 1
+fi
+
 echo "Select network:"
 echo "1) mainnet"
 echo "2) testnet"
@@ -39,6 +46,13 @@ fi
 
 echo -e "${YELLOW}Preparing jito-tip-router dependency (branch: ${JITO_BRANCH})...${NC}"
 if [ -d "$JITO_DIR/.git" ]; then
+  if [ ! -w "$JITO_DIR/.git" ]; then
+    echo -e "${RED}Error: $JITO_DIR/.git is not writable by user '$(id -un)'.${NC}" >&2
+    echo "This usually happens if the script was previously run with sudo." >&2
+    echo "Fix ownership, then re-run:" >&2
+    echo "  sudo chown -R $(id -un):$(id -gn) \"$JITO_DIR\"" >&2
+    exit 1
+  fi
   cd "$JITO_DIR"
   git fetch --all
   git checkout "$JITO_BRANCH" || git checkout -b "$JITO_BRANCH" "origin/$JITO_BRANCH"
@@ -57,8 +71,21 @@ export RESTAKING_PROGRAM_ID="${RESTAKING_PROGRAM_ID:-RestkWeAVL8fRGgzhfeoqFhsqKR
 export VAULT_PROGRAM_ID="${VAULT_PROGRAM_ID:-Vau1t6sLNxnzB7ZDsef8TLbPLfyZMYXH8WTNqUdm9g8}"
 export TIP_ROUTER_PROGRAM_ID="${TIP_ROUTER_PROGRAM_ID:-11111111111111111111111111111111}"
 
+if ! command -v cargo >/dev/null 2>&1; then
+  echo -e "${RED}Error: cargo not found in PATH.${NC}" >&2
+  echo "Install Rust/Cargo and ensure it is available to your current user shell." >&2
+  exit 1
+fi
+
 cd "$NCN_DIR"
 cargo build --release --bin verifier-service
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo -e "${YELLOW}Docker is not installed; installing Docker package...${NC}"
+  sudo apt-get update
+  sudo apt-get install -y docker.io ca-certificates
+fi
+sudo systemctl enable --now docker
 
 echo -e "${YELLOW}Building Docker image: ${IMAGE_TAG}${NC}"
 sudo docker build -f verifier-service/Dockerfile -t "${IMAGE_TAG}" .
@@ -68,7 +95,7 @@ cd "$NCN_DIR/verifier-service/src/scripts"
 
 # setup.sh asks for OPERATOR_PUBKEY, METRICS_AUTH_TOKEN, and PORT_HOST
 export VERIFIER_NETWORK="$NETWORK"
-sudo bash setup.sh
+sudo VERIFIER_NETWORK="$VERIFIER_NETWORK" bash setup.sh
 
 echo -e "${GREEN}Done.${NC}"
 

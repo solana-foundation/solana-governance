@@ -36,9 +36,15 @@ if [ -t 0 ]; then
   echo "Setup verifier-service configuration:"
   OPERATOR_PUBKEY="$(read_required "OPERATOR_PUBKEY (example: ${OPERATOR_PUBKEY_DEFAULT})")"
   METRICS_AUTH_TOKEN="$(read_required "METRICS_AUTH_TOKEN (example: ${METRICS_AUTH_TOKEN_DEFAULT})")"
-  PORT_HOST="$(read_required "PORT_HOST (host port to expose, example: 8000)")"
+  PORT_HOST="$(read_required "PORT_HOST (host port to expose, example: 9090)")"
 else
   echo "This script requires interactive input for OPERATOR_PUBKEY, METRICS_AUTH_TOKEN, and PORT_HOST." >&2
+  exit 1
+fi
+
+# Validate host port format/range early.
+if ! [[ "${PORT_HOST}" =~ ^[0-9]+$ ]] || [ "${PORT_HOST}" -lt 1 ] || [ "${PORT_HOST}" -gt 65535 ]; then
+  echo "Invalid PORT_HOST '${PORT_HOST}'. Expected an integer in range 1-65535." >&2
   exit 1
 fi
 
@@ -78,6 +84,13 @@ fi
 # Ensure Docker daemon is enabled/running.
 sudo systemctl enable --now docker
 
+# Helpful note: docker CLI access without sudo requires docker group membership.
+if ! groups "${USER:-$(id -un)}" 2>/dev/null | grep -q '\bdocker\b'; then
+  echo "Note: your user is not in the 'docker' group; run docker commands with sudo."
+  echo "To enable non-sudo docker CLI access later:"
+  echo "  sudo usermod -aG docker ${USER:-$(id -un)} && newgrp docker"
+fi
+
 # 2) Prepare persistent state dir (UID 10001 matches your Dockerfile USER)
 sudo mkdir -p "$(dirname "$DATA_DIR")"
 sudo mkdir -p "$DATA_DIR"
@@ -94,6 +107,13 @@ fi
 # 4) Re-create container idempotently, then run (daemonized, restarts on reboot/crash)
 # Stop and remove existing container if it exists
 sudo docker rm -f verifier >/dev/null 2>&1 || true
+
+# Ensure requested host port is free before attempting docker run.
+if sudo ss -lnt "( sport = :${PORT_HOST} )" | awk 'NR>1 {exit 0} END {exit 1}'; then
+  echo "Host port ${PORT_HOST} is already in use." >&2
+  echo "Choose another PORT_HOST or stop the process using it (example: sudo lsof -iTCP:${PORT_HOST} -sTCP:LISTEN)." >&2
+  exit 1
+fi
 
 sudo docker run -d --name verifier --restart unless-stopped \
   --log-driver ${DOCKER_LOG_DRIVER} \
@@ -118,3 +138,4 @@ sudo docker run -d --name verifier --restart unless-stopped \
 # 5) Verify
 sudo docker ps
 curl -fsS "http://127.0.0.1:${PORT_HOST}/healthz" || sudo docker logs --tail=200 verifier
+echo
