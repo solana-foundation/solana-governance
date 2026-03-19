@@ -1,0 +1,68 @@
+# Error Codes
+
+All error codes from both the `ncn-snapshot` and `svmgov` programs.
+
+## ncn-snapshot Program
+
+| Error | Description |
+|---|---|
+| `OperatorNotWhitelisted` | Signer is not in the BallotBox voter list |
+| `OperatorHasVoted` | Operator already cast a vote on this BallotBox |
+| `OperatorHasNotVoted` | Tried to remove a vote that does not exist |
+| `VotingExpired` | Voting window has closed (past `vote_expiry_timestamp`) |
+| `VotingNotExpired` | Tie-breaker action requires voting to be expired first |
+| `ConsensusReached` | Action not allowed after consensus (e.g., `remove_vote`) |
+| `ConsensusNotReached` | `finalize_ballot` called before consensus |
+| `InvalidBallot` | Ballot has all-zero `meta_merkle_root` |
+| `InvalidMerkleInputs` | Stake proof args must both be provided or both absent |
+| `InvalidMerkleProof` | Proof verification failed against `ConsensusResult.meta_merkle_root` |
+| `VecFull` | All 64 ballot tally slots are occupied |
+| `OverlappingWhitelistEntries` | Same pubkey appears in both add and remove lists |
+| `InvalidBallotIndex` | Internal ballot index inconsistency |
+| `InvalidSnapshotSlot` | Snapshot slot must be strictly greater than current slot |
+| `BallotTalliesNotMaxLength` | `reset_ballot_box` requires all tally slots to be full |
+| `InvalidProposal` | CPI caller is not a valid svmgov proposal PDA |
+
+## svmgov Program
+
+| Error | Description |
+|---|---|
+| `NotEnoughStake` | Insufficient stake to create proposal or vote |
+| `TitleEmpty` | Proposal title is empty |
+| `TitleTooLong` | Title exceeds `max_title_length` |
+| `DescriptionEmpty` | Description is empty |
+| `DescriptionTooLong` | Description exceeds `max_description_length` |
+| `DescriptionInvalid` | Description must be a `https://github.com` URL |
+| `InvalidProposalId` | Invalid proposal ID |
+| `VotingNotStarted` | Proposal has not entered voting phase yet |
+| `ProposalClosed` | Voting period has ended |
+| `ProposalFinalized` | Proposal already finalized |
+| `InvalidVoteDistribution` | For + Against + Abstain ≠ 10,000 bps |
+| `VotingPeriodNotEnded` | Cannot finalize before `end_epoch` |
+| `InvalidVoteAccount` | Vote account does not match expected |
+| `FailedDeserializeNodePubkey` | Could not parse node_pubkey from vote account data |
+| `VoteNodePubkeyMismatch` | Signer does not match vote account's node_pubkey |
+| `NotEnoughAccounts` | Missing required accounts |
+| `InvalidClusterStake` | Cluster total stake is zero |
+| `InvalidStartEpoch` | Start epoch is in the past |
+| `InvalidVotingLength` | Voting length must be > 0 |
+| `InvalidVoteAccountVersion` | Unsupported vote account version |
+| `InvalidVoteAccountSize` | Vote account has unexpected byte size |
+| `InvalidStakeAccount` | Stake account is invalid |
+| `InvalidStakeState` | Stake account is in unexpected state (not `Stake`) |
+| `InvalidStakeAccountSize` | Stake account has unexpected byte size |
+| `InvalidSnapshotProgram` | Provided program ID is not the ncn-snapshot program |
+| `UnauthorizedMerkleRootUpdate` | Only the proposal author can call `flush_merkle_root` |
+| `MerkleRootAlreadySet` | `flush_merkle_root` called when root is already set |
+| `InvalidMerkleRoot` | Merkle root cannot be all zeros |
+| `InvalidSnapshotSlot` | Snapshot slot must be past or current slot |
+| `MustBeOwnedBySnapshotProgram` | Account must be owned by ncn-snapshot program |
+| `InvalidConsensusResultPDA` | Derived ConsensusResult PDA does not match provided account |
+| `CannotDeserializeMetaMerkleProofPDA` | MetaMerkleProof account failed Borsh deserialization |
+| `CannotDeserializeConsensusResult` | ConsensusResult account failed Borsh deserialization |
+| `CannotModifyAfterStart` | Cannot modify proposal metadata after voting starts |
+| `VotingLengthTooLong` | Voting length exceeds `max_support_epochs` |
+| `ArithmeticOverflow` | Overflow in stake weight calculations |
+| `SnapshotProgramUpgraded` | Program upgrade protection triggered — snapshot program upgrade detected |
+| `MerkleRootNotSet` | Tried to vote before ConsensusResult is available |
+| `SupportPeriodExpired` | Support period (`max_support_epochs`) has elapsed |

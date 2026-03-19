@@ -1,0 +1,127 @@
+import { Callout } from 'nextra/components'
+
+# svmgov Terminology
+
+This glossary defines the core terms used throughout the `svmgov` program, CLI, and proposal lifecycle.
+
+## Governance Lifecycle Terms
+
+### Proposal
+
+An on-chain governance object created by a validator. It stores title, description link, voting window, support totals, vote totals, and finalization state.
+
+### Support Phase
+
+The period after proposal creation where validators call `support_proposal`.  
+If support reaches `cluster_support_pct_min_bps` (default 500 bps = 5%), voting activates.
+
+### Voting Phase
+
+The period from `start_epoch` to `end_epoch` where validators can `cast_vote` and `modify_vote`, and delegators can submit overrides.
+
+### Finalized
+
+A terminal state set by `finalize_proposal` after the voting window ends. Vote totals are locked and no further changes are allowed.
+
+## Stake and Voting Terms
+
+### Basis Points (BPS)
+
+Vote allocation units where:
+- `10,000 bps = 100%`
+- `1,000 bps = 10%`
+
+Validator and delegator vote splits (`for`, `against`, `abstain`) must sum to exactly `10,000`.
+
+### Stake-Weighted Vote
+
+A vote whose impact is proportional to active delegated stake (in lamports), not just one-wallet-one-vote.
+
+### Vote Override
+
+A delegator action that replaces the validator’s vote outcome for that delegator’s stake account.
+
+### Vote Override Cache
+
+A per-proposal/per-validator accumulator used when delegators override before the validator has cast their vote. Cached values are applied when validator vote is submitted.
+
+### Effective Validator Stake
+
+Validator stake used for final vote math after subtracting delegator-overridden stake portions.
+
+## Proof and Snapshot Terms
+
+### ConsensusResult
+
+The finalized NCN snapshot root and hash used by `svmgov` to verify stake proofs. Set when support activates voting and used by `cast_vote` / `cast_vote_override`.
+
+### MetaMerkleProof
+
+An on-chain proof account containing the validator-level Merkle proof used to validate stake weight against the NCN `ConsensusResult`.
+
+### StakeMerkleProof
+
+A stake-account-level Merkle proof used in delegator override flows to prove stake account membership under a validator subtree.
+
+### Snapshot Slot
+
+The Solana slot tied to the stake snapshot used for a proposal’s voting process.
+
+## Account Terms (svmgov Program)
+
+### `GlobalConfig`
+
+Global governance parameters (length limits, support threshold, epoch windows, min proposal stake).
+
+### `ProposalIndex`
+
+Global sequential counter for proposal numbering.
+
+### `Proposal`
+
+Main governance account containing lifecycle and vote totals.
+
+### `Support`
+
+Receipt account proving a validator has already supported a specific proposal.
+
+### `Vote`
+
+Validator vote account storing bps split, lamport totals, stake, and timestamp.
+
+### `VoteOverride`
+
+Delegator override record tied to proposal + stake account + validator vote.
+
+### `VoteOverrideCache`
+
+Temporary accumulator for pre-validator overrides.
+
+## Config Terms
+
+### `min_proposal_stake_lamports`
+
+Minimum stake required to create a proposal.
+
+### `cluster_support_pct_min_bps`
+
+Minimum share of cluster stake required to activate voting.
+
+### `discussion_epochs`
+
+Epoch gap before active voting starts after support threshold is met.
+
+### `voting_epochs`
+
+Length of the active voting window.
+
+### `snapshot_epoch_extension`
+
+Epoch offset used when computing the snapshot slot at voting activation.
+
+<Callout type="info">
+  If you are new to the system, read pages in this order:
+  <br />
+  <strong>Overview → Terminology → Program Reference → Validators/Stakers guides</strong>
+</Callout>
+

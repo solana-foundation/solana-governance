@@ -1,133 +1,119 @@
-# Arguments Reference
+# CLI Arguments Reference
 
-Complete reference for all command-line arguments used in svmgov.
+Complete reference for all `svmgov` CLI command-line arguments and configuration.
 
-## Global Arguments
+## Global Arguments (All Commands)
 
-These arguments are available to all commands:
+| Option | Short | Env Var | Description |
+|---|---|---|---|
+| `--identity-keypair <PATH>` | `-i` | `SVMGOV_KEY` | Path to identity keypair JSON |
+| `--rpc-url <URL>` | `-r` | `SVMGOV_RPC` | Solana RPC endpoint |
 
-| Name | Short | Type | Required | Default | Description |
-|------|-------|------|----------|---------|-------------|
-| `--identity-keypair` | `-i` | String | No | `SVMGOV_KEY` env var | Path to the identity keypair JSON file |
-| `--rpc-url` | `-r` | String | No | `SVMGOV_RPC` env var | Custom RPC URL for Solana network |
+**Resolution order:** explicit flags → env vars → config file → built-in defaults
 
-### Environment Variables
+## Configuration File
 
-You can set these environment variables instead of using flags:
+Path: `~/.svmgov/config.toml`
 
-- `SVMGOV_KEY` - Equivalent to `--identity-keypair`
-- `SVMGOV_RPC` - Equivalent to `--rpc-url`
+```toml
+user_type = "Validator"               # or "Staker"
+identity_keypair_path = "/path/to/validator.json"
+network = "mainnet"
+rpc_url = "https://api.mainnet-beta.solana.com"
+operator_api_url = "https://operator.example.com"
+```
 
-Flags override environment variables if both are provided.
+### Config Commands
 
-### Resolution order (flags vs env vs config)
+```bash
+svmgov config show                              # Show entire config
+svmgov config get <key>                         # Get one value
+svmgov config set <key> <value>                 # Set one value
+```
 
-svmgov resolves values in this order:
+### Settable Keys
 
-- **Explicit flags** (e.g. `--rpc-url`, `--identity-keypair`)
-- **Environment variables** (`SVMGOV_RPC`, `SVMGOV_KEY`)
-- **Config file** (`~/.svmgov/config.toml`, set via `svmgov init` / `svmgov config`)
-- **Built-in defaults**
+| Key | Description |
+|---|---|
+| `network` | Default network (`mainnet`, `testnet`, `devnet`) |
+| `rpc-url` | Default Solana RPC URL |
+| `operator-api-url` | Verifier service URL (required for proof fetching) |
+| `identity-keypair` | Validator identity keypair path |
+| `staker-keypair` | Staker keypair path |
 
-## Common Argument Types
+## Basis Points
 
-### Basis Points
+All vote allocations use basis points (bp):
 
-Basis points (bp) represent percentages where:
-- **10,000 bp = 100%**
-- **7,000 bp = 70%**
-- **1,000 bp = 10%**
+| Basis Points | Percentage |
+|---|---|
+| `10,000` | 100% |
+| `7,000` | 70% |
+| `5,000` | 50% |
+| `1,000` | 10% |
+| `1` | 0.01% |
 
-When voting, basis points must sum to exactly 10,000 (100% of stake).
+When voting, `for_votes + against_votes + abstain_votes` must equal exactly **10,000**.
 
-### Proposal ID
+## Validator Command Arguments
 
-A proposal ID is a Program Derived Address (PDA) represented as a base58-encoded string. You can find proposal IDs using the `list-proposals` command.
+### `create-proposal`
 
-### Network
+| Argument | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `--title` | String | Yes | — | Proposal title (max ~50 chars) |
+| `--description` | String | Yes | — | GitHub URL (`https://github.com/...`, max ~250 chars) |
+| `--network` | String | Yes | — | Network for proof fetching |
+| `--seed` | u64 | No | Random | PDA derivation seed |
 
-Network identifier for fetching merkle proofs. Common values:
-- `mainnet` - Solana mainnet
-- `testnet` - Solana testnet
-- `devnet` - Solana devnet
+### `support-proposal`
 
-### Keypair Paths
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `--proposal-id` | String | Yes | Proposal PDA (base58) |
+| `--network` | String | Yes | Network |
 
-Paths to JSON keypair files. These files contain the private key needed to sign transactions.
+### `cast-vote` / `modify-vote`
 
-## Validator Commands Arguments
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `--proposal-id` | String | Yes | Proposal PDA (base58) |
+| `--for-votes` | u64 | Yes | Basis points For (0–10,000) |
+| `--against-votes` | u64 | Yes | Basis points Against (0–10,000) |
+| `--abstain-votes` | u64 | Yes | Basis points Abstain (0–10,000) |
+| `--network` | String | Yes | Network |
 
-### Create Proposal
+### `finalize-proposal`
 
-| Name | Type | Required | Default | Description |
-|------|------|----------|---------|-------------|
-| `--seed` | u64 | No | Random | Unique seed for proposal PDA derivation |
-| `--title` | String | Yes | - | Proposal title (max 50 chars) |
-| `--description` | String | Yes | - | GitHub link (must start with `https://github.com`, max 250 chars) |
-| `--network` | String | Yes | - | Network for merkle proofs |
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `--proposal-id` | String | Yes | Proposal PDA (base58) |
 
-### Support Proposal
+### `list-proposals`
 
-| Name | Type | Required | Default | Description |
-|------|------|----------|---------|-------------|
-| `--proposal-id` | String | Yes | - | Proposal ID (PDA) |
-| `--network` | String | Yes | - | Network for merkle proofs |
+| Argument | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `--status` | String | No | — | Filter: `active`, `support`, `finalized` |
+| `--limit` | usize | No | — | Max results |
+| `--json` | flag | No | false | Output JSON |
 
-### Cast Vote / Modify Vote
+### `proposal`
 
-| Name | Type | Required | Default | Description |
-|------|------|----------|---------|-------------|
-| `--proposal-id` | String | Yes | - | Proposal ID (PDA) |
-| `--for-votes` | u64 | Yes | - | Basis points for 'For' (0-10000) |
-| `--against-votes` | u64 | Yes | - | Basis points for 'Against' (0-10000) |
-| `--abstain-votes` | u64 | Yes | - | Basis points for 'Abstain' (0-10000) |
-| `--network` | String | Yes | - | Network for merkle proofs |
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `<PROPOSAL_ID>` | String | Yes | Proposal PDA (base58, positional) |
 
-### List Proposals
+## Staker Command Arguments
 
-| Name | Type | Required | Default | Description |
-|------|------|----------|---------|-------------|
-| `--status` | String | No | - | Filter by status (e.g., `active`) |
-| `--limit` | usize | No | - | Limit results (if omitted, no limit) |
-| `--json` | bool | No | `false` | Output in JSON format (supports `--json` or `--json true`) |
+### `cast-vote-override` / `modify-vote-override`
 
-### Proposal
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `<PROPOSAL_ID>` | String | Yes | Proposal ID (PDA, base58) |
-
-## Staker Commands Arguments
-
-### Cast Vote Override / Modify Vote Override
-
-| Name | Type | Required | Default | Description |
-|------|------|----------|---------|-------------|
-| `--proposal-id` | String | Yes | - | Proposal ID (PDA) |
-| `--for-votes` | u64 | Yes | - | Basis points for 'For' (0-10000) |
-| `--against-votes` | u64 | Yes | - | Basis points for 'Against' (0-10000) |
-| `--abstain-votes` | u64 | Yes | - | Basis points for 'Abstain' (0-10000) |
-| `--stake-account` | String | Yes | - | Stake account pubkey (base58) |
-| `--network` | String | Yes | - | Network for merkle proofs |
-| `--staker-keypair` | String | Yes | - | Staker keypair path for signing |
-| `--vote-account` | String | Yes | - | Validator vote account pubkey (base58) |
-| (no flag) | - | - | - | Operator API URL is read from config key `operator-api-url` (required) |
-
-## Configuration keys (`svmgov config`)
-
-Keys you can view/set with `svmgov config get|set`:
-
-- `network`
-- `rpc-url`
-- `operator-api-url` (required for commands that fetch snapshot/proof data)
-- `program-id`
-- `identity-keypair` (validators)
-- `staker-keypair` (stakers)
-- `user-type` (read-only via `get` / shown in `show`)
-
-## Related Program References
-
-- [Proposal State](https://github.com/3uild-3thos/svmgov_program/blob/main/contract/programs/svmgov_program/src/state/proposal.rs)
-- [Vote State](https://github.com/3uild-3thos/svmgov_program/blob/main/contract/programs/svmgov_program/src/state/vote.rs)
-- [Support State](https://github.com/3uild-3thos/svmgov_program/blob/main/contract/programs/svmgov_program/src/state/support.rs)
-
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `--proposal-id` | String | Yes | Proposal PDA (base58) |
+| `--for-votes` | u64 | Yes | Basis points For (0–10,000) |
+| `--against-votes` | u64 | Yes | Basis points Against (0–10,000) |
+| `--abstain-votes` | u64 | Yes | Basis points Abstain (0–10,000) |
+| `--stake-account` | String | Yes | Stake account pubkey (base58) |
+| `--vote-account` | String | Yes | Validator vote account pubkey (base58) |
+| `--network` | String | Yes | Network |
+| `--staker-keypair` | String | Yes | Staker keypair path |

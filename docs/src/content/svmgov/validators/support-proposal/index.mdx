@@ -1,0 +1,76 @@
+import { Callout } from 'nextra/components'
+
+# Support Proposal
+
+Signal your support for a governance proposal, contributing your stake toward the activation threshold.
+
+## Description
+
+Each validator who calls `support_proposal` adds their active stake to the proposal's `cluster_support_lamports` total. Once the accumulated support reaches **5% of total cluster stake** (500 basis points), voting is automatically activated:
+
+- `proposal.voting` is set to `true`
+- `snapshot_slot` is calculated and set
+- A `ConsensusResult` PDA is derived
+- A CPI to the NCN `init_ballot_box` instruction opens the operator voting window
+
+## Usage
+
+```bash
+svmgov support-proposal \
+  --proposal-id "ABC123..." \
+  --network mainnet
+```
+
+## Arguments
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `--proposal-id` | String | **Yes** | The proposal's PDA address (base58) |
+| `--network` | String | **Yes** | Network for Merkle proof fetching: `mainnet`, `testnet` |
+
+## Global Arguments
+
+| Option | Short | Description |
+|---|---|---|
+| `--identity-keypair <PATH>` | `-i` | Path to validator identity keypair JSON |
+| `--rpc-url <URL>` | `-r` | Custom RPC URL |
+
+## Requirements
+
+- Proposal must not already be in voting phase or finalized
+- Current epoch must be within the support period (`creation_epoch + max_support_epochs`)
+- Each validator can only support a given proposal once
+
+## Examples
+
+```bash
+# With config (recommended)
+svmgov support-proposal \
+  --proposal-id "AbCdEf123..." \
+  --network mainnet
+
+# With explicit credentials
+svmgov support-proposal \
+  --proposal-id "AbCdEf123..." \
+  --network mainnet \
+  --identity-keypair ~/.config/solana/validator-identity.json \
+  --rpc-url https://api.mainnet-beta.solana.com
+```
+
+## What Happens After 5% Support
+
+When your support pushes a proposal over the threshold:
+
+1. `proposal.voting = true`
+2. `snapshot_slot` is set to 1000 slots into the `snapshot_epoch_extension` epoch
+3. NCN `BallotBox` is initialized (operators can start voting)
+4. `start_epoch` and `end_epoch` are computed
+
+<Callout type="info">
+  The NCN operators must also reach consensus on the snapshot before validators can vote. This happens in parallel — operators generate snapshots and vote on them while the proposal is still in its support/discussion phase.
+</Callout>
+
+## Related
+
+- [Cast Vote](/svmgov/validators/cast-vote) — Vote once the proposal is in the voting phase
+- [View Proposal](/svmgov/validators/proposal) — Check current support level

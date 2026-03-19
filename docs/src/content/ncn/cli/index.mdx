@@ -1,0 +1,433 @@
+import { Callout, Tabs } from 'nextra/components'
+
+# NCN CLI
+
+The NCN CLI is a Rust command-line tool for operators to generate stake snapshots, manage the on-chain `ncn-snapshot` program, and interact with the verifier service.
+
+## Installation
+
+```bash
+git clone https://github.com/solana-foundation/solana-governance.git
+cd solana-governance/ncn
+cargo build --release
+# binary at ./target/release/ncn
+```
+
+## Global Options
+
+These options are available on all commands:
+
+| Option | Description |
+|---|---|
+| `--payer-path <PATH>` | Keypair file for transaction fees |
+| `--authority-path <PATH>` | Keypair file for operator/authority actions |
+| `--rpc-url <URL>` | RPC endpoint (default: `http://localhost:8899`) |
+| `--ledger-path <PATH>` | Path to Solana ledger |
+| `--full-snapshots-path <PATH>` | Path to full snapshots directory |
+| `--account-paths <PATHS>` | Paths for intermediary account files |
+| `--backup-snapshots-dir <PATH>` | Directory for backup snapshots |
+| `--cluster <CLUSTER>` | Network cluster (`mainnet` default) |
+| `--micro-lamports <N>` | Priority fee in micro-lamports |
+| `--operator-address <PUBKEY>` | Operator public key |
+
+**Environment variable:** `NCN_SNAPSHOT_MAX_MB` — max decompressed snapshot size in MiB (default: `256`)
+
+---
+
+## Snapshot Commands
+
+### `snapshot-slot`
+
+Generates and saves a Solana ledger snapshot for a specific slot.
+
+```bash
+ncn \
+  --ledger-path /mnt/ledger \
+  --full-snapshots-path /mnt/ledger/full-snapshots \
+  --backup-snapshots-dir /mnt/ledger/backup-snapshots \
+  snapshot-slot --slot <SLOT>
+```
+
+| Argument | Required | Description |
+|---|---|---|
+| `--slot <u64>` | Yes | Target slot to snapshot |
+
+> **Snapshot path flags**
+>
+> - `--full-snapshots-path`: Where the CLI reads *full* snapshots from.
+> - `--backup-snapshots-dir`: Where snapshot artifacts are copied/saved for backup.
+
+---
+
+### `generate-meta-merkle`
+
+Reads a slot's ledger snapshot and generates the two-tier Merkle snapshot. Saves as `meta_merkle-{slot}.zip`.
+
+```bash
+ncn \
+  --ledger-path /mnt/ledger \
+  --account-paths /mnt/accounts \
+  --backup-snapshots-dir /mnt/ledger/backup-snapshots \
+  generate-meta-merkle \
+  --slot 300000000 \
+  --save-path ./meta_merkle/
+```
+
+| Argument | Required | Default | Description |
+|---|---|---|---|
+| `--slot <u64>` | Yes | — | Target slot |
+| `--save-path <PATH>` | No | `./` | Directory to save the output file |
+
+---
+
+### `log-meta-merkle-hash`
+
+Reads a snapshot file and logs the Merkle root, snapshot hash, slot, and the operator's Ed25519 signature over the data.
+
+```bash
+ncn \
+  --authority-path ~/.config/solana/id.json \
+  log-meta-merkle-hash \
+  --read-path ./meta_merkle-300000000.zip \
+  --is-compressed true
+```
+
+| Argument | Required | Description |
+|---|---|---|
+| `--read-path <PATH>` | Yes | Path to the snapshot file |
+| `--is-compressed <bool>` | No | Whether the file is gzip-compressed (default: `true`) |
+
+---
+
+### `await-snapshot`
+
+Polls for snapshot files, waits until the target slot passes, copies full and incremental snapshots, runs `agave-ledger-tool` to copy the ledger, and optionally triggers MetaMerkle generation. This is the primary command used by automated operator infrastructure.
+
+> **Important**
+>
+> Always create a **new backup directory** for `--backup-snapshots-dir`.  
+> Do **not** point it to the source snapshots directory (for example, do not reuse `/mnt/snapshots`).
+
+#### Initial setup (once)
+
+```bash
+# Create backup ledger directory
+mkdir -p /mnt/ledger/gov-ledger-backup
+mkdir -p /mnt/ledger/gov-ledger-backup/snapshots
+
+# Copy genesis into backup ledger
+cp /mnt/ledger/genesis.bin /mnt/ledger/gov-ledger-backup/genesis.bin
+```
+
+#### Run await-snapshot
+
+```bash
+ncn \
+  await-snapshot \
+  --scan-interval 1 \
+  --slot <SLOT> \
+  --snapshots-dir /mnt/ledger/snapshots \
+  --backup-snapshots-dir /mnt/ledger/gov-ledger-backup/snapshots \
+  --backup-ledger-dir /mnt/ledger/gov-ledger-backup \
+  --agave-ledger-tool-path /home/sol/.local/share/solana/install/active_release/bin/agave-ledger-tool \
+  --ledger-path /mnt/ledger \
+  --generate-meta-merkle
+```
+
+| Argument | Required | Default | Description |
+|---|---|---|---|
+| `--scan-interval <minutes>` | Yes | — | How often to poll for snapshot files |
+| `--slot <u64>` | Yes | — | Target slot to wait for |
+| `--snapshots-dir <PATH>` | Yes | — | Source directory containing live snapshots (read-only input) |
+| `--backup-snapshots-dir <PATH>` | Yes | — | New destination directory where snapshots are copied for backup |
+| `--backup-ledger-dir <PATH>` | Yes | — | Destination directory where ledger range is copied |
+| `--agave-ledger-tool-path <PATH>` | Yes | — | Path to `agave-ledger-tool` binary |
+| `--ledger-path <PATH>` | Yes | — | Path to live Solana ledger |
+| `--generate-meta-merkle` | No | — | Flag: also run MetaMerkle generation after snapshot |
+
+---
+
+## Program Config Commands
+
+### `init-program-config`
+
+Initializes the `ProgramConfig` singleton on-chain. Called once during initial deployment.
+
+```bash
+ncn \
+  --payer-path ~/.config/solana/id.json \
+  --authority-path ~/.config/solana/id.json \
+  --rpc-url https://api.devnet.solana.com \
+  init-program-config
+```
+
+---
+
+### `update-program-config`
+
+Updates one or more `ProgramConfig` fields.
+
+```bash
+ncn \
+  --payer-path ~/.config/solana/id.json \
+  --authority-path ~/.config/solana/id.json \
+  --rpc-url https://api.devnet.solana.com \
+  update-program-config \
+  --min-consensus-threshold-bps 6667 \
+  --vote-duration 86400 \
+  --tie-breaker-admin <PUBKEY> \
+  --proposed-authority <PUBKEY>
+```
+
+| Argument | Type | Description |
+|---|---|---|
+| `--min-consensus-threshold-bps <u16>` | Optional | Minimum consensus threshold (1–10,000) |
+| `--vote-duration <i64>` | Optional | Voting window in seconds |
+| `--tie-breaker-admin <Pubkey>` | Optional | New tie-breaker admin key |
+| `--proposed-authority <Pubkey>` | Optional | Initiate two-step authority transfer |
+
+---
+
+### `finalize-proposed-authority`
+
+Accepts a pending authority transfer. Must be signed by the `proposed_authority` key.
+
+```bash
+ncn \
+  --payer-path <PATH_TO_PAYER_KEYPAIR> \
+  --authority-path <PATH_TO_PROPOSED_AUTHORITY_KEYPAIR> \
+  --rpc-url <RPC_URL> \
+  finalize-proposed-authority
+```
+
+---
+
+### `update-operator-whitelist`
+
+Add or remove operators from the whitelist.
+
+```bash
+# Add operators
+ncn \
+  --payer-path <PATH_TO_PAYER_KEYPAIR> \
+  --authority-path <PATH_TO_AUTHORITY_KEYPAIR> \
+  --rpc-url <RPC_URL> \
+  update-operator-whitelist \
+  -a <PUBKEY1>,<PUBKEY2>,<PUBKEY3>
+
+# Remove operators
+ncn \
+  --payer-path <PATH_TO_PAYER_KEYPAIR> \
+  --authority-path <PATH_TO_AUTHORITY_KEYPAIR> \
+  --rpc-url https://api.devnet.solana.com \
+  update-operator-whitelist \
+  -r PUBKEY_OLD
+
+# Both at once
+ncn \
+  --payer-path ~/.config/solana/id.json \
+  --authority-path ~/.config/solana/id.json \
+  --rpc-url https://api.devnet.solana.com \
+  update-operator-whitelist \
+  -a PUBKEY_NEW \
+  -r PUBKEY_OLD
+```
+
+| Flag | Description |
+|---|---|
+| `-a <pubkeys>` | Comma-separated pubkeys to add |
+| `-r <pubkeys>` | Comma-separated pubkeys to remove |
+
+---
+
+## Voting Commands
+
+### `cast-vote`
+
+Casts an operator vote with an explicit Merkle root and snapshot hash.
+
+```bash
+ncn \
+  --payer-path ~/.config/solana/id.json \
+  --authority-path ~/.config/solana/id.json \
+  --rpc-url https://api.devnet.solana.com \
+  cast-vote \
+  --snapshot-slot 300000000 \
+  --root <BASE58_ROOT> \
+  --hash <BASE58_HASH>
+```
+
+| Argument | Required | Description |
+|---|---|---|
+| `--snapshot-slot <u64>` | Yes | The slot's BallotBox to vote on |
+| `--root <base58>` | Yes | MetaMerkle root from the snapshot |
+| `--hash <base58>` | Yes | Snapshot hash |
+
+---
+
+### `cast-vote-from-snapshot`
+
+Reads a snapshot file and casts the vote automatically from its root and hash.
+
+```bash
+ncn \
+  --payer-path ~/.config/solana/id.json \
+  --authority-path ~/.config/solana/id.json \
+  --rpc-url https://api.devnet.solana.com \
+  cast-vote-from-snapshot \
+  --snapshot-slot 300000000 \
+  --read-path ./meta_merkle-300000000.zip \
+  --is-compressed true
+```
+
+| Argument | Required | Description |
+|---|---|---|
+| `--snapshot-slot <u64>` | Yes | Target BallotBox slot |
+| `--read-path <PATH>` | Yes | Path to snapshot file |
+| `--is-compressed <bool>` | No | Whether the file is gzip-compressed (default: `true`) |
+
+---
+
+### `remove-vote`
+
+Removes an operator's existing vote from a `BallotBox`. Only allowed before expiry and before consensus.
+
+```bash
+ncn \
+  --payer-path ~/.config/solana/id.json \
+  --authority-path ~/.config/solana/id.json \
+  --rpc-url https://api.devnet.solana.com \
+  remove-vote --snapshot-slot <SLOT>
+```
+
+---
+
+### `set-tie-breaker`
+
+Forces a winner on an expired, deadlocked `BallotBox`. Must be signed by the `tie_breaker_admin` key.
+
+```bash
+# Set tie-breaking result if consensus was not reached
+# Note: Can set any ballot value, not limited to existing ballots
+ncn \
+  --payer-path ~/.config/solana/id.json \
+  --authority-path ~/.config/solana/id.json \
+  --rpc-url https://api.devnet.solana.com \
+  set-tie-breaker --snapshot-slot <SLOT> \
+  --root <MERKLE_ROOT> --hash <SNAPSHOT_HASH>
+```
+
+---
+
+### `reset-ballot-box`
+
+Emergency recovery: clears all votes and tallies from a `BallotBox` where all 64 tally slots are full. Must be signed by the `tie_breaker_admin`.
+
+```bash
+ncn \
+  --payer-path ~/.config/solana/id.json \
+  --authority-path ~/.config/solana/id.json \
+  --rpc-url https://api.devnet.solana.com \
+  reset-ballot-box --snapshot-slot <SLOT>
+```
+
+---
+
+### `finalize-ballot`
+
+Permissionless. Creates the `ConsensusResult` from a `BallotBox` that has already reached consensus. Anyone can call this.
+
+```bash
+ncn \
+  --payer-path ~/.config/solana/id.json \
+  --authority-path ~/.config/solana/id.json \
+  --rpc-url https://api.devnet.solana.com \
+  finalize-ballot --snapshot-slot <SLOT>
+```
+
+---
+
+## Query Commands
+
+### `log`
+
+Fetches and displays an on-chain account.
+
+```bash
+# View ProgramConfig
+ncn \
+  --rpc-url https://api.devnet.solana.com log \
+  --ty program-config
+
+# View a BallotBox
+ncn \
+  --rpc-url https://api.devnet.solana.com log \
+  --ty ballot-box --snapshot-slot <SLOT>
+
+# View a ConsensusResult
+ncn \
+  --rpc-url https://api.devnet.solana.com log \
+  --ty consensus-result --snapshot-slot <SLOT>
+
+# View a MetaMerkleProof
+ncn \
+  --rpc-url https://api.devnet.solana.com log \
+  --ty proof \
+  --snapshot-slot <SLOT> \
+  --vote-account <VOTE_ACCOUNT_PUBKEY>
+```
+
+| Argument | Required | Description |
+|---|---|---|
+| `--ty <TYPE>` | Yes | `program-config`, `ballot-box`, `consensus-result`, `proof` |
+| `--snapshot-slot <u64>` | For ballot/result/proof | Target slot |
+| `--vote-account <Pubkey>` | For `proof` only | Validator vote account |
+
+---
+
+## Typical Operator Workflow
+
+```bash
+# 1. Wait for target slot and generate snapshot
+ncn \
+  await-snapshot \
+  --scan-interval <INTERVAL_IN_MINUTES> \
+  --slot <SLOT> \
+  --snapshots-dir /mnt/ledger/snapshots \
+  --backup-snapshots-dir /mnt/ledger/gov-ledger-backup/snapshots \
+  --backup-ledger-dir /mnt/ledger/gov-ledger-backup \
+  --agave-ledger-tool-path /home/sol/.local/share/solana/install/active_release/bin/agave-ledger-tool \
+  --ledger-path /mnt/ledger \
+  --generate-meta-merkle
+
+# 2. (Optional) Verify the snapshot looks correct
+ncn \
+  --authority-path <PATH_TO_AUTHORITY_KEYPAIR> \
+  log-meta-merkle-hash \
+  --read-path <PATH_TO_META_MERKLE_FILE> \
+  --is-compressed true
+
+# 3. Upload to verifier service (via HTTP POST /upload)
+
+# 4. Cast vote on-chain
+ncn \
+  --payer-path <PATH_TO_PAYER_KEYPAIR> \
+  --authority-path <PATH_TO_AUTHORITY_KEYPAIR> \
+  --rpc-url https://api.mainnet-beta.solana.com \
+  cast-vote-from-snapshot \
+  --snapshot-slot <SLOT> \
+  --read-path <PATH_TO_META_MERKLE_FILE> \
+  --is-compressed true
+
+# 5. Check consensus
+ncn \
+  --rpc-url <RPC_URL> log \
+  --ty ballot-box --snapshot-slot <SLOT>
+
+# 6. Finalize once consensus is reached (permissionless)
+ncn \
+  --payer-path <PATH_TO_PAYER_KEYPAIR> \
+  --authority-path <PATH_TO_AUTHORITY_KEYPAIR> \
+  --rpc-url <RPC_URL> \
+  finalize-ballot --snapshot-slot <SLOT>
+```

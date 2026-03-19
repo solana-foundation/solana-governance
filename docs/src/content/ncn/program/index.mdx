@@ -1,0 +1,293 @@
+import { Callout, Tabs } from 'nextra/components'
+
+# ncn-snapshot Program
+
+**Program ID:** `8qua2VAnWaNFDAhUakryMuRdNRVuUehkjnhLECvueGSV`
+
+The `ncn-snapshot` Solana program is the on-chain component of NCN. It manages the operator whitelist, collects snapshot votes into `BallotBox` accounts, determines consensus, and publishes `ConsensusResult` accounts that the `svmgov` program uses for stake proof verification.
+
+---
+
+## Account Structures
+
+### `ProgramConfig`
+
+**PDA seeds:** `["ProgramConfig"]`
+
+The global singleton configuration. Initialized once by the governance authority.
+
+| Field | Type | Description |
+|---|---|---|
+| `authority` | `Pubkey` | Admin who can update this config and manage whitelist |
+| `proposed_authority` | `Option<Pubkey>` | Pending new authority (two-step transfer) |
+| `whitelisted_operators` | `Vec<Pubkey>` (max 64) | Operators eligible to cast votes |
+| `min_consensus_threshold_bps` | `u16` | Min fraction of operators required for consensus (basis points, 1–10,000) |
+| `tie_breaker_admin` | `Pubkey` | Can resolve deadlocks after vote expiry |
+| `vote_duration` | `i64` | Seconds a BallotBox is open for voting |
+
+**Constant:** `MAX_OPERATOR_WHITELIST = 64`
+
+---
+
+### `BallotBox`
+
+**PDA seeds:** `["BallotBox", snapshot_slot.to_le_bytes()]`
+
+One per governance proposal cycle. Tracks all operator votes for a given `snapshot_slot`.
+
+| Field | Type | Description |
+|---|---|---|
+| `bump` | `u8` | PDA bump |
+| `epoch` | `u64` | Epoch at creation |
+| `slot_created` | `u64` | Slot at creation |
+| `slot_consensus_reached` | `u64` | Slot when consensus was first reached (0 = not yet) |
+| `min_consensus_threshold_bps` | `u16` | Threshold snapshot at creation time |
+| `winning_ballot` | `Ballot` | The ballot that reached consensus |
+| `operator_votes` | `Vec<OperatorVote>` (max 64) | One entry per operator vote cast |
+| `ballot_tallies` | `Vec<BallotTally>` (max 64) | Running count per unique ballot |
+| `vote_expiry_timestamp` | `i64` | Unix timestamp when voting closes |
+| `snapshot_slot` | `u64` | The target slot for this snapshot cycle |
+| `voter_list` | `Vec<Pubkey>` (max 64) | Snapshot of whitelist at creation |
+| `tie_breaker_consensus` | `bool` | `true` if resolved by tie-breaker admin |
+
+**Inner types:**
+
+```rust
+pub struct Ballot {
+    pub meta_merkle_root: [u8; 32],
+    pub snapshot_hash:    [u8; 32],
+}
+
+pub struct OperatorVote {
+    pub operator:     Pubkey,
+    pub slot_voted:   u64,
+    pub ballot_index: u8,    // index into ballot_tallies
+}
+
+pub struct BallotTally {
+    pub index:  u8,
+    pub ballot: Ballot,
+    pub tally:  u8,          // number of operators who voted this ballot
+}
+```
+
+---
+
+### `ConsensusResult`
+
+**PDA seeds:** `["ConsensusResult", snapshot_slot.to_le_bytes()]`
+
+The final, immutable output. Created by `finalize_ballot` after consensus is reached.
+
+| Field | Type | Description |
+|---|---|---|
+| `snapshot_slot` | `u64` | The slot this result is for |
+| `ballot` | `Ballot` | The winning ballot (root + hash) |
+| `tie_breaker_consensus` | `bool` | Whether resolved by tie-breaker |
+
+---
+
+### `MetaMerkleProof`
+
+**PDA seeds:** `["MetaMerkleProof", consensus_result_pubkey, vote_account_pubkey]`
+
+Temporary storage for a validator's proof data. Variable-size account.
+
+| Field | Type | Description |
+|---|---|---|
+| `payer` | `Pubkey` | Creator who can close at any time |
+| `consensus_result` | `Pubkey` | The `ConsensusResult` this proof belongs to |
+| `meta_merkle_leaf` | `MetaMerkleLeaf` | Leaf data (voting_wallet, vote_account, stake_root, active_stake) |
+| `meta_merkle_proof` | `Vec<[u8; 32]>` | Sibling hashes from leaf to root |
+| `close_timestamp` | `i64` | After this time, anyone can close the account |
+
+---
+
+## Instructions
+
+### `init_program_config`
+
+Initializes the `ProgramConfig` singleton. Called once at program deployment.
+
+**Signers:** `payer`, `authority`
+
+```
+Accounts: program_config (init, PDA)
+```
+
+---
+
+### `update_program_config`
+
+Updates any subset of config fields. All parameters are optional.
+
+**Signer:** `authority`
+
+| Parameter | Type | Validation |
+|---|---|---|
+| `proposed_authority` | `Option<Pubkey>` | — |
+| `min_consensus_threshold_bps` | `Option<u16>` | Must be `> 0` and `≤ 10,000` |
+| `tie_breaker_admin` | `Option<Pubkey>` | — |
+| `vote_duration` | `Option<i64>` | Must be `> 0` |
+
+---
+
+### `finalize_proposed_authority`
+
+Completes a two-step authority transfer. The new authority signs this instruction.
+
+**Signer:** new authority (must match `program_config.proposed_authority`)
+
+Clears `proposed_authority` after accepting.
+
+---
+
+### `update_operator_whitelist`
+
+Add or remove operators atomically.
+
+**Signer:** `authority`
+
+| Parameter | Validation |
+|---|---|
+| `operators_to_add: Option<Vec<Pubkey>>` | Deduplicates; enforces max 64 total |
+| `operators_to_remove: Option<Vec<Pubkey>>` | |
+
+<Callout type="warning">
+  Add and remove lists must not overlap. If the same pubkey appears in both, the instruction fails with `OverlappingWhitelistEntries`.
+</Callout>
+
+---
+
+### `init_ballot_box`
+
+Creates a new `BallotBox` for a given `snapshot_slot`. Called by the `svmgov` program via CPI when a governance proposal reaches the support threshold.
+
+**Signers:** `payer`, `proposal` (governance proposal PDA, acts as CPI signer)
+
+| Parameter | Validation |
+|---|---|
+| `snapshot_slot: u64` | Must be `> current_slot` |
+| `proposal_seed: u64` | Seed used to verify the CPI signer is a valid governance proposal PDA |
+| `spl_vote_account: Pubkey` | Proposer's vote account |
+
+Snapshots `whitelisted_operators` into `voter_list` at creation time.
+
+<Callout>
+  The `proposal` account must be a PDA from the `svmgov` program (`EKwRPoyRactBV2z2XhUSVU1YbZuyTVq4kU5U5dM2JyZY`). Compile with `skip-pda-check` feature to disable this check for testing.
+</Callout>
+
+---
+
+### `cast_vote`
+
+Operator casts a vote on a `BallotBox`.
+
+**Signer:** `operator` (must be in `voter_list`)
+
+| Parameter | Validation |
+|---|---|
+| `ballot: Ballot` | `meta_merkle_root` must not be all zeros |
+
+**Checks:** operator in voter list, voting not expired, operator hasn't already voted, `ballot_tallies` not full. Automatically sets `winning_ballot` when the threshold is crossed for the first time.
+
+---
+
+### `remove_vote`
+
+Removes an operator's vote. Only allowed before expiry and before consensus.
+
+**Signer:** `operator`
+
+Decrements the tally but keeps the `BallotTally` entry (to preserve ballot indices for other operators who voted the same ballot).
+
+---
+
+### `set_tie_breaker`
+
+Allows the `tie_breaker_admin` to force a winner after voting expires without consensus.
+
+**Signer:** `tie_breaker_admin` (from `ProgramConfig`)
+
+| Parameter | Validation |
+|---|---|
+| `ballot: Ballot` | Any ballot value (can be any valid root+hash) |
+
+**Allowed only when:** voting has expired AND consensus has not been reached. Sets `tie_breaker_consensus = true`.
+
+---
+
+### `reset_ballot_box`
+
+Emergency recovery for a `BallotBox` that is stuck because all 64 tally slots are full of different ballots (no consensus possible without this reset).
+
+**Signer:** `tie_breaker_admin`
+
+**Allowed only when:** no consensus, not expired, and `ballot_tallies.len() == MAX_BALLOT_TALLIES`. Clears all `operator_votes` and `ballot_tallies`.
+
+---
+
+### `finalize_ballot`
+
+Permissionless. Creates the `ConsensusResult` PDA from the `BallotBox.winning_ballot`. Anyone can call this once consensus is reached.
+
+**Accounts:** `ballot_box` (read), `consensus_result` (init)
+
+---
+
+### `init_meta_merkle_proof`
+
+Stores a validator's proof data in a temporary PDA. Immediately verifies the proof against the `ConsensusResult`.
+
+**Signer:** `payer` (pays rent, can close at any time)
+
+| Parameter | Description |
+|---|---|
+| `meta_merkle_leaf: MetaMerkleLeaf` | Leaf data |
+| `meta_merkle_proof: Vec<[u8;32]>` | Proof path |
+| `close_timestamp: i64` | When others can close this PDA |
+
+---
+
+### `verify_merkle_proof`
+
+Permissionless CPI-able instruction. Verifies that a vote account (and optionally a stake account) is in the `ConsensusResult`.
+
+| Parameter | Description |
+|---|---|
+| `stake_merkle_proof: Option<Vec<[u8;32]>>` | Stake level proof (required with stake leaf) |
+| `stake_merkle_leaf: Option<StakeMerkleLeaf>` | Stake account leaf data |
+
+If stake arguments are provided, also verifies the stake leaf is in `meta_merkle_leaf.stake_merkle_root`. Both must be provided together or neither.
+
+---
+
+### `close_meta_merkle_proof`
+
+Closes a `MetaMerkleProof` PDA to reclaim rent.
+
+- Creator can close at any time
+- Anyone can close after `close_timestamp`
+
+---
+
+## Error Codes
+
+| Error | Description |
+|---|---|
+| `OperatorNotWhitelisted` | Signer is not in the voter list |
+| `OperatorHasVoted` | Operator already cast a vote |
+| `OperatorHasNotVoted` | Tried to remove a vote that doesn't exist |
+| `VotingExpired` | Voting window has closed |
+| `VotingNotExpired` | Tie-breaker called before expiry |
+| `ConsensusReached` | Action not allowed after consensus (e.g., remove vote) |
+| `ConsensusNotReached` | Tried to finalize before consensus |
+| `InvalidBallot` | Ballot has all-zero root |
+| `InvalidMerkleInputs` | Stake proof args must both be provided or both absent |
+| `InvalidMerkleProof` | Proof verification failed |
+| `VecFull` | Ballot tallies at max capacity |
+| `OverlappingWhitelistEntries` | Same pubkey in both add and remove lists |
+| `InvalidBallotIndex` | Internal ballot index inconsistency |
+| `InvalidSnapshotSlot` | Snapshot slot must be greater than current slot |
+| `BallotTalliesNotMaxLength` | Reset attempted when tallies not full |
+| `InvalidProposal` | CPI caller is not a valid governance proposal PDA |

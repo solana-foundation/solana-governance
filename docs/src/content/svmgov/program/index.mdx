@@ -1,0 +1,353 @@
+import { Callout } from 'nextra/components'
+
+# svmgov Program Reference
+
+**Program ID:** `EKwRPoyRactBV2z2XhUSVU1YbZuyTVq4kU5U5dM2JyZY`
+
+Complete reference for all on-chain accounts, instructions, and error codes in the `svmgov` Anchor program.
+
+<Callout type="info">
+  If any term is unfamiliar, use the <a href="/svmgov/terminology">svmgov Terminology</a> page as a glossary while reading this reference.
+</Callout>
+
+---
+
+## Account Structures
+
+### `GlobalConfig`
+
+**PDA seeds:** `["global_config"]`
+
+The global governance configuration singleton. Initialized by the admin once.
+
+| Field | Type | Description |
+|---|---|---|
+| `admin` | `Pubkey` | Admin who can update config |
+| `max_title_length` | `u16` | Maximum characters in a proposal title |
+| `max_description_length` | `u16` | Maximum characters in a proposal description |
+| `max_support_epochs` | `u64` | Max epochs a proposal can remain in the support phase |
+| `min_proposal_stake_lamports` | `u64` | Minimum stake (lamports) to create a proposal |
+| `cluster_support_pct_min_bps` | `u64` | % of cluster stake required to activate voting (basis points) |
+| `discussion_epochs` | `u64` | Epochs reserved for discussion after voting is activated |
+| `voting_epochs` | `u64` | Number of epochs in the active voting window |
+| `snapshot_epoch_extension` | `u64` | Epochs of extension before the snapshot slot is set |
+| `bump` | `u8` | PDA bump |
+
+---
+
+### `ProposalIndex`
+
+**PDA seeds:** `["index"]`
+
+Tracks the global proposal counter. Incremented on each new proposal.
+
+| Field | Type | Description |
+|---|---|---|
+| `current_index` | `u32` | Sequential proposal counter |
+| `bump` | `u8` | PDA bump |
+
+---
+
+### `Proposal`
+
+**PDA seeds:** `["proposal", seed.to_le_bytes(), spl_vote_account_pubkey]`
+
+The main proposal account. One per governance proposal.
+
+| Field | Type | Description |
+|---|---|---|
+| `author` | `Pubkey` | Validator who created the proposal |
+| `title` | `String` | Short title (max ~50 chars enforced by `max_title_length`) |
+| `description` | `String` | GitHub URL for full proposal text (max ~250 chars) |
+| `creation_epoch` | `u64` | Epoch when created |
+| `start_epoch` | `u64` | Epoch when voting begins |
+| `end_epoch` | `u64` | Epoch when voting ends |
+| `proposer_stake_weight_bp` | `u64` | Proposer's stake weight (basis points) at creation |
+| `cluster_support_lamports` | `u64` | Running total of supporting stake (lamports) |
+| `for_votes_lamports` | `u64` | Accumulated lamports voted For |
+| `against_votes_lamports` | `u64` | Accumulated lamports voted Against |
+| `abstain_votes_lamports` | `u64` | Accumulated lamports voted Abstain |
+| `voting` | `bool` | `true` once support threshold is reached |
+| `finalized` | `bool` | `true` after `finalize_proposal` |
+| `proposal_bump` | `u8` | PDA bump (used as seed for CPI signing) |
+| `creation_timestamp` | `i64` | Unix timestamp at creation |
+| `vote_count` | `u32` | Number of votes cast |
+| `index` | `u32` | Sequential proposal index from `ProposalIndex` |
+| `consensus_result` | `Option<Pubkey>` | The NCN `ConsensusResult` PDA for this proposal |
+| `snapshot_slot` | `u64` | Slot of stake snapshot (set when voting activates) |
+| `proposal_seed` | `u64` | Seed used to derive proposal PDA (needed for CPI) |
+| `vote_account_pubkey` | `Pubkey` | Proposer's SPL vote account |
+
+---
+
+### `Support`
+
+**PDA seeds:** `["support", proposal_pubkey, spl_vote_account_pubkey]`
+
+A receipt proving that a validator has already supported a proposal. Prevents double-supporting.
+
+| Field | Type | Description |
+|---|---|---|
+| `proposal` | `Pubkey` | The supported proposal |
+| `validator` | `Pubkey` | The supporting validator |
+| `bump` | `u8` | PDA bump |
+
+---
+
+### `Vote`
+
+**PDA seeds:** `["vote", proposal_pubkey, spl_vote_account_pubkey]`
+
+Records a validator's vote on a proposal.
+
+| Field | Type | Description |
+|---|---|---|
+| `validator` | `Pubkey` | Validator who voted |
+| `proposal` | `Pubkey` | The voted-on proposal |
+| `for_votes_bp` | `u64` | Basis points allocated to For |
+| `against_votes_bp` | `u64` | Basis points allocated to Against |
+| `abstain_votes_bp` | `u64` | Basis points allocated to Abstain |
+| `for_votes_lamports` | `u64` | Actual lamports for For (stake × bp / 10,000) |
+| `against_votes_lamports` | `u64` | Actual lamports for Against |
+| `abstain_votes_lamports` | `u64` | Actual lamports for Abstain |
+| `stake` | `u64` | Validator's total stake at vote time |
+| `override_lamports` | `u64` | Stake already overridden by delegators |
+| `vote_timestamp` | `i64` | Unix timestamp |
+| `bump` | `u8` | PDA bump |
+
+---
+
+### `VoteOverride`
+
+**PDA seeds:** `["vote_override", proposal_pubkey, spl_stake_account_pubkey, validator_vote_pubkey]`
+
+Records a delegator's override of their validator's vote.
+
+| Field | Type | Description |
+|---|---|---|
+| `delegator` | `Pubkey` | Delegator who overrode |
+| `stake_account` | `Pubkey` | Stake account used for the override |
+| `validator` | `Pubkey` | Validator's vote account being overridden |
+| `proposal` | `Pubkey` | The proposal |
+| `vote_account_validator` | `Pubkey` | The validator's `Vote` PDA address |
+| `for_votes_bp` | `u64` | Delegator's For allocation (basis points) |
+| `against_votes_bp` | `u64` | Delegator's Against allocation |
+| `abstain_votes_bp` | `u64` | Delegator's Abstain allocation |
+| `for_votes_lamports` | `u64` | Delegator's For (stake × bp / 10,000) |
+| `against_votes_lamports` | `u64` | Delegator's Against |
+| `abstain_votes_lamports` | `u64` | Delegator's Abstain |
+| `stake_amount` | `u64` | Delegator's stake amount in this account |
+| `vote_override_timestamp` | `i64` | Unix timestamp |
+| `bump` | `u8` | PDA bump |
+
+---
+
+### `VoteOverrideCache`
+
+**PDA seeds:** `["vote_override_cache", proposal_pubkey, validator_vote_pubkey]`
+
+Aggregates all delegator overrides for a validator on a proposal. Used when a delegator overrides before the validator has voted.
+
+| Field | Type | Description |
+|---|---|---|
+| `validator` | `Pubkey` | Validator vote account |
+| `proposal` | `Pubkey` | Proposal |
+| `vote_account_validator` | `Pubkey` | The validator's `Vote` PDA address |
+| `for_votes_bp` | `u64` | Accumulated For (basis points) from all delegators |
+| `against_votes_bp` | `u64` | Accumulated Against |
+| `abstain_votes_bp` | `u64` | Accumulated Abstain |
+| `for_votes_lamports` | `u64` | Accumulated For (lamports) |
+| `against_votes_lamports` | `u64` | Accumulated Against |
+| `abstain_votes_lamports` | `u64` | Accumulated Abstain |
+| `total_stake` | `u64` | Total delegator stake in this cache |
+| `bump` | `u8` | PDA bump |
+
+<Callout>
+  `VoteOverrideCache` is created with `init_if_needed` to prevent prefunding DoS attacks. The validator's `cast_vote` checks for an existing cache and applies it to reduce their effective stake.
+</Callout>
+
+---
+
+## Instructions
+
+### `initialize_config`
+
+One-time initialization. Sets all governance parameters.
+
+**Signer:** `admin` (must match `ADMIN_PUBKEY` constant)
+
+| Parameter | Type | Description |
+|---|---|---|
+| `max_title_length` | `u16` | Max title chars |
+| `max_description_length` | `u16` | Max description chars |
+| `max_support_epochs` | `u64` | Max epochs in support phase |
+| `min_proposal_stake_lamports` | `u64` | Min stake to create a proposal |
+| `cluster_support_pct_min_bps` | `u64` | Cluster support threshold |
+| `discussion_epochs` | `u64` | Epochs of discussion |
+| `voting_epochs` | `u64` | Epochs for voting |
+| `snapshot_epoch_extension` | `u64` | Extension epochs before snapshot |
+
+---
+
+### `update_config`
+
+Updates any subset of config fields. All params are `Option<T>`.
+
+**Signer:** `admin`
+
+---
+
+### `initialize_index`
+
+Creates the global `ProposalIndex` PDA. Can be called by anyone. Must be called once before any proposals.
+
+---
+
+### `create_proposal`
+
+Creates a new governance proposal.
+
+**Signer:** validator (must match `spl_vote_account.node_pubkey`)
+
+| Parameter | Type | Validation |
+|---|---|---|
+| `seed: u64` | `u64` | Unique seed for PDA derivation |
+| `title: String` | `String` | Non-empty, ≤ `max_title_length` |
+| `description: String` | `String` | Non-empty, ≤ `max_description_length`, must start with `https://github.com` |
+
+**Additional checks:** proposer stake ≥ `min_proposal_stake_lamports`
+
+---
+
+### `support_proposal`
+
+A validator signals support for a proposal.
+
+**Signer:** validator
+
+Adds the validator's stake to `proposal.cluster_support_lamports`. When the total crosses the cluster support threshold:
+- Sets `proposal.voting = true`
+- Calculates `snapshot_slot` (1000 slots into `snapshot_epoch_extension` epoch)
+- Sets `start_epoch` and `end_epoch`
+- Derives `consensus_result` PDA
+- CPIs to `ncn-snapshot::init_ballot_box`
+
+---
+
+### `cast_vote`
+
+A validator votes on an active proposal.
+
+**Signer:** validator (must match `meta_merkle_leaf.voting_wallet`)
+
+| Parameter | Type | Validation |
+|---|---|---|
+| `for_votes_bp` | `u64` | |
+| `against_votes_bp` | `u64` | |
+| `abstain_votes_bp` | `u64` | Sum of all three must equal 10,000 |
+
+**Flow:**
+1. Verifies proposal is in voting phase and epoch range
+2. Reads `MetaMerkleProof` PDA
+3. CPIs to `ncn-snapshot::verify_merkle_proof`
+4. If `VoteOverrideCache` exists: applies cached delegator votes, reduces validator's effective stake
+5. Records `Vote` PDA with lamport amounts
+
+---
+
+### `modify_vote`
+
+Modifies an existing validator vote during the voting phase.
+
+**Signer:** validator
+
+Subtracts old vote lamports from proposal totals, adds new values, re-verifies Merkle proof.
+
+---
+
+### `cast_vote_override`
+
+A delegator overrides their validator's vote using a stake account proof.
+
+**Signer:** delegator (must match `stake_merkle_leaf.voting_wallet`)
+
+| Parameter | Type | Description |
+|---|---|---|
+| `for_votes_bp` | `u64` | |
+| `against_votes_bp` | `u64` | |
+| `abstain_votes_bp` | `u64` | Must sum to 10,000 |
+| `stake_merkle_proof` | `Vec<[u8;32]>` | Proof path for the stake account |
+| `stake_merkle_leaf` | `StakeMerkleLeaf` | Stake account leaf data |
+
+**Two paths:**
+- **Path A (validator has voted):** Immediately adjusts the validator's `Vote` — subtracts delegator's portion from old vote, adds delegator's preferred allocation, updates `override_lamports`
+- **Path B (validator hasn't voted yet):** Stores in `VoteOverrideCache` to be applied when the validator votes
+
+---
+
+### `modify_vote_override`
+
+Modifies an existing delegator override. Reverses the old override's effect and applies new values.
+
+**Signer:** delegator
+
+---
+
+### `finalize_proposal`
+
+Permissionless. Marks a proposal as finalized after its voting period ends.
+
+**Conditions:** `proposal.voting == true`, `!proposal.finalized`, `clock.epoch >= proposal.end_epoch`
+
+---
+
+### `flush_merkle_root`
+
+Resets the `consensus_result` on a proposal by recalculating the snapshot slot and creating a new `BallotBox`. Used when the snapshot needs to be refreshed.
+
+**Signer:** proposal author only
+
+---
+
+## Error Codes
+
+| Error | Description |
+|---|---|
+| `NotEnoughStake` | Insufficient stake to create or vote |
+| `TitleEmpty` | Proposal title is empty |
+| `TitleTooLong` | Title exceeds max length |
+| `DescriptionEmpty` | Description is empty |
+| `DescriptionTooLong` | Description exceeds max length |
+| `DescriptionInvalid` | Description must be a `https://github.com` link |
+| `InvalidProposalId` | Invalid proposal ID |
+| `VotingNotStarted` | Proposal has not yet entered voting phase |
+| `ProposalClosed` | Voting period has ended |
+| `ProposalFinalized` | Proposal already finalized |
+| `InvalidVoteDistribution` | For + Against + Abstain ≠ 10,000 bps |
+| `VotingPeriodNotEnded` | Tried to finalize before `end_epoch` |
+| `InvalidVoteAccount` | Vote account mismatch |
+| `FailedDeserializeNodePubkey` | Could not read node_pubkey from vote account |
+| `VoteNodePubkeyMismatch` | Signer doesn't match vote account's node_pubkey |
+| `InvalidClusterStake` | Cluster stake is zero |
+| `InvalidStartEpoch` | Start epoch in the past |
+| `InvalidVotingLength` | Voting length must be > 0 |
+| `InvalidVoteAccountVersion` | Unsupported vote account version |
+| `InvalidVoteAccountSize` | Vote account has unexpected size |
+| `InvalidStakeAccount` | Stake account invalid |
+| `InvalidStakeState` | Stake account in unexpected state |
+| `InvalidStakeAccountSize` | Stake account has unexpected size |
+| `InvalidSnapshotProgram` | Provided program ID is not the ncn-snapshot program |
+| `UnauthorizedMerkleRootUpdate` | Only the proposal author can flush Merkle root |
+| `MerkleRootAlreadySet` | Cannot set Merkle root that is already set |
+| `InvalidMerkleRoot` | Merkle root cannot be all zeros |
+| `InvalidSnapshotSlot` | Snapshot slot must be past or current |
+| `MustBeOwnedBySnapshotProgram` | Account must be owned by ncn-snapshot |
+| `InvalidConsensusResultPDA` | ConsensusResult PDA address mismatch |
+| `CannotDeserializeMetaMerkleProofPDA` | MetaMerkleProof deserialization failed |
+| `CannotDeserializeConsensusResult` | ConsensusResult deserialization failed |
+| `CannotModifyAfterStart` | Cannot modify proposal after voting starts |
+| `VotingLengthTooLong` | Voting length exceeds `max_support_epochs` |
+| `ArithmeticOverflow` | Overflow in stake calculations |
+| `SnapshotProgramUpgraded` | Snapshot program upgrade protection triggered |
+| `MerkleRootNotSet` | Merkle root not yet set for this proposal |
+| `SupportPeriodExpired` | Support period has expired |

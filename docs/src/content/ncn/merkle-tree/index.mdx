@@ -1,0 +1,163 @@
+import { Callout } from 'nextra/components'
+
+# Merkle Trees
+
+NCN uses a **two-tier Merkle tree** structure to represent the entire Solana stake distribution in a compact, verifiable form. Understanding this structure is essential for understanding how stake-weighted governance votes are verified on-chain.
+
+## Overview
+
+```
+                        MetaMerkle Root
+                       /               \
+           MetaMerkle Node           MetaMerkle Node
+            /        \                /        \
+     Leaf(Val A)  Leaf(Val B)   Leaf(Val C)  Leaf(Val D)
+          │              │
+   StakeMerkle       StakeMerkle
+      Root A             Root B
+      /    \             /    \
+ Leaf(S1) Leaf(S2)  Leaf(S3) Leaf(S4)
+```
+
+- **Top tier (MetaMerkleTree)**: one leaf per validator
+- **Bottom tier (StakeMerkleTree)**: one leaf per stake account, per validator
+
+## Hash Algorithm
+
+Both trees use **SHA-256** with domain separation to prevent second-preimage attacks:
+
+| Node type | Hash formula |
+|---|---|
+| Leaf | `SHA256(0x00 ‖ leaf_content_hash)` |
+| Internal | `SHA256(0x01 ‖ sort(left_child, right_child))` |
+
+The `sort()` means children are always concatenated in lexicographic order (smaller hash first). This makes the tree structure deterministic regardless of insertion order.
+
+## MetaMerkleTree (Top Level)
+
+### Purpose
+
+The `MetaMerkleTree` lets any on-chain program verify that a given validator participated in the snapshotted stake distribution and what their total active stake was — using only a short proof path.
+
+### Leaf Structure (`MetaMerkleLeaf`)
+
+```rust
+pub struct MetaMerkleLeaf {
+    pub voting_wallet:      Pubkey,    // governance voting authority
+    pub vote_account:       Pubkey,    // validator's SPL vote account
+    pub stake_merkle_root:  [u8; 32],  // root of this validator's StakeMerkleTree
+    pub active_stake:       u64,       // total active delegated stake (lamports)
+}
+```
+
+**Leaf hash:**
+```
+leaf_content_hash = SHA256(
+    ‖ voting_wallet.bytes()
+    ‖ vote_account.bytes()
+    ‖ stake_merkle_root
+    ‖ active_stake.to_le_bytes()
+)
+
+merkle_leaf_hash = SHA256(0x00 ‖ leaf_content_hash)
+)
+```
+
+### Leaf Ordering
+
+Leaves are sorted by `vote_account` bytes (lexicographic order) before tree construction. This ensures every operator produces the exact same tree layout.
+
+### Example Proof Verification
+
+To verify that validator `V` has `100 SOL` of stake in snapshot `S`:
+
+1. Retrieve the `MetaMerkleProof` PDA for `(ConsensusResult, V)` from the verifier service
+2. Reconstruct `leaf_content_hash = MetaMerkleLeaf.hash()` (32 bytes), then compute `merkle_leaf_hash = SHA256(0x00 ‖ leaf_content_hash)`
+3. Walk up the proof sibling hashes:
+   ```
+   current = merkle_leaf_hash
+   for sibling in proof:
+       current = SHA256(0x01 ‖ sort(current, sibling))
+   assert current == consensus_result.meta_merkle_root
+   ```
+
+---
+
+## StakeMerkleTree (Bottom Level)
+
+### Purpose
+
+The `StakeMerkleTree` enables individual delegators to prove that a specific stake account is included in the snapshot, enabling **vote overrides**: a delegator can prove their stake and vote independently of their validator.
+
+### Leaf Structure (`StakeMerkleLeaf`)
+
+```rust
+pub struct StakeMerkleLeaf {
+    pub voting_wallet:  Pubkey,  // same as parent MetaMerkleLeaf.voting_wallet
+    pub stake_account:  Pubkey,  // the individual stake account address
+    pub active_stake:   u64,     // active stake in this account (lamports)
+}
+```
+
+**Leaf hash:**
+```
+leaf_content_hash = SHA256(
+    ‖ voting_wallet.bytes()
+    ‖ stake_account.bytes()
+    ‖ active_stake.to_le_bytes()
+)
+
+merkle_leaf_hash = SHA256(0x00 ‖ leaf_content_hash)
+)
+```
+
+### Leaf Ordering
+
+Leaves sorted by `stake_account` bytes.
+
+### Example: Two-Level Proof
+
+When a delegator calls `cast_vote_override`, the `svmgov` program calls `verify_merkle_proof` with both a meta-level and a stake-level proof:
+
+```
+1. Verify MetaMerkleLeaf in MetaMerkleTree   → confirms validator + stake_merkle_root
+2. Verify StakeMerkleLeaf in StakeMerkleTree → confirms delegator's stake_account in that subtree
+```
+
+---
+
+## On-Chain Proof Storage (`MetaMerkleProof` PDA)
+
+Rather than passing the full proof path as a transaction argument on every vote, the NCN system allows proof data to be stored in a temporary PDA:
+
+**PDA seeds:** `["MetaMerkleProof", consensus_result, vote_account]`
+
+```rust
+pub struct MetaMerkleProof {
+    pub payer:              Pubkey,           // creator, can close anytime
+    pub consensus_result:   Pubkey,           // parent ConsensusResult
+    pub meta_merkle_leaf:   MetaMerkleLeaf,   // leaf data
+    pub meta_merkle_proof:  Vec<[u8; 32]>,   // sibling hashes to root
+    pub close_timestamp:    i64,              // after this, anyone can close
+}
+```
+
+- Proof is verified against the `ConsensusResult` immediately at `init_meta_merkle_proof` time.
+- The `payer` can close the account and reclaim rent at any time.
+- After `close_timestamp`, anyone can close it.
+
+<Callout type="warning">
+  Proof PDAs are temporary storage. Applications should close them after use to reclaim rent.
+</Callout>
+
+---
+
+## Security Properties
+
+| Property | Mechanism |
+|---|---|
+| Forgery resistance | SHA-256 preimage resistance; operators can't fabricate valid proofs |
+| Canonical ordering | Leaves sorted before tree construction → same tree for all operators |
+| Domain separation | `0x00` prefix for leaves, `0x01` for internal nodes → no type confusion |
+| Sorted children | `sort(left, right)` → tree is independent of building algorithm |
+| Two-level structure | `stake_merkle_root` in each leaf ties delegators cryptographically to their validator |

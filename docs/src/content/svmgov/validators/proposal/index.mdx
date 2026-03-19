@@ -1,0 +1,62 @@
+# View Proposal
+
+Display detailed information about a specific governance proposal.
+
+## Description
+
+Fetches a single `Proposal` account by its PDA address and displays all metadata, vote totals, and lifecycle information.
+
+## Usage
+
+```bash
+svmgov proposal "ABC123..."
+```
+
+## Arguments
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `<PROPOSAL_ID>` | String | **Yes** | The proposal's PDA address (base58) |
+
+## Global Arguments
+
+| Option | Short | Description |
+|---|---|---|
+| `--rpc-url <URL>` | `-r` | Custom RPC URL |
+
+## Examples
+
+```bash
+# With configured RPC
+svmgov proposal "AbCdEf123..."
+
+# With explicit RPC
+svmgov proposal "AbCdEf123..." \
+  --rpc-url https://api.mainnet-beta.solana.com
+```
+
+## Output
+
+The command displays:
+
+| Field | Description |
+|---|---|
+| Index | Sequential proposal number |
+| Title | Proposal title |
+| Description | GitHub URL link |
+| Author | Proposer's validator vote account |
+| Status | `support` / `active` / `finalized` |
+| Creation | Creation epoch and timestamp |
+| Support | Current cluster support lamports |
+| Voting window | Start epoch → end epoch |
+| For votes | Total lamports voted For |
+| Against votes | Total lamports voted Against |
+| Abstain votes | Total lamports voted Abstain |
+| Vote count | Number of individual votes cast |
+| Snapshot slot | NCN snapshot slot (when active) |
+| Consensus result | NCN ConsensusResult PDA (when active) |
+
+## Related
+
+- [List Proposals](/svmgov/validators/list-proposals) — Browse all proposals
+- [Cast Vote](/svmgov/validators/cast-vote) — Vote on this proposal

@@ -1,0 +1,70 @@
+import { Cards, Callout } from 'nextra/components'
+
+# For Validators
+
+The `svmgov` CLI provides validators with commands to create and manage governance proposals, support other validators' proposals, and cast stake-weighted votes.
+
+<Callout type="info">
+  New to governance terms? Read <a href="/svmgov/terminology">Terminology</a> first, then continue with command guides.
+</Callout>
+
+## Requirements
+
+- Solana validator identity keypair
+- Minimum **100,000 SOL** staked to create a proposal
+- Any active stake to support a proposal or vote
+- Access to a Solana RPC endpoint
+- Operator API URL configured (for fetching Merkle proofs)
+
+## Quick Setup
+
+```bash
+# Install svmgov
+cd svmgov && ./install.sh
+
+# Run interactive setup
+svmgov init
+
+# Set operator API URL (required for proof fetching)
+svmgov config set operator-api-url https://your-operator-api.example.com
+```
+
+## Available Commands
+
+<Cards>
+  <Cards.Card title="Initialize Index" href="/svmgov/validators/init-index" />
+  <Cards.Card title="Create Proposal" href="/svmgov/validators/create-proposal" />
+  <Cards.Card title="Support Proposal" href="/svmgov/validators/support-proposal" />
+  <Cards.Card title="Cast Vote" href="/svmgov/validators/cast-vote" />
+  <Cards.Card title="Modify Vote" href="/svmgov/validators/modify-vote" />
+  <Cards.Card title="Finalize Proposal" href="/svmgov/validators/finalize-proposal" />
+  <Cards.Card title="List Proposals" href="/svmgov/validators/list-proposals" />
+  <Cards.Card title="View Proposal" href="/svmgov/validators/proposal" />
+</Cards>
+
+## Global Arguments
+
+All validator commands support:
+
+| Option | Short | Env var | Description |
+|---|---|---|---|
+| `--identity-keypair <PATH>` | `-i` | `SVMGOV_KEY` | Path to validator identity keypair JSON |
+| `--rpc-url <URL>` | `-r` | `SVMGOV_RPC` | Solana RPC endpoint |
+
+Resolution order: **explicit flags → environment variables → config file → built-in defaults**
+
+## Configuration File
+
+`~/.svmgov/config.toml` — set once via `svmgov init`:
+
+```toml
+user_type = "Validator"
+identity_keypair_path = "/path/to/validator.json"
+network = "mainnet"
+rpc_url = "https://api.mainnet-beta.solana.com"
+operator_api_url = "https://operator.example.com"
+```
+
+<Callout type="warning">
+  The `operator_api_url` is required for any command that needs to fetch Merkle proofs (support-proposal, cast-vote, modify-vote). Set it with `svmgov config set operator-api-url <URL>`.
+</Callout>

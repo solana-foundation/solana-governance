@@ -1,0 +1,74 @@
+import { Cards, Callout } from 'nextra/components'
+
+# For Stakers
+
+Delegators (stakers) can override their validator's governance vote using their individual stake account. This is a core feature of svmgov: **delegator sovereignty**.
+
+<Callout type="info">
+  Read <a href="/svmgov/terminology">Terminology</a> first if you want a quick definition of vote override, snapshot slot, and proof terms.
+</Callout>
+
+## What Is a Vote Override?
+
+By default, a validator votes on behalf of all stake delegated to them, weighted by total active stake. If you disagree with your validator's vote, you can submit your own vote for your specific stake account. Your stake's weight is then removed from the validator's tally and applied according to your preference.
+
+## How It Works
+
+```
+Validator has 1,000 SOL stake
+  ├── 800 SOL from Delegator A  ← Delegator A overrides with their own vote
+  └── 200 SOL from Delegator B  ← No override, follows validator's vote
+
+Effect:
+  Validator's effective vote: 200 SOL (their own 200 SOL remains)
+  Delegator A's vote: 800 SOL (their own allocation)
+```
+
+The Merkle proof system ensures that:
+1. You can only override the vote for stake you own
+2. The stake account must be in the NCN snapshot (active at snapshot slot)
+3. Double overrides for the same stake account are prevented by a `VoteOverride` PDA
+
+## Two Override Paths
+
+**Path A — Validator has already voted:** Your override immediately adjusts the validator's on-chain vote tallies.
+
+**Path B — Validator hasn't voted yet:** Your preferences are stored in a `VoteOverrideCache`. When the validator eventually calls `cast_vote`, your cached override is applied automatically.
+
+## Requirements
+
+- A stake account with active delegation to a validator
+- The staker keypair (withdraw authority or signing key for the stake account)
+- The validator's vote account address
+- Access to operator API for Merkle proofs
+
+## Quick Setup
+
+```bash
+# Install svmgov
+cd svmgov && ./install.sh
+
+# Run interactive setup
+svmgov init
+# > Select: Staker
+
+# Set operator API URL
+svmgov config set operator-api-url https://your-operator-api.example.com
+```
+
+## Commands
+
+<Cards>
+  <Cards.Card title="Cast Vote Override" href="/svmgov/stakers/cast-vote-override" />
+  <Cards.Card title="Modify Vote Override" href="/svmgov/stakers/modify-vote-override" />
+</Cards>
+
+## Global Arguments
+
+| Option | Short | Description |
+|---|---|---|
+| `--rpc-url <URL>` | `-r` | Custom RPC URL |
+
+<Callout type="info">
+  The `operator-api-url` config key must be set before using override commands — the CLI fetches both the MetaMerkle proof (validator level) and StakeMerkle proof (stake account level) from the operator API.
+</Callout>
