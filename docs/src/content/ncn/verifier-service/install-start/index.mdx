@@ -4,8 +4,8 @@ import { Callout } from 'nextra/components'
 
 Deploy flow (single path):
 
-1. Build the binary + Docker image locally
-2. Run `setup.sh` to start the container using the image tag you built
+1. Run `make install-verifier-service` (builds the Docker image and starts the container)
+2. Verify the deployment
 
 ---
 ## Step 1: Build locally (binary + Docker image)
@@ -13,19 +13,14 @@ Deploy flow (single path):
 SSH into the server where you will run the container.
 
 ```bash
-cd ~/solana-governance/ncn
-
-cargo build --release --bin verifier-service
-
-# Build a tagged Docker image. Use an explicit tag (do not rely on `latest`).
-# This tag must be the same one you enter as `IMAGE` when running `setup.sh`.
-sudo docker build -f verifier-service/Dockerfile -t verifier-service:latest .
+cd ~/solana-governance
+make install-verifier-service
 ```
 
 ---
-## Step 2: Start with `setup.sh`
+## Step 2: Enter configuration (prompted by `setup.sh`)
 
-Before you run `setup.sh`, generate a `METRICS_AUTH_TOKEN` (required for `/admin/stats`):
+Before you run `make install-verifier-service`, generate a `METRICS_AUTH_TOKEN` (required for `/admin/stats`):
 
 ```bash
 # Generates a random hex token (copy/paste the output into the prompt)
@@ -33,22 +28,14 @@ METRICS_AUTH_TOKEN="$(openssl rand -hex 32)"
 echo "$METRICS_AUTH_TOKEN"
 ```
 
-Run:
-
-```bash
-cd ~/solana-governance/ncn/verifier-service/src/scripts
-sudo bash setup.sh
-```
-
 When prompted, enter:
 
-- `IMAGE` = `verifier-service:latest` (the tag you built above)
 - `OPERATOR_PUBKEY`
 - `METRICS_AUTH_TOKEN`
 - `PORT_HOST` (example: `8000`, which maps `8000 -> 3000`)
 
 <Callout type="info">
-  Your `setup.sh` starts a container named `verifier` and exposes `PORT_HOST -> 3000`, persisting data under `/srv/verifier/data`.
+  `make install-verifier-service` runs `setup.sh`, which starts container `verifier`, exposes `PORT_HOST -> 3000`, persisting data under `/srv/verifier/data`, and will skip `docker pull` if the requested image tag already exists locally.
 </Callout>
 
 ---

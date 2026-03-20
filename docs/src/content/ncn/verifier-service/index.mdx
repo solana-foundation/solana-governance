@@ -62,31 +62,23 @@ Rather than computing these from the raw snapshot file, clients query the verifi
 Deploy flow (single path):
 
 1. SSH into your server.
-2. Build the binary and Docker image locally:
+2. Install & start:
 
 ```bash
-cd ~/solana-governance/ncn
-cargo build --release --bin verifier-service
-
-# Build an explicit tag (this tag becomes the IMAGE you enter in setup.sh)
-sudo docker build -f verifier-service/Dockerfile -t verifier-service:latest .
+cd ~/solana-governance
+make install-verifier-service
 ```
 
-3. Start the container using the script:
+During the run, you will be prompted to select `mainnet` vs `testnet`, then enter:
 
-```bash
-cd ~/solana-governance/ncn/verifier-service/src/scripts
-sudo bash setup.sh
-```
-
-When prompted, enter:
-- `IMAGE` = the tag you built above (example: `verifier-service:latest`)
 - `OPERATOR_PUBKEY`
 - `METRICS_AUTH_TOKEN`
 - `PORT_HOST` (example: `8000`, which maps `8000 -> 3000`)
 
+The Docker image tag is auto-selected as `verifier-service:latest-mainnet` or `verifier-service:latest-testnet` (there is no separate `IMAGE` prompt).
+
 <Callout type="info">
-  `setup.sh` will start container `verifier`, persist data under `/srv/verifier/data`, and (because it checks locally) will skip `docker pull` if the image tag already exists on the server.
+  `make install-verifier-service` runs `setup.sh`, which starts container `verifier`, persists data under `/srv/verifier/data`, and skips `docker pull` if the image tag already exists locally.
 </Callout>
 
 ---
@@ -112,8 +104,7 @@ sudo docker logs --tail=200 verifier
 
 To upgrade to a new version:
 
-1. Rebuild and re-tag the Docker image (Step 2 in “Install & Start”).
-2. Re-run `setup.sh` and enter that new tag as `IMAGE`.
+1. Re-run `make install-verifier-service` (select the same network; enter the same `OPERATOR_PUBKEY`/`METRICS_AUTH_TOKEN` and your chosen `PORT_HOST`).
 
 Persistent data stays mounted under `/srv/verifier/data`, so upgrades should not require re-uploading everything.
 

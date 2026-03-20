@@ -8,9 +8,8 @@ The NCN CLI is a Rust command-line tool for operators to generate stake snapshot
 
 ```bash
 git clone https://github.com/solana-foundation/solana-governance.git
-cd solana-governance/ncn
-cargo build --release
-# binary at ./target/release/ncn
+cd solana-governance
+make install-ncn-cli 
 ```
 
 ## Global Options
@@ -41,7 +40,7 @@ These options are available on all commands:
 Generates and saves a Solana ledger snapshot for a specific slot.
 
 ```bash
-ncn \
+ncn-cli \
   --ledger-path /mnt/ledger \
   --full-snapshots-path /mnt/ledger/full-snapshots \
   --backup-snapshots-dir /mnt/ledger/backup-snapshots \
@@ -64,7 +63,7 @@ ncn \
 Reads a slot's ledger snapshot and generates the two-tier Merkle snapshot. Saves as `meta_merkle-{slot}.zip`.
 
 ```bash
-ncn \
+ncn-cli \
   --ledger-path /mnt/ledger \
   --account-paths /mnt/accounts \
   --backup-snapshots-dir /mnt/ledger/backup-snapshots \
@@ -85,7 +84,7 @@ ncn \
 Reads a snapshot file and logs the Merkle root, snapshot hash, slot, and the operator's Ed25519 signature over the data.
 
 ```bash
-ncn \
+ncn-cli \
   --authority-path ~/.config/solana/id.json \
   log-meta-merkle-hash \
   --read-path ./meta_merkle-300000000.zip \
@@ -122,7 +121,7 @@ cp /mnt/ledger/genesis.bin /mnt/ledger/gov-ledger-backup/genesis.bin
 #### Run await-snapshot
 
 ```bash
-ncn \
+ncn-cli \
   await-snapshot \
   --scan-interval 1 \
   --slot <SLOT> \
@@ -154,7 +153,7 @@ ncn \
 Initializes the `ProgramConfig` singleton on-chain. Called once during initial deployment.
 
 ```bash
-ncn \
+ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url https://api.devnet.solana.com \
@@ -168,7 +167,7 @@ ncn \
 Updates one or more `ProgramConfig` fields.
 
 ```bash
-ncn \
+ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url https://api.devnet.solana.com \
@@ -193,7 +192,7 @@ ncn \
 Accepts a pending authority transfer. Must be signed by the `proposed_authority` key.
 
 ```bash
-ncn \
+ncn-cli \
   --payer-path <PATH_TO_PAYER_KEYPAIR> \
   --authority-path <PATH_TO_PROPOSED_AUTHORITY_KEYPAIR> \
   --rpc-url <RPC_URL> \
@@ -208,7 +207,7 @@ Add or remove operators from the whitelist.
 
 ```bash
 # Add operators
-ncn \
+ncn-cli \
   --payer-path <PATH_TO_PAYER_KEYPAIR> \
   --authority-path <PATH_TO_AUTHORITY_KEYPAIR> \
   --rpc-url <RPC_URL> \
@@ -216,7 +215,7 @@ ncn \
   -a <PUBKEY1>,<PUBKEY2>,<PUBKEY3>
 
 # Remove operators
-ncn \
+ncn-cli \
   --payer-path <PATH_TO_PAYER_KEYPAIR> \
   --authority-path <PATH_TO_AUTHORITY_KEYPAIR> \
   --rpc-url https://api.devnet.solana.com \
@@ -224,7 +223,7 @@ ncn \
   -r PUBKEY_OLD
 
 # Both at once
-ncn \
+ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url https://api.devnet.solana.com \
@@ -247,7 +246,7 @@ ncn \
 Casts an operator vote with an explicit Merkle root and snapshot hash.
 
 ```bash
-ncn \
+ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url https://api.devnet.solana.com \
@@ -270,7 +269,7 @@ ncn \
 Reads a snapshot file and casts the vote automatically from its root and hash.
 
 ```bash
-ncn \
+ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url https://api.devnet.solana.com \
@@ -293,7 +292,7 @@ ncn \
 Removes an operator's existing vote from a `BallotBox`. Only allowed before expiry and before consensus.
 
 ```bash
-ncn \
+ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url https://api.devnet.solana.com \
@@ -309,7 +308,7 @@ Forces a winner on an expired, deadlocked `BallotBox`. Must be signed by the `ti
 ```bash
 # Set tie-breaking result if consensus was not reached
 # Note: Can set any ballot value, not limited to existing ballots
-ncn \
+ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url https://api.devnet.solana.com \
@@ -324,7 +323,7 @@ ncn \
 Emergency recovery: clears all votes and tallies from a `BallotBox` where all 64 tally slots are full. Must be signed by the `tie_breaker_admin`.
 
 ```bash
-ncn \
+ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url https://api.devnet.solana.com \
@@ -338,7 +337,7 @@ ncn \
 Permissionless. Creates the `ConsensusResult` from a `BallotBox` that has already reached consensus. Anyone can call this.
 
 ```bash
-ncn \
+ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url https://api.devnet.solana.com \
@@ -355,22 +354,22 @@ Fetches and displays an on-chain account.
 
 ```bash
 # View ProgramConfig
-ncn \
+ncn-cli \
   --rpc-url https://api.devnet.solana.com log \
   --ty program-config
 
 # View a BallotBox
-ncn \
+ncn-cli \
   --rpc-url https://api.devnet.solana.com log \
   --ty ballot-box --snapshot-slot <SLOT>
 
 # View a ConsensusResult
-ncn \
+ncn-cli \
   --rpc-url https://api.devnet.solana.com log \
   --ty consensus-result --snapshot-slot <SLOT>
 
 # View a MetaMerkleProof
-ncn \
+ncn-cli \
   --rpc-url https://api.devnet.solana.com log \
   --ty proof \
   --snapshot-slot <SLOT> \
@@ -389,7 +388,7 @@ ncn \
 
 ```bash
 # 1. Wait for target slot and generate snapshot
-ncn \
+ncn-cli \
   await-snapshot \
   --scan-interval <INTERVAL_IN_MINUTES> \
   --slot <SLOT> \
@@ -401,7 +400,7 @@ ncn \
   --generate-meta-merkle
 
 # 2. (Optional) Verify the snapshot looks correct
-ncn \
+ncn-cli \
   --authority-path <PATH_TO_AUTHORITY_KEYPAIR> \
   log-meta-merkle-hash \
   --read-path <PATH_TO_META_MERKLE_FILE> \
@@ -410,7 +409,7 @@ ncn \
 # 3. Upload to verifier service (via HTTP POST /upload)
 
 # 4. Cast vote on-chain
-ncn \
+ncn-cli \
   --payer-path <PATH_TO_PAYER_KEYPAIR> \
   --authority-path <PATH_TO_AUTHORITY_KEYPAIR> \
   --rpc-url https://api.mainnet-beta.solana.com \
@@ -420,12 +419,12 @@ ncn \
   --is-compressed true
 
 # 5. Check consensus
-ncn \
+ncn-cli \
   --rpc-url <RPC_URL> log \
   --ty ballot-box --snapshot-slot <SLOT>
 
 # 6. Finalize once consensus is reached (permissionless)
-ncn \
+ncn-cli \
   --payer-path <PATH_TO_PAYER_KEYPAIR> \
   --authority-path <PATH_TO_AUTHORITY_KEYPAIR> \
   --rpc-url <RPC_URL> \

@@ -3,36 +3,38 @@ import { Callout } from 'nextra/components'
 # Upgrade / Re-deploy
 
 Upgrade flow (single path):
-1. Rebuild the Docker image locally with a new explicit tag
-2. Re-run `setup.sh` and enter that same tag as `IMAGE`
+1. Re-run `make install-verifier-service` (rebuilds the Docker image and redeploys the container)
+2. Verify the deployment
 
 ---
-## Step 1: Rebuild locally (version ordering)
+## Step 1: Re-deploy
 
 ```bash
-cd ~/solana-governance/ncn
-
-cargo build --release --bin verifier-service
-
-# Build with an explicit tag (example).
-sudo docker build -f verifier-service/Dockerfile -t verifier-service:latest .
+cd ~/solana-governance
+make install-verifier-service
 ```
 
 ---
-## Step 2: Re-run `setup.sh`
+## Step 2: Configuration (prompted during install)
 
-```bash
-cd ~/solana-governance/ncn/verifier-service/src/scripts
-sudo bash setup.sh
-```
+When prompted during the `make` run, enter:
+During the run, you will be prompted to select mainnet vs testnet, then enter:
 
-When prompted, set:
-
-- `IMAGE` = `verifier-service:latest` (the tag you built above)
 - `OPERATOR_PUBKEY`, `METRICS_AUTH_TOKEN`
 - `PORT_HOST` (example: `8000`)
 
 <Callout type="info">
   Persistent data stays mounted at `/srv/verifier/data`, so upgrades should not require re-uploading everything.
 </Callout>
+
+---
+## Verify
+
+Replace `<PORT_HOST>` with your `PORT_HOST`:
+
+```bash
+sudo docker ps
+curl -i http://127.0.0.1:<PORT_HOST>/healthz
+curl -s http://127.0.0.1:<PORT_HOST>/version
+```
 
