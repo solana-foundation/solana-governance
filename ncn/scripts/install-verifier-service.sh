@@ -13,13 +13,6 @@ NCN_DIR="$REPO_ROOT/ncn"
 JITO_DIR="$REPO_ROOT/jito-tip-router"
 JITO_BRANCH="gov-v1"
 
-if [ "${EUID:-$(id -u)}" -eq 0 ]; then
-  echo -e "${RED}Do not run this script with sudo.${NC}" >&2
-  echo "Run it as your normal user so Cargo/Rust from your user PATH is available." >&2
-  echo "Use: bash ncn/scripts/install-verifier-service.sh" >&2
-  exit 1
-fi
-
 echo "Select network:"
 echo "1) mainnet"
 echo "2) testnet"
