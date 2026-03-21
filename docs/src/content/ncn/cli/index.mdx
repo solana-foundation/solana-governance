@@ -4,6 +4,34 @@ import { Callout, Tabs } from 'nextra/components'
 
 The NCN CLI is a Rust command-line tool for operators to generate stake snapshots, manage the on-chain `ncn-snapshot` program, and interact with the verifier service.
 
+## Operator startup (snapshot-first checklist)
+
+If you are onboarding an operator, start from this flow before running voting commands:
+
+1. Run and sync a validator/RPC machine to chain tip.
+2. Use startup settings that keep snapshots available for NCN snapshot generation.
+3. Generate a snapshot and MetaMerkle artifact.
+4. Log the Merkle root/hash and verify outputs.
+5. Upload to verifier service and fetch proof/meta endpoints to validate end-to-end availability.
+
+### Recommended validator/RPC startup settings
+
+These values are the baseline used for NCN operator testing:
+
+| Setting | Value |
+|---|---|
+| Agave version | `^3.0.6` |
+| Ledger limit (shred count) | `200000000` |
+| Full snapshots retention | `2` |
+| Full snapshots interval | `100000` |
+| Incremental snapshots retention | `30` |
+| Incremental snapshots interval | `2500` |
+| Open files limit | `LimitNOFILE=2000000` |
+
+<Callout type="info">
+  For verifier deployment and API checks, use <a href="/ncn/verifier-service">Verifier Service</a>. This page focuses on CLI commands and operator snapshot flow.
+</Callout>
+
 ## Installation
 
 ```bash
