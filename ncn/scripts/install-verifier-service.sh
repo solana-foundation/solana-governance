@@ -51,7 +51,7 @@ if [ -d "$JITO_DIR/.git" ]; then
   git checkout "$JITO_BRANCH" || git checkout -b "$JITO_BRANCH" "origin/$JITO_BRANCH"
   git pull --ff-only origin "$JITO_BRANCH"
 else
-  git clone --branch "$JITO_BRANCH" --single-branch https://github.com/exo-tech-xyz/jito-tip-router.git "$JITO_DIR"
+  git clone --branch "$JITO_BRANCH" --single-branch https://github.com/brewlabshq/jito-tip-router.git "$JITO_DIR"
 fi
 
 if [ ! -f "$JITO_DIR/meta_merkle_tree/Cargo.toml" ]; then

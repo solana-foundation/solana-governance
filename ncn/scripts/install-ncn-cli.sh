@@ -43,7 +43,7 @@ if [ -d "$JITO_DIR/.git" ]; then
   git pull --ff-only origin "$JITO_BRANCH"
 else
   echo -e "${YELLOW}Cloning jito-tip-router into repo root (branch: $JITO_BRANCH)${NC}"
-  git clone --branch "$JITO_BRANCH" --single-branch https://github.com/exo-tech-xyz/jito-tip-router.git "$JITO_DIR"
+  git clone --branch "$JITO_BRANCH" --single-branch https://github.com/brewlabshq/jito-tip-router.git "$JITO_DIR"
 fi
 
 if [ ! -f "$JITO_DIR/meta_merkle_tree/Cargo.toml" ]; then

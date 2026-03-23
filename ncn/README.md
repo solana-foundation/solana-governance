@@ -78,10 +78,10 @@ If a vote account delegated to is missing (closed by the manager), the system wi
 
 ## Dependencies
 
-1. Clone `jito-tip-router` from the **exo-tech-xyz** fork to parent directory and switch to the `ncn-snapshot` branch:
+1. Clone `jito-tip-router` from the **brewlabshq** fork to parent directory and switch to the `ncn-snapshot` branch:
 
    ```bash
-   git clone https://github.com/exo-tech-xyz/jito-tip-router.git ../jito-tip-router
+   git clone https://github.com/brewlabshq/jito-tip-router.git ../jito-tip-router
    cd ../jito-tip-router
    git checkout ncn-snapshot
    cd ../ncn-snapshot

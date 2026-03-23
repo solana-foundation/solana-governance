@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-JITO_TIP_ROUTER_REPO="https://github.com/exo-tech-xyz/jito-tip-router.git"
+JITO_TIP_ROUTER_REPO="https://github.com/brewlabshq/jito-tip-router.git"
 JITO_TIP_ROUTER_BRANCH="master"
 JITO_TIP_ROUTER_DIR="$REPO_ROOT/jito-tip-router"
 
