@@ -4,15 +4,7 @@ import path from "path";
 
 const nextConfig: NextConfig = {
   /* config options here */
-
-  // Critical for Cloudflare Pages deployment
-  output: "export",
-
-  // Optimize for edge
-  compress: true,
-  turbopack: {
-    root: path.join(__dirname, "."),
-  },
+  cacheComponents: true,
 };
 
 export default withSentryConfig(nextConfig, {

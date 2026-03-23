@@ -1,3 +1,5 @@
+"use client";
+import { useEffect, useState } from "react";
 import { GitHubIcon, TwitterIcon, DiscordIcon } from "./icons/SvgIcons";
 
 type SocialLink = {
@@ -25,7 +27,8 @@ const socialLinks: SocialLink[] = [
 ];
 
 export default function Footer() {
-  const currentYear = new Date().getFullYear();
+  const [currentYear, setCurrentYear] = useState<number | null>(null);
+  useEffect(() => setCurrentYear(new Date().getFullYear()), []);
   const renderSocialLinks = ({ href, ariaLabel, icon }: SocialLink) => (
     <a
       href={href}
@@ -41,7 +44,7 @@ export default function Footer() {
 
   const renderLegalLinks = () => (
     <p className="legal-text">
-      © {currentYear} Solana |{" "}
+      ©{currentYear !== null ? ` ${currentYear} ` : " "}Solana |{" "}
       <a href="/terms" className="legal-link">
         Terms
       </a>{" "}

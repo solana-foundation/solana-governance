@@ -68,7 +68,7 @@ async function fetchProposalFromGitHub({
 
     // Extract summary
     const summaryMatch = text.match(
-      /##\s*Summary\s*\n([\s\S]*?)(?=\n##\s|\n#\s|$)/i
+      /##\s*Summary\s*\n([\s\S]*?)(?=\n##\s|\n#\s|$)/i,
     );
     const summary = summaryMatch ? summaryMatch[1].trim() : "";
 
@@ -95,6 +95,7 @@ export function useProposalSimdDescription(githubUrl: string) {
     staleTime: CACHE_TTL,
     gcTime: CACHE_TTL * 2,
     initialData: () => {
+      if (typeof window === "undefined") return undefined;
       try {
         const fileName = getFileNameFromGithubUrl(githubUrl);
         const simdCode = getSimdCode(fileName);

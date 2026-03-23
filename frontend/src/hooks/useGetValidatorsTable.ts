@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useValidatorsVoterSplits } from "./useValidatorsVoterSplits";
 import { Validator } from "@/types";
 import { roundDecimals } from "@/lib/helpers";
-import { useGetValidators } from "../useGetValidators";
+import { useGetValidators } from "./useGetValidators";
 
 export type SortBy = "weight" | "name" | "percentage" | "date";
 
@@ -55,7 +55,7 @@ export const useGetValidatorsTable = (sortBy: SortBy) => {
         validators?.map((v) => ({
           ...v,
           percentage: roundDecimals(
-            ((v.activated_stake * 100) / totalStake).toString()
+            ((v.activated_stake * 100) / totalStake).toString(),
           ),
           voterSplits: {
             yes: voterSplits?.[v.vote_identity]
