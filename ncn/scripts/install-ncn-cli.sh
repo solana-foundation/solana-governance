@@ -11,7 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 NCN_DIR="$REPO_ROOT/ncn"
 JITO_DIR="$REPO_ROOT/jito-tip-router"
-JITO_BRANCH="gov-v1"
+JITO_BRANCH="master"
 
 CLI_PKG="cli"
 CLI_BIN_SRC="cli"
@@ -187,4 +187,3 @@ echo ""
 echo "Override any default by exporting the variable before calling ncn-cli:"
 echo "  RUST_LOG=debug ncn-cli --help"
 echo ""
-
