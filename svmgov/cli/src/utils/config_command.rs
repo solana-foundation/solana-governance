@@ -1,9 +1,8 @@
-use std::str::FromStr;
-
-use anchor_lang::prelude::Pubkey;
+use anchor_lang::Id;
 use anyhow::{Result, anyhow};
 
-use crate::config::{Config, UserType, get_default_program_id, get_default_rpc_url};
+use crate::config::{Config, UserType, get_default_rpc_url};
+use crate::svmgov_program::program::SvmgovProgram;
 
 #[derive(clap::Subcommand, Debug, Clone)]
 pub enum ConfigSubcommand {
@@ -60,20 +59,24 @@ async fn handle_set(key: &str, value: &str) -> Result<()> {
                 }
             }
 
-            // Update program ID to network default
-            config.program_id = Some(get_default_program_id(&network_lower));
         }
         "rpc-url" => {
             config.rpc_url = Some(value.to_string());
+
+            // Check if the new RPC URL matches the current network default
+            let current_default = get_default_rpc_url(&config.network);
+            if value != current_default {
+                println!(
+                    "Warning: Custom RPC URL does not match the '{}' network default ({}).",
+                    config.network, current_default
+                );
+                println!(
+                    "If you've switched networks, also run: svmgov config set network <mainnet|testnet|devnet>"
+                );
+            }
         }
         "operator-api-url" => {
             config.operator_api_url = value.to_string();
-        }
-        "program-id" => {
-            // Validate it's a valid pubkey format
-            Pubkey::from_str(value)
-                .map_err(|_| anyhow!("Invalid program ID: must be a valid Solana public key"))?;
-            config.program_id = Some(value.to_string());
         }
         "identity-keypair" => {
             if config.user_type != Some(UserType::Validator) {
@@ -93,7 +96,7 @@ async fn handle_set(key: &str, value: &str) -> Result<()> {
         }
         _ => {
             return Err(anyhow!(
-                "Unknown config key: {}. Valid keys are: network, rpc-url, operator-api-url, program-id, identity-keypair, staker-keypair",
+                "Unknown config key: {}. Valid keys are: network, rpc-url, operator-api-url, identity-keypair, staker-keypair",
                 key
             ));
         }
@@ -117,11 +120,7 @@ async fn handle_get(key: &str) -> Result<()> {
                 config.operator_api_url
             }
         }
-        "program-id" => config
-            .program_id
-            .clone()
-            .unwrap_or_else(|| get_default_program_id(&config.network))
-            .to_string(),
+        "program-id" => SvmgovProgram::id().to_string(),
         "identity-keypair" => config
             .identity_keypair_path
             .unwrap_or_else(|| "not set".to_string()),
@@ -167,23 +166,7 @@ async fn handle_show() -> Result<()> {
 
     println!("  network: {}", config.network);
     println!("  rpc-url: {}", config.get_rpc_url());
-    let program_id = config
-        .program_id
-        .as_ref()
-        .map(|s| s.as_str())
-        .unwrap_or_else(|| {
-            // Compute default and return owned string slice
-            // We'll print it directly
-            ""
-        });
-    if program_id.is_empty() {
-        println!(
-            "  program-id: {} (default)",
-            get_default_program_id(&config.network)
-        );
-    } else {
-        println!("  program-id: {}", program_id);
-    }
+    println!("  program-id: {} (from IDL)", SvmgovProgram::id());
 
     if config.operator_api_url.is_empty() {
         println!("  operator-api-url: not set (required)");

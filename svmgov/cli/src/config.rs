@@ -5,10 +5,7 @@ use anyhow::{Result, anyhow};
 use dirs::home_dir;
 use serde::{Deserialize, Serialize};
 
-use crate::constants::{
-    DEFAULT_DEVNET_PROGRAM_ID, DEFAULT_MAINNET_PROGRAM_ID, DEFAULT_MAINNET_RPC_URL,
-    DEFAULT_TESTNET_PROGRAM_ID, DEFAULT_TESTNET_RPC_URL,
-};
+use crate::constants::{DEFAULT_MAINNET_RPC_URL, DEFAULT_TESTNET_RPC_URL};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum UserType {
@@ -33,8 +30,6 @@ pub struct Config {
     pub network: String,
     pub rpc_url: Option<String>,
     pub operator_api_url: String,
-    #[serde(default)]
-    pub program_id: Option<String>,
 }
 
 impl Default for Config {
@@ -46,7 +41,6 @@ impl Default for Config {
             network: "mainnet".to_string(),
             rpc_url: None,
             operator_api_url: String::new(),
-            program_id: None,
         }
     }
 }
@@ -151,11 +145,3 @@ pub fn get_default_rpc_url(network: &str) -> String {
     }
 }
 
-pub fn get_default_program_id(network: &str) -> String {
-    match network.to_lowercase().as_str() {
-        "mainnet" => DEFAULT_MAINNET_PROGRAM_ID.to_string(),
-        "testnet" => DEFAULT_TESTNET_PROGRAM_ID.to_string(),
-        "devnet" => DEFAULT_DEVNET_PROGRAM_ID.to_string(),
-        _ => DEFAULT_MAINNET_PROGRAM_ID.to_string(),
-    }
-}

@@ -2,20 +2,10 @@ use std::str::FromStr;
 
 use anchor_lang::prelude::Pubkey;
 use anyhow::{Result, anyhow};
-use ncn_snapshot::{ConsensusResult, MetaMerkleLeaf, MetaMerkleProof, StakeMerkleLeaf};
+use ncn_snapshot::{MetaMerkleLeaf, MetaMerkleProof, StakeMerkleLeaf};
 use log::info;
 use serde::{Deserialize, Serialize};
 
-
-/// Summary endpoint response structure (/voter/:voting_wallet)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VoterSummaryResponse {
-    pub network: String,
-    pub snapshot_slot: u64,
-    pub voting_wallet: String,
-    pub vote_accounts: Vec<VoteAccountSummary>,
-    pub stake_accounts: Vec<StakeAccountSummary>,
-}
 
 /// Vote account summary in voter response
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -66,34 +56,6 @@ pub struct StakeMerkleLeafData {
     pub voting_wallet: String,
     pub stake_account: String,
     pub active_stake: u64,
-}
-
-/// Get voter summary with all vote and stake accounts
-/// Endpoint: GET /voter/:voting_wallet?snapshot_slot=...
-pub async fn get_voter_summary(
-    wallet: &Pubkey,
-    snapshot_slot: Option<u64>,
-) -> Result<VoterSummaryResponse> {
-    let base_url = get_api_base_url()?;
-    let mut url = format!("{}/voter/{}", base_url, wallet);
-
-    if let Some(slot) = snapshot_slot {
-        url.push_str(&format!("?snapshot_slot={}", slot));
-    }
-
-    log::debug!("Fetching voter summary from: {}", url);
-
-    let response = reqwest::get(&url).await?;
-    let summary: VoterSummaryResponse = response.json().await?;
-
-    log::debug!(
-        "Got voter summary for {}: {} vote accounts, {} stake accounts",
-        wallet,
-        summary.vote_accounts.len(),
-        summary.stake_accounts.len()
-    );
-
-    Ok(summary)
 }
 
 /// Get merkle proof for a vote account
@@ -284,12 +246,6 @@ pub fn convert_stake_merkle_leaf_data_to_idl_type(
     ncn_snapshot_leaf.try_into()
 }
 
-/// Generate ConsensusResult PDA for a given snapshot slot
-pub fn generate_consensus_result_pda(snapshot_slot: u64) -> Result<Pubkey> {
-    let (pda, _bump) = ConsensusResult::pda(snapshot_slot);
-    Ok(pda)
-}
-
 /// Generate MetaMerkleProof PDA for a given consensus result and vote account
 pub fn generate_meta_merkle_proof_pda(
     consensus_result_pda: &Pubkey,
@@ -299,20 +255,3 @@ pub fn generate_meta_merkle_proof_pda(
     Ok(pda)
 }
 
-/// Generate both ConsensusResult and MetaMerkleProof PDAs from VoteAccountProofResponse
-pub fn generate_pdas_from_vote_proof_response(
-    snapshot_slot: u64,
-    response: &VoteAccountProofResponse,
-) -> Result<(Pubkey, Pubkey)> {
-    let consensus_pda = generate_consensus_result_pda(snapshot_slot)?;
-    let vote_account = Pubkey::from_str(&response.meta_merkle_leaf.vote_account)
-        .map_err(|e| anyhow!("Invalid vote_account pubkey in response: {}", e))?;
-    let meta_proof = generate_meta_merkle_proof_pda(&consensus_pda, &vote_account)?;
-
-    log::debug!(
-        "Generated PDAs - consensus_result: {}, meta_merkle_proof: {}",
-        consensus_pda,
-        meta_proof
-    );
-    Ok((consensus_pda, meta_proof))
-}

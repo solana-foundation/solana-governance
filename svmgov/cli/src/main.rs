@@ -27,23 +27,22 @@ declare_program!(svmgov_program);
     about = "A simple CLI to help creating and voting on validator governance proposals.",
     long_about = "svmgov is a command-line tool for interacting with the Solana Validator Governance program. \
                     It allows users to create proposals, support proposals, cast votes, tally votes, and view proposals and votes.\n\n\
-                    Environment variables can be used for global options: SVMGOV_KEY for --identity-keypair and SVMGOV_RPC for --rpc-url. \
+                    Environment variables can be used for global options: SVMGOV_KEY for --keypair and SVMGOV_RPC for --rpc-url. \
                     Flags override env vars if both are provided.\n\n\
                     To get started, use one of the subcommands below. For example, to list all proposals:\n\
                     $ svmgov --rpc-url https://api.mainnet-beta.solana.com proposal \"EKwRPoyRactBV2z2XhUSVU1YbZuyTVq4kU5U5dM2JyZY\"\n\n\
                     For more information on each subcommand, use --help, e.g., `svmgov create-proposal --help`."
 )]
 struct Cli {
-    /// Path to the identity keypair JSON file.
-    /// This argument is global, meaning it can be used with any subcommand.
+    /// Path to the keypair JSON file used to sign transactions.
     #[arg(
-        short,
-        long,
-        help = "Path to the identity keypair JSON file (or set via SVMGOV_KEY env var)",
+        short = 'k',
+        long = "keypair",
+        help = "Path to the signer keypair JSON file (or set via SVMGOV_KEY env var)",
         global = true,
         env = SVMGOV_KEY_ENV
     )]
-    identity_keypair: Option<String>,
+    keypair: Option<String>,
 
     /// Custom rpc url. This argument is also global and can be used with any subcommand.
     #[arg(
@@ -54,6 +53,15 @@ struct Cli {
         env = SVMGOV_RPC_ENV
     )]
     rpc_url: Option<String>,
+
+    /// Network for fetching merkle proofs. Overrides the value from config.
+    #[arg(
+        short,
+        long,
+        help = "Network for merkle proofs (overrides config value)",
+        global = true
+    )]
+    network: Option<String>,
 
     /// Subcommands for the CLI
     #[command(subcommand)]
@@ -68,8 +76,8 @@ enum Commands {
                       It requires a title and a GitHub link for the proposal description, and optionally a unique seed to derive the proposal's address (PDA). \
                       The identity keypair is required to sign the transaction, and an optional RPC URL can be provided to connect to the chain.\n\n\
                       Examples:\n\
-                      $ svmgov --identity-keypair /path/to/key.json create-proposal --title \"New Governance Rule\" --description \"https://github.com/repo/proposal\"\n\
-                      $ svmgov --identity-keypair /path/to/key.json --rpc-url https://api.mainnet-beta.solana.com create-proposal --seed 42 --title \"New Governance Rule\" --description \"https://github.com/repo/proposal\""
+                      $ svmgov -k /path/to/key.json create-proposal --title \"New Governance Rule\" --description \"https://github.com/repo/proposal\"\n\
+                      $ svmgov -k /path/to/key.json --rpc-url https://api.mainnet-beta.solana.com create-proposal --seed 42 --title \"New Governance Rule\" --description \"https://github.com/repo/proposal\""
     )]
     CreateProposal {
         /// Optional unique seed for the proposal (used to derive the PDA).
@@ -84,9 +92,6 @@ enum Commands {
         #[arg(long, help = "GitHub link for the proposal description")]
         description: String,
 
-        /// Network for fetching merkle proofs
-        #[arg(long, help = "Network for fetching merkle proofs")]
-        network: String,
     },
 
     #[command(
@@ -95,15 +100,12 @@ enum Commands {
                       It requires the proposal ID and the validator's identity keypair to sign the transaction. \
                       An optional RPC URL can be provided to connect to the chain.\n\n\
                       Example:\n\
-                      $ svmgov --identity-keypair /path/to/key.json --rpc-url https://api.mainnet-beta.solana.com support-proposal --proposal-id \"123\""
+                      $ svmgov -k /path/to/key.json --rpc-url https://api.mainnet-beta.solana.com support-proposal --proposal-id \"123\""
     )]
     SupportProposal {
         #[arg(long, help = "Proposal ID")]
         proposal_id: String,
 
-        /// Network for fetching merkle proofs
-        #[arg(long, help = "Network for fetching merkle proofs")]
-        network: String,
     },
 
     #[command(
@@ -112,13 +114,13 @@ enum Commands {
                       Voters specify how to allocate their stake weight across 'For', 'Against', and 'Abstain' using basis points, which must sum to 10,000 (representing 100% of their stake). \
                       It requires the proposal ID and the identity keypair to sign the vote. An optional RPC URL can be provided to connect to the chain.\n\n\
                       Example:\n\
-                      $ svmgov --identity-keypair /path/to/key.json --rpc-url https://api.mainnet-beta.solana.com cast-vote --proposal-id 123 --for-votes 6000 --against-votes 3000 --abstain-votes 1000"
+                      $ svmgov -k /path/to/key.json --rpc-url https://api.mainnet-beta.solana.com cast-vote --proposal-id 123 --for-votes 6000 --against-votes 3000 --abstain-votes 1000"
     )]
     /// Voters submit their votes via the program, specifying how they allocate their
     /// stake weight across the three options. For example, a voter with 100 SOL might assign
     /// 6,000 basis points (60%) to "for," 3,000 (30%) to "against," and 1,000 (10%) to "abstain."
     /// Each voter’s allocation must sum to 10,000 basis points (100% of their stake).
-    /// svmgov --identity-keypair /path/to/key.json cast-vote --proposal-id "123" --for-votes 6000 --against-votes 3000 --abstain-votes 1000
+    /// svmgov -k /path/to/key.json cast-vote --proposal-id "123" --for-votes 6000 --against-votes 3000 --abstain-votes 1000
     CastVote {
         /// Proposal ID for which the vote is being cast (proposal Pubkey).
         #[arg(long, help = "Proposal ID")]
@@ -136,9 +138,6 @@ enum Commands {
         #[arg(long, help = "Basis points for 'Abstain'")]
         abstain_votes: u64,
 
-        /// Network for fetching merkle proofs
-        #[arg(long, help = "Network for fetching merkle proofs")]
-        network: String,
     },
 
     #[command(
@@ -147,7 +146,7 @@ enum Commands {
                       Voters can update how they allocate their stake weight across 'For', 'Against', and 'Abstain' using basis points, which must sum to 10,000 (representing 100% of their stake). \
                       It requires the proposal ID and the identity keypair to sign the modification. An optional RPC URL can be provided to connect to the chain.\n\n\
                       Example:\n\
-                      $ svmgov --identity-keypair /path/to/key.json --rpc-url https://api.mainnet-beta.solana.com modify-vote --proposal-id 123 --for-votes 7000 --against-votes 2000 --abstain-votes 1000"
+                      $ svmgov -k /path/to/key.json --rpc-url https://api.mainnet-beta.solana.com modify-vote --proposal-id 123 --for-votes 7000 --against-votes 2000 --abstain-votes 1000"
     )]
     ModifyVote {
         /// Proposal ID for which the vote is being modified (proposal Pubkey).
@@ -166,9 +165,6 @@ enum Commands {
         #[arg(long, help = "Basis points for 'Abstain'")]
         abstain_votes: u64,
 
-        /// Network for fetching merkle proofs
-        #[arg(long, help = "Network for fetching merkle proofs")]
-        network: String,
     },
 
     #[command(
@@ -178,7 +174,7 @@ enum Commands {
                       An optional RPC URL can be provided to connect to the chain. \
                       The proposal must be in a finalized state (voting period ended) to be finalized.\n\n\
                       Example:\n\
-                      $ svmgov --identity-keypair /path/to/key.json --rpc-url https://api.mainnet-beta.solana.com finalize-proposal --proposal-id \"123\""
+                      $ svmgov -k /path/to/key.json --rpc-url https://api.mainnet-beta.solana.com finalize-proposal --proposal-id \"123\""
     )]
     FinalizeProposal {
         /// Proposal ID to finalize.
@@ -227,7 +223,7 @@ enum Commands {
         long_about = "This command allows anyone to initialize the proposal index pda which will follow proposal creation \
                       An optional RPC URL can be provided to connect to the chain.\n\n\
                       Example:\n\
-                      $ svmgov --identity-keypair /path/to/key.json --rpc-url https://api.mainnet-beta.solana.com init-index"
+                      $ svmgov -k /path/to/key.json --rpc-url https://api.mainnet-beta.solana.com init-index"
     )]
     InitIndex {},
 
@@ -240,9 +236,9 @@ enum Commands {
                       from the voter summary.\n\n\
                       Examples:\n\
                       # Auto-select first stake account from summary\n\
-                      $ svmgov --identity-keypair /path/to/key.json cast-vote-override --proposal-id \"123\" --for-votes 6000 --against-votes 3000 --abstain-votes 1000\n\
+                      $ svmgov -k /path/to/key.json cast-vote-override --proposal-id \"123\" --for-votes 6000 --against-votes 3000 --abstain-votes 1000\n\
                       # Use an explicit stake account\n\
-                      $ svmgov --identity-keypair /path/to/key.json cast-vote-override --proposal-id \"123\" --for-votes 6000 --against-votes 3000 --abstain-votes 1000 --stake-account <STAKE_PUBKEY>"
+                      $ svmgov -k /path/to/key.json cast-vote-override --proposal-id \"123\" --for-votes 6000 --against-votes 3000 --abstain-votes 1000 --stake-account <STAKE_PUBKEY>"
     )]
     CastVoteOverride {
         /// Proposal ID for which to override the vote
@@ -277,10 +273,6 @@ enum Commands {
         )]
         stake_account: String,
 
-        /// Network for fetching merkle proofs
-        #[arg(long, help = "Network for fetching merkle proofs")]
-        network: String,
-
         /// Staker keypair for signing the transaction
         #[arg(long, help = "Staker keypair for signing the transaction")]
         staker_keypair: String,
@@ -299,9 +291,9 @@ enum Commands {
                       from the voter summary.\n\n\
                       Examples:\n\
                       # Auto-select first stake account from summary\n\
-                      $ svmgov --identity-keypair /path/to/key.json modify-vote-override --proposal-id \"123\" --for-votes 5000 --against-votes 3000 --abstain-votes 2000\n\
+                      $ svmgov -k /path/to/key.json modify-vote-override --proposal-id \"123\" --for-votes 5000 --against-votes 3000 --abstain-votes 2000\n\
                       # Use an explicit stake account\n\
-                      $ svmgov --identity-keypair /path/to/key.json modify-vote-override --proposal-id \"123\" --for-votes 5000 --against-votes 3000 --abstain-votes 2000 --stake-account <STAKE_PUBKEY>"
+                      $ svmgov -k /path/to/key.json modify-vote-override --proposal-id \"123\" --for-votes 5000 --against-votes 3000 --abstain-votes 2000 --stake-account <STAKE_PUBKEY>"
     )]
     ModifyVoteOverride {
         /// Proposal ID for which to modify the vote override
@@ -336,10 +328,6 @@ enum Commands {
         )]
         stake_account: String,
 
-        /// Network for fetching merkle proofs
-        #[arg(long, help = "Network for fetching merkle proofs")]
-        network: String,
-
         /// Staker keypair for signing the transaction
         #[arg(long, help = "Staker keypair for signing the transaction")]
         staker_keypair: String,
@@ -348,6 +336,80 @@ enum Commands {
         #[arg(long, help = "Vote account pubkey (base58) for the validator")]
         vote_account: String,
     },
+
+    #[command(
+        about = "Initialize the on-chain global config (admin only)",
+        long_about = "This command initializes the on-chain GlobalConfig account with governance parameters. \
+                      Only the admin keypair can execute this. This must be called once before any proposals can be created.\n\n\
+                      Example:\n\
+                      $ svmgov -k /path/to/admin.json init-global-config --max-title-length 128 --max-description-length 512 --max-support-epochs 0 --min-proposal-stake-lamports 1000000000 --cluster-support-pct-min-bps 100 --discussion-epochs 3 --voting-epochs 3 --snapshot-epoch-extension 1"
+    )]
+    InitGlobalConfig {
+        #[arg(long, help = "Maximum length for proposal titles")]
+        max_title_length: u16,
+
+        #[arg(long, help = "Maximum length for proposal descriptions")]
+        max_description_length: u16,
+
+        #[arg(long, help = "Maximum epochs allowed for support phase (0 = same epoch as creation)")]
+        max_support_epochs: u64,
+
+        #[arg(long, help = "Minimum stake in lamports required to create a proposal")]
+        min_proposal_stake_lamports: u64,
+
+        #[arg(long, help = "Minimum cluster support percentage in basis points")]
+        cluster_support_pct_min_bps: u64,
+
+        #[arg(long, help = "Number of epochs for the discussion phase")]
+        discussion_epochs: u64,
+
+        #[arg(long, help = "Number of epochs for the voting phase")]
+        voting_epochs: u64,
+
+        #[arg(long, help = "Number of extra epochs for snapshot extension")]
+        snapshot_epoch_extension: u64,
+    },
+
+    #[command(
+        about = "Update the on-chain global config (admin only)",
+        long_about = "This command updates one or more fields of the on-chain GlobalConfig account. \
+                      Only the admin keypair can execute this. Only pass the fields you want to change.\n\n\
+                      Example:\n\
+                      $ svmgov -k /path/to/admin.json update-global-config --voting-epochs 5 --discussion-epochs 4"
+    )]
+    UpdateGlobalConfig {
+        #[arg(long, help = "Maximum length for proposal titles")]
+        max_title_length: Option<u16>,
+
+        #[arg(long, help = "Maximum length for proposal descriptions")]
+        max_description_length: Option<u16>,
+
+        #[arg(long, help = "Maximum epochs allowed for support phase")]
+        max_support_epochs: Option<u64>,
+
+        #[arg(long, help = "Minimum stake in lamports required to create a proposal")]
+        min_proposal_stake_lamports: Option<u64>,
+
+        #[arg(long, help = "Minimum cluster support percentage in basis points")]
+        cluster_support_pct_min_bps: Option<u64>,
+
+        #[arg(long, help = "Number of epochs for the discussion phase")]
+        discussion_epochs: Option<u64>,
+
+        #[arg(long, help = "Number of epochs for the voting phase")]
+        voting_epochs: Option<u64>,
+
+        #[arg(long, help = "Number of extra epochs for snapshot extension")]
+        snapshot_epoch_extension: Option<u64>,
+    },
+
+    #[command(
+        about = "Show the on-chain global config values",
+        long_about = "This command fetches and displays the current on-chain GlobalConfig account.\n\n\
+                      Example:\n\
+                      $ svmgov show-global-config"
+    )]
+    ShowGlobalConfig,
 
     #[command(
         about = "Initialize the CLI configuration",
@@ -375,10 +437,10 @@ enum Commands {
     },
 }
 
-fn merge_cli_with_config(cli: Cli, config: Config) -> Cli {
-    // Merge identity_keypair: CLI arg > config (based on user_type) > None
-    let identity_keypair = cli
-        .identity_keypair
+fn merge_cli_with_config(cli: Cli, config: &Config) -> Cli {
+    // Merge keypair: CLI arg > config (based on user_type) > None
+    let keypair = cli
+        .keypair
         .or_else(|| config.get_identity_keypair_path());
 
     // Merge rpc_url: CLI arg > config rpc_url > config network default > constants default
@@ -390,9 +452,13 @@ fn merge_cli_with_config(cli: Cli, config: Config) -> Cli {
         }
     });
 
+    // Merge network: CLI flag > config network
+    let network = cli.network.or_else(|| Some(config.network.clone()));
+
     Cli {
-        identity_keypair,
+        keypair,
         rpc_url,
+        network,
         command: cli.command,
     }
 }
@@ -400,12 +466,14 @@ fn merge_cli_with_config(cli: Cli, config: Config) -> Cli {
 async fn handle_command(cli: Cli) -> Result<()> {
     // Load config and merge with CLI args
     let config = Config::load().unwrap_or_default();
-    let cli = merge_cli_with_config(cli, config);
+    let cli = merge_cli_with_config(cli, &config);
+    let network = cli.network.clone().unwrap_or_else(|| "mainnet".to_string());
 
     log::debug!(
-        "Handling command: identity_keypair={:?}, rpc_url={:?}, command={:?}",
-        cli.identity_keypair,
+        "Handling command: keypair={:?}, rpc_url={:?}, network={}, command={:?}",
+        cli.keypair,
         cli.rpc_url,
+        network,
         cli.command
     );
 
@@ -414,13 +482,12 @@ async fn handle_command(cli: Cli) -> Result<()> {
             seed,
             title,
             description,
-            network,
         } => {
             instructions::create_proposal(
                 title.to_string(),
                 description.to_string(),
                 *seed,
-                cli.identity_keypair,
+                cli.keypair,
                 cli.rpc_url,
                 network.clone(),
             )
@@ -428,11 +495,10 @@ async fn handle_command(cli: Cli) -> Result<()> {
         }
         Commands::SupportProposal {
             proposal_id,
-            network,
         } => {
             instructions::support_proposal(
                 proposal_id.to_string(),
-                cli.identity_keypair,
+                cli.keypair,
                 cli.rpc_url,
                 network.clone(),
             )
@@ -443,14 +509,13 @@ async fn handle_command(cli: Cli) -> Result<()> {
             for_votes,
             against_votes,
             abstain_votes,
-            network,
         } => {
             instructions::cast_vote(
                 proposal_id.to_string(),
                 *for_votes,
                 *against_votes,
                 *abstain_votes,
-                cli.identity_keypair,
+                cli.keypair,
                 cli.rpc_url,
                 network.clone(),
             )
@@ -461,14 +526,13 @@ async fn handle_command(cli: Cli) -> Result<()> {
             for_votes,
             against_votes,
             abstain_votes,
-            network,
         } => {
             instructions::modify_vote(
                 proposal_id.to_string(),
                 *for_votes,
                 *against_votes,
                 *abstain_votes,
-                cli.identity_keypair,
+                cli.keypair,
                 cli.rpc_url,
                 network.clone(),
             )
@@ -477,7 +541,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
         Commands::FinalizeProposal { proposal_id } => {
             instructions::finalize_proposal(
                 proposal_id.to_string(),
-                cli.identity_keypair,
+                cli.keypair,
                 cli.rpc_url,
             )
             .await?;
@@ -500,7 +564,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
             .await?;
         }
         Commands::InitIndex {} => {
-            instructions::initialize_index(cli.identity_keypair, cli.rpc_url).await?;
+            instructions::initialize_index(cli.keypair, cli.rpc_url).await?;
         }
         Commands::CastVoteOverride {
             proposal_id,
@@ -508,7 +572,6 @@ async fn handle_command(cli: Cli) -> Result<()> {
             against_votes,
             abstain_votes,
             stake_account,
-            network,
             staker_keypair,
             vote_account,
         } => {
@@ -531,7 +594,6 @@ async fn handle_command(cli: Cli) -> Result<()> {
             against_votes,
             abstain_votes,
             stake_account,
-            network,
             staker_keypair,
             vote_account,
         } => {
@@ -547,6 +609,57 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 network.clone(),
             )
             .await?;
+        }
+        Commands::InitGlobalConfig {
+            max_title_length,
+            max_description_length,
+            max_support_epochs,
+            min_proposal_stake_lamports,
+            cluster_support_pct_min_bps,
+            discussion_epochs,
+            voting_epochs,
+            snapshot_epoch_extension,
+        } => {
+            instructions::initialize_global_config(
+                cli.keypair,
+                cli.rpc_url,
+                *max_title_length,
+                *max_description_length,
+                *max_support_epochs,
+                *min_proposal_stake_lamports,
+                *cluster_support_pct_min_bps,
+                *discussion_epochs,
+                *voting_epochs,
+                *snapshot_epoch_extension,
+            )
+            .await?;
+        }
+        Commands::UpdateGlobalConfig {
+            max_title_length,
+            max_description_length,
+            max_support_epochs,
+            min_proposal_stake_lamports,
+            cluster_support_pct_min_bps,
+            discussion_epochs,
+            voting_epochs,
+            snapshot_epoch_extension,
+        } => {
+            instructions::update_global_config(
+                cli.keypair,
+                cli.rpc_url,
+                *max_title_length,
+                *max_description_length,
+                *max_support_epochs,
+                *min_proposal_stake_lamports,
+                *cluster_support_pct_min_bps,
+                *discussion_epochs,
+                *voting_epochs,
+                *snapshot_epoch_extension,
+            )
+            .await?;
+        }
+        Commands::ShowGlobalConfig => {
+            instructions::show_global_config(cli.rpc_url).await?;
         }
         Commands::Init => {
             init::run_init().await?;
