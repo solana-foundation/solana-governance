@@ -176,3 +176,61 @@ Notes:
 
 - No changes are required for the cleanup cron; it runs on the host and continues to manage `/srv/verifier/data/governance.db`.
 - For zero-downtime, you can adapt the script to start a secondary container (different port) and flip traffic via a proxy/ALB once healthy.
+
+## Monitoring & Alerting
+
+### Health Checks
+
+The verifier service includes a metrics module ([`src/metrics.rs`](./src/metrics.rs)) for monitoring. Key indicators to track:
+
+- **Service uptime** — Is the verifier process running?
+- **Snapshot processing** — Are new epoch snapshots being processed successfully?
+- **Merkle proof uploads** — Are proofs being uploaded to the on-chain program?
+- **RPC connectivity** — Can the service reach its configured RPC endpoint?
+- **Disk usage** — Is snapshot storage filling up?
+
+### Recommended Alerts
+
+| Alert | Condition | Severity |
+|-------|-----------|----------|
+| Service down | Process not running for >5 min | Critical |
+| Snapshot stalled | No new snapshot processed in >2 epochs | Warning |
+| Upload failures | Consecutive upload errors >3 | Warning |
+| RPC unreachable | Connection timeouts >5 min | Critical |
+| Disk space | Snapshot storage >80% full | Warning |
+
+### Logging
+
+The verifier service logs to stdout. In production, capture logs with systemd journal or redirect to a file:
+
+```bash
+# If running as a systemd service
+journalctl -u ncn-verifier -f
+
+# If running manually
+./ncn-verifier 2>&1 | tee -a /var/log/ncn-verifier.log
+
+Process Management
+
+For production deployments, run the verifier service as a systemd unit:
+
+[Unit]
+Description=NCN Verifier Service
+After=network.target
+
+[Service]
+User=sol
+ExecStart=/path/to/ncn-verifier
+Restart=on-failure
+RestartSec=10
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
+
+Enable and start:
+
+sudo systemctl enable ncn-verifier
+sudo systemctl start ncn-verifier
+
+
