@@ -94,7 +94,7 @@ rustup toolchain install 1.89.0 // install
 rustup default 1.89.0 // set as default
 rustc --version // verify version
 ```
-
+> **Why Rust 1.89.0?** The NCN program depends on nightly features used by the `jito-tip-router` and Solana SDK crates. Stable Rust will not compile these dependencies. Install with `rustup toolchain install 1.89.0` or set a directory override with `rustup override set 1.89.0`.
 3. (Optional - when using Anchor CLI) Install Solana CLI version 3.0 or higher. The bundled rustc in older Solana CLI versions may not be compatible with some dependencies.
 
 4. Build repo with `cargo build`
