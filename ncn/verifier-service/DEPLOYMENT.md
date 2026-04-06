@@ -5,6 +5,26 @@ This guide walks an operator through provisioning an AWS EC2 instance and runnin
 [← Back to Project README](../README.md)
 [→ Verifier Service README](README.md)
 
+## General Requirements
+
+While this guide uses AWS as the reference deployment, the verifier service runs on any Linux server meeting these minimum requirements:
+
+| Requirement | Minimum | Recommended |
+|-------------|---------|-------------|
+| CPU | 2 cores | 4+ cores |
+| RAM | 4 GB | 8 GB |
+| Storage | 100 GB SSD | 200 GB NVMe |
+| Network | 100 Mbps | 1 Gbps |
+| OS | Ubuntu 22.04+ | Ubuntu 24.04 LTS |
+
+### Non-AWS Deployment Notes
+
+- **SSL/TLS:** If not using Cloudflare or AWS ALB, configure a reverse proxy (nginx or caddy) with [Let's Encrypt](https://letsencrypt.org/) for HTTPS termination
+- **DNS:** Point your verifier domain to your server's public IP via an A record
+- **Firewall:** Open ports 443 (HTTPS) and any custom ports for the verifier API. Restrict SSH (port 22) to known IPs
+- **Process management:** Use systemd for automatic restarts (see [Monitoring & Alerting](#monitoring--alerting) section)
+- **Bare metal / VPS providers:** Tested on Leaseweb, OVH, Hetzner, and Contabo. Any provider with the above specs will work
+
 ### Prerequisites
 
 - AWS account with permissions to create EC2 instances, Security Groups, and Elastic IPs
