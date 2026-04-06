@@ -21,28 +21,31 @@ Next.js web interface for the Solana Validator Governance System. Provides a das
 1. Copy the environment template:
    ```bash
    cp .env.example .env.local
-2. Configure your RPC endpoint in .env.local
-3. Install dependencies:
+   ```
 
-pnpm install
+2. Configure your RPC endpoint in `.env.local`
+
+3. Install dependencies:
+   ```bash
+   pnpm install
+   ```
 
 4. Start the development server:
+   ```bash
+   pnpm dev
+   ```
 
-pnpm dev
+5. Open [http://localhost:3000](http://localhost:3000)
 
-5. Open http://localhost:3000
+### Environment Variables
 
-Environment Variables
+See [`.env.example`](./.env.example) for required configuration.
 
-See .env.example for required configuration.
+### Project Structure
 
-Project Structure
-
-• src/app/ — Next.js app router pages
-• src/components/ — React components (governance, proposals, UI)
-• src/chain/ — Solana program interaction (IDL, instructions, types)
-• src/hooks/ — Custom React hooks for data fetching and state
-• src/data/ — API and data layer
-• src/contexts/ — React contexts (wallet, endpoints, modals)
-
-
+- `src/app/` — Next.js app router pages
+- `src/components/` — React components (governance, proposals, UI)
+- `src/chain/` — Solana program interaction (IDL, instructions, types)
+- `src/hooks/` — Custom React hooks for data fetching and state
+- `src/data/` — API and data layer
+- `src/contexts/` — React contexts (wallet, endpoints, modals)
