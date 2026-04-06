@@ -314,6 +314,25 @@ RUST_LOG=info cargo run --bin cli -- \
 
 ## Troubleshooting
 
+> ⚠️ **Warning:** Some workarounds below involve modifying source code in dependency crates (e.g., `jito-solana`). These changes are fragile — they will be lost on `cargo update` and may mask real errors. Use only for local development and testing, not production deployments. If you encounter these issues in production, [file an issue](https://github.com/solana-foundation/solana-governance/issues).
+### Dependency Version Conflicts When Upgrading jito-tip-router
+
+When upgrading the `jito-tip-router` dependency to a newer version, you may encounter dependency version conflicts. If you see compilation errors related to version mismatches, run these commands:
+
+- **Update Cargo.lock to force `solana-sysvar` version 3.0.0**: Some dependencies may pull in `solana-sysvar` version 3.1.1, which can cause compilation errors due to missing serde trait implementations. To force the use of version 3.0.0, run:
+
+  ```bash
+  cargo update -p solana-sysvar:3.1.1 --precise 3.0.0
+  ```
+
+- **Update Cargo.lock to force `solana-epoch-rewards-hasher` version 3.0.0**: Some dependencies may pull in `solana-epoch-rewards-hasher` version 3.1.0, which requires `solana-hash` version 4.0.1. However, jito-solana dependencies use `solana-hash` version 3.0.0, causing type mismatch errors. To force the use of version 3.0.0, run:
+
+  ```bash
+  cargo update -p solana-epoch-rewards-hasher:3.1.0 --precise 3.0.0
+  ```
+
+Note: Do not manually edit `Cargo.lock` - always use `cargo update` to modify dependency versions.
+
 ### Missing Incrementatal Snapshot
 
 If you encounter an error similar to:
