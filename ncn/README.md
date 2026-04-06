@@ -318,6 +318,7 @@ RUST_LOG=info cargo run --bin cli -- \
 
 ## Troubleshooting
 
+> ⚠️ **Warning:** Some workarounds below involve modifying source code in dependency crates (e.g., `jito-solana`). These changes are fragile — they will be lost on `cargo update` and may mask real errors. Use only for local development and testing, not production deployments. If you encounter these issues in production, [file an issue](https://github.com/solana-foundation/solana-governance/issues).
 ### Dependency Version Conflicts When Upgrading jito-tip-router
 
 When upgrading the `jito-tip-router` dependency to a newer version, you may encounter dependency version conflicts. If you see compilation errors related to version mismatches, run these commands:
