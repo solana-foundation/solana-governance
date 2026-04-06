@@ -39,6 +39,10 @@ NCN (Node Consensus Network) governance program — on-chain ballot voting, merk
 ### [`docs/`](./docs)
 Documentation site built with Nextra covering validator and staker workflows.
 
+## Architecture
+
+For a visual overview of how components connect and a glossary of governance terms, see [ARCHITECTURE.md](./ARCHITECTURE.md).
+
 ## Contributing
 
 Issues and pull requests are welcome. See the [open issues](https://github.com/solana-foundation/solana-governance/issues) for areas that need work.
