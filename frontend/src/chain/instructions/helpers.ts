@@ -92,6 +92,20 @@ export function deriveVoteOverrideCachePda(
   return pda;
 }
 
+export function deriveGlobalConfigPda(programId: PublicKey): PublicKey {
+  const [pda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("global_config")],
+    programId
+  );
+  return pda;
+}
+
+export async function fetchGlobalConfig(program: Program<SvmgovProgram>) {
+  const pda = deriveGlobalConfigPda(program.programId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return await (program.account as any).globalConfig.fetch(pda);
+}
+
 // Create program instance with wallet
 export function createProgramWithWallet(
   wallet: AnchorWallet,
