@@ -99,7 +99,7 @@ TTL: Auto
 ```
 
 5. Replace current nameserver with Cloudflare nameserver
-6. In SSL/TLS Overview, set mode to Flexible.
+6. In SSL/TLS Overview, set mode to Full (Strict). This requires a valid TLS certificate on the origin server (e.g., via Let's Encrypt or a Cloudflare Origin Certificate).
 7. In Security -> Security Rules, create new Rate Limiting Rule for each API path. Note that the free tier only allows 1 rule, with granularity of requests per 10s, and blocking duration of 10s.
 
 ### 8) Start the database cleanup cron
