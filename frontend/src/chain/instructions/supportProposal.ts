@@ -7,7 +7,11 @@ import {
   SNAPSHOT_PROGRAM_ID,
   ChainVoteAccountData,
 } from "./types";
-import { createProgramWithWallet, deriveSupportPda } from "./helpers";
+import {
+  createProgramWithWallet,
+  deriveGlobalConfigPda,
+  deriveSupportPda,
+} from "./helpers";
 
 /**
  * Supports a governance proposal
@@ -16,7 +20,7 @@ export async function supportProposal(
   params: SupportProposalParams,
   blockchainParams: BlockchainParams,
   slot: number | undefined,
-  validatorVoteAccount: ChainVoteAccountData | undefined
+  validatorVoteAccount: ChainVoteAccountData | undefined,
 ): Promise<TransactionResult> {
   const { proposalId, wallet } = params;
 
@@ -32,7 +36,7 @@ export async function supportProposal(
 
   if (!validatorVoteAccount) {
     throw new Error(
-      `No SPL vote account found for validator identity ${wallet.publicKey.toBase58()}`
+      `No SPL vote account found for validator identity ${wallet.publicKey.toBase58()}`,
     );
   }
 
@@ -43,7 +47,7 @@ export async function supportProposal(
   const supportPda = deriveSupportPda(
     proposalPubkey,
     splVoteAccount,
-    program.programId
+    program.programId,
   );
 
   const DISCUSSION_EPOCHS = 4;
@@ -63,11 +67,11 @@ export async function supportProposal(
   ];
   const [ballotBoxPda] = PublicKey.findProgramAddressSync(
     seeds,
-    SNAPSHOT_PROGRAM_ID
+    SNAPSHOT_PROGRAM_ID,
   );
   const [programConfigPda] = PublicKey.findProgramAddressSync(
     [Buffer.from("ProgramConfig")],
-    SNAPSHOT_PROGRAM_ID
+    SNAPSHOT_PROGRAM_ID,
   );
 
   // Build support proposal instruction
@@ -82,6 +86,7 @@ export async function supportProposal(
       ballotBox: ballotBoxPda,
       ballotProgram: SNAPSHOT_PROGRAM_ID,
       programConfig: programConfigPda,
+      globalConfig: deriveGlobalConfigPda(program.programId),
     })
     .instruction();
 
@@ -95,7 +100,7 @@ export async function supportProposal(
   const tx = await wallet.signTransaction(transaction);
 
   const signature = await program.provider.connection.sendRawTransaction(
-    tx.serialize()
+    tx.serialize(),
   );
 
   console.log("signature support proposal", signature);

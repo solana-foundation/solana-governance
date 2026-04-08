@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { Inter, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
+import { Suspense } from "react";
 import Footer from "@/components/Footer";
 import Navbar from "@/components/Navbar";
 import { Toaster } from "@/components/ui/sonner";
@@ -40,11 +41,13 @@ export default function RootLayout({
       >
         <Providers>
           <ModalProvider>
-            <Navbar />
-            <div className="w-full overflow-x-hidden">
-              <div className="max-w-7xl mx-auto px-4 sm:px-8">{children}</div>
-            </div>
-            <Footer />
+            <Suspense fallback={null}>
+              <Navbar />
+              <div className="w-full overflow-x-hidden">
+                <div className="max-w-7xl mx-auto px-4 sm:px-8">{children}</div>
+              </div>
+              <Footer />
+            </Suspense>
             <Toaster theme="dark" position="bottom-right" />
           </ModalProvider>
         </Providers>

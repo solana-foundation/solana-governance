@@ -38,6 +38,14 @@ export function deriveProposalIndexPda(programId: PublicKey): PublicKey {
   return pda;
 }
 
+export function deriveGlobalConfigPda(programId: PublicKey): PublicKey {
+  const [pda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("global_config")],
+    programId
+  );
+  return pda;
+}
+
 export function deriveVotePda(
   proposal: PublicKey,
   voteAccount: PublicKey,

@@ -139,14 +139,15 @@ export function formatDate(dateStr: string | null): string | null {
 /**
  * Calculate how long ago a timestamp was
  * @param timestamp - Unix timestamp in milliseconds
+ * @param nowMs - Optional "now" in ms (use when SSR-safe; omit to use Date.now())
  * @returns Formatted string like "3 days ago", "today", etc.
  */
-export function calculateTimeAgo(timestamp: number): string {
+export function calculateTimeAgo(timestamp: number, nowMs?: number): string {
   // If timestamp is in seconds (10 digits), convert to milliseconds
   if (timestamp < 1e12) {
     timestamp = timestamp * 1000;
   }
-  const now = Date.now();
+  const now = nowMs ?? Date.now();
   const diff = now - timestamp;
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));

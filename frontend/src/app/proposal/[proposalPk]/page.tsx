@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { ProposalDetailClientPage } from "./ProposalDetailClientPage";
+import { ProposalDetailClientPage } from "../ProposalDetailClientPage";
 
 export default function ProposalPage() {
   return (
