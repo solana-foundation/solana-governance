@@ -604,7 +604,7 @@ fn test_reset_ballot_box(
 
     // Verify ballot box tallies is at max capacity, with only one operator vote
     let ballot_box: BallotBox = program.account(ballot_box_pda)?;
-    assert_eq!(ballot_box.ballot_tallies.len(), MAX_OPERATOR_VOTES);
+    assert_eq!(ballot_box.ballot_tallies.len(), MAX_BALLOT_TALLIES);
     assert_eq!(ballot_box.operator_votes.len(), 1);
 
     // Reset ballot box should succeed
