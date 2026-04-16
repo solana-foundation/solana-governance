@@ -540,6 +540,10 @@ fn main() -> Result<()> {
             ledger_path,
             generate_meta_merkle,
         } => {
+            // Validate paths upfront before entering the scan loop
+            validate_executable_path(&agave_ledger_tool_path)?;
+            validate_directory_path(&ledger_path)?;
+
             info!(
                 "AwaitSnapshot starting: scan_interval={}m target_slot={} snapshot_dir={:?} backup_snapshot_dir={:?} backup_ledger_dir={:?}",
                 scan_interval,
