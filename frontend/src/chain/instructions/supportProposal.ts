@@ -7,7 +7,7 @@ import {
   SNAPSHOT_PROGRAM_ID,
   ChainVoteAccountData,
 } from "./types";
-import { createProgramWithWallet, deriveSupportPda } from "./helpers";
+import { createProgramWithWallet, deriveSupportPda, deriveGlobalConfigPda, fetchGlobalConfig } from "./helpers";
 
 /**
  * Supports a governance proposal
@@ -46,16 +46,17 @@ export async function supportProposal(
     program.programId
   );
 
-  const DISCUSSION_EPOCHS = 4;
-  const SNAPSHOT_EPOCH_EXTENSION = 1;
+  const globalConfig = await fetchGlobalConfig(program);
 
   const epochInfo = await program.provider.connection.getEpochInfo();
   const targetEpoch =
-    epochInfo.epoch + DISCUSSION_EPOCHS + SNAPSHOT_EPOCH_EXTENSION;
+    epochInfo.epoch +
+    globalConfig.discussionEpochs.toNumber() +
+    globalConfig.snapshotEpochExtension.toNumber();
 
   const epochSchedule = await program.provider.connection.getEpochSchedule();
   const startSlot = epochSchedule.getFirstSlotInEpoch(targetEpoch);
-  const snapshotSlot = startSlot + 1000;
+  const snapshotSlot = startSlot + globalConfig.snapshotSlotOffset.toNumber();
 
   const seeds = [
     Buffer.from("BallotBox"),
@@ -82,6 +83,7 @@ export async function supportProposal(
       ballotBox: ballotBoxPda,
       ballotProgram: SNAPSHOT_PROGRAM_ID,
       programConfig: programConfigPda,
+      globalConfig: deriveGlobalConfigPda(program.programId),
     })
     .instruction();
 

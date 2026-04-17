@@ -27,6 +27,7 @@ pub mod svmgov_program {
         discussion_epochs: u64,
         voting_epochs: u64,
         snapshot_epoch_extension: u64,
+        snapshot_slot_offset: i64,
     ) -> Result<()> {
         ctx.accounts.initialize_config(
             max_title_length,
@@ -37,6 +38,7 @@ pub mod svmgov_program {
             discussion_epochs,
             voting_epochs,
             snapshot_epoch_extension,
+            snapshot_slot_offset,
             &ctx.bumps,
         )?;
         Ok(())
@@ -53,6 +55,7 @@ pub mod svmgov_program {
         discussion_epochs: Option<u64>,
         voting_epochs: Option<u64>,
         snapshot_epoch_extension: Option<u64>,
+        snapshot_slot_offset: Option<i64>,
     ) -> Result<()> {
         ctx.accounts.update_config(
             max_title_length,
@@ -63,6 +66,7 @@ pub mod svmgov_program {
             discussion_epochs,
             voting_epochs,
             snapshot_epoch_extension,
+            snapshot_slot_offset,
         )?;
         Ok(())
     }

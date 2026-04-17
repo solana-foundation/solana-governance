@@ -67,8 +67,11 @@ impl<'info> FlushMerkleRoot<'info> {
         // Using the same logic as in support_proposal
         let target_epoch = clock.epoch + self.global_config.snapshot_epoch_extension;
         let (start_slot, _) = get_epoch_slot_range(target_epoch);
-        // 1000 slots into snapshot
-        let snapshot_slot = start_slot + 1000;
+        let offset_result = (start_slot as i64)
+            .checked_add(self.global_config.snapshot_slot_offset)
+            .ok_or(GovernanceError::ArithmeticOverflow)?;
+        require!(offset_result >= 0, GovernanceError::ArithmeticOverflow);
+        let snapshot_slot = offset_result as u64;
         self.proposal.snapshot_slot = snapshot_slot;
         // start voting 1 epoch after snapshot
         self.proposal.start_epoch = target_epoch + 1;

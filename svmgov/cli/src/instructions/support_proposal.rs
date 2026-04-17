@@ -35,7 +35,7 @@ pub async fn support_proposal(
     let target_epoch = clock.epoch + global_config.discussion_epochs + global_config.snapshot_epoch_extension;
 
     let (start_slot, _) = get_epoch_slot_range(target_epoch);
-    let snapshot_slot = start_slot + 1000;
+    let snapshot_slot = ((start_slot as i64) + global_config.snapshot_slot_offset) as u64;
 
     let ballot_box_pda = {
         let seeds = &[b"BallotBox".as_ref(), &snapshot_slot.to_le_bytes()];

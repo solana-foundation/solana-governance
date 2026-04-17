@@ -35,6 +35,7 @@ impl<'info> InitializeConfig<'info> {
         discussion_epochs: u64,
         voting_epochs: u64,
         snapshot_epoch_extension: u64,
+        snapshot_slot_offset: i64,
         bumps: &InitializeConfigBumps,
     ) -> Result<()> {
         self.global_config.set_inner(GlobalConfig {
@@ -47,6 +48,7 @@ impl<'info> InitializeConfig<'info> {
             discussion_epochs,
             voting_epochs,
             snapshot_epoch_extension,
+            snapshot_slot_offset,
             bump: bumps.global_config,
         });
         Ok(())

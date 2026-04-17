@@ -22,6 +22,8 @@ pub struct GlobalConfig {
     pub voting_epochs: u64,
     /// Epochs of extension for snapshot
     pub snapshot_epoch_extension: u64,
+    /// Slot offset from epoch start for snapshot computation (can be negative)
+    pub snapshot_slot_offset: i64,
     /// PDA bump seed
     pub bump: u8,
 }

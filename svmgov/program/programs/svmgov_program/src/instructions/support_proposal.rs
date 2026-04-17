@@ -115,7 +115,11 @@ impl<'info> SupportProposal<'info> {
                     + self.global_config.discussion_epochs
                     + self.global_config.snapshot_epoch_extension,
             );
-            snapshot_slot = start_slot + 1000;
+            let offset_result = (start_slot as i64)
+                .checked_add(self.global_config.snapshot_slot_offset)
+                .ok_or(GovernanceError::ArithmeticOverflow)?;
+            require!(offset_result >= 0, GovernanceError::ArithmeticOverflow);
+            snapshot_slot = offset_result as u64;
             // start voting 1 epoch after snapshot
             // checking in any vote or others is start_epoch <= current_epoch < end_epoch
             proposal_account.start_epoch = clock.epoch
