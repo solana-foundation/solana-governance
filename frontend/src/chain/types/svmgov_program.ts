@@ -621,6 +621,10 @@ export type SvmgovProgram = {
         {
           "name": "snapshotEpochExtension",
           "type": "u64"
+        },
+        {
+          "name": "snapshotSlotOffset",
+          "type": "i64"
         }
       ]
     },
@@ -1136,6 +1140,12 @@ export type SvmgovProgram = {
           "type": {
             "option": "u64"
           }
+        },
+        {
+          "name": "snapshotSlotOffset",
+          "type": {
+            "option": "i64"
+          }
         }
       ]
     }
@@ -1640,6 +1650,13 @@ export type SvmgovProgram = {
               "Epochs of extension for snapshot"
             ],
             "type": "u64"
+          },
+          {
+            "name": "snapshotSlotOffset",
+            "docs": [
+              "Slot offset from epoch start for snapshot computation (can be negative)"
+            ],
+            "type": "i64"
           },
           {
             "name": "bump",

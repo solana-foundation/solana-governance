@@ -24,6 +24,9 @@ interface EpochConstants {
 }
 
 /**
+ * TODO: Replace with on-chain GlobalConfig fetch. These values should come from
+ * the GlobalConfig PDA instead of being hardcoded per-network.
+ *
  * Returns epoch constants based on the network endpoint type.
  * Testnet values (default):
  * - SUPPORT_EPOCHS: 1

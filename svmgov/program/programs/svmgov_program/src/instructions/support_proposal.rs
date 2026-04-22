@@ -41,7 +41,7 @@ pub struct SupportProposal<'info> {
 
     /// CHECK: Ballot program account
     #[account(
-        constraint = ballot_program.key == &gov_v1::ID @ ProgramError::InvalidAccountOwner,
+        constraint = ballot_program.key == &ncn_snapshot::ID @ ProgramError::InvalidAccountOwner,
     )]
     pub ballot_program: UncheckedAccount<'info>,
 
@@ -50,7 +50,7 @@ pub struct SupportProposal<'info> {
         seeds = [b"ProgramConfig"],
         bump,
         seeds::program = ballot_program.key(),
-        constraint = program_config.owner == &gov_v1::ID @ ProgramError::InvalidAccountOwner,
+        constraint = program_config.owner == &ncn_snapshot::ID @ ProgramError::InvalidAccountOwner,
     )]
     pub program_config: UncheckedAccount<'info>,
     #[account(
@@ -109,15 +109,28 @@ impl<'info> SupportProposal<'info> {
         proposal_account.voting = if new_support_stake >= cluster_min_stake {
             // this is for emit checks
             current_voting_emit = true;
-            let (start_slot, _) =
-                get_epoch_slot_range(clock.epoch + self.global_config.discussion_epochs + self.global_config.snapshot_epoch_extension);
-            snapshot_slot = start_slot + 1000;
+
+            let (start_slot, _) = get_epoch_slot_range(
+                clock.epoch
+                    + self.global_config.discussion_epochs
+                    + self.global_config.snapshot_epoch_extension,
+            );
+            let offset_result = (start_slot as i64)
+                .checked_add(self.global_config.snapshot_slot_offset)
+                .ok_or(GovernanceError::ArithmeticOverflow)?;
+            require!(offset_result >= 0, GovernanceError::ArithmeticOverflow);
+            snapshot_slot = offset_result as u64;
             // start voting 1 epoch after snapshot
             // checking in any vote or others is start_epoch <= current_epoch < end_epoch
-            proposal_account.start_epoch =
-                clock.epoch + self.global_config.discussion_epochs + self.global_config.snapshot_epoch_extension + 1;
-            proposal_account.end_epoch =
-                clock.epoch + self.global_config.discussion_epochs + self.global_config.snapshot_epoch_extension + 1 + self.global_config.voting_epochs;
+            proposal_account.start_epoch = clock.epoch
+                + self.global_config.discussion_epochs
+                + self.global_config.snapshot_epoch_extension
+                + 1;
+            proposal_account.end_epoch = clock.epoch
+                + self.global_config.discussion_epochs
+                + self.global_config.snapshot_epoch_extension
+                + 1
+                + self.global_config.voting_epochs;
             proposal_account.snapshot_slot = snapshot_slot; // 1000 slots into snapshot
 
             let (consensus_result_pda, _) = Pubkey::find_program_address(
@@ -142,7 +155,7 @@ impl<'info> SupportProposal<'info> {
 
                 let cpi_ctx = CpiContext::new_with_signer(
                     self.ballot_program.to_account_info(),
-                    gov_v1::cpi::accounts::InitBallotBox {
+                    ncn_snapshot::cpi::accounts::InitBallotBox {
                         payer: self.signer.to_account_info(),
                         proposal: proposal_account.to_account_info(),
                         ballot_box: self.ballot_box.to_account_info(),
@@ -151,7 +164,7 @@ impl<'info> SupportProposal<'info> {
                     },
                     signer_seeds,
                 );
-                gov_v1::cpi::init_ballot_box(
+                ncn_snapshot::cpi::init_ballot_box(
                     cpi_ctx,
                     snapshot_slot,
                     proposal_account.proposal_seed,

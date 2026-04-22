@@ -11,7 +11,7 @@ use crate::{
     merkle_helpers::verify_merkle_proof_cpi,
     state::{Proposal, Vote},
 };
-use gov_v1::{ConsensusResult, MetaMerkleProof};
+use ncn_snapshot::{ConsensusResult, MetaMerkleProof};
 
 #[derive(Accounts)]
 pub struct ModifyVote<'info> {
@@ -30,8 +30,8 @@ pub struct ModifyVote<'info> {
         constraint = spl_vote_account.data_len() == VoteState::size_of() @ GovernanceError::InvalidVoteAccountSize
     )]
     pub spl_vote_account: UncheckedAccount<'info>,
-    /// CHECK: The snapshot program (gov-v1 or mock)
-    // #[account(constraint = snapshot_program.key() == gov_v1::ID @ GovernanceError::InvalidSnapshotProgram)]
+    /// CHECK: The snapshot program (ncn-snapshot or mock)
+    // #[account(constraint = snapshot_program.key() == ncn_snapshot::ID @ GovernanceError::InvalidSnapshotProgram)]
     pub snapshot_program: UncheckedAccount<'info>,
     /// CHECK: Consensus result account owned by snapshot program
     pub consensus_result: UncheckedAccount<'info>,

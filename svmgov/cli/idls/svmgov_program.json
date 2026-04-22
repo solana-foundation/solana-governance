@@ -8,62 +8,6 @@
   },
   "instructions": [
     {
-      "name": "adjust_proposal_timing",
-      "discriminator": [
-        82,
-        66,
-        219,
-        217,
-        123,
-        150,
-        223,
-        224
-      ],
-      "accounts": [
-        {
-          "name": "signer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "proposal",
-          "writable": true
-        }
-      ],
-      "args": [
-        {
-          "name": "creation_timestamp",
-          "type": {
-            "option": "i64"
-          }
-        },
-        {
-          "name": "creation_epoch",
-          "type": {
-            "option": "u64"
-          }
-        },
-        {
-          "name": "start_epoch",
-          "type": {
-            "option": "u64"
-          }
-        },
-        {
-          "name": "end_epoch",
-          "type": {
-            "option": "u64"
-          }
-        },
-        {
-          "name": "snapshot_slot",
-          "type": {
-            "option": "u64"
-          }
-        }
-      ]
-    },
-    {
       "name": "cast_vote",
       "discriminator": [
         20,
@@ -430,6 +374,31 @@
           "name": "spl_vote_account"
         },
         {
+          "name": "global_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
         }
@@ -505,11 +474,153 @@
           "name": "ballot_program"
         },
         {
+          "name": "program_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  80,
+                  114,
+                  111,
+                  103,
+                  114,
+                  97,
+                  109,
+                  67,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "ballot_program"
+            }
+          }
+        },
+        {
+          "name": "global_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
+    },
+    {
+      "name": "initialize_config",
+      "discriminator": [
+        208,
+        127,
+        21,
+        1,
+        194,
+        190,
+        196,
+        70
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "global_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "max_title_length",
+          "type": "u16"
+        },
+        {
+          "name": "max_description_length",
+          "type": "u16"
+        },
+        {
+          "name": "max_support_epochs",
+          "type": "u64"
+        },
+        {
+          "name": "min_proposal_stake_lamports",
+          "type": "u64"
+        },
+        {
+          "name": "cluster_support_pct_min_bps",
+          "type": "u64"
+        },
+        {
+          "name": "discussion_epochs",
+          "type": "u64"
+        },
+        {
+          "name": "voting_epochs",
+          "type": "u64"
+        },
+        {
+          "name": "snapshot_epoch_extension",
+          "type": "u64"
+        },
+        {
+          "name": "snapshot_slot_offset",
+          "type": "i64"
+        }
+      ]
     },
     {
       "name": "initialize_index",
@@ -900,14 +1011,153 @@
           }
         },
         {
+          "name": "global_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
+    },
+    {
+      "name": "update_config",
+      "discriminator": [
+        29,
+        158,
+        252,
+        191,
+        10,
+        83,
+        219,
+        99
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true
+        },
+        {
+          "name": "global_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "max_title_length",
+          "type": {
+            "option": "u16"
+          }
+        },
+        {
+          "name": "max_description_length",
+          "type": {
+            "option": "u16"
+          }
+        },
+        {
+          "name": "max_support_epochs",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "min_proposal_stake_lamports",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "cluster_support_pct_min_bps",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "discussion_epochs",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "voting_epochs",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "snapshot_epoch_extension",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "snapshot_slot_offset",
+          "type": {
+            "option": "i64"
+          }
+        }
+      ]
     }
   ],
   "accounts": [
+    {
+      "name": "GlobalConfig",
+      "discriminator": [
+        149,
+        8,
+        156,
+        202,
+        160,
+        252,
+        176,
+        217
+      ]
+    },
     {
       "name": "Proposal",
       "discriminator": [
@@ -1041,19 +1291,6 @@
       ]
     },
     {
-      "name": "ProposalTimingAdjusted",
-      "discriminator": [
-        151,
-        58,
-        224,
-        49,
-        142,
-        133,
-        182,
-        107
-      ]
-    },
-    {
       "name": "VoteCast",
       "discriminator": [
         39,
@@ -1110,7 +1347,7 @@
     {
       "code": 6000,
       "name": "NotEnoughStake",
-      "msg": "Minimum stake required to create proposal is 100k"
+      "msg": "Insufficient stake to perform this action"
     },
     {
       "code": 6001,
@@ -1150,12 +1387,12 @@
     {
       "code": 6008,
       "name": "ProposalClosed",
-      "msg": "Proposal closed"
+      "msg": "Proposal voting period has ended"
     },
     {
       "code": 6009,
       "name": "ProposalFinalized",
-      "msg": "Proposal finalized"
+      "msg": "Proposal has already been finalized"
     },
     {
       "code": 6010,
@@ -1170,7 +1407,7 @@
     {
       "code": 6012,
       "name": "InvalidVoteAccount",
-      "msg": "Invalid vote account, proposal id mismatch"
+      "msg": "Invalid vote account"
     },
     {
       "code": 6013,
@@ -1215,12 +1452,12 @@
     {
       "code": 6021,
       "name": "InvalidStakeAccount",
-      "msg": "Stake account invalid"
+      "msg": "Invalid stake account"
     },
     {
       "code": 6022,
       "name": "InvalidStakeState",
-      "msg": "Stake account invalid"
+      "msg": "Invalid stake account state"
     },
     {
       "code": 6023,
@@ -1250,7 +1487,7 @@
     {
       "code": 6028,
       "name": "InvalidSnapshotSlot",
-      "msg": "Invalid snapshot slot: snapshot slot must be less past or current slot"
+      "msg": "Invalid snapshot slot: snapshot slot must be past or current slot"
     },
     {
       "code": 6029,
@@ -1264,13 +1501,13 @@
     },
     {
       "code": 6031,
-      "name": "CantDeserializeMMPPDA",
-      "msg": "Can't deserialize MetaMerkleProof PDA"
+      "name": "CannotDeserializeMetaMerkleProofPDA",
+      "msg": "Cannot deserialize MetaMerkleProof PDA"
     },
     {
       "code": 6032,
-      "name": "CantDeserializeConsensusResult",
-      "msg": "Can't deserialize ConsensusResult"
+      "name": "CannotDeserializeConsensusResult",
+      "msg": "Cannot deserialize ConsensusResult"
     },
     {
       "code": 6033,
@@ -1304,16 +1541,127 @@
     },
     {
       "code": 6039,
+      "name": "NotInSupportPeriod",
+      "msg": "Not within the support period"
+    },
+    {
+      "code": 6040,
       "name": "ConsensusResultNotSet",
       "msg": "Consensus result has not been set for this proposal"
     },
     {
-      "code": 6040,
+      "code": 6041,
       "name": "Unauthorized",
       "msg": "Unauthorized: caller is not authorized to perform this action"
+    },
+    {
+      "code": 6042,
+      "name": "ProposalNotInVotingPhase",
+      "msg": "Proposal is not in voting phase"
+    },
+    {
+      "code": 6043,
+      "name": "InvalidVoteOverrideCache",
+      "msg": "Invalid vote override cache"
+    },
+    {
+      "code": 6044,
+      "name": "StakeAccountOwnerMismatch",
+      "msg": "Stake account owner mismatch"
+    },
+    {
+      "code": 6045,
+      "name": "UnauthorizedAdmin",
+      "msg": "Unauthorized: only the admin can perform this action"
     }
   ],
   "types": [
+    {
+      "name": "GlobalConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "docs": [
+              "The admin pubkey who can update this config"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "max_title_length",
+            "docs": [
+              "Maximum length for proposal titles"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "max_description_length",
+            "docs": [
+              "Maximum length for proposal descriptions"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "max_support_epochs",
+            "docs": [
+              "Maximum epochs allowed for support phase (0 means same epoch as creation)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "min_proposal_stake_lamports",
+            "docs": [
+              "Minimum stake in lamports required to create a proposal"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "cluster_support_pct_min_bps",
+            "docs": [
+              "Minimum cluster support percentage in BASIS POINTS (1 bp = 0.01%)",
+              "e.g., 1000 = 10%, 50 = 0.5%"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "discussion_epochs",
+            "docs": [
+              "Number of full epochs reserved for discussion"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "voting_epochs",
+            "docs": [
+              "Number of epochs for voting period"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "snapshot_epoch_extension",
+            "docs": [
+              "Epochs of extension for snapshot"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "snapshot_slot_offset",
+            "docs": [
+              "Slot offset from epoch start for snapshot computation (can be negative)"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
     {
       "name": "MerkleRootFlushed",
       "type": {
@@ -1469,18 +1817,6 @@
             "type": "string"
           },
           {
-            "name": "start_epoch",
-            "type": "u64"
-          },
-          {
-            "name": "end_epoch",
-            "type": "u64"
-          },
-          {
-            "name": "snapshot_slot",
-            "type": "u64"
-          },
-          {
             "name": "creation_timestamp",
             "type": "i64"
           }
@@ -1563,46 +1899,6 @@
           {
             "name": "snapshot_slot",
             "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "ProposalTimingAdjusted",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "proposal_id",
-            "type": "pubkey"
-          },
-          {
-            "name": "author",
-            "type": "pubkey"
-          },
-          {
-            "name": "new_creation_timestamp",
-            "type": "i64"
-          },
-          {
-            "name": "new_creation_epoch",
-            "type": "u64"
-          },
-          {
-            "name": "new_start_epoch",
-            "type": "u64"
-          },
-          {
-            "name": "new_end_epoch",
-            "type": "u64"
-          },
-          {
-            "name": "new_snapshot_slot",
-            "type": "u64"
-          },
-          {
-            "name": "adjustment_timestamp",
-            "type": "i64"
           }
         ]
       }

@@ -1,0 +1,105 @@
+import { Callout } from 'nextra/components'
+
+# Cast Vote
+
+Cast a stake-weighted vote on an active governance proposal.
+
+## Description
+
+Votes are allocated using **basis points (bp)** where `10,000 bp = 100%` of the validator's stake. You distribute your stake across three positions: **For**, **Against**, and **Abstain** — and the three values must add up to exactly **10,000**.
+
+The program verifies your stake weight on-chain by reading a `MetaMerkleProof` PDA and calling the NCN `verify_merkle_proof` instruction. You do not need to supply the proof manually — the CLI fetches it from the operator API.
+
+## Usage
+
+```bash
+svmgov cast-vote \
+  --proposal-id "ABC123..." \
+  --for-votes 7000 \
+  --against-votes 2000 \
+  --abstain-votes 1000 \
+  --network mainnet
+```
+
+## Arguments
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `--proposal-id` | String | **Yes** | Proposal PDA address (base58) |
+| `--for-votes` | u64 | **Yes** | Basis points allocated to For (0–10,000) |
+| `--against-votes` | u64 | **Yes** | Basis points allocated to Against (0–10,000) |
+| `--abstain-votes` | u64 | **Yes** | Basis points allocated to Abstain (0–10,000) |
+| `--network` | String | **Yes** | Network: `mainnet`, `testnet` |
+
+## Global Arguments
+
+| Option | Short | Description |
+|---|---|---|
+| `--identity-keypair <PATH>` | `-i` | Path to validator identity keypair JSON |
+| `--rpc-url <URL>` | `-r` | Custom RPC URL |
+
+## Requirements
+
+- Proposal must be in **voting phase** (`proposal.voting == true`)
+- Current epoch must be within `[start_epoch, end_epoch]`
+- `for_votes + against_votes + abstain_votes` must equal exactly **10,000**
+- NCN operators must have finalized the `ConsensusResult` for this proposal's snapshot
+
+## Basis Points Reference
+
+| Basis Points | Percentage | Example (100 SOL stake) |
+|---|---|---|
+| `10,000` | 100% | 100 SOL |
+| `7,000` | 70% | 70 SOL |
+| `5,000` | 50% | 50 SOL |
+| `1,000` | 10% | 10 SOL |
+| `0` | 0% | 0 SOL |
+
+## Examples
+
+```bash
+# 70% For, 20% Against, 10% Abstain
+svmgov cast-vote \
+  --proposal-id "AbCdEf..." \
+  --for-votes 7000 \
+  --against-votes 2000 \
+  --abstain-votes 1000 \
+  --network mainnet
+
+# 100% For
+svmgov cast-vote \
+  --proposal-id "AbCdEf..." \
+  --for-votes 10000 \
+  --against-votes 0 \
+  --abstain-votes 0 \
+  --network mainnet
+
+# 100% Against — explicit RPC
+svmgov cast-vote \
+  --proposal-id "AbCdEf..." \
+  --for-votes 0 \
+  --against-votes 10000 \
+  --abstain-votes 0 \
+  --network mainnet \
+  --rpc-url https://api.mainnet-beta.solana.com
+```
+
+## What Happens On-Chain
+
+1. CLI fetches your `MetaMerkleProof` from the operator API (`/proof/vote_account/:vote_account`)
+2. CLI stores the proof in a temporary on-chain `MetaMerkleProof` PDA
+3. `cast_vote` instruction:
+   - Reads the `MetaMerkleProof` PDA
+   - CPIs to `ncn-snapshot::verify_merkle_proof` to confirm your stake weight
+   - If delegators have already overridden your vote via `VoteOverrideCache`, their portion is subtracted
+   - Records your `Vote` PDA with lamport amounts
+4. `proposal.for_votes_lamports / against_votes_lamports / abstain_votes_lamports` are updated
+
+<Callout type="warning">
+  If delegators have pre-submitted vote overrides before you vote, their stake is automatically subtracted from your effective vote weight when you call `cast_vote`.
+</Callout>
+
+## Related
+
+- [Modify Vote](/svmgov/validators/modify-vote) — Change your vote during the voting phase
+- [Finalize Proposal](/svmgov/validators/finalize-proposal) — Lock results after voting ends

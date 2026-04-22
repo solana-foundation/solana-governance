@@ -1,0 +1,106 @@
+import { Cards, Callout, Steps } from 'nextra/components'
+
+# svmgov — Solana Governance
+
+**Program ID:** `EKwRPoyRactBV2z2XhUSVU1YbZuyTVq4kU5U5dM2JyZY`
+
+`svmgov` is an Anchor-based Solana program that implements the full governance lifecycle for Solana validators. Voting power is derived directly from active stake — weights are verified cryptographically using Merkle proofs from the [NCN snapshot system](/ncn).
+
+<Callout type="info">
+  New here? Start with <a href="/svmgov/terminology">Terminology</a> before diving into program internals and workflows.
+</Callout>
+
+## What is svmgov?
+
+`svmgov` enables the Solana validator community to:
+
+- **Propose** — Any validator with ≥ 100,000 SOL staked can create a governance proposal with a GitHub link for full details
+- **Signal support** — Other validators signal support; once 5% of cluster stake supports it, voting opens
+- **Vote with stake weight** — Each validator's vote is weighted by their active stake, proven via Merkle proof
+- **Override as a delegator** — Individual stakers can override their validator's vote, asserting their own preference with their specific stake account
+
+## Proposal Lifecycle
+
+```
+CREATED ──► SUPPORT PHASE ──► VOTING PHASE ──► FINALIZED
+              │                    │
+              │ 5% cluster stake   │ end_epoch reached
+              │ threshold met      │ (permissionless)
+              ▼                    ▼
+         voting=true          finalized=true
+         snapshot_slot set    results locked
+         consensus_result set
+```
+
+<Steps>
+
+### Create Proposal
+
+A validator with ≥ 100,000 SOL staked calls `create_proposal`. They provide a title (max 50 chars) and a GitHub URL as the description. The proposal receives a unique sequential index.
+
+### Support Phase
+
+Other validators call `support_proposal`. Each supporter's stake is added to `cluster_support_lamports`. Once the total crosses `cluster_support_pct_min_bps` (default: 500 bps = 5%) of total cluster stake:
+- `proposal.voting = true`
+- `snapshot_slot` is set to 1000 slots into the `snapshot_epoch_extension` epoch
+- `consensus_result` PDA is derived
+- A CPI calls `ncn-snapshot::init_ballot_box` to open voting for operators
+
+### Operators Reach Consensus
+
+While the proposal is in the support phase (or shortly after), NCN operators generate snapshots and vote on the `BallotBox`. Once consensus is reached, anyone calls `finalize_ballot` to publish the `ConsensusResult`.
+
+### Voting Phase
+
+Validators call `cast_vote` with their vote allocation in basis points (for/against/abstain, must sum to 10,000). The program:
+1. Reads the validator's `MetaMerkleProof` PDA
+2. CPIs to `ncn-snapshot::verify_merkle_proof`
+3. Records the weighted vote on the `Proposal` account
+
+### Delegator Overrides (Optional)
+
+Delegators who disagree with their validator's vote call `cast_vote_override`. They provide a stake account Merkle proof. The override adjusts the validator's effective vote weight.
+
+### Finalization
+
+After `end_epoch`, anyone calls `finalize_proposal`. The proposal's `finalized = true` and vote tallies are locked permanently.
+
+</Steps>
+
+## Key Features
+
+| Feature | Description |
+|---|---|
+| Stake-weighted voting | Each vote weighted by active stake from NCN snapshot |
+| Merkle proof verification | Stake weights verified on-chain, no trusted oracle |
+| Delegator sovereignty | Stakers can override validators using stake account proofs |
+| Two-step proposals | Support phase prevents spam; only sufficiently backed proposals reach voting |
+| Permissionless finalization | Anyone can finalize after voting ends |
+| GitHub-linked descriptions | Full proposal text lives off-chain (GitHub), on-chain stores the link |
+
+## Core Concepts Map
+
+| Concept | Where to read | Why it matters |
+|---|---|---|
+| Lifecycle and governance flow | This page | Understand state transitions and responsibilities |
+| Terms and glossary | [`/svmgov/terminology`](/svmgov/terminology) | Build shared vocabulary before reading instruction docs |
+| Accounts/instructions/errors | [`/svmgov/program`](/svmgov/program) | Deep technical source of truth for integrators |
+| Validator actions | [`/svmgov/validators`](/svmgov/validators) | Operational guide for proposal creation/support/voting |
+| Delegator actions | [`/svmgov/stakers`](/svmgov/stakers) | Override flow and stake-account-level participation |
+
+## Program Constants
+
+| Constant | Value | Description |
+|---|---|---|
+| `BASIS_POINTS_MAX` | `10,000` | Total basis points = 100% |
+| `MAX_TITLE_ACCOUNT_SIZE` | `200 bytes` | Maximum bytes allocated for title |
+| `MAX_DESC_ACCOUNT_SIZE` | `500 bytes` | Maximum bytes allocated for description |
+
+## Explore
+
+<Cards>
+  <Cards.Card title="Terminology" href="/svmgov/terminology" />
+  <Cards.Card title="Program Reference" href="/svmgov/program" />
+  <Cards.Card title="For Validators" href="/svmgov/validators" />
+  <Cards.Card title="For Stakers" href="/svmgov/stakers" />
+</Cards>

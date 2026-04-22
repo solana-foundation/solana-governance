@@ -615,6 +615,10 @@
         {
           "name": "snapshot_epoch_extension",
           "type": "u64"
+        },
+        {
+          "name": "snapshot_slot_offset",
+          "type": "i64"
         }
       ]
     },
@@ -1130,6 +1134,12 @@
           "type": {
             "option": "u64"
           }
+        },
+        {
+          "name": "snapshot_slot_offset",
+          "type": {
+            "option": "i64"
+          }
         }
       ]
     }
@@ -1634,6 +1644,13 @@
               "Epochs of extension for snapshot"
             ],
             "type": "u64"
+          },
+          {
+            "name": "snapshot_slot_offset",
+            "docs": [
+              "Slot offset from epoch start for snapshot computation (can be negative)"
+            ],
+            "type": "i64"
           },
           {
             "name": "bump",

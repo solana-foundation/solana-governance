@@ -1,0 +1,71 @@
+import { Callout } from 'nextra/components'
+
+# Modify Vote
+
+Change your existing vote on an active governance proposal.
+
+## Description
+
+You can modify your vote at any time while the proposal is still in the voting phase. The program subtracts your old vote lamounts from the proposal totals and adds your new allocation. Your stake weight is re-verified via Merkle proof.
+
+## Usage
+
+```bash
+svmgov modify-vote \
+  --proposal-id "ABC123..." \
+  --for-votes 8000 \
+  --against-votes 1000 \
+  --abstain-votes 1000 \
+  --network mainnet
+```
+
+## Arguments
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `--proposal-id` | String | **Yes** | Proposal PDA address (base58) |
+| `--for-votes` | u64 | **Yes** | New basis points for For (0–10,000) |
+| `--against-votes` | u64 | **Yes** | New basis points for Against (0–10,000) |
+| `--abstain-votes` | u64 | **Yes** | New basis points for Abstain (0–10,000) |
+| `--network` | String | **Yes** | Network: `mainnet`, `testnet` |
+
+## Global Arguments
+
+| Option | Short | Description |
+|---|---|---|
+| `--identity-keypair <PATH>` | `-i` | Path to validator identity keypair JSON |
+| `--rpc-url <URL>` | `-r` | Custom RPC URL |
+
+## Requirements
+
+- You must have already voted on this proposal
+- Proposal must still be in the voting phase (not yet past `end_epoch`)
+- New values must still sum to **10,000** basis points
+
+## Examples
+
+```bash
+# Change to strongly For
+svmgov modify-vote \
+  --proposal-id "AbCdEf..." \
+  --for-votes 9000 \
+  --against-votes 500 \
+  --abstain-votes 500 \
+  --network mainnet
+
+# Change to 50/50 For/Against
+svmgov modify-vote \
+  --proposal-id "AbCdEf..." \
+  --for-votes 5000 \
+  --against-votes 5000 \
+  --abstain-votes 0 \
+  --network mainnet
+```
+
+<Callout>
+  Modifying your vote does not affect existing delegator overrides. Delegators who overrode your vote before your modification will retain their override effect.
+</Callout>
+
+## Related
+
+- [Cast Vote](/svmgov/validators/cast-vote) — Original vote command

@@ -1,0 +1,68 @@
+import { Callout } from 'nextra/components'
+
+# Finalize Proposal
+
+Lock a proposal's results after its voting period ends.
+
+## Description
+
+`finalize-proposal` is **permissionless** — anyone can call it after the voting epoch has passed. It sets `proposal.finalized = true`, permanently locking the vote tallies. No further votes or overrides can be recorded after finalization.
+
+## Usage
+
+```bash
+svmgov finalize-proposal --proposal-id "ABC123..."
+```
+
+## Arguments
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `--proposal-id` | String | **Yes** | Proposal PDA address (base58) |
+
+## Global Arguments
+
+| Option | Short | Description |
+|---|---|---|
+| `--identity-keypair <PATH>` | `-i` | Path to keypair JSON (payer for fees) |
+| `--rpc-url <URL>` | `-r` | Custom RPC URL |
+
+## Requirements
+
+- Proposal must have `voting == true` (was activated)
+- Proposal must **not** be finalized already
+- Current epoch must be `>= proposal.end_epoch`
+
+## Examples
+
+```bash
+# With config
+svmgov finalize-proposal --proposal-id "AbCdEf..."
+
+# With explicit RPC
+svmgov finalize-proposal \
+  --proposal-id "AbCdEf..." \
+  --rpc-url https://api.mainnet-beta.solana.com
+```
+
+## Reading the Result
+
+After finalization, use `svmgov proposal <ID>` to view the final vote counts:
+
+```bash
+svmgov proposal "AbCdEf..."
+```
+
+Output shows:
+- Total For, Against, Abstain lamports
+- Whether the proposal passed (interpretation is off-chain)
+- Final vote count
+
+<Callout type="info">
+  The `svmgov` program records vote outcomes but does not enforce any action as a result. Proposal outcomes are interpreted by the community and governance participants.
+</Callout>
+
+## Related
+
+- [View Proposal](/svmgov/validators/proposal) — View final results
+- [List Proposals](/svmgov/validators/list-proposals) — Browse all finalized proposals

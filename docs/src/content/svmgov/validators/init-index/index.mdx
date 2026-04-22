@@ -1,0 +1,46 @@
+import { Callout } from 'nextra/components'
+
+# Initialize Index
+
+Initialize the global `ProposalIndex` PDA. This is a **one-time, permissionless setup** that must be completed before any proposals can be created.
+
+## Description
+
+The `ProposalIndex` PDA tracks a sequential counter across all proposals. It is initialized once on a given network and is shared across all validators.
+
+<Callout type="info">
+  This command only needs to be run once per network. If the index is already initialized, the command will fail gracefully. Check with `svmgov list-proposals` — if it returns results, the index is already set up.
+</Callout>
+
+## Usage
+
+```bash
+svmgov init-index
+```
+
+## Arguments
+
+This command takes no arguments.
+
+## Global Arguments
+
+| Option | Short | Description |
+|---|---|---|
+| `--identity-keypair <PATH>` | `-i` | Path to identity keypair JSON file |
+| `--rpc-url <URL>` | `-r` | Custom RPC URL |
+
+## Examples
+
+```bash
+# With config
+svmgov init-index
+
+# With explicit keypair and RPC
+svmgov init-index \
+  --identity-keypair <PATH_TO_IDENTITY_KEYPAIR> \
+  --rpc-url <RPC_URL>
+```
+
+## Related
+
+- [Create Proposal](/svmgov/validators/create-proposal) — Requires index to be initialized

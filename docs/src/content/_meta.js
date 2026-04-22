@@ -2,12 +2,12 @@ export default {
   index: {
     display: 'hidden',
   },
-  validators: {
-    title: 'For Validators',
+  ncn: {
+    title: 'NCN',
     type: 'page',
   },
-  stakers: {
-    title: 'For Stakers',
+  svmgov: {
+    title: 'svmgov',
     type: 'page',
   },
   reference: {
@@ -15,4 +15,3 @@ export default {
     type: 'page',
   },
 };
-

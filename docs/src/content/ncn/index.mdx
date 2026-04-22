@@ -1,0 +1,105 @@
+import { Cards, Callout, Steps } from 'nextra/components'
+
+# Node Consensus Network (NCN)
+
+The **Node Consensus Network (NCN)** is the stake snapshot layer of Solana Governance. It provides a decentralized mechanism for a set of whitelisted operators to agree on a canonical, verifiable snapshot of the entire Solana stake distribution — which governance then uses to assign voting power.
+
+## What is NCN?
+
+NCN is a two-layer system:
+
+**Off-chain layer** — Each operator independently reads the Solana ledger and builds a deterministic Merkle tree of all active stake delegations across all validators. The root of this tree (plus a content hash) uniquely identifies that snapshot.
+
+**On-chain layer** — Operators submit their snapshot identities as votes to the `ncn-snapshot` Solana program. Once enough operators vote for the same snapshot (the *consensus threshold*), a `ConsensusResult` account is published on-chain. This result contains the canonical Merkle root that any program can use to verify stake proofs.
+
+## Why NCN?
+
+Traditional governance systems use a trusted admin or oracle to assign voting weights. NCN replaces this with a decentralized, trust-minimized process:
+
+| Problem (centralized) | NCN Solution |
+|---|---|
+| Admin could falsify stake weights | Multiple independent operators must agree |
+| No way to verify a weight on-chain | Anyone can verify with a Merkle proof |
+| Single point of failure | Operator set can continue if some go offline |
+| Delegators can't prove stake ownership | Stake accounts included in two-tier Merkle tree |
+
+## System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Off-Chain                            │
+│                                                             │
+│  Solana Ledger ──► Operator A generates MetaMerkleSnapshot  │
+│                    Operator B generates MetaMerkleSnapshot  │
+│                    Operator C generates MetaMerkleSnapshot  │
+│                    (all operators produce the same root)    │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ cast_vote(root, hash)
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│               On-Chain: ncn-snapshot Program                │
+│                                                             │
+│  BallotBox                                                  │
+│  ├── operator_votes[]  (one per operator)                   │
+│  ├── ballot_tallies[]  (one per unique ballot)              │
+│  └── winning_ballot    (set when threshold crossed)         │
+│                           │ finalize_ballot                 │
+│                           ▼                                 │
+│  ConsensusResult                                            │
+│  ├── meta_merkle_root  ([u8; 32])                           │
+│  └── snapshot_hash     ([u8; 32])                           │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ CPI verify_merkle_proof
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│               On-Chain: svmgov Program                      │
+│                                                             │
+│  cast_vote(for_bp, against_bp, abstain_bp)                  │
+│  ├── Verifies MetaMerkleProof → stake weight               │
+│  └── Records weighted vote on Proposal                      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## End-to-End Flow
+
+<Steps>
+
+### Operator generates snapshot
+
+An operator runs the NCN CLI against a Solana ledger snapshot for a target slot. The CLI reads all stake delegations, groups them by validator, builds a two-tier Merkle tree, and saves the result as a compressed `.zip` file.
+
+### Operator uploads to Verifier Service
+
+The operator uploads the snapshot to the verifier HTTP service (signed with their Ed25519 keypair). The service indexes all vote and stake accounts into SQLite for fast proof queries.
+
+### Operator casts vote on-chain
+
+The operator calls `cast_vote` on the `BallotBox` PDA for the target slot, submitting the Merkle root and snapshot hash from their generated snapshot.
+
+### Consensus is reached
+
+Once `≥ min_consensus_threshold_bps` of whitelisted operators have voted for the same ballot, the `BallotBox` records the winning ballot. Anyone can then call `finalize_ballot` to create the `ConsensusResult` PDA.
+
+### Governance uses the result
+
+The `svmgov` program's `support_proposal` instruction references the `ConsensusResult` when activating voting on a proposal. Validators fetch their `MetaMerkleProof` from the verifier service and submit it when voting to prove their stake weight.
+
+</Steps>
+
+## Key Program IDs
+
+| Program | Address |
+|---|---|
+| `ncn-snapshot` | `8qua2VAnWaNFDAhUakryMuRdNRVuUehkjnhLECvueGSV` |
+| `svmgov` (references ncn) | `EKwRPoyRactBV2z2XhUSVU1YbZuyTVq4kU5U5dM2JyZY` |
+
+## Explore
+
+<Cards>
+  <Cards.Card title="Terminology" href="/ncn/terminology" />
+  <Cards.Card title="Snapshots" href="/ncn/snapshot" />
+  <Cards.Card title="Merkle Trees" href="/ncn/merkle-tree" />
+  <Cards.Card title="ncn-snapshot Program" href="/ncn/program" />
+  <Cards.Card title="NCN CLI" href="/ncn/cli" />
+  <Cards.Card title="Verifier Service" href="/ncn/verifier-service" />
+</Cards>

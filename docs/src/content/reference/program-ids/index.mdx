@@ -1,0 +1,40 @@
+# Program IDs
+
+All on-chain program addresses for the Solana Governance system.
+
+## Core Programs
+
+| Program | Address | Description |
+|---|---|---|
+| `ncn-snapshot` | `8qua2VAnWaNFDAhUakryMuRdNRVuUehkjnhLECvueGSV` | NCN stake snapshot and consensus voting |
+| `svmgov` | `EKwRPoyRactBV2z2XhUSVU1YbZuyTVq4kU5U5dM2JyZY` | Governance proposals and stake-weighted voting |
+
+## Key PDAs
+
+### ncn-snapshot Program
+
+| Account | Seeds | Description |
+|---|---|---|
+| `ProgramConfig` | `["ProgramConfig"]` | Global config, operator whitelist |
+| `BallotBox` | `["BallotBox", snapshot_slot.le_bytes]` | Per-slot operator voting |
+| `ConsensusResult` | `["ConsensusResult", snapshot_slot.le_bytes]` | Final agreed snapshot |
+| `MetaMerkleProof` | `["MetaMerkleProof", consensus_result, vote_account]` | Validator proof storage |
+
+### svmgov Program
+
+| Account | Seeds | Description |
+|---|---|---|
+| `GlobalConfig` | `["global_config"]` | Governance parameters |
+| `ProposalIndex` | `["index"]` | Sequential proposal counter |
+| `Proposal` | `["proposal", seed.le_bytes, vote_account]` | Governance proposal |
+| `Support` | `["support", proposal, vote_account]` | Support receipt |
+| `Vote` | `["vote", proposal, vote_account]` | Validator vote record |
+| `VoteOverride` | `["vote_override", proposal, stake_account, validator_vote]` | Delegator override |
+| `VoteOverrideCache` | `["vote_override_cache", proposal, validator_vote]` | Pre-vote delegator cache |
+
+## Hardcoded Addresses
+
+| Name | Address | Purpose |
+|---|---|---|
+| Marinade withdraw authority | `9eG63CdHjsfhHmobHgLtESGC8GabbmRcaSpHAZrtmhco` | Special stake pool mapping |
+| Marinade ops wallet | `opLSF7LdfyWNBby5o6FT8UFsr2A4UGKteECgtLSYrSm` | Marinade voting wallet |

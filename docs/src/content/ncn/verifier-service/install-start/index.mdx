@@ -1,0 +1,57 @@
+import { Callout } from 'nextra/components'
+
+# Install & Start (Server / Docker)
+
+Deploy flow (single path):
+
+1. Run `make install-verifier-service` (builds the Docker image and starts the container)
+2. Verify the deployment
+
+---
+## Step 1: Build locally (binary + Docker image)
+
+SSH into the server where you will run the container.
+
+```bash
+cd ~/solana-governance
+make install-verifier-service
+```
+
+---
+## Step 2: Enter configuration (prompted by `setup.sh`)
+
+Before you run `make install-verifier-service`, generate a `METRICS_AUTH_TOKEN` (required for `/admin/stats`):
+
+```bash
+# Generates a random hex token (copy/paste the output into the prompt)
+METRICS_AUTH_TOKEN="$(openssl rand -hex 32)"
+echo "$METRICS_AUTH_TOKEN"
+```
+
+When prompted, enter:
+
+- `OPERATOR_PUBKEY`
+- `METRICS_AUTH_TOKEN`
+- `PORT_HOST` (example: `8000`, which maps `8000 -> 3000`)
+
+<Callout type="info">
+  `make install-verifier-service` runs `setup.sh`, which starts container `verifier`, exposes `PORT_HOST -> 3000`, persisting data under `/srv/verifier/data`, and will skip `docker pull` if the requested image tag already exists locally.
+</Callout>
+
+---
+## Step 3: Verify
+
+Replace `<PORT_HOST>` with your `PORT_HOST`:
+
+```bash
+sudo docker ps
+curl -i http://127.0.0.1:<PORT_HOST>/healthz
+curl -s http://127.0.0.1:<PORT_HOST>/version
+```
+
+If it fails, check logs:
+
+```bash
+sudo docker logs --tail=200 verifier
+```
+

@@ -3,7 +3,7 @@ use std::str::FromStr;
 use anchor_client::solana_sdk::{pubkey::Pubkey, signer::Signer, transaction::Transaction};
 use anchor_lang::system_program;
 use anyhow::{Result, anyhow};
-use gov_v1::{ID as SNAPSHOT_PROGRAM_ID, MetaMerkleLeaf, MetaMerkleProof};
+use ncn_snapshot::{ID as SNAPSHOT_PROGRAM_ID, MetaMerkleLeaf, MetaMerkleProof};
 use log::info;
 
 use crate::{
@@ -110,7 +110,7 @@ pub async fn cast_vote_override(
 
         let init_meta_merkle_proof_ix = merkle_proof_program
             .request()
-            .args(gov_v1::instruction::InitMetaMerkleProof {
+            .args(ncn_snapshot::instruction::InitMetaMerkleProof {
                 close_timestamp: 1,
                 meta_merkle_leaf: MetaMerkleLeaf {
                     voting_wallet,
@@ -130,7 +130,7 @@ pub async fn cast_vote_override(
                     .map(|s| Pubkey::from_str_const(s).to_bytes())
                     .collect(),
             })
-            .accounts(gov_v1::accounts::InitMetaMerkleProof {
+            .accounts(ncn_snapshot::accounts::InitMetaMerkleProof {
                 consensus_result: consensus_result_pda,
                 merkle_proof: meta_merkle_proof_pda,
                 payer: payer.pubkey(),

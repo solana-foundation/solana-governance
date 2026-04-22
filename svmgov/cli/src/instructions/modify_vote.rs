@@ -3,7 +3,7 @@ use std::str::FromStr;
 use anchor_client::solana_sdk::{pubkey::Pubkey, signer::Signer};
 use anchor_lang::system_program;
 use anyhow::{Result, anyhow};
-use gov_v1::ID as SNAPSHOT_PROGRAM_ID;
+use ncn_snapshot::ID as SNAPSHOT_PROGRAM_ID;
 
 use crate::{
     constants::*,
