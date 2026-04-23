@@ -9,8 +9,8 @@ import {
   useSupportAccounts,
   useEpochToDate,
 } from "@/hooks";
-import { useEndpoint } from "@/contexts/EndpointContext";
-import { getEpochConstants } from "@/lib/proposals";
+import { useGovernanceConfigContext } from "@/contexts/GovernanceConfigContext";
+import { epochConstantsFromGovernanceConfig } from "@/lib/proposals";
 import { NotificationButton } from "./NotificationButton";
 import { PhaseStatusBadge } from "./PhaseStatusBadge";
 import { SupportDonut } from "./SupportDonut";
@@ -37,19 +37,28 @@ interface SupportPhaseProgressProps {
 }
 
 export function SupportPhaseProgress({ proposal }: SupportPhaseProgressProps) {
-  const { endpointType } = useEndpoint();
-  const epochs = getEpochConstants(endpointType);
+  const governanceConfigQuery = useGovernanceConfigContext();
+  const epochs = governanceConfigQuery.data
+    ? epochConstantsFromGovernanceConfig(governanceConfigQuery.data)
+    : undefined;
   const hasEnded =
     proposal.status === "failed" || proposal.status === "finalized";
 
   // Calculate target epoch: creationEpoch + SUPPORT_EPOCHS
-  const targetEpoch = proposal.creationEpoch + epochs.SUPPORT_EPOCHS;
+  const targetEpoch =
+    epochs !== undefined
+      ? proposal.creationEpoch + epochs.SUPPORT_EPOCHS
+      : undefined;
 
   const { data: supportEndsAt, isLoading: isLoadingEpochDate } =
     useEpochToDate(targetEpoch);
 
   const { data: discussionEndsAt, isLoading: isLoadingDiscussionEpochDate } =
-    useEpochToDate(targetEpoch + epochs.DISCUSSION_EPOCHS);
+    useEpochToDate(
+      epochs !== undefined && targetEpoch !== undefined
+        ? targetEpoch + epochs.DISCUSSION_EPOCHS
+        : undefined,
+    );
 
   const supportFilters = buildSupportFilters(
     proposal.publicKey.toBase58(),
@@ -74,7 +83,9 @@ export function SupportPhaseProgress({ proposal }: SupportPhaseProgressProps) {
     isLoadingValidators ||
     isLoadingSupportAccounts ||
     isLoadingEpochDate ||
-    isLoadingDiscussionEpochDate;
+    isLoadingDiscussionEpochDate ||
+    governanceConfigQuery.isLoading ||
+    governanceConfigQuery.isPending;
 
   const stats = useMemo(() => {
     // Use proposal's clusterSupportLamports as current support

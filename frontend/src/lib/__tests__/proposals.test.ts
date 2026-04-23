@@ -1,6 +1,6 @@
 import { PublicKey } from "@solana/web3.js";
-import { getProposalStatus, getEpochConstants } from "../proposals";
-import type { GetProposalStatusParams } from "../proposals";
+import { getProposalStatus } from "../proposals";
+import type { EpochConstants, GetProposalStatusParams } from "../proposals";
 
 // Mock the SUPPORT_THRESHOLD_PERCENT constant
 jest.mock("@/components/proposals/detail/support-phase-progress", () => ({
@@ -12,10 +12,14 @@ describe("getProposalStatus", () => {
   const totalStakedLamports = 100_000_000_000; // 100M SOL in lamports
   const requiredThresholdLamports = totalStakedLamports * 0.1; // 10% = 10M SOL
   const mockConsensusResult = new PublicKey("11111111111111111111111111111111");
-  const endpointType = "testnet"; // Using testnet for tests
 
-  // Get epoch constants for testnet
-  const epochs = getEpochConstants(endpointType);
+  // Epoch lengths aligned with former testnet defaults used by these tests
+  const epochs: EpochConstants = {
+    SUPPORT_EPOCHS: 1,
+    DISCUSSION_EPOCHS: 2,
+    SNAPSHOT_EPOCHS: 1,
+    VOTING_EPOCHS: 4,
+  };
 
   // When support is reached at supportEndEpoch, backend sets startEpoch as:
   // startEpoch = supportEndEpoch + DISCUSSION_EPOCHS + SNAPSHOT_EPOCHS
@@ -41,7 +45,7 @@ describe("getProposalStatus", () => {
     consensusResult: undefined,
     finalized: false,
     voting: false,
-    endpointType,
+    epochConstants: epochs,
   };
 
   const testSuites = [

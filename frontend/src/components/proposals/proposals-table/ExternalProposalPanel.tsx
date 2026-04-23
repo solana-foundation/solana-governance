@@ -21,10 +21,10 @@ import { getProposalDetailPagePath } from "@/helpers/proposalPage";
 
 const VOTE_STATE_LABEL: Record<ProposalRecord["status"], string> = {
   supporting: "Supporting",
+  discussion: "Discussion",
   voting: "In Progress",
   finalized: "Finished",
   failed: "Failed",
-  discussion: "Discussion",
 };
 
 const getVoteStateLabel = (proposal: ProposalRecord): string => {

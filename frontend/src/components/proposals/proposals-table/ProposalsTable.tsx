@@ -51,9 +51,14 @@ const STATUS_FILTER_LABELS: Record<StatusFilter, string> = {
   failed: "Failed",
 };
 
-const filterOptions: StatusFilter[] = Object.keys(
-  STATUS_FILTER_LABELS
-) as StatusFilter[];
+const filterOptions: StatusFilter[] = [
+  "all",
+  "supporting",
+  "discussion",
+  "voting",
+  "finalized",
+  "failed",
+];
 
 const getIsExpanded = (state: ExpandedState, rowId: string) =>
   Boolean((state as Record<string, boolean>)[rowId]);

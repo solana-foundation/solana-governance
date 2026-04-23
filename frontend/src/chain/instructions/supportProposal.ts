@@ -2,6 +2,7 @@ import { PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
 import {
   BlockchainParams,
+  SupportProposalGlobalConfigInput,
   SupportProposalParams,
   TransactionResult,
   SNAPSHOT_PROGRAM_ID,
@@ -11,7 +12,6 @@ import {
   createProgramWithWallet,
   deriveSupportPda,
   deriveGlobalConfigPda,
-  fetchGlobalConfig,
 } from "./helpers";
 
 /**
@@ -22,6 +22,7 @@ export async function supportProposal(
   blockchainParams: BlockchainParams,
   slot: number | undefined,
   validatorVoteAccount: ChainVoteAccountData | undefined,
+  globalConfig: SupportProposalGlobalConfigInput,
 ): Promise<TransactionResult> {
   const { proposalId, wallet } = params;
 
@@ -51,17 +52,15 @@ export async function supportProposal(
     program.programId,
   );
 
-  const globalConfig = await fetchGlobalConfig(program);
-
   const epochInfo = await program.provider.connection.getEpochInfo();
   const targetEpoch =
     epochInfo.epoch +
-    globalConfig.discussionEpochs.toNumber() +
-    globalConfig.snapshotEpochExtension.toNumber();
+    globalConfig.discussionEpochs +
+    globalConfig.snapshotEpochExtension;
 
   const epochSchedule = await program.provider.connection.getEpochSchedule();
   const startSlot = epochSchedule.getFirstSlotInEpoch(targetEpoch);
-  const snapshotSlot = startSlot + globalConfig.snapshotSlotOffset.toNumber();
+  const snapshotSlot = startSlot + globalConfig.snapshotSlotOffset;
 
   const seeds = [
     Buffer.from("BallotBox"),

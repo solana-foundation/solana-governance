@@ -27,7 +27,6 @@ export default function ProposalDetailView({
   const isFailed = proposal?.status === "failed";
   const isFinalized = proposal?.status === "finalized";
 
-  // Check if we're in support phase view (supporting, discussion, or failed)
   const isSupportPhaseView =
     proposal?.status === "supporting" ||
     proposal?.status === "discussion" ||
