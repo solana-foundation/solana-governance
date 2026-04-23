@@ -221,6 +221,18 @@ pub fn anchor_client_setup(
     Ok(program)
 }
 
+/// Setup for admin-only commands: loads the signer keypair and program, but
+/// does NOT require the signer to have an associated vote account.
+pub fn setup_admin(
+    keypair_path: Option<String>,
+    rpc_url: Option<String>,
+) -> Result<(Arc<Keypair>, Program<Arc<Keypair>>)> {
+    let identity_keypair = load_identity_keypair(keypair_path)?;
+    let payer = Arc::new(identity_keypair);
+    let program = anchor_client_setup(rpc_url, payer.clone())?;
+    Ok((payer, program))
+}
+
 impl fmt::Display for Proposal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let author_str = self.author.to_string();

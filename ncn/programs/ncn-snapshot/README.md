@@ -113,7 +113,7 @@ This recovery mechanism replaces the previous approach of recreating BallotBoxes
 
 **Production CPI Requirement:**
 
-The `init_ballot_box` instruction enforces a CPI requirement in production, requiring the `proposal` account to be a PDA from the governance program (`GoVpHPV3EY89hwKJjfw19jTdgMsGKG4UFSE2SfJqTuhc`). This ensures that ballot boxes can only be created through the governance program's proposal flow.
+The `init_ballot_box` instruction enforces a CPI requirement in production, requiring the `proposal` account to be a PDA from the governance program (`4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU`). This ensures that ballot boxes can only be created through the governance program's proposal flow.
 
 **Testing with `skip-pda-check` Feature:**
 

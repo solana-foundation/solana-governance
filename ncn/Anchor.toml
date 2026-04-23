@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-ncn_snapshot = "66R5ByTjyA1SvxB5aJxMWipYjkSjTuQzUL7mJaro5BXc"
+ncn_snapshot = "HsiPGfvF441TrU8eCLLerQDcEMtyzYszBfKxqoSuaD9R"
 
 [registry]
 url = "https://api.apr.dev"

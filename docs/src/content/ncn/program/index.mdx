@@ -2,7 +2,7 @@ import { Callout, Tabs } from 'nextra/components'
 
 # ncn-snapshot Program
 
-**Program ID:** `8qua2VAnWaNFDAhUakryMuRdNRVuUehkjnhLECvueGSV`
+**Program ID:** `HsiPGfvF441TrU8eCLLerQDcEMtyzYszBfKxqoSuaD9R`
 
 The `ncn-snapshot` Solana program is the on-chain component of NCN. It manages the operator whitelist, collects snapshot votes into `BallotBox` accounts, determines consensus, and publishes `ConsensusResult` accounts that the `svmgov` program uses for stake proof verification.
 
@@ -174,7 +174,7 @@ Creates a new `BallotBox` for a given `snapshot_slot`. Called by the `svmgov` pr
 Snapshots `whitelisted_operators` into `voter_list` at creation time.
 
 <Callout>
-  The `proposal` account must be a PDA from the `svmgov` program (`EKwRPoyRactBV2z2XhUSVU1YbZuyTVq4kU5U5dM2JyZY`). Compile with `skip-pda-check` feature to disable this check for testing.
+  The `proposal` account must be a PDA from the `svmgov` program (`4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU`). Compile with `skip-pda-check` feature to disable this check for testing.
 </Callout>
 
 ---

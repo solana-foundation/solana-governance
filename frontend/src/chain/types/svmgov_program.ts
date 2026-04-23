@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/svmgov_program.json`.
  */
 export type SvmgovProgram = {
-  "address": "EKwRPoyRactBV2z2XhUSVU1YbZuyTVq4kU5U5dM2JyZY",
+  "address": "4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU",
   "metadata": {
     "name": "svmgovProgram",
     "version": "0.1.0",

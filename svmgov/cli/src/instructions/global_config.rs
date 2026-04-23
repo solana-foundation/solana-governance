@@ -8,7 +8,7 @@ use crate::{
     svmgov_program::client::{accounts, args},
     utils::utils::{
         anchor_client_setup, create_spinner, derive_global_config_pda, fetch_global_config,
-        setup_all,
+        setup_admin,
     },
 };
 
@@ -25,7 +25,7 @@ pub async fn initialize_global_config(
     snapshot_epoch_extension: u64,
     snapshot_slot_offset: i64,
 ) -> Result<()> {
-    let (payer, _vote_account, program, _) = setup_all(keypair, rpc_url).await?;
+    let (payer, program) = setup_admin(keypair, rpc_url)?;
 
     let global_config_pda = derive_global_config_pda(&program.id());
 
@@ -81,7 +81,7 @@ pub async fn update_global_config(
     snapshot_epoch_extension: Option<u64>,
     snapshot_slot_offset: Option<i64>,
 ) -> Result<()> {
-    let (payer, _vote_account, program, _) = setup_all(keypair, rpc_url).await?;
+    let (payer, program) = setup_admin(keypair, rpc_url)?;
 
     let global_config_pda = derive_global_config_pda(&program.id());
 

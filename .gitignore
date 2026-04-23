@@ -17,3 +17,5 @@ node_modules/
 
 # External dependencies (cloned by build script)
 jito-tip-router/
+
+admin.json
