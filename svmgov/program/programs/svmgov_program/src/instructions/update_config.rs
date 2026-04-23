@@ -27,6 +27,7 @@ impl<'info> UpdateConfig<'info> {
         discussion_epochs: Option<u64>,
         voting_epochs: Option<u64>,
         snapshot_epoch_extension: Option<u64>,
+        snapshot_slot_offset: Option<i64>,
     ) -> Result<()> {
         let config = &mut self.global_config;
 
@@ -53,6 +54,9 @@ impl<'info> UpdateConfig<'info> {
         }
         if let Some(v) = snapshot_epoch_extension {
             config.snapshot_epoch_extension = v;
+        }
+        if let Some(v) = snapshot_slot_offset {
+            config.snapshot_slot_offset = v;
         }
 
         Ok(())

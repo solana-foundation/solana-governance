@@ -14,3 +14,8 @@ node_modules/
 
 # Env
 .env
+
+# External dependencies (cloned by build script)
+jito-tip-router/
+
+admin.json

@@ -1,0 +1,8 @@
+[workspace]
+# Tell rust-analyzer about all the separate workspaces in this repo
+linkedProjects = [
+    "svmgov/program/Cargo.toml",
+    "svmgov/cli/Cargo.toml",
+    "ncn/Cargo.toml",
+    "ncn-router/Cargo.toml",
+]

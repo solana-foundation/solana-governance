@@ -1,0 +1,20 @@
+# Local Development (Cargo)
+
+For development/testing on your own machine:
+
+```bash
+export OPERATOR_PUBKEY="YourOperatorPubkeyBase58..."
+export METRICS_AUTH_TOKEN="your-secret-token"
+export DB_PATH="/data/governance.db"
+export PORT=3000
+
+cargo build --release -p verifier-service
+./target/release/verifier-service
+```
+
+Health check:
+
+```bash
+curl http://localhost:3000/healthz
+```
+

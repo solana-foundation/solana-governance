@@ -1,0 +1,75 @@
+# List Proposals
+
+Fetch and display all governance proposals on-chain.
+
+## Description
+
+Retrieves all `Proposal` accounts from the `svmgov` program and displays them in a table or JSON format. Supports filtering by status and limiting the number of results.
+
+## Usage
+
+```bash
+svmgov list-proposals
+```
+
+## Options
+
+| Option | Type | Required | Description |
+|---|---|---|---|
+| `--status` | String | No | Filter by status: `active`, `finalized`, `support` |
+| `--limit` | usize | No | Maximum number of proposals to return |
+| `--json` | flag | No | Output in JSON format instead of table |
+
+## Global Arguments
+
+| Option | Short | Description |
+|---|---|---|
+| `--rpc-url <URL>` | `-r` | Custom RPC URL |
+
+## Status Filter Values
+
+| Value | Description |
+|---|---|
+| `active` | Proposals currently in the voting phase |
+| `support` | Proposals in the support phase (not yet voting) |
+| `finalized` | Proposals whose voting has ended and been finalized |
+
+## Examples
+
+```bash
+# All proposals (table output)
+svmgov list-proposals
+
+# Only active voting proposals
+svmgov list-proposals --status active
+
+# Proposals in support phase
+svmgov list-proposals --status support
+
+# Last 10 proposals
+svmgov list-proposals --limit 10
+
+# JSON output for scripting
+svmgov list-proposals --json
+
+# Combined: 5 active proposals as JSON
+svmgov list-proposals --status active --limit 5 --json
+```
+
+## Table Output Columns
+
+| Column | Description |
+|---|---|
+| Index | Sequential proposal number |
+| Title | Proposal title |
+| Author | Validator vote account |
+| Status | `support` / `active` / `finalized` |
+| For | Lamports voted For |
+| Against | Lamports voted Against |
+| Abstain | Lamports voted Abstain |
+| Votes | Total number of votes cast |
+| End Epoch | Epoch when voting closes |
+
+## Related
+
+- [View Proposal](/svmgov/validators/proposal) — Detailed view of a single proposal

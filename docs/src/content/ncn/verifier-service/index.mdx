@@ -1,0 +1,360 @@
+import { Callout } from 'nextra/components'
+
+# Verifier Service
+
+The Verifier Service is a standalone Rust/Axum HTTP service that operators run alongside their NCN infrastructure. It indexes uploaded snapshots into SQLite and serves Merkle proof data to governance participants (validators and stakers) who need proofs to cast votes.
+
+**Default port:** `3000`
+
+---
+## Start Here (Server)
+
+For a user-friendly server install flow, use the dropdown in the left sidebar:
+
+- `Requirements`
+- `Install & Start`
+- `Upgrade / Re-deploy`
+
+The rest of this page mainly documents environment variables and API endpoints.
+
+---
+
+## Purpose
+
+When a validator or delegator wants to cast a governance vote, they need:
+1. Their `MetaMerkleLeaf` (stake weight data)
+2. The `meta_merkle_proof` (sibling hashes from their leaf to the root)
+3. For delegators: their `StakeMerkleLeaf` and `stake_merkle_proof`
+
+Rather than computing these from the raw snapshot file, clients query the verifier service which pre-indexes all this data into SQLite for fast lookups.
+
+---
+
+## Environment Variables
+
+| Variable | Default | Required | Description |
+|---|---|---|---|
+| `OPERATOR_PUBKEY` | — | **Yes** | Base58 operator public key for upload authentication |
+| `METRICS_AUTH_TOKEN` | — | **Yes** | Bearer token for the `/admin/stats` endpoint |
+| `DB_PATH` | `/data/governance.db` | No | SQLite database path (`:memory:` for tests) |
+| `PORT` | `3000` | No | HTTP listen port |
+| `SQLITE_MAX_CONNECTIONS` | `4` (file) / `1` (memory) | No | Connection pool size |
+| `UPLOAD_BODY_LIMIT` | `104857600` (100 MiB) | No | Max upload body size in bytes |
+| `GLOBAL_REFILL_INTERVAL` | `10` | No | Global rate limit: requests/second |
+| `GLOBAL_RATE_BURST` | `10` | No | Global rate limit burst size |
+| `UPLOAD_REFILL_INTERVAL` | `60` | No | Upload rate limit: requests/second |
+| `UPLOAD_RATE_BURST` | `2` | No | Upload rate limit burst size |
+| `NCN_SNAPSHOT_MAX_MB` | `256` | No | Max decompressed snapshot size (MiB) |
+
+---
+## Server Requirements
+
+- Ubuntu server (recommended) with `sudo` access
+- Docker installed (the provided `setup.sh` script can install it if missing)
+- Disk space for the persistent SQLite DB and indexed snapshot data (Docker volume at `/srv/verifier/data`)
+- Network access to your chosen host port (you will map host `PORT_HOST` -> container port `3000`)
+- The operator’s base58 `OPERATOR_PUBKEY` (used to authenticate snapshot uploads)
+- A `METRICS_AUTH_TOKEN` (used for `/admin/stats`)
+
+---
+## Install & Start on the Server (Docker)
+
+Deploy flow (single path):
+
+1. SSH into your server.
+2. Install & start:
+
+```bash
+cd ~/solana-governance
+make install-verifier-service
+```
+
+During the run, you will be prompted to select `mainnet` vs `testnet`, then enter:
+
+- `OPERATOR_PUBKEY`
+- `METRICS_AUTH_TOKEN`
+- `PORT_HOST` (example: `8000`, which maps `8000 -> 3000`)
+
+The Docker image tag is auto-selected as `verifier-service:latest-mainnet` or `verifier-service:latest-testnet` (there is no separate `IMAGE` prompt).
+
+<Callout type="info">
+  `make install-verifier-service` runs `setup.sh`, which starts container `verifier`, persists data under `/srv/verifier/data`, and skips `docker pull` if the image tag already exists locally.
+</Callout>
+
+---
+## Verify the Deployment
+
+Run these commands on the server:
+
+```bash
+sudo docker ps
+# Replace <PORT_HOST> with the port you entered when running setup.sh
+curl -i http://127.0.0.1:<PORT_HOST>/healthz
+curl -s http://127.0.0.1:<PORT_HOST>/version
+```
+
+If `curl` fails, check logs:
+
+```bash
+sudo docker logs --tail=200 verifier
+```
+
+---
+## Upgrade / Re-deploy
+
+To upgrade to a new version:
+
+1. Re-run `make install-verifier-service` (select the same network; enter the same `OPERATOR_PUBKEY`/`METRICS_AUTH_TOKEN` and your chosen `PORT_HOST`).
+
+Persistent data stays mounted under `/srv/verifier/data`, so upgrades should not require re-uploading everything.
+
+---
+## API Reference
+
+### `POST /upload`
+
+Upload and index a snapshot. Only the whitelisted operator (identified by `OPERATOR_PUBKEY`) can upload.
+
+**Authentication:** Ed25519 signature over `slot.to_le_bytes() ‖ merkle_root_bs58_string.as_bytes()`
+
+**Request:** `multipart/form-data`
+
+| Field | Type | Description |
+|---|---|---|
+| `slot` | string | Snapshot slot number |
+| `network` | string | Network identifier (e.g., `mainnet`, `testnet`) |
+| `merkle_root` | string | Base58-encoded Merkle root |
+| `signature` | string | Base58-encoded Ed25519 signature |
+| `file` | binary | The snapshot `.zip` file |
+
+**On upload:**
+1. Verifies the Ed25519 signature against `OPERATOR_PUBKEY`
+2. Decompresses and Borsh-deserializes the snapshot
+3. Validates size against `NCN_SNAPSHOT_MAX_MB`
+4. Indexes all vote accounts and stake accounts into SQLite
+
+**Response:** `200 OK` on success, `4xx` on auth/validation failure.
+
+---
+
+### `GET /healthz`
+
+Health check endpoint.
+
+```bash
+curl http://localhost:3000/healthz
+# → "ok"
+```
+
+---
+
+### `GET /version`
+
+Returns service version metadata.
+
+```bash
+curl http://localhost:3000/version
+```
+
+```json
+{
+  "name": "verifier-service",
+  "version": "0.1.0",
+  "git_hash": "abc1234",
+  "build_time_unix": 1710000000
+}
+```
+
+---
+
+### `GET /meta`
+
+Returns the latest `SnapshotMetaRecord` for a given network.
+
+**Query params:** `network` (required)
+
+```bash
+curl "http://localhost:3000/meta?network=mainnet"
+```
+
+```json
+{
+  "network": "mainnet",
+  "slot": 300000000,
+  "merkle_root": "AbCd...",
+  "snapshot_hash": "XyZw...",
+  "created_at": "2025-01-01T00:00:00Z"
+}
+```
+
+---
+
+### `GET /voter/:voting_wallet`
+
+Returns all vote accounts and stake account summaries associated with a voting wallet address.
+
+**Query params:** `network` (required), `slot` (optional — defaults to latest)
+
+```bash
+curl "http://localhost:3000/voter/AbCd...?network=mainnet"
+```
+
+```json
+{
+  "voting_wallet": "AbCd...",
+  "vote_accounts": [
+    {
+      "vote_account": "VoTe...",
+      "active_stake": 1000000000000,
+      "stake_merkle_root": "MrKl...",
+      "stake_accounts": [
+        {
+          "stake_account": "StAk...",
+          "active_stake": 500000000000
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+### `GET /proof/vote_account/:vote_account`
+
+Returns the `MetaMerkleLeaf` and `meta_merkle_proof` for a validator's vote account.
+
+**Query params:** `network` (required), `slot` (optional)
+
+```bash
+curl "http://localhost:3000/proof/vote_account/VoTe...?network=mainnet"
+```
+
+```json
+{
+  "meta_merkle_leaf": {
+    "voting_wallet": "AbCd...",
+    "vote_account":  "VoTe...",
+    "stake_merkle_root": "MrKl...",
+    "active_stake": 1000000000000
+  },
+  "meta_merkle_proof": [
+    "SiblingHash1Base58...",
+    "SiblingHash2Base58...",
+    "SiblingHash3Base58..."
+  ]
+}
+```
+
+This is the primary endpoint used by the `svmgov` CLI when preparing validator votes.
+
+---
+
+### `GET /proof/stake_account/:stake_account`
+
+Returns the `StakeMerkleLeaf`, `stake_merkle_proof`, and parent `vote_account` for a delegator's stake account.
+
+**Query params:** `network` (required), `slot` (optional)
+
+```bash
+curl "http://localhost:3000/proof/stake_account/StAk...?network=mainnet"
+```
+
+```json
+{
+  "stake_merkle_leaf": {
+    "voting_wallet": "AbCd...",
+    "stake_account": "StAk...",
+    "active_stake": 500000000000
+  },
+  "stake_merkle_proof": [
+    "SiblingHash1Base58..."
+  ],
+  "vote_account": "VoTe..."
+}
+```
+
+This endpoint is used by the `svmgov` CLI when a delegator calls `cast-vote-override`.
+
+---
+
+### `GET /admin/stats`
+
+Returns runtime metrics. Requires `X-Metrics-Token: <METRICS_AUTH_TOKEN>` header.
+
+```bash
+curl -H "X-Metrics-Token: secret" http://localhost:3000/admin/stats
+```
+
+---
+
+## Database Schema
+
+The service uses SQLite with three tables:
+
+### `vote_account_records`
+
+| Column | Type | Description |
+|---|---|---|
+| `network` | TEXT | Network identifier |
+| `snapshot_slot` | INTEGER | Slot |
+| `vote_account` | TEXT | Validator vote account (base58) |
+| `voting_wallet` | TEXT | Voting wallet (base58) |
+| `stake_merkle_root` | TEXT | Base58 stake Merkle root |
+| `active_stake` | INTEGER | Total active stake (lamports) |
+| `meta_merkle_proof` | TEXT (JSON array) | Array of base58 sibling hashes |
+
+### `stake_account_records`
+
+| Column | Type | Description |
+|---|---|---|
+| `network` | TEXT | Network identifier |
+| `snapshot_slot` | INTEGER | Slot |
+| `stake_account` | TEXT | Stake account (base58) |
+| `vote_account` | TEXT | Parent validator vote account |
+| `voting_wallet` | TEXT | Voting wallet (base58) |
+| `active_stake` | INTEGER | Stake amount (lamports) |
+| `stake_merkle_proof` | TEXT (JSON array) | Array of base58 sibling hashes |
+
+### `snapshot_meta_records`
+
+| Column | Type | Description |
+|---|---|---|
+| `network` | TEXT | Network identifier |
+| `slot` | INTEGER | Snapshot slot |
+| `merkle_root` | TEXT | Base58 Merkle root |
+| `snapshot_hash` | TEXT | Base58 snapshot content hash |
+| `created_at` | TEXT | ISO 8601 UTC timestamp |
+
+---
+
+## Local Development (Cargo)
+
+```bash
+# Set required env vars
+export OPERATOR_PUBKEY="YourOperatorPubkeyBase58..."
+export METRICS_AUTH_TOKEN="your-secret-token"
+export DB_PATH="/data/governance.db"
+export PORT=3000
+
+# Build and run
+cargo build --release -p verifier-service
+./target/release/verifier-service
+```
+
+<Callout type="info">
+  The verifier service is operator infrastructure. Validators and stakers use the public read endpoints (`/proof/*`) but do not need to run their own instance.
+</Callout>
+
+---
+
+## Rate Limiting
+
+The service has two independent rate limiters:
+
+| Limiter | Default | Applies to |
+|---|---|---|
+| Global | 10 req/s, burst 10 | All endpoints |
+| Upload | 1 req/60s, burst 2 | `POST /upload` only |
+
+Configure via `GLOBAL_REFILL_INTERVAL`, `GLOBAL_RATE_BURST`, `UPLOAD_REFILL_INTERVAL`, `UPLOAD_RATE_BURST`.

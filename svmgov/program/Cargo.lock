@@ -599,22 +599,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gov-v1"
-version = "1.0.0"
-source = "git+https://github.com/dhruvsol/gov-v1-testnet?branch=update-3.0-testnet#22e3034727e3d17833407cf932bb8c0e6bd07ed4"
-dependencies = [
- "anchor-lang",
-]
-
-[[package]]
-name = "svmgov_program"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
- "gov-v1",
-]
-
-[[package]]
 name = "hashbrown"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -760,6 +744,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "ncn-snapshot"
+version = "1.0.0"
+dependencies = [
+ "anchor-lang",
 ]
 
 [[package]]
@@ -1918,6 +1909,14 @@ name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
+
+[[package]]
+name = "svmgov_program"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "ncn-snapshot",
+]
 
 [[package]]
 name = "syn"

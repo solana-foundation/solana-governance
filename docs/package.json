@@ -3,13 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next --turbopack",
+    "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
-    "postbuild": "pagefind --site .next/server/app --output-path public/_pagefind"
+    "postbuild": "pagefind --site out --output-path out/_pagefind"
   },
   "dependencies": {
-    "next": "^16.0.2",
+    "next": "^16.2.1",
     "nextra": "^4.6.0",
     "nextra-theme-docs": "^4.6.0",
     "react": "^19.2.0",

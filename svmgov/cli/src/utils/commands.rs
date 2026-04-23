@@ -11,7 +11,11 @@ use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::{Cell, Table, presets::UTF8_FULL};
 use serde::{Deserialize, Serialize};
 
-use crate::{anchor_client_setup, svmgov_program::accounts::Proposal};
+use crate::{
+    anchor_client_setup,
+    svmgov_program::accounts::{GlobalConfig, Proposal},
+    utils::utils::fetch_global_config,
+};
 
 /// Detect terminal width using various methods
 fn detect_terminal_width() -> Option<u16> {
@@ -72,45 +76,46 @@ pub async fn get_proposal(rpc_url: Option<String>, proposal_id: &String) -> Resu
         .epoch;
 
     let proposal_acc = program.account::<Proposal>(proposal_pubkey).await?;
+    let global_config = fetch_global_config(&program).await?;
 
-    print_proposal_detail(proposal_id, &proposal_acc, current_epoch);
+    print_proposal_detail(proposal_id, &proposal_acc, current_epoch, &global_config);
 
     Ok(())
 }
 
-fn print_proposal_detail(proposal_id: &str, proposal: &Proposal, current_epoch: u64) {
+fn print_proposal_detail(proposal_id: &str, proposal: &Proposal, current_epoch: u64, config: &GlobalConfig) {
     let mut table = Table::new();
     table
         .load_preset(UTF8_FULL)
         .apply_modifier(UTF8_ROUND_CORNERS)
         .set_content_arrangement(comfy_table::ContentArrangement::Dynamic);
 
-    // Set table width based on terminal size
-    // Try multiple methods to detect terminal width
     let terminal_width = detect_terminal_width().unwrap_or(120);
     table.set_width(terminal_width);
 
     table.set_header(vec!["Field", "Value"]);
 
-    // With ContentArrangement::Dynamic, comfy-table automatically handles column widths
-    // and wraps long text in the Value column appropriately
-
     let for_sol = proposal.for_votes_lamports as f64 / 1_000_000_000.0;
     let against_sol = proposal.against_votes_lamports as f64 / 1_000_000_000.0;
     let abstain_sol = proposal.abstain_votes_lamports as f64 / 1_000_000_000.0;
     let cluster_support_sol = proposal.cluster_support_lamports as f64 / 1_000_000_000.0;
-    println!("{:?}", proposal.cluster_support_lamports);
     let proposer_stake_bp = proposal.proposer_stake_weight_bp as f64 / 100.0;
 
-    let status = if proposal.finalized {
-        "Finalized"
-    } else if current_epoch >= proposal.end_epoch {
-        "Ended"
-    } else if proposal.voting {
-        "Voting"
-    } else {
-        "Support Period"
+    let status = get_proposal_status(proposal, current_epoch, config);
+    let status_display = match status {
+        "support" => "Support",
+        "discussion" => "Discussion",
+        "snapshot" => "Snapshot",
+        "voting" => "Voting",
+        "ended" => "Ended (awaiting finalization)",
+        "finalized" => "Finalized",
+        other => other,
     };
+
+    // Compute phase boundaries
+    let support_end = proposal.creation_epoch + config.max_support_epochs;
+    let discussion_end = support_end + config.discussion_epochs;
+    let snapshot_end = discussion_end + config.snapshot_epoch_extension;
 
     table.add_row(vec![Cell::new("Proposal ID"), Cell::new(proposal_id)]);
     table.add_row(vec![Cell::new("Title"), Cell::new(&proposal.title)]);
@@ -122,7 +127,49 @@ fn print_proposal_detail(proposal_id: &str, proposal: &Proposal, current_epoch: 
         Cell::new("Author"),
         Cell::new(proposal.author.to_string()),
     ]);
-    table.add_row(vec![Cell::new("Status"), Cell::new(status)]);
+    table.add_row(vec![Cell::new("Status"), Cell::new(status_display)]);
+
+    // Show phase timeline
+    table.add_row(vec![
+        Cell::new("Phase Timeline"),
+        Cell::new(format!(
+            "support: epoch {} | discussion: epochs {}-{} | snapshot: epochs {}-{} | voting: epochs {}-{}",
+            proposal.creation_epoch,
+            proposal.creation_epoch + 1, support_end + config.discussion_epochs,
+            discussion_end + 1, snapshot_end,
+            proposal.start_epoch, proposal.end_epoch,
+        )),
+    ]);
+
+    // Show epochs remaining for current phase
+    let epochs_remaining = match status {
+        "support" => {
+            let remaining = support_end.saturating_sub(current_epoch);
+            format!("{} epoch(s) until discussion", remaining)
+        }
+        "discussion" => {
+            let remaining = discussion_end.saturating_sub(current_epoch);
+            format!("{} epoch(s) until snapshot", remaining)
+        }
+        "snapshot" => {
+            let remaining = snapshot_end.saturating_sub(current_epoch);
+            format!("{} epoch(s) until voting", remaining)
+        }
+        "voting" => {
+            let remaining = proposal.end_epoch.saturating_sub(current_epoch);
+            format!("{} epoch(s) until voting ends", remaining)
+        }
+        _ => "—".to_string(),
+    };
+    table.add_row(vec![
+        Cell::new("Epochs Remaining"),
+        Cell::new(epochs_remaining),
+    ]);
+    table.add_row(vec![
+        Cell::new("Current Epoch"),
+        Cell::new(current_epoch.to_string()),
+    ]);
+
     table.add_row(vec![
         Cell::new("Index"),
         Cell::new(proposal.index.to_string()),
@@ -213,14 +260,34 @@ struct ProposalOutput {
     creation_timestamp: i64,
 }
 
-fn get_proposal_status(proposal: &Proposal, current_epoch: u64) -> &'static str {
+fn get_proposal_status(proposal: &Proposal, current_epoch: u64, config: &GlobalConfig) -> &'static str {
     if proposal.finalized {
-        "finalized"
-    } else if current_epoch >= proposal.end_epoch {
-        "ended"
-    } else if proposal.voting {
-        "active"
+        return "finalized";
+    }
+
+    // Once start_epoch/end_epoch are set (voting flag raised during support),
+    // use those to determine voting/ended phases
+    if proposal.voting && current_epoch >= proposal.end_epoch {
+        return "ended";
+    }
+    if proposal.voting && current_epoch >= proposal.start_epoch {
+        return "voting";
+    }
+
+    // Pre-voting: compute phase boundaries from creation_epoch + config durations
+    let support_end = proposal.creation_epoch + config.max_support_epochs;
+    let discussion_end = support_end + config.discussion_epochs;
+    let snapshot_end = discussion_end + config.snapshot_epoch_extension;
+
+    if current_epoch <= support_end {
+        "support"
+    } else if current_epoch <= discussion_end {
+        "discussion"
+    } else if current_epoch <= snapshot_end {
+        "snapshot"
     } else {
+        // Past all computed phases but voting hasn't started — still waiting
+        // This can happen if support threshold wasn't reached
         "support"
     }
 }
@@ -241,12 +308,14 @@ pub async fn list_proposals(
     let rpc = program.rpc();
     let program_id = program.id();
 
-    // Fetch current epoch to determine ended proposals
+    // Fetch current epoch and global config
     let current_epoch = rpc
         .get_epoch_info()
         .await
         .map_err(|e| anyhow!("Failed to fetch epoch info: {}", e))?
         .epoch;
+
+    let global_config = fetch_global_config(&program).await?;
 
     // Use memcmp filter on the Proposal account discriminator
     let config = RpcProgramAccountsConfig {
@@ -295,7 +364,7 @@ pub async fn list_proposals(
     if let Some(status) = status_filter {
         let status_lower = status.to_lowercase();
         proposals.retain(|(_, proposal)| {
-            let proposal_status = get_proposal_status(proposal, current_epoch);
+            let proposal_status = get_proposal_status(proposal, current_epoch, &global_config);
             proposal_status == status_lower.as_str()
         });
     }
@@ -323,7 +392,7 @@ pub async fn list_proposals(
                 title: proposal.title.clone(),
                 description: proposal.description.clone(),
                 author: proposal.author.to_string(),
-                status: get_proposal_status(proposal, current_epoch).to_string(),
+                status: get_proposal_status(proposal, current_epoch, &global_config).to_string(),
                 index: proposal.index,
                 creation_epoch: proposal.creation_epoch,
                 start_epoch: proposal.start_epoch,
@@ -342,13 +411,13 @@ pub async fn list_proposals(
             .collect();
         println!("{}", serde_json::to_string_pretty(&json_proposals)?);
     } else {
-        print_proposals_table(&proposals, current_epoch);
+        print_proposals_table(&proposals, current_epoch, &global_config);
     }
 
     Ok(())
 }
 
-fn print_proposals_table(proposals: &[(Pubkey, Proposal)], current_epoch: u64) {
+fn print_proposals_table(proposals: &[(Pubkey, Proposal)], current_epoch: u64, config: &GlobalConfig) {
     let mut table = Table::new();
     table
         .load_preset(UTF8_FULL)
@@ -366,14 +435,14 @@ fn print_proposals_table(proposals: &[(Pubkey, Proposal)], current_epoch: u64) {
     }
 
     for (pubkey, proposal) in proposals {
-        let status = if proposal.finalized {
-            "Finalized"
-        } else if current_epoch >= proposal.end_epoch {
-            "Ended"
-        } else if proposal.voting {
-            "Voting"
-        } else {
-            "Support"
+        let status = match get_proposal_status(proposal, current_epoch, config) {
+            "support" => "Support",
+            "discussion" => "Discussion",
+            "snapshot" => "Snapshot",
+            "voting" => "Voting",
+            "ended" => "Ended",
+            "finalized" => "Finalized",
+            other => other,
         };
 
         // Truncate title if too long

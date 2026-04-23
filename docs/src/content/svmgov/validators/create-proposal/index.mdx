@@ -1,0 +1,85 @@
+import { Callout } from 'nextra/components'
+
+# Create Proposal
+
+Create a new governance proposal on-chain.
+
+## Description
+
+Submits a new governance proposal. The validator must have at least **100,000 SOL staked** to their vote account. The proposal is assigned a unique sequential index and a PDA derived from the seed and the validator's vote account.
+
+The `description` must be a GitHub URL — full proposal text, rationale, and discussion lives there. Only the title and GitHub link are stored on-chain to keep accounts small.
+
+## Usage
+
+```bash
+svmgov create-proposal \
+  --title "Your Proposal Title" \
+  --description "https://github.com/your-org/repo/issues/1" \
+  --network mainnet
+```
+
+## Arguments
+
+| Argument | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `--title` | String | **Yes** | — | Proposal title (max ~50 chars) |
+| `--description` | String | **Yes** | — | GitHub link for full proposal details. Must start with `https://github.com`, max ~250 chars |
+| `--network` | String | **Yes** | — | Network for fetching Merkle proofs: `mainnet`, `testnet` |
+| `--seed` | u64 | No | Random | Unique seed for PDA derivation |
+
+## Global Arguments
+
+| Option | Short | Description |
+|---|---|---|
+| `--identity-keypair <PATH>` | `-i` | Path to validator identity keypair JSON |
+| `--rpc-url <URL>` | `-r` | Custom RPC URL |
+
+## Requirements
+
+- Validator must have ≥ **100,000 SOL** staked to their vote account
+- The identity keypair must match the `node_pubkey` of the vote account
+- Description must be a valid `https://github.com/...` URL
+- `ProposalIndex` must be initialized (run `svmgov init-index` once)
+
+## Examples
+
+```bash
+# With config (recommended)
+svmgov create-proposal \
+  --title "Increase max validator commission to 12%" \
+  --description "https://github.com/my-org/governance/issues/42" \
+  --network mainnet
+
+# With a specific seed for deterministic PDA
+svmgov create-proposal \
+  --seed 100 \
+  --title "Update cluster fee schedule" \
+  --description "https://github.com/my-org/governance/proposals/fee-update" \
+  --network mainnet
+
+# With explicit keypair
+svmgov create-proposal \
+  --title "My Proposal" \
+  --description "https://github.com/repo/issues/1" \
+  --network mainnet \
+  --identity-keypair ~/.config/solana/validator-identity.json
+```
+
+## What Happens On-Chain
+
+1. Validates title length, description format, and stake amount
+2. Allocates a new `Proposal` PDA: `["proposal", seed.to_le_bytes(), vote_account]`
+3. Increments `ProposalIndex.current_index`
+4. Records `creation_epoch`, `proposer_stake_weight_bp`, and all metadata
+
+The proposal starts in the **support phase**. Other validators must support it before voting opens.
+
+<Callout type="info">
+  Save the proposal's PDA address from the transaction output — you'll need it for `support-proposal` and `cast-vote`.
+</Callout>
+
+## Related
+
+- [Support Proposal](/svmgov/validators/support-proposal) — Next step after creation
+- [List Proposals](/svmgov/validators/list-proposals) — View all proposals

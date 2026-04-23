@@ -5,7 +5,7 @@ use anchor_lang::{
         vote::{program as vote_program, state::VoteState},
     },
 };
-use gov_v1::{ConsensusResult, MetaMerkleProof, StakeMerkleLeaf};
+use ncn_snapshot::{ConsensusResult, MetaMerkleProof, StakeMerkleLeaf};
 
 use crate::{
     calculate_vote_lamports,
@@ -52,8 +52,8 @@ pub struct ModifyVoteOverride<'info> {
         constraint = spl_stake_account.owner == &stake_program::ID @ ProgramError::InvalidAccountOwner,
     )]
     pub spl_stake_account: UncheckedAccount<'info>,
-    /// CHECK: The snapshot program (gov-v1 or mock)
-    // #[account(constraint = snapshot_program.key() == gov_v1::ID @ GovernanceError::InvalidSnapshotProgram)]
+    /// CHECK: The snapshot program (ncn-snapshot or mock)
+    // #[account(constraint = snapshot_program.key() == ncn_snapshot::ID @ GovernanceError::InvalidSnapshotProgram)]
     pub snapshot_program: UncheckedAccount<'info>,
     /// CHECK: Consensus result account owned by snapshot program
     pub consensus_result: UncheckedAccount<'info>,

@@ -1,0 +1,96 @@
+import { Callout } from 'nextra/components'
+
+# Cast Vote Override
+
+Override your validator's governance vote using your stake account.
+
+## Description
+
+This command lets a delegator express their own voting preference independently of their validator. The CLI fetches both the MetaMerkle proof (for the validator) and the StakeMerkle proof (for your specific stake account) from the operator API, then submits a vote override transaction to `svmgov`.
+
+## Usage
+
+```bash
+svmgov cast-vote-override \
+  --proposal-id "ABC123..." \
+  --for-votes 6000 \
+  --against-votes 3000 \
+  --abstain-votes 1000 \
+  --stake-account "StAkE..." \
+  --vote-account "VoTe..." \
+  --network mainnet
+```
+
+## Arguments
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `--proposal-id` | String | **Yes** | Proposal PDA address (base58) |
+| `--for-votes` | u64 | **Yes** | Basis points for For (0–10,000) |
+| `--against-votes` | u64 | **Yes** | Basis points for Against (0–10,000) |
+| `--abstain-votes` | u64 | **Yes** | Basis points for Abstain (0–10,000) |
+| `--stake-account` | String | **Yes** | Your stake account address (base58) |
+| `--vote-account` | String | **Yes** | Your validator's vote account address (base58) |
+| `--network` | String | **Yes** | Network: `mainnet`, `testnet` |
+| `--staker-keypair` | String | **Yes** | Path to staker keypair JSON |
+
+## Global Arguments
+
+| Option | Short | Description |
+|---|---|---|
+| `--rpc-url <URL>` | `-r` | Custom RPC URL |
+
+## Requirements
+
+- `for_votes + against_votes + abstain_votes` must equal exactly **10,000**
+- Your stake account must be delegated to the specified validator
+- Your stake account must be in the NCN snapshot (active at snapshot slot)
+- You must be the signing authority (withdraw authority) of the stake account
+- Proposal must be in voting phase
+
+## Examples
+
+```bash
+# 60% For, 30% Against, 10% Abstain
+svmgov cast-vote-override \
+  --proposal-id "AbCdEf..." \
+  --for-votes 6000 \
+  --against-votes 3000 \
+  --abstain-votes 1000 \
+  --stake-account "StAkE111..." \
+  --vote-account "VoTe111..." \
+  --network mainnet \
+  --staker-keypair ~/.config/solana/staker.json
+
+# 100% Against — explicit RPC
+svmgov cast-vote-override \
+  --proposal-id "AbCdEf..." \
+  --for-votes 0 \
+  --against-votes 10000 \
+  --abstain-votes 0 \
+  --stake-account "StAkE111..." \
+  --vote-account "VoTe111..." \
+  --network mainnet \
+  --staker-keypair ~/.config/solana/staker.json \
+  --rpc-url https://api.mainnet-beta.solana.com
+```
+
+## What Happens On-Chain
+
+The CLI fetches from the operator API:
+1. `/proof/vote_account/:vote_account` — MetaMerkle proof for the validator
+2. `/proof/stake_account/:stake_account` — StakeMerkle proof for your stake account
+
+Then calls `cast_vote_override` which:
+- Verifies your stake account is in the snapshot via two-level Merkle proof
+- **If validator has voted (Path A):** Adjusts their `Vote` PDA immediately
+- **If validator hasn't voted (Path B):** Writes to `VoteOverrideCache` PDA
+
+<Callout>
+  Multiple stake accounts delegated to the same validator can each be overridden independently. Each creates a separate `VoteOverride` PDA.
+</Callout>
+
+## Related
+
+- [Modify Vote Override](/svmgov/stakers/modify-vote-override) — Change your override
+- [For Stakers Overview](/svmgov/stakers) — How vote overrides work

@@ -26,7 +26,7 @@ indicatif = "0.18.0"
 reqwest = { version = "0.12.23", features = ["json"] }
 bs58 = "0.5.1"
 hex = "0.4.3"
-gov-v1 = {git = "https://github.com/dhruvsol/gov-v1-testnet", branch = "update-3.0-testnet" }
+ncn-snapshot = { path = "../../ncn/programs/ncn-snapshot" }
 dotenv = "0.15.0"
 toml = "0.8"
 dirs = "5.0"

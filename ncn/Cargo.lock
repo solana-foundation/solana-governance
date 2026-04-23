@@ -1724,11 +1724,11 @@ dependencies = [
  "clap 4.5.47",
  "env_logger 0.10.2",
  "flate2",
- "ncn-snapshot",
  "im",
  "itertools 0.11.0",
  "log",
  "meta-merkle-tree",
+ "ncn-snapshot",
  "solana-accounts-db",
  "solana-program 3.0.0",
  "solana-runtime",
@@ -3076,13 +3076,6 @@ dependencies = [
  "smpl_jwt",
  "time",
  "tokio",
-]
-
-[[package]]
-name = "ncn-snapshot"
-version = "1.0.0"
-dependencies = [
- "anchor-lang 0.31.1",
 ]
 
 [[package]]
@@ -4872,6 +4865,13 @@ dependencies = [
  "security-framework 2.11.1",
  "security-framework-sys",
  "tempfile",
+]
+
+[[package]]
+name = "ncn-snapshot"
+version = "1.0.0"
+dependencies = [
+ "anchor-lang 0.31.1",
 ]
 
 [[package]]
@@ -13854,8 +13854,8 @@ dependencies = [
  "anchor-client",
  "borsh 0.10.4",
  "cli",
- "ncn-snapshot",
  "meta-merkle-tree",
+ "ncn-snapshot",
 ]
 
 [[package]]
@@ -14700,9 +14700,9 @@ dependencies = [
  "cli",
  "env_logger 0.10.2",
  "flate2",
- "ncn-snapshot",
  "log",
  "meta-merkle-tree",
+ "ncn-snapshot",
  "once_cell",
  "rand 0.8.5",
  "reqwest 0.12.23",

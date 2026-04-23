@@ -1866,14 +1866,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
 
 [[package]]
-name = "gov-v1"
-version = "1.0.0"
-source = "git+https://github.com/dhruvsol/gov-v1-testnet?branch=update-3.0-testnet#22e3034727e3d17833407cf932bb8c0e6bd07ed4"
-dependencies = [
- "anchor-lang",
-]
-
-[[package]]
 name = "governor"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2800,6 +2792,13 @@ dependencies = [
  "security-framework 2.11.1",
  "security-framework-sys",
  "tempfile",
+]
+
+[[package]]
+name = "ncn-snapshot"
+version = "1.0.0"
+dependencies = [
+ "anchor-lang",
 ]
 
 [[package]]
@@ -6559,11 +6558,11 @@ dependencies = [
  "dirs",
  "dotenv",
  "env_logger 0.11.8",
- "gov-v1",
  "hex",
  "indicatif 0.18.0",
  "inquire",
  "log",
+ "ncn-snapshot",
  "rand 0.9.1",
  "reqwest 0.12.23",
  "serde",

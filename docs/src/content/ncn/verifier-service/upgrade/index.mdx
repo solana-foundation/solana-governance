@@ -1,0 +1,40 @@
+import { Callout } from 'nextra/components'
+
+# Upgrade / Re-deploy
+
+Upgrade flow (single path):
+1. Re-run `make install-verifier-service` (rebuilds the Docker image and redeploys the container)
+2. Verify the deployment
+
+---
+## Step 1: Re-deploy
+
+```bash
+cd ~/solana-governance
+make install-verifier-service
+```
+
+---
+## Step 2: Configuration (prompted during install)
+
+When prompted during the `make` run, enter:
+During the run, you will be prompted to select mainnet vs testnet, then enter:
+
+- `OPERATOR_PUBKEY`, `METRICS_AUTH_TOKEN`
+- `PORT_HOST` (example: `8000`)
+
+<Callout type="info">
+  Persistent data stays mounted at `/srv/verifier/data`, so upgrades should not require re-uploading everything.
+</Callout>
+
+---
+## Verify
+
+Replace `<PORT_HOST>` with your `PORT_HOST`:
+
+```bash
+sudo docker ps
+curl -i http://127.0.0.1:<PORT_HOST>/healthz
+curl -s http://127.0.0.1:<PORT_HOST>/version
+```
+

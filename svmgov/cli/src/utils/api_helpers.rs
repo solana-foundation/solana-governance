@@ -2,20 +2,10 @@ use std::str::FromStr;
 
 use anchor_lang::prelude::Pubkey;
 use anyhow::{Result, anyhow};
-use gov_v1::{ConsensusResult, MetaMerkleLeaf, MetaMerkleProof, StakeMerkleLeaf};
+use ncn_snapshot::{MetaMerkleLeaf, MetaMerkleProof, StakeMerkleLeaf};
 use log::info;
 use serde::{Deserialize, Serialize};
 
-
-/// Summary endpoint response structure (/voter/:voting_wallet)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VoterSummaryResponse {
-    pub network: String,
-    pub snapshot_slot: u64,
-    pub voting_wallet: String,
-    pub vote_accounts: Vec<VoteAccountSummary>,
-    pub stake_accounts: Vec<StakeAccountSummary>,
-}
 
 /// Vote account summary in voter response
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -66,34 +56,6 @@ pub struct StakeMerkleLeafData {
     pub voting_wallet: String,
     pub stake_account: String,
     pub active_stake: u64,
-}
-
-/// Get voter summary with all vote and stake accounts
-/// Endpoint: GET /voter/:voting_wallet?snapshot_slot=...
-pub async fn get_voter_summary(
-    wallet: &Pubkey,
-    snapshot_slot: Option<u64>,
-) -> Result<VoterSummaryResponse> {
-    let base_url = get_api_base_url()?;
-    let mut url = format!("{}/voter/{}", base_url, wallet);
-
-    if let Some(slot) = snapshot_slot {
-        url.push_str(&format!("?snapshot_slot={}", slot));
-    }
-
-    log::debug!("Fetching voter summary from: {}", url);
-
-    let response = reqwest::get(&url).await?;
-    let summary: VoterSummaryResponse = response.json().await?;
-
-    log::debug!(
-        "Got voter summary for {}: {} vote accounts, {} stake accounts",
-        wallet,
-        summary.vote_accounts.len(),
-        summary.stake_accounts.len()
-    );
-
-    Ok(summary)
 }
 
 /// Get merkle proof for a vote account
@@ -165,7 +127,7 @@ fn get_api_base_url() -> anyhow::Result<String> {
     Ok(config.operator_api_url)
 }
 
-/// Convert API MetaMerkleLeafData to gov_v1 MetaMerkleLeaf
+/// Convert API MetaMerkleLeafData to ncn_snapshot MetaMerkleLeaf
 impl TryFrom<&MetaMerkleLeafData> for MetaMerkleLeaf {
     type Error = anyhow::Error;
 
@@ -192,7 +154,7 @@ impl TryFrom<&MetaMerkleLeafData> for MetaMerkleLeaf {
     }
 }
 
-/// Convert API StakeMerkleLeafData to gov_v1 StakeMerkleLeaf
+/// Convert API StakeMerkleLeafData to ncn_snapshot StakeMerkleLeaf
 impl TryFrom<&StakeMerkleLeafData> for StakeMerkleLeaf {
     type Error = anyhow::Error;
 
@@ -207,7 +169,7 @@ impl TryFrom<&StakeMerkleLeafData> for StakeMerkleLeaf {
     }
 }
 
-/// Convert API VoteAccountSummary to gov_v1 MetaMerkleLeaf
+/// Convert API VoteAccountSummary to ncn_snapshot MetaMerkleLeaf
 impl TryFrom<&VoteAccountSummary> for MetaMerkleLeaf {
     type Error = anyhow::Error;
 
@@ -222,7 +184,7 @@ impl TryFrom<&VoteAccountSummary> for MetaMerkleLeaf {
     }
 }
 
-/// Convert API StakeAccountSummary to gov_v1 StakeMerkleLeaf
+/// Convert API StakeAccountSummary to ncn_snapshot StakeMerkleLeaf
 impl TryFrom<&StakeAccountSummary> for StakeMerkleLeaf {
     type Error = anyhow::Error;
 
@@ -262,15 +224,15 @@ pub fn convert_merkle_proof_strings(proof_strings: &[String]) -> Result<Vec<[u8;
         .collect()
 }
 
-/// TryFrom implementation to convert gov_v1 StakeMerkleLeaf to IDL-compatible StakeMerkleLeaf type
+/// TryFrom implementation to convert ncn_snapshot StakeMerkleLeaf to IDL-compatible StakeMerkleLeaf type
 impl TryFrom<StakeMerkleLeaf> for crate::svmgov_program::types::StakeMerkleLeaf {
     type Error = anyhow::Error;
 
-    fn try_from(gov_v1_leaf: StakeMerkleLeaf) -> Result<Self, Self::Error> {
+    fn try_from(ncn_snapshot_leaf: StakeMerkleLeaf) -> Result<Self, Self::Error> {
         Ok(Self {
-            voting_wallet: gov_v1_leaf.voting_wallet,
-            stake_account: gov_v1_leaf.stake_account,
-            active_stake: gov_v1_leaf.active_stake,
+            voting_wallet: ncn_snapshot_leaf.voting_wallet,
+            stake_account: ncn_snapshot_leaf.stake_account,
+            active_stake: ncn_snapshot_leaf.active_stake,
         })
     }
 }
@@ -279,15 +241,9 @@ impl TryFrom<StakeMerkleLeaf> for crate::svmgov_program::types::StakeMerkleLeaf 
 pub fn convert_stake_merkle_leaf_data_to_idl_type(
     stake_merkle_leaf_data: &StakeMerkleLeafData,
 ) -> Result<crate::svmgov_program::types::StakeMerkleLeaf> {
-    // First convert to gov_v1 type, then to IDL type
-    let gov_v1_leaf: StakeMerkleLeaf = stake_merkle_leaf_data.try_into()?;
-    gov_v1_leaf.try_into()
-}
-
-/// Generate ConsensusResult PDA for a given snapshot slot
-pub fn generate_consensus_result_pda(snapshot_slot: u64) -> Result<Pubkey> {
-    let (pda, _bump) = ConsensusResult::pda(snapshot_slot);
-    Ok(pda)
+    // First convert to ncn_snapshot type, then to IDL type
+    let ncn_snapshot_leaf: StakeMerkleLeaf = stake_merkle_leaf_data.try_into()?;
+    ncn_snapshot_leaf.try_into()
 }
 
 /// Generate MetaMerkleProof PDA for a given consensus result and vote account
@@ -299,20 +255,3 @@ pub fn generate_meta_merkle_proof_pda(
     Ok(pda)
 }
 
-/// Generate both ConsensusResult and MetaMerkleProof PDAs from VoteAccountProofResponse
-pub fn generate_pdas_from_vote_proof_response(
-    snapshot_slot: u64,
-    response: &VoteAccountProofResponse,
-) -> Result<(Pubkey, Pubkey)> {
-    let consensus_pda = generate_consensus_result_pda(snapshot_slot)?;
-    let vote_account = Pubkey::from_str(&response.meta_merkle_leaf.vote_account)
-        .map_err(|e| anyhow!("Invalid vote_account pubkey in response: {}", e))?;
-    let meta_proof = generate_meta_merkle_proof_pda(&consensus_pda, &vote_account)?;
-
-    log::debug!(
-        "Generated PDAs - consensus_result: {}, meta_merkle_proof: {}",
-        consensus_pda,
-        meta_proof
-    );
-    Ok((consensus_pda, meta_proof))
-}

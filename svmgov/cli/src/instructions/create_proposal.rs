@@ -5,7 +5,7 @@ use anyhow::Result;
 
 use crate::{
     svmgov_program::client::{accounts, args},
-    utils::utils::{create_spinner, derive_proposal_index_pda, derive_proposal_pda, setup_all},
+    utils::utils::{create_spinner, derive_global_config_pda, derive_proposal_index_pda, derive_proposal_pda, setup_all},
 };
 
 pub async fn create_proposal(
@@ -33,6 +33,7 @@ pub async fn create_proposal(
     let proposal_pda = derive_proposal_pda(seed_value, &vote_account, &program.id());
 
     let proposal_index_pda = derive_proposal_index_pda(&program.id());
+    let global_config_pda = derive_global_config_pda(&program.id());
 
     // Create proposal - snapshot_slot and consensus_result will be set later in support_proposal
     let spinner = create_spinner("Creating proposal...");
@@ -49,6 +50,7 @@ pub async fn create_proposal(
             spl_vote_account: vote_account,
             proposal: proposal_pda,
             proposal_index: proposal_index_pda,
+            global_config: global_config_pda,
             system_program: system_program::ID,
         })
         .instructions()?;

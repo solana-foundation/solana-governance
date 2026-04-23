@@ -3,14 +3,13 @@ use std::str::FromStr;
 use anchor_client::solana_sdk::{pubkey::Pubkey, signer::Signer, transaction::Transaction};
 use anchor_lang::system_program;
 use anyhow::{Result, anyhow};
-use gov_v1::ID as SNAPSHOT_PROGRAM_ID;
+use ncn_snapshot::ID as SNAPSHOT_PROGRAM_ID;
 
 use crate::{
-    constants::{DISCUSSION_EPOCHS, SNAPSHOT_EPOCH_EXTENSION},
     svmgov_program::client::{accounts, args},
     utils::utils::{
-        create_spinner, derive_program_config_pda, derive_support_pda, get_epoch_slot_range,
-        setup_all,
+        create_spinner, derive_global_config_pda, derive_program_config_pda, derive_support_pda,
+        fetch_global_config, get_epoch_slot_range, setup_all,
     },
 };
 
@@ -28,13 +27,15 @@ pub async fn support_proposal(
 
     let support_pda = derive_support_pda(&proposal_pubkey, &vote_account, &program.id());
 
+    let global_config = fetch_global_config(&program).await?;
+
     let spinner = create_spinner("Supporting proposal...");
 
     let clock = program.rpc().get_epoch_info().await?;
-    let target_epoch = clock.epoch + DISCUSSION_EPOCHS + SNAPSHOT_EPOCH_EXTENSION;
+    let target_epoch = clock.epoch + global_config.discussion_epochs + global_config.snapshot_epoch_extension;
 
     let (start_slot, _) = get_epoch_slot_range(target_epoch);
-    let snapshot_slot = start_slot + 1000;
+    let snapshot_slot = ((start_slot as i64) + global_config.snapshot_slot_offset) as u64;
 
     let ballot_box_pda = {
         let seeds = &[b"BallotBox".as_ref(), &snapshot_slot.to_le_bytes()];
@@ -43,6 +44,7 @@ pub async fn support_proposal(
     };
 
     let program_config_pda = derive_program_config_pda(&SNAPSHOT_PROGRAM_ID);
+    let global_config_pda = derive_global_config_pda(&program.id());
 
     let support_proposal_ixs = program
         .request()
@@ -55,6 +57,7 @@ pub async fn support_proposal(
             ballot_box: ballot_box_pda,
             program_config: program_config_pda,
             ballot_program: SNAPSHOT_PROGRAM_ID,
+            global_config: global_config_pda,
             system_program: system_program::ID,
         })
         .instructions()?;

@@ -1,0 +1,142 @@
+import { Callout, Steps, FileTree } from 'nextra/components'
+
+# Snapshots
+
+A **snapshot** is a point-in-time record of the entire Solana stake distribution at a given slot. NCN operators generate these independently and reach consensus on their identity before they are used for governance vote weighting.
+
+## What Is Captured
+
+Each snapshot records, for every active validator on Solana:
+
+- The validator's **vote account** address
+- The **voting wallet** (who is authorized to vote in governance on behalf of this validator — may differ for stake pools, see below)
+- The validator's **total active stake** (sum of all active delegations)
+- A list of every individual **stake account** delegated to the validator, each with its stake amount
+
+This data is structured into a **two-tier Merkle tree** (see [Merkle Trees](/ncn/merkle-tree)).
+
+## Generation Algorithm
+
+The NCN CLI generates a snapshot from a Solana ledger snapshot using `agave-ledger-tool` or a compatible tool.
+
+<Steps>
+
+### Pre-scan stake pools
+
+Scan all accounts to find SPL Stake Pool managers. Build a `stake_pool_voter_map` that maps each stake pool's withdraw authority to its designated voting wallet.
+
+The following special mappings are applied:
+- **SPL Stake Pools**: withdraw authority PDA → pool manager pubkey
+- **Marinade**: hardcoded withdraw authority `9eG63CdHjsfhHmobHgLtESGC8GabbmRcaSpHAZrtmhco` → ops wallet `opLSF7LdfyWNBby5o6FT8UFsr2A4UGKteECgtLSYrSm`
+- **Sanctum pools**: withdraw authority kept as-is (Sanctum validators vote directly)
+- **Individual stakers**: withdraw authority used directly
+
+### Group stake by validator
+
+Iterate all active stake delegations. Group each delegation by its `voter_pubkey` (the validator vote account). Resolve the `voting_wallet` for each stake account based on the withdraw authority lookup above.
+
+### Build per-validator StakeMerkleTrees
+
+For each validator, collect all its stake accounts as `StakeMerkleLeaf` entries (sorted by stake account address), then build a `StakeMerkleTree` from them.
+
+### Build MetaMerkleLeaves
+
+For each validator, create a `MetaMerkleLeaf`:
+```
+MetaMerkleLeaf {
+  voting_wallet:      resolved from stake pool map or withdraw authority
+  vote_account:       validator's SPL vote account
+  stake_merkle_root:  root of the StakeMerkleTree for this validator
+  active_stake:       sum of all active delegations to this validator
+}
+```
+
+### Sort and build MetaMerkleTree
+
+Sort all `MetaMerkleLeaf` entries by their `vote_account` address (lexicographic / byte order). Build the final `MetaMerkleTree` from all sorted leaves.
+
+### Serialize and compress
+
+Serialize the `MetaMerkleSnapshot` with Borsh, then gzip-compress and save as `meta_merkle-{slot}.zip`.
+
+The **snapshot hash** is computed as `SHA256(borsh_serialized_decompressed_bytes)` before compression.
+
+</Steps>
+
+## Snapshot File Format
+
+```
+meta_merkle-{slot}.zip
+└── (gzip-compressed Borsh-serialized MetaMerkleSnapshot)
+    ├── root:          [u8; 32]      — MetaMerkle root hash
+    ├── slot:          u64           — snapshot slot
+    └── leaf_bundles:  Vec<MetaMerkleLeafBundle>
+        └── (one per validator)
+            ├── meta_merkle_leaf:   MetaMerkleLeaf
+            ├── stake_merkle_leaves: Vec<StakeMerkleLeaf>
+            └── proof:              Option<Vec<[u8; 32]>>  — proof to root
+```
+
+<Callout>
+The `.zip` extension is used for compatibility, but the format is actually gzip compression, not ZIP archive format.
+</Callout>
+
+## Size Constraints
+
+The environment variable `NCN_SNAPSHOT_MAX_MB` (default: `256`) controls the maximum decompressed size accepted when reading snapshot files. Set this higher if the Solana validator set grows significantly.
+
+## Snapshot Identity On-Chain
+
+A snapshot is identified on-chain by a `Ballot`:
+
+```rust
+Ballot {
+  meta_merkle_root: [u8; 32],  // Merkle root of stake distribution
+  snapshot_hash:    [u8; 32],  // SHA256 of raw snapshot bytes
+}
+```
+
+Both fields must match for two operators to be considered in agreement. This prevents the (theoretically impossible but defensively handled) case of two different snapshots sharing the same Merkle root.
+
+## Voting on a Snapshot
+
+Once generated, an operator submits their snapshot's ballot to the on-chain `BallotBox`:
+
+```bash
+
+# From a snapshot file(cast the vote from the snapshot file)
+ncn-cli \
+  --payer-path <PATH_TO_PAYER_KEYPAIR> \
+  --authority-path <PATH_TO_AUTHORITY_KEYPAIR> \
+  --rpc-url <RPC_URL> \
+  cast-vote-from-snapshot \
+  --snapshot-slot <SLOT> \
+  --read-path <PATH_TO_SNAPSHOT_FILE>
+
+# From a snapshot file(get the root and hash from the snapshot file)
+ncn-cli \
+  --authority-path <PATH_TO_AUTHORITY_KEYPAIR> \
+  log-meta-merkle-hash \
+  --read-path <PATH_TO_SNAPSHOT_FILE> \
+  --is-compressed true
+
+# Or with explicit root and hash
+ncn-cli \
+  --payer-path <PATH_TO_PAYER_KEYPAIR> \
+  --authority-path <PATH_TO_AUTHORITY_KEYPAIR> \
+  --rpc-url <RPC_URL> \
+  cast-vote \
+  --snapshot-slot <SLOT> \
+  --root <BASE58_ROOT> \
+  --hash <BASE58_HASH>
+```
+
+## Snapshot Freshness
+
+The `snapshot_slot` must be strictly greater than the current slot at the time `init_ballot_box` is called. This ensures operators must produce a fresh snapshot for each governance proposal cycle, rather than reusing stale data.
+
+## Environment Variables
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `NCN_SNAPSHOT_MAX_MB` | `256` | Max decompressed snapshot size (MiB) |

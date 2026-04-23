@@ -14,6 +14,7 @@ export interface GovernanceConfigDto {
   discussionEpochs: number;
   votingEpochs: number;
   snapshotEpochExtension: number;
+  snapshotSlotOffset: number;
   bump: number;
 }
 
@@ -39,6 +40,7 @@ export function toGovernanceConfigDto(
     discussionEpochs: n(account.discussionEpochs),
     votingEpochs: n(account.votingEpochs),
     snapshotEpochExtension: n(account.snapshotEpochExtension),
+    snapshotSlotOffset: n(account.snapshotSlotOffset),
     bump: account.bump,
   };
 }

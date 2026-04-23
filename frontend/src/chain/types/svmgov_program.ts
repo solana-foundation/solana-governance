@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/svmgov_program.json`.
  */
 export type SvmgovProgram = {
-  "address": "EKwRPoyRactBV2z2XhUSVU1YbZuyTVq4kU5U5dM2JyZY",
+  "address": "4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU",
   "metadata": {
     "name": "svmgovProgram",
     "version": "0.1.0",
@@ -621,6 +621,10 @@ export type SvmgovProgram = {
         {
           "name": "snapshotEpochExtension",
           "type": "u64"
+        },
+        {
+          "name": "snapshotSlotOffset",
+          "type": "i64"
         }
       ]
     },
@@ -1136,6 +1140,12 @@ export type SvmgovProgram = {
           "type": {
             "option": "u64"
           }
+        },
+        {
+          "name": "snapshotSlotOffset",
+          "type": {
+            "option": "i64"
+          }
         }
       ]
     }
@@ -1640,6 +1650,13 @@ export type SvmgovProgram = {
               "Epochs of extension for snapshot"
             ],
             "type": "u64"
+          },
+          {
+            "name": "snapshotSlotOffset",
+            "docs": [
+              "Slot offset from epoch start for snapshot computation (can be negative)"
+            ],
+            "type": "i64"
           },
           {
             "name": "bump",
