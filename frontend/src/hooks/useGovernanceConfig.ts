@@ -6,15 +6,10 @@ import type { RPCEndpoint } from "@/types";
 
 const GOVERNANCE_CONFIG_STALE_MS = 60 * 60 * 1000; // 1 hour (matches API revalidate)
 
-function buildConfigUrl(
-  endpointType: RPCEndpoint,
-  endpointUrl: string,
-): string {
-  const params = new URLSearchParams({ endpoint: endpointType });
-  if (endpointType === "custom" && endpointUrl) {
-    params.set("rpcUrl", endpointUrl);
-  }
-  return `/api/governance/config?${params.toString()}`;
+function isPresetEndpoint(
+  t: RPCEndpoint,
+): t is Exclude<RPCEndpoint, "custom"> {
+  return t !== "custom";
 }
 
 /**
@@ -25,9 +20,18 @@ export function useGovernanceConfig() {
   const { endpointType, endpointUrl } = useEndpoint();
 
   return useQuery<GovernanceConfigDto>({
-    queryKey: [GET_GOVERNANCE_CONFIG, endpointType, endpointUrl],
+    queryKey: isPresetEndpoint(endpointType)
+      ? [GET_GOVERNANCE_CONFIG, endpointType]
+      : [GET_GOVERNANCE_CONFIG, endpointType, endpointUrl],
     queryFn: async () => {
-      const res = await fetch(buildConfigUrl(endpointType, endpointUrl));
+      const params = new URLSearchParams();
+      if (isPresetEndpoint(endpointType)) {
+        params.set("endpoint", endpointType);
+      } else {
+        params.set("endpoint", "custom");
+        params.set("rpcUrl", endpointUrl);
+      }
+      const res = await fetch(`/api/governance/config?${params.toString()}`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         const message =
