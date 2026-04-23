@@ -1,8 +1,12 @@
 import { createProgramWitDummyWallet } from "@/chain";
 import { getSimd } from "@/hooks";
-import { getProposalStatus } from "@/lib/proposals";
+import type { GovernanceConfigDto } from "@/lib/getGovernanceConfig";
+import {
+  epochConstantsFromGovernanceConfig,
+  getProposalStatus,
+  type EpochConstants,
+} from "@/lib/proposals";
 import type { ProposalRecord, RawProposalAccount } from "@/types";
-import type { RPCEndpoint } from "@/types";
 import { EpochInfo, VoteAccountInfo } from "@solana/web3.js";
 
 export interface RawVoteAccountsData {
@@ -20,9 +24,10 @@ export const getProposals = async (
     | undefined,
   epochInfo: EpochInfo,
   voteAccountsData: RawVoteAccountsData,
-  endpointType?: RPCEndpoint,
+  governanceConfig: GovernanceConfigDto,
 ): Promise<ProposalRecord[]> => {
   const program = createProgramWitDummyWallet(endpoint);
+  const epochConstants = epochConstantsFromGovernanceConfig(governanceConfig);
 
   // Fetch proposals
   const proposalAccs = await program.account.proposal.all();
@@ -40,7 +45,13 @@ export const getProposals = async (
   const currentEpoch = epochInfo.epoch;
 
   let data = proposalAccs.map((acc, index) =>
-    mapProposalDto(acc, index, currentEpoch, totalStakedLamports, endpointType),
+    mapProposalDto(
+      acc,
+      index,
+      currentEpoch,
+      totalStakedLamports,
+      epochConstants,
+    ),
   );
 
   if (filters) {
@@ -64,7 +75,7 @@ export function mapProposalDto(
   index: number,
   currentEpoch: number,
   totalStakedLamports: number,
-  endpointType?: RPCEndpoint,
+  epochConstants: EpochConstants,
 ): ProposalRecord {
   const raw = rawAccount.account;
   const creationEpoch = raw.creationEpoch.toNumber();
@@ -84,7 +95,7 @@ export function mapProposalDto(
     consensusResult,
     finalized,
     voting: raw.voting,
-    endpointType,
+    epochConstants,
   });
 
   const simd = getSimd(raw.description);

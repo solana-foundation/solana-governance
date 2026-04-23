@@ -3,6 +3,8 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
 import { RPCEndpoint } from "@/types";
 import { useQueryClient } from "@tanstack/react-query";
+import { env } from "@/env";
+import { getRpcUrls } from "@/lib/getRpcUrls";
 
 interface EndpointContextType {
   endpointType: RPCEndpoint;
@@ -15,12 +17,7 @@ const EndpointContext = createContext<EndpointContextType | undefined>(
   undefined,
 );
 
-export const RPC_URLS: Record<Exclude<RPCEndpoint, "custom">, string> = {
-  mainnet:
-    "https://mainnet.helius-rpc.com/?api-key=ac44fe86-9c23-4a5f-ad2c-8ca78a4a7bdb",
-  testnet: "https://api.testnet.solana.com",
-  devnet: "https://api.devnet.solana.com",
-};
+export const RPC_URLS = getRpcUrls(env);
 
 const DEFAULT_TYPE: RPCEndpoint = "mainnet";
 const DEFAULT_URL = RPC_URLS[DEFAULT_TYPE];

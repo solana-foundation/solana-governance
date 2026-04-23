@@ -66,7 +66,7 @@ const PhaseTimelineSkeleton = () => {
 
       <PhaseDetail
         currentPhase="supporting"
-        status="supporting" // dummy status, not used in the loading skeleton
+        status="supporting"
         isLoading={true}
       />
     </div>

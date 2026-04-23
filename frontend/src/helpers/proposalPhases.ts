@@ -16,6 +16,12 @@ export const PHASE_STATUS_LABELS: Record<PhaseStatus, string> = {
 
 export function getPhaseStatus(status: ProposalStatus): PhaseStatus {
   if (status === "failed") return "failed";
-  if (status === "supporting" || status === "discussion") return "in-progress";
+  if (
+    status === "supporting" ||
+    status === "discussion" ||
+    status === "voting"
+  ) {
+    return "in-progress";
+  }
   return "complete";
 }

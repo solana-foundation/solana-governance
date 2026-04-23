@@ -75,6 +75,13 @@ export interface SupportProposalParams {
   voteAccount?: PublicKey;
 }
 
+/** GlobalConfig fields needed to derive snapshot ballot PDAs when supporting a proposal (from governance config / hook). */
+export interface SupportProposalGlobalConfigInput {
+  discussionEpochs: number;
+  snapshotEpochExtension: number;
+  snapshotSlotOffset: number;
+}
+
 export interface AddMerkleRootParams {
   proposalId: string;
   merkleRootHash: string;

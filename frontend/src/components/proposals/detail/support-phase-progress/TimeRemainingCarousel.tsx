@@ -61,7 +61,8 @@ export function TimeRemainingCarousel({
 
   const cards = lifecycleStage === "supporting" ? [allCards[0]] : allCards;
 
-  const getInitialIndex = () => (lifecycleStage === "discussion" ? 1 : 0);
+  const getInitialIndex = () =>
+    lifecycleStage === "discussion" ? 1 : 0;
 
   const [activeIndex, setActiveIndex] = useState(getInitialIndex);
   const [direction, setDirection] = useState(0);
@@ -101,7 +102,10 @@ export function TimeRemainingCarousel({
   const isCardEnded = (() => {
     if (hasEnded) return true;
     if (currentCard.endDate < now) return true;
-    if (currentCard.stage === "supporting" && lifecycleStage !== "supporting") {
+    if (
+      currentCard.stage === "supporting" &&
+      lifecycleStage !== "supporting"
+    ) {
       return true;
     }
     if (

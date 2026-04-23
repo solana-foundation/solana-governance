@@ -27,8 +27,7 @@ const STAGE_LABEL: Record<ProposalStatus, string> = {
 };
 
 const STAGE_DESCRIPTION: Record<ProposalStatus, string> = {
-  supporting:
-    `The support phase requires ${SUPPORT_THRESHOLD_PERCENT}% off total validator stake expressing support for the proposal before it can move on to discussion and voting phase.`,
+  supporting: `The support phase requires ${SUPPORT_THRESHOLD_PERCENT}% off total validator stake expressing support for the proposal before it can move on to discussion and voting phase.`,
   discussion:
     "The discussion phase covers the 4-5 epoch period while the NCN is created. Voting begins only after this process completes.",
   voting:

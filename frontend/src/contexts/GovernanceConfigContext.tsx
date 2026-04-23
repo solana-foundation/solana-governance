@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import type { UseQueryResult } from "@tanstack/react-query";
 import type { GovernanceConfigDto } from "@/lib/getGovernanceConfig";
 import { useGovernanceConfig } from "@/hooks/useGovernanceConfig";
@@ -15,8 +11,13 @@ const GovernanceConfigContext = createContext<
   GovernanceConfigContextValue | undefined
 >(undefined);
 
-export function GovernanceConfigProvider({ children }: { children: ReactNode }) {
+export function GovernanceConfigProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const query = useGovernanceConfig();
+  console.log("global config:", query.data);
   return (
     <GovernanceConfigContext.Provider value={query}>
       {children}

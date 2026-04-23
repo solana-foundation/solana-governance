@@ -11,11 +11,11 @@ interface SupportProposalProps {
   isLoading?: boolean;
   disabled?: boolean;
   className?: string;
-  variant?: "supporting" | "discussion" | "failed" | "finalized";
+  variant?: "support" | "discussion" | "failed" | "finalized";
 }
 
 const VARIANT_CONFIG = {
-  supporting: {
+  support: {
     title: "Support this proposal",
     message:
       `The support phase requires ${SUPPORT_THRESHOLD_PERCENT}% off total validator stake expressing support for the proposal before it can move on to discussion and voting phase`,
@@ -51,7 +51,7 @@ export default function SupportProposalSection({
   isLoading,
   disabled,
   className,
-  variant = "supporting",
+  variant = "support",
 }: SupportProposalProps) {
   const config = VARIANT_CONFIG[variant];
   const disabledButtons = disabled || isLoading;

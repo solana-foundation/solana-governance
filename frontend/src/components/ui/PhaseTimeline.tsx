@@ -8,6 +8,9 @@ interface Props {
 
 export const PhaseTimeline = ({ currentPhase }: Props) => {
   const isSupporting = currentPhase === "supporting";
+  const inPreVoting =
+    currentPhase === "supporting" ||
+    currentPhase === "discussion";
   const isVoting = currentPhase === "voting";
   const isFinished = currentPhase === "finalized";
 
@@ -20,7 +23,7 @@ export const PhaseTimeline = ({ currentPhase }: Props) => {
             <MessageSquareText
               size={18}
               className={
-                !isVoting && !isFinished
+                inPreVoting && !isFinished
                   ? "text-green-icon-active"
                   : "text-green-icon"
               }

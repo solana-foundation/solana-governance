@@ -1,7 +1,26 @@
 import { SUPPORT_THRESHOLD_PERCENT } from "@/components/proposals/detail/support-phase-progress";
+import type { GovernanceConfigDto } from "@/lib/getGovernanceConfig";
 import type { ProposalStatus } from "@/types";
-import type { RPCEndpoint } from "@/types";
 import { PublicKey } from "@solana/web3.js";
+
+export interface EpochConstants {
+  SUPPORT_EPOCHS: number;
+  DISCUSSION_EPOCHS: number;
+  SNAPSHOT_EPOCHS: number;
+  VOTING_EPOCHS: number;
+}
+
+/** Derives lifecycle epoch lengths from the on-chain GlobalConfig (see GovernanceConfigDto). */
+export function epochConstantsFromGovernanceConfig(
+  dto: GovernanceConfigDto,
+): EpochConstants {
+  return {
+    SUPPORT_EPOCHS: dto.maxSupportEpochs,
+    DISCUSSION_EPOCHS: dto.discussionEpochs,
+    SNAPSHOT_EPOCHS: dto.snapshotEpochExtension,
+    VOTING_EPOCHS: dto.votingEpochs,
+  };
+}
 
 export interface GetProposalStatusParams {
   creationEpoch: number;
@@ -13,52 +32,7 @@ export interface GetProposalStatusParams {
   consensusResult: PublicKey | undefined;
   finalized: boolean;
   voting: boolean;
-  endpointType?: RPCEndpoint;
-}
-
-interface EpochConstants {
-  SUPPORT_EPOCHS: number;
-  DISCUSSION_EPOCHS: number;
-  SNAPSHOT_EPOCHS: number;
-  VOTING_EPOCHS: number;
-}
-
-/**
- * TODO: Replace with on-chain GlobalConfig fetch. These values should come from
- * the GlobalConfig PDA instead of being hardcoded per-network.
- *
- * Returns epoch constants based on the network endpoint type.
- * Testnet values (default):
- * - SUPPORT_EPOCHS: 1
- * - DISCUSSION_EPOCHS: 2
- * - SNAPSHOT_EPOCHS: 1
- * - VOTING_EPOCHS: 4
- *
- * Mainnet values:
- * - SUPPORT_EPOCHS: 1
- * - DISCUSSION_EPOCHS: 6
- * - SNAPSHOT_EPOCHS: 1
- * - VOTING_EPOCHS: 4
- */
-export function getEpochConstants(
-  endpointType: RPCEndpoint = "testnet",
-): EpochConstants {
-  if (endpointType === "mainnet") {
-    return {
-      SUPPORT_EPOCHS: 1,
-      DISCUSSION_EPOCHS: 0,
-      SNAPSHOT_EPOCHS: 1,
-      VOTING_EPOCHS: 3,
-    };
-  }
-
-  // Default to testnet values
-  return {
-    SUPPORT_EPOCHS: 1,
-    DISCUSSION_EPOCHS: 2,
-    SNAPSHOT_EPOCHS: 1,
-    VOTING_EPOCHS: 4,
-  };
+  epochConstants: EpochConstants;
 }
 
 /**
@@ -93,7 +67,7 @@ export const getProposalStatus = ({
   consensusResult,
   finalized,
   voting,
-  endpointType = "testnet",
+  epochConstants: epochs,
 }: GetProposalStatusParams): ProposalStatus => {
   // If finalized, always return finalized
   if (finalized) {
@@ -110,9 +84,6 @@ export const getProposalStatus = ({
     // If voting === true, return "finalized" since it's eligible for finalization
     return "finalized";
   }
-
-  // Get epoch constants based on endpoint type
-  const epochs = getEpochConstants(endpointType);
 
   // Support phase always uses creationEpoch
   const supportStartEpoch = creationEpoch; // epoch 800 for creationEpoch 800
