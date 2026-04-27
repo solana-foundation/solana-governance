@@ -7,6 +7,7 @@ use anchor_lang::{
         vote::{program as vote_program, state::VoteState},
     },
 };
+use solana_vote_interface::state::VoteStateVersions;
 
 use crate::{
     constants::ANCHOR_DISCRIMINATOR,
@@ -79,16 +80,18 @@ impl<'info> CreateProposal<'info> {
         let clock = Clock::get()?;
 
         let vote_account_data = self.spl_vote_account.data.borrow();
-        // TODO: Check if this deserialization is correct
-        let vote_account = match VoteState::deserialize(&vote_account_data) {
-            Ok(vote_account) => vote_account,
-            Err(_) => return Err(GovernanceError::InvalidVoteAccount.into()),
+        let versioned = VoteStateVersions::deserialize(&vote_account_data)
+            .map_err(|_| GovernanceError::InvalidVoteAccount)?;
+        let node_pubkey_bytes: [u8; 32] = match &versioned {
+            VoteStateVersions::V3(v) => v.node_pubkey.to_bytes(),
+            VoteStateVersions::V4(v) => v.node_pubkey.to_bytes(),
+            VoteStateVersions::V1_14_11(v) => v.node_pubkey.to_bytes(),
+            VoteStateVersions::Uninitialized => {
+                return Err(GovernanceError::InvalidVoteAccount.into())
+            }
         };
-
-        // Ensuring signer is the same as the vote account node_pubkey
-        require_keys_eq!(
-            vote_account.node_pubkey,
-            self.signer.key(),
+        require!(
+            node_pubkey_bytes == self.signer.key().to_bytes(),
             GovernanceError::InvalidVoteAccount
         );
 
