@@ -100,9 +100,12 @@ pub fn run(network_filter: Option<String>) {
             eprintln!("[ncn-meta-cron] First compare failed: {}", e);
         }
     } else {
-        // If no filter provided, compare mainnet by default.
-        if let Err(e) = compare_with_chain(&log_path, "mainnet") {
-            eprintln!("[ncn-meta-cron] First compare failed: {}", e);
+        // If no filter is provided, compare and write whitelists for BOTH networks.
+        // Uses the same NCN_PROGRAM_ID for both.
+        for net in NETWORKS {
+            if let Err(e) = compare_with_chain(&log_path, net) {
+                eprintln!("[ncn-meta-cron] First compare failed (network={}): {}", net, e);
+            }
         }
     }
     eprintln!("[ncn-meta-cron] First run done. Scheduling every 2 hours.");
@@ -127,8 +130,12 @@ pub fn run(network_filter: Option<String>) {
                 if let Err(e) = compare_with_chain(&log_path_cl, net) {
                     eprintln!("[ncn-meta-cron] Compare job failed: {}", e);
                 }
-            } else if let Err(e) = compare_with_chain(&log_path_cl, "mainnet") {
-                eprintln!("[ncn-meta-cron] Compare job failed: {}", e);
+            } else {
+                for net in NETWORKS {
+                    if let Err(e) = compare_with_chain(&log_path_cl, net) {
+                        eprintln!("[ncn-meta-cron] Compare job failed (network={}): {}", net, e);
+                    }
+                }
             }
         }
     }));
@@ -211,7 +218,18 @@ fn compare_with_chain(
         "testnet" => "https://api.testnet.solana.com",
         _ => "https://api.mainnet-beta.solana.com",
     };
-    let rpc_url = env::var("SOLANA_RPC_URL").unwrap_or_else(|_| default_rpc.to_string());
+    // RPC URL selection (most specific wins):
+    // - SOLANA_RPC_URL_MAINNET / SOLANA_RPC_URL_TESTNET
+    // - SOLANA_RPC_URL (legacy / shared)
+    // - default public RPC for the network
+    let rpc_url = match network {
+        "testnet" => env::var("SOLANA_RPC_URL_TESTNET")
+            .or_else(|_| env::var("SOLANA_RPC_URL"))
+            .unwrap_or_else(|_| default_rpc.to_string()),
+        _ => env::var("SOLANA_RPC_URL_MAINNET")
+            .or_else(|_| env::var("SOLANA_RPC_URL"))
+            .unwrap_or_else(|_| default_rpc.to_string()),
+    };
 
     // Program ID must be provided via NCN_PROGRAM_ID; no default is used.
     let program_id_str = env::var("NCN_PROGRAM_ID").unwrap_or_else(|_| {
