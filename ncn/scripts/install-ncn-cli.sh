@@ -187,4 +187,3 @@ echo ""
 echo "Override any default by exporting the variable before calling ncn-cli:"
 echo "  RUST_LOG=debug ncn-cli --help"
 echo ""
-
