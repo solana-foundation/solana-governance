@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/gov_v1.json`.
  */
 export type GovV1 = {
-  address: "4vJ96uaNf8nZT1vHUyo857CBxs4rEY2Qjaqorn8VM52f";
+  address: "HsiPGfvF441TrU8eCLLerQDcEMtyzYszBfKxqoSuaD9R";
   metadata: {
     name: "govV1";
     version: "0.1.0";
