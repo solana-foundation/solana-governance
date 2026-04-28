@@ -12,6 +12,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 NCN_DIR="$REPO_ROOT/ncn"
 JITO_DIR="$REPO_ROOT/jito-tip-router"
 JITO_BRANCH="gov-v1"
+JITO_REPO="https://github.com/exo-tech-xyz/jito-tip-router.git"
 
 CLI_PKG="cli"
 CLI_BIN_SRC="cli"
@@ -35,16 +36,21 @@ if [ ! -d "$NCN_DIR" ]; then
 fi
 
 # Install dependency sources by cloning into the repo root (no submodules).
-if [ -d "$JITO_DIR/.git" ]; then
-  echo -e "${YELLOW}Updating existing jito-tip-router in $JITO_DIR (branch: $JITO_BRANCH)${NC}"
-  cd "$JITO_DIR"
-  git fetch --all
-  git checkout "$JITO_BRANCH" || git checkout -b "$JITO_BRANCH" "origin/$JITO_BRANCH"
-  git pull --ff-only origin "$JITO_BRANCH"
-else
-  echo -e "${YELLOW}Cloning jito-tip-router into repo root (branch: $JITO_BRANCH)${NC}"
-  git clone --branch "$JITO_BRANCH" --single-branch https://github.com/exo-tech-xyz/jito-tip-router.git "$JITO_DIR"
+if [ -e "$JITO_DIR" ]; then
+  echo -e "${YELLOW}Removing existing jito-tip-router in repo root at $JITO_DIR${NC}"
+  if command -v chflags >/dev/null 2>&1; then
+    chflags -R nouchg "$JITO_DIR" 2>/dev/null || true
+  fi
+  chmod -R u+w "$JITO_DIR" 2>/dev/null || true
+  rm -rf "$JITO_DIR" 2>/dev/null || true
+  if [ -e "$JITO_DIR" ]; then
+    echo -e "${YELLOW}Some files require sudo to remove; retrying with sudo...${NC}"
+    sudo rm -rf "$JITO_DIR"
+  fi
 fi
+
+echo -e "${YELLOW}Cloning jito-tip-router into repo root (branch: $JITO_BRANCH)${NC}"
+git clone --branch "$JITO_BRANCH" --single-branch "$JITO_REPO" "$JITO_DIR"
 
 if [ ! -f "$JITO_DIR/meta_merkle_tree/Cargo.toml" ]; then
   echo -e "${RED}Error: expected $JITO_DIR/meta_merkle_tree/Cargo.toml not found.${NC}" >&2
