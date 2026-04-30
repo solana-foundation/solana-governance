@@ -7,7 +7,7 @@ use anchor_client::{
     },
     Client, Cluster, Program,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use cli::{generate_meta_merkle_snapshot, utils::*, MetaMerkleSnapshot};
 use ncn_snapshot::{Ballot, BallotBox, ConsensusResult, MetaMerkleProof, ProgramConfig};
@@ -153,6 +153,36 @@ pub enum Commands {
         #[arg(long, help = "Snapshot slot of ballot box")]
         snapshot_slot: u64,
     },
+    GetBallot {
+        #[arg(long, help = "Snapshot slot of ballot box")]
+        snapshot_slot: u64,
+    },
+    GetProgramConfig {},
+    GetOperatorWhitelist {},
+    GetOperatorVote {
+        #[arg(long, help = "Snapshot slot of ballot box")]
+        snapshot_slot: u64,
+        #[arg(long, value_parser = parse_pubkey, help = "Operator pubkey")]
+        operator: Pubkey,
+    },
+    GetConsensusResult {
+        #[arg(long, help = "Snapshot slot for consensus result")]
+        snapshot_slot: u64,
+    },
+    GetProof {
+        #[arg(long, help = "Snapshot slot for consensus result")]
+        snapshot_slot: u64,
+        #[arg(long, value_parser = parse_pubkey, help = "Validator vote account")]
+        vote_account: Pubkey,
+    },
+    BallotExists {
+        #[arg(long, help = "Snapshot slot of ballot box")]
+        snapshot_slot: u64,
+    },
+    Status {
+        #[arg(long, help = "Snapshot slot of ballot box")]
+        snapshot_slot: u64,
+    },
     CastVote {
         #[arg(long, help = "Snapshot slot of ballot box")]
         snapshot_slot: u64,
@@ -248,6 +278,80 @@ fn main() -> Result<()> {
         info!("Snapshot Hash: {}", bs58::encode(hash).into_string());
 
         Ok(())
+    }
+
+    fn format_ballot(ballot: &Ballot) -> (String, String) {
+        (
+            bs58::encode(ballot.meta_merkle_root).into_string(),
+            bs58::encode(ballot.snapshot_hash).into_string(),
+        )
+    }
+
+    fn print_program_config(config: &ProgramConfig) {
+        println!("Program Config");
+        println!("  Authority: {}", config.authority);
+        match config.proposed_authority {
+            Some(authority) => println!("  Proposed Authority: {}", authority),
+            None => println!("  Proposed Authority: (none)"),
+        }
+        println!(
+            "  Min Consensus Threshold (bps): {}",
+            config.min_consensus_threshold_bps
+        );
+        println!("  Tie Breaker Admin: {}", config.tie_breaker_admin);
+        println!("  Vote Duration: {}", config.vote_duration);
+        println!(
+            "  Whitelisted Operators: {}",
+            config.whitelisted_operators.len()
+        );
+    }
+
+    fn print_ballot_box(ballot_box: &BallotBox) {
+        println!("Ballot Box");
+        println!("  Snapshot Slot: {}", ballot_box.snapshot_slot);
+        println!("  Epoch: {}", ballot_box.epoch);
+        println!("  Slot Created: {}", ballot_box.slot_created);
+        println!("  Slot Consensus Reached: {}", ballot_box.slot_consensus_reached);
+        println!(
+            "  Min Consensus Threshold (bps): {}",
+            ballot_box.min_consensus_threshold_bps
+        );
+        println!("  Vote Expiry Timestamp: {}", ballot_box.vote_expiry_timestamp);
+        println!(
+            "  Tie Breaker Consensus: {}",
+            ballot_box.tie_breaker_consensus
+        );
+        println!("  Total Operator Votes: {}", ballot_box.operator_votes.len());
+        println!("  Total Ballot Tallies: {}", ballot_box.ballot_tallies.len());
+
+        let (winning_root, winning_hash) = format_ballot(&ballot_box.winning_ballot);
+        println!("Winning Ballot");
+        println!("  Meta Merkle Root (base58): {}", winning_root);
+        println!("  Snapshot Hash (base58): {}", winning_hash);
+
+        println!("Ballot Tallies");
+        if ballot_box.ballot_tallies.is_empty() {
+            println!("  (none)");
+        } else {
+            for tally in &ballot_box.ballot_tallies {
+                let (root, hash) = format_ballot(&tally.ballot);
+                println!("  - Index: {}", tally.index);
+                println!("    Tally: {}", tally.tally);
+                println!("    Root (base58): {}", root);
+                println!("    Hash (base58): {}", hash);
+            }
+        }
+
+        println!("Operator Votes");
+        if ballot_box.operator_votes.is_empty() {
+            println!("  (none)");
+        } else {
+            for vote in &ballot_box.operator_votes {
+                println!("  - Operator: {}", vote.operator);
+                println!("    Slot Voted: {}", vote.slot_voted);
+                println!("    Ballot Index: {}", vote.ballot_index);
+            }
+        }
     }
 
     match cli.command {
@@ -448,6 +552,152 @@ fn main() -> Result<()> {
             };
             let tx = send_finalize_ballot(tx_sender, ballot_box_pda, consensus_result_pda)?;
             info!("Transaction sent: {}", tx);
+        }
+        Commands::GetBallot { snapshot_slot } => {
+            let temp = Keypair::new();
+            let program = load_client_program(&temp, cli.rpc_url);
+            let ballot_box: BallotBox = program.account(BallotBox::pda(snapshot_slot).0)?;
+            print_ballot_box(&ballot_box);
+        }
+        Commands::GetProgramConfig {} => {
+            let temp = Keypair::new();
+            let program = load_client_program(&temp, cli.rpc_url);
+            let config: ProgramConfig = program.account(ProgramConfig::pda().0)?;
+            print_program_config(&config);
+        }
+        Commands::GetOperatorWhitelist {} => {
+            let temp = Keypair::new();
+            let program = load_client_program(&temp, cli.rpc_url);
+            let config: ProgramConfig = program.account(ProgramConfig::pda().0)?;
+            println!("Operator Whitelist");
+            if config.whitelisted_operators.is_empty() {
+                println!("  (none)");
+            } else {
+                for (index, operator) in config.whitelisted_operators.iter().enumerate() {
+                    println!("  - [{}] {}", index, operator);
+                }
+            }
+        }
+        Commands::GetOperatorVote {
+            snapshot_slot,
+            operator,
+        } => {
+            let temp = Keypair::new();
+            let program = load_client_program(&temp, cli.rpc_url);
+            let ballot_box: BallotBox = program.account(BallotBox::pda(snapshot_slot).0)?;
+            let maybe_vote = ballot_box
+                .operator_votes
+                .iter()
+                .find(|vote| vote.operator == operator);
+
+            println!("Operator Vote");
+            println!("  Snapshot Slot: {}", snapshot_slot);
+            println!("  Operator: {}", operator);
+            match maybe_vote {
+                Some(vote) => {
+                    println!("  Found: true");
+                    println!("  Slot Voted: {}", vote.slot_voted);
+                    println!("  Ballot Index: {}", vote.ballot_index);
+                }
+                None => {
+                    println!("  Found: false");
+                }
+            }
+        }
+        Commands::GetConsensusResult { snapshot_slot } => {
+            let temp = Keypair::new();
+            let program = load_client_program(&temp, cli.rpc_url);
+            let result: ConsensusResult = program.account(ConsensusResult::pda(snapshot_slot).0)?;
+            let (root, hash) = format_ballot(&result.ballot);
+            println!("Consensus Result");
+            println!("  Snapshot Slot: {}", result.snapshot_slot);
+            println!("  Tie Breaker Consensus: {}", result.tie_breaker_consensus);
+            println!("  Meta Merkle Root (base58): {}", root);
+            println!("  Snapshot Hash (base58): {}", hash);
+        }
+        Commands::GetProof {
+            snapshot_slot,
+            vote_account,
+        } => {
+            let temp = Keypair::new();
+            let program = load_client_program(&temp, cli.rpc_url);
+            let consensus_result_pda = ConsensusResult::pda(snapshot_slot).0;
+            let proof_pda = MetaMerkleProof::pda(&consensus_result_pda, &vote_account).0;
+            let proof: MetaMerkleProof = program.account(proof_pda)?;
+            println!("Meta Merkle Proof");
+            println!("  PDA: {}", proof_pda);
+            println!("  Payer: {}", proof.payer);
+            println!("  Consensus Result: {}", proof.consensus_result);
+            println!("  Vote Account: {}", proof.meta_merkle_leaf.vote_account);
+            println!("  Voting Wallet: {}", proof.meta_merkle_leaf.voting_wallet);
+            println!(
+                "  Stake Merkle Root (base58): {}",
+                bs58::encode(proof.meta_merkle_leaf.stake_merkle_root).into_string()
+            );
+            println!("  Active Stake: {}", proof.meta_merkle_leaf.active_stake);
+            println!("  Proof Nodes: {}", proof.meta_merkle_proof.len());
+            println!("  Close Timestamp: {}", proof.close_timestamp);
+        }
+        Commands::BallotExists { snapshot_slot } => {
+            let temp = Keypair::new();
+            let program = load_client_program(&temp, cli.rpc_url);
+            let ballot_pda = BallotBox::pda(snapshot_slot).0;
+            let exists = program.account::<BallotBox>(ballot_pda).is_ok();
+            println!("Ballot Exists");
+            println!("  Snapshot Slot: {}", snapshot_slot);
+            println!("  PDA: {}", ballot_pda);
+            println!("  Exists: {}", exists);
+        }
+        Commands::Status { snapshot_slot } => {
+            let temp = Keypair::new();
+            let program = load_client_program(&temp, cli.rpc_url.clone());
+
+            println!("Status");
+            println!("  RPC URL: {}", cli.rpc_url);
+            println!("  Cluster: {}", cli.cluster);
+            println!("  Program ID: {}", ncn_snapshot::id());
+            println!("  Snapshot Slot: {}", snapshot_slot);
+
+            let config: ProgramConfig = program
+                .account(ProgramConfig::pda().0)
+                .context("failed to fetch ProgramConfig")?;
+            println!();
+            print_program_config(&config);
+
+            let ballot_pda = BallotBox::pda(snapshot_slot).0;
+            let ballot_box = program.account::<BallotBox>(ballot_pda);
+            println!();
+            match ballot_box {
+                Ok(ballot_box) => {
+                    print_ballot_box(&ballot_box);
+                }
+                Err(_) => {
+                    println!("Ballot Box");
+                    println!("  Snapshot Slot: {}", snapshot_slot);
+                    println!("  PDA: {}", ballot_pda);
+                    println!("  Exists: false");
+                }
+            }
+
+            let consensus_pda = ConsensusResult::pda(snapshot_slot).0;
+            let consensus = program.account::<ConsensusResult>(consensus_pda);
+            println!();
+            match consensus {
+                Ok(consensus) => {
+                    let (root, hash) = format_ballot(&consensus.ballot);
+                    println!("Consensus Result");
+                    println!("  PDA: {}", consensus_pda);
+                    println!("  Exists: true");
+                    println!("  Tie Breaker Consensus: {}", consensus.tie_breaker_consensus);
+                    println!("  Meta Merkle Root (base58): {}", root);
+                    println!("  Snapshot Hash (base58): {}", hash);
+                }
+                Err(_) => {
+                    println!("Consensus Result");
+                    println!("  PDA: {}", consensus_pda);
+                    println!("  Exists: false");
+                }
+            }
         }
         // === Snapshot Processing ===
         Commands::SnapshotSlot { slot } => {

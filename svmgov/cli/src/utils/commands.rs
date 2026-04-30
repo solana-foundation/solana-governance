@@ -2,6 +2,7 @@ use std::{str::FromStr, sync::Arc};
 
 use anchor_client::solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
 use anchor_client::solana_client::rpc_filter::{Memcmp, RpcFilterType};
+use anchor_client::solana_account_decoder::UiAccountEncoding;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::signature::Keypair;
 
@@ -324,6 +325,7 @@ pub async fn list_proposals(
             Proposal::DISCRIMINATOR.to_vec(),
         ))]),
         account_config: RpcAccountInfoConfig {
+            encoding: Some(UiAccountEncoding::Base64),
             commitment: Some(CommitmentConfig::confirmed()),
             ..Default::default()
         },
