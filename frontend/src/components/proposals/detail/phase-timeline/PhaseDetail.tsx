@@ -6,12 +6,18 @@ interface PhaseDetailProps {
   currentPhase: PhaseKey;
   status: ProposalStatus;
   isLoading?: boolean;
+  remainingTime?: string;
+  currentEpoch?: number;
+  activePhaseEndEpoch?: number;
 }
 
 export function PhaseDetail({
   currentPhase,
   status,
   isLoading,
+  remainingTime = "-",
+  currentEpoch,
+  activePhaseEndEpoch,
 }: PhaseDetailProps) {
   const isFailed = status === "failed";
   const detail = isFailed ? FAILED_PHASE_DETAIL : PHASE_DETAILS[currentPhase];
@@ -41,6 +47,15 @@ export function PhaseDetail({
         </div>
       ) : (
         <p className="text-sm text-white/50">{detail.body}</p>
+      )}
+
+      {!isLoading && !isFailed && (
+        <div className="mt-2 flex items-center gap-14 text-xs text-white/60">
+          <p>Next phase in: <span className="text-white font-bold">{remainingTime}</span></p>
+          <p>
+            Epoch: <span className="text-white font-bold">{currentEpoch ?? "-"} / {activePhaseEndEpoch ?? "-"}</span>
+          </p>
+        </div>
       )}
     </div>
   );
