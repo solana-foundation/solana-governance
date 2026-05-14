@@ -139,7 +139,7 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
     )?;
     println!("Stake Pools Count: {}", stake_pool_voter_map.len());
 
-    let l_stakes = bank.stakes_cache.stakes();
+    let l_stakes = bank.get_top_epoch_stakes();
     let delegations = l_stakes.stake_delegations();
     let voter_pubkey_to_delegations =
         group_delegations_by_voter_pubkey_active_stake(delegations, bank)

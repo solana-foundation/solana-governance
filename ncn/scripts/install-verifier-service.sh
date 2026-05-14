@@ -10,8 +10,6 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 NCN_DIR="$REPO_ROOT/ncn"
-JITO_DIR="$REPO_ROOT/jito-tip-router"
-JITO_BRANCH="gov-v1"
 
 echo "Select network:"
 echo "1) mainnet"
@@ -37,27 +35,9 @@ else
   IMAGE_TAG="verifier-service:latest-mainnet"
 fi
 
-echo -e "${YELLOW}Preparing jito-tip-router dependency (branch: ${JITO_BRANCH})...${NC}"
-if [ -d "$JITO_DIR/.git" ]; then
-  if [ ! -w "$JITO_DIR/.git" ]; then
-    echo -e "${RED}Error: $JITO_DIR/.git is not writable by user '$(id -un)'.${NC}" >&2
-    echo "This usually happens if the script was previously run with sudo." >&2
-    echo "Fix ownership, then re-run:" >&2
-    echo "  sudo chown -R $(id -un):$(id -gn) \"$JITO_DIR\"" >&2
-    exit 1
-  fi
-  cd "$JITO_DIR"
-  git fetch --all
-  git checkout "$JITO_BRANCH" || git checkout -b "$JITO_BRANCH" "origin/$JITO_BRANCH"
-  git pull --ff-only origin "$JITO_BRANCH"
-else
-  git clone --branch "$JITO_BRANCH" --single-branch https://github.com/exo-tech-xyz/jito-tip-router.git "$JITO_DIR"
-fi
-
-if [ ! -f "$JITO_DIR/meta_merkle_tree/Cargo.toml" ]; then
-  echo -e "${RED}Error: expected $JITO_DIR/meta_merkle_tree/Cargo.toml not found.${NC}" >&2
-  exit 1
-fi
+# shellcheck source=../../scripts/setup-jito-tip-router.sh
+source "$REPO_ROOT/scripts/setup-jito-tip-router.sh"
+ensure_jito_tip_router
 
 echo -e "${YELLOW}Building verifier-service binary...${NC}"
 export RESTAKING_PROGRAM_ID="${RESTAKING_PROGRAM_ID:-RestkWeAVL8fRGgzhfeoqFhsqKRchg6aa1XrcH96z4Q}"
@@ -71,7 +51,7 @@ if ! command -v cargo >/dev/null 2>&1; then
 fi
 
 cd "$NCN_DIR"
-cargo build --release --bin verifier-service
+cargo build --locked --release --bin verifier-service
 
 if ! command -v docker >/dev/null 2>&1; then
   echo -e "${YELLOW}Docker is not installed; installing Docker package...${NC}"

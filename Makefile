@@ -1,9 +1,16 @@
-.PHONY: help install-ncn-cli install-verifier-service install-all \
+.PHONY: help bootstrap build-ncn build-svmgov build-programs \
+        install-ncn-cli install-verifier-service install-all \
         sync sync-mainnet sync-mainnet-staging sync-testnet sync-testnet-staging sync-localnet \
         sync-dry-run
 
 help:
 	@echo "Available targets:"
+	@echo ""
+	@echo "  bootstrap                - Clone/update jito-tip-router to the commit pinned in networks.toml"
+	@echo ""
+	@echo "  build-ncn                - bootstrap + anchor build the ncn program"
+	@echo "  build-svmgov             - anchor build the svmgov program"
+	@echo "  build-programs           - build both programs"
 	@echo ""
 	@echo "  install-ncn-cli          - Install ncn-cli globally"
 	@echo "  install-verifier-service - Build and install verifier-service"
@@ -17,6 +24,18 @@ help:
 	@echo "  sync-testnet             - Shortcut for: make sync NETWORK=testnet"
 	@echo "  sync-testnet-staging     - Shortcut for: make sync NETWORK=testnet-staging"
 	@echo "  sync-localnet            - Shortcut for: make sync NETWORK=localnet"
+
+bootstrap:
+	bash scripts/setup-jito-tip-router.sh
+
+build-ncn:
+	bash scripts/build-program.sh ncn
+
+build-svmgov:
+	bash scripts/build-program.sh svmgov
+
+build-programs:
+	bash scripts/build-program.sh all
 
 install-ncn-cli:
 	bash ncn/scripts/install-ncn-cli.sh

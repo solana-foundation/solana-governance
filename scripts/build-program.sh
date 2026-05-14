@@ -3,18 +3,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-JITO_TIP_ROUTER_REPO="https://github.com/exo-tech-xyz/jito-tip-router.git"
-JITO_TIP_ROUTER_BRANCH="master"
-JITO_TIP_ROUTER_DIR="$REPO_ROOT/jito-tip-router"
-
-ensure_jito_tip_router() {
-  if [ ! -d "$JITO_TIP_ROUTER_DIR" ]; then
-    echo "Cloning jito-tip-router ($JITO_TIP_ROUTER_BRANCH branch)..."
-    git clone --branch "$JITO_TIP_ROUTER_BRANCH" "$JITO_TIP_ROUTER_REPO" "$JITO_TIP_ROUTER_DIR"
-  else
-    echo "jito-tip-router already present at $JITO_TIP_ROUTER_DIR"
-  fi
-}
+# shellcheck source=scripts/setup-jito-tip-router.sh
+source "$REPO_ROOT/scripts/setup-jito-tip-router.sh"
 
 build_svmgov() {
   echo "Building svmgov program..."

@@ -8,28 +8,28 @@ release_version = "0.1.0"
 rpc_url = "https://api.mainnet-beta.solana.com"
 svmgov_program_id       = "4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU"
 ncn_snapshot_program_id = "HsiPGfvF441TrU8eCLLerQDcEMtyzYszBfKxqoSuaD9R"
-jito_tip_router_commit  = "ffde7b7f07135798aa381605105efd6d1a4cc494"
+jito_tip_router_commit  = "0b4f048652d1185ce91ceda68ba9db3514c64983"
 
 [networks.mainnet-staging]
 rpc_url = "https://api.mainnet-beta.solana.com"
 svmgov_program_id       = "4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU"
 ncn_snapshot_program_id = "HsiPGfvF441TrU8eCLLerQDcEMtyzYszBfKxqoSuaD9R"
-jito_tip_router_commit  = "ffde7b7f07135798aa381605105efd6d1a4cc494"
+jito_tip_router_commit  = "0b4f048652d1185ce91ceda68ba9db3514c64983"
 
 [networks.testnet]
 rpc_url = "https://api.testnet.solana.com"
 svmgov_program_id       = "4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU"
 ncn_snapshot_program_id = "HsiPGfvF441TrU8eCLLerQDcEMtyzYszBfKxqoSuaD9R"
-jito_tip_router_commit  = "ffde7b7f07135798aa381605105efd6d1a4cc494"
+jito_tip_router_commit  = "0b4f048652d1185ce91ceda68ba9db3514c64983"
 
 [networks.testnet-staging]
 rpc_url = "https://api.testnet.solana.com"
 svmgov_program_id       = "4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU"
 ncn_snapshot_program_id = "HsiPGfvF441TrU8eCLLerQDcEMtyzYszBfKxqoSuaD9R"
-jito_tip_router_commit  = "ffde7b7f07135798aa381605105efd6d1a4cc494"
+jito_tip_router_commit  = "0b4f048652d1185ce91ceda68ba9db3514c64983"
 
 [networks.localnet]
 rpc_url = "http://localhost:8899"
 svmgov_program_id       = "4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU"
 ncn_snapshot_program_id = "HsiPGfvF441TrU8eCLLerQDcEMtyzYszBfKxqoSuaD9R"
-jito_tip_router_commit  = "ffde7b7f07135798aa381605105efd6d1a4cc494"
+jito_tip_router_commit  = "0b4f048652d1185ce91ceda68ba9db3514c64983"

@@ -10,9 +10,6 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 NCN_DIR="$REPO_ROOT/ncn"
-JITO_DIR="$REPO_ROOT/jito-tip-router"
-JITO_BRANCH="gov-v1"
-JITO_REPO="https://github.com/exo-tech-xyz/jito-tip-router.git"
 
 CLI_PKG="cli"
 CLI_BIN_SRC="cli"
@@ -35,32 +32,9 @@ if [ ! -d "$NCN_DIR" ]; then
   exit 1
 fi
 
-# Install dependency sources by cloning into the repo root (no submodules).
-if [ -e "$JITO_DIR" ]; then
-  echo -e "${YELLOW}Removing existing jito-tip-router in repo root at $JITO_DIR${NC}"
-  if command -v chflags >/dev/null 2>&1; then
-    chflags -R nouchg "$JITO_DIR" 2>/dev/null || true
-  fi
-  chmod -R u+w "$JITO_DIR" 2>/dev/null || true
-  rm -rf "$JITO_DIR" 2>/dev/null || true
-  if [ -e "$JITO_DIR" ]; then
-    echo -e "${YELLOW}Some files require sudo to remove; retrying with sudo...${NC}"
-    sudo rm -rf "$JITO_DIR"
-  fi
-fi
-
-echo -e "${YELLOW}Cloning jito-tip-router into repo root (branch: $JITO_BRANCH)${NC}"
-git clone --branch "$JITO_BRANCH" --single-branch "$JITO_REPO" "$JITO_DIR"
-
-if [ ! -f "$JITO_DIR/meta_merkle_tree/Cargo.toml" ]; then
-  echo -e "${RED}Error: expected $JITO_DIR/meta_merkle_tree/Cargo.toml not found.${NC}" >&2
-  exit 1
-fi
-
-if [ ! -d "$JITO_DIR/tip-router-operator-cli" ]; then
-  echo -e "${RED}Error: expected $JITO_DIR/tip-router-operator-cli missing.${NC}" >&2
-  exit 1
-fi
+# shellcheck source=../../scripts/setup-jito-tip-router.sh
+source "$REPO_ROOT/scripts/setup-jito-tip-router.sh"
+ensure_jito_tip_router
 
 # Choose install location (similar behavior to svmgov install.sh).
 if [ -f "/usr/local/bin/$CLI_BIN_DEST" ]; then
@@ -83,7 +57,7 @@ export RESTAKING_PROGRAM_ID="${RESTAKING_PROGRAM_ID:-RestkWeAVL8fRGgzhfeoqFhsqKR
 export VAULT_PROGRAM_ID="${VAULT_PROGRAM_ID:-Vau1t6sLNxnzB7ZDsef8TLbPLfyZMYXH8WTNqUdm9g8}"
 export TIP_ROUTER_PROGRAM_ID="${TIP_ROUTER_PROGRAM_ID:-11111111111111111111111111111111}"
 
-RUSTFLAGS="${RUSTFLAGS:--C target-cpu=native}" cargo build --release -p "$CLI_PKG"
+RUSTFLAGS="${RUSTFLAGS:--C target-cpu=native}" cargo build --locked --release -p "$CLI_PKG"
 
 BINARY_PATH="$NCN_DIR/target/release/$CLI_BIN_SRC"
 if [ ! -f "$BINARY_PATH" ]; then
