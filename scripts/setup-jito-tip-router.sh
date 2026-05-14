@@ -28,7 +28,7 @@
 
 set -euo pipefail
 
-JITO_TIP_ROUTER_REPO="${JITO_TIP_ROUTER_REPO:-git@github.com:brewlabshq/jito-tip-router.git}"
+JITO_TIP_ROUTER_REPO="${JITO_TIP_ROUTER_REPO:-https://github.com/brewlabshq/jito-tip-router.git}"
 JITO_TIP_ROUTER_UPSTREAM="${JITO_TIP_ROUTER_UPSTREAM:-https://github.com/jito-foundation/jito-tip-router.git}"
 
 _setup_repo_root() {
