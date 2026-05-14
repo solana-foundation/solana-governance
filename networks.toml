@@ -1,0 +1,35 @@
+# Release manifest — single source of truth for per-network program IDs,
+# RPC endpoints, and the canonical jito-tip-router commit pinned to this release.
+
+[meta]
+release_version = "0.1.0"
+
+[networks.mainnet]
+rpc_url = "https://api.mainnet-beta.solana.com"
+svmgov_program_id       = "4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU"
+ncn_snapshot_program_id = "HsiPGfvF441TrU8eCLLerQDcEMtyzYszBfKxqoSuaD9R"
+jito_tip_router_commit  = "ffde7b7f07135798aa381605105efd6d1a4cc494"
+
+[networks.mainnet-staging]
+rpc_url = "https://api.mainnet-beta.solana.com"
+svmgov_program_id       = "4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU"
+ncn_snapshot_program_id = "HsiPGfvF441TrU8eCLLerQDcEMtyzYszBfKxqoSuaD9R"
+jito_tip_router_commit  = "ffde7b7f07135798aa381605105efd6d1a4cc494"
+
+[networks.testnet]
+rpc_url = "https://api.testnet.solana.com"
+svmgov_program_id       = "4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU"
+ncn_snapshot_program_id = "HsiPGfvF441TrU8eCLLerQDcEMtyzYszBfKxqoSuaD9R"
+jito_tip_router_commit  = "ffde7b7f07135798aa381605105efd6d1a4cc494"
+
+[networks.testnet-staging]
+rpc_url = "https://api.testnet.solana.com"
+svmgov_program_id       = "4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU"
+ncn_snapshot_program_id = "HsiPGfvF441TrU8eCLLerQDcEMtyzYszBfKxqoSuaD9R"
+jito_tip_router_commit  = "ffde7b7f07135798aa381605105efd6d1a4cc494"
+
+[networks.localnet]
+rpc_url = "http://localhost:8899"
+svmgov_program_id       = "4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU"
+ncn_snapshot_program_id = "HsiPGfvF441TrU8eCLLerQDcEMtyzYszBfKxqoSuaD9R"
+jito_tip_router_commit  = "ffde7b7f07135798aa381605105efd6d1a4cc494"

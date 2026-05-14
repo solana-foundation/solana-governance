@@ -15,7 +15,8 @@ node_modules/
 # Env
 .env
 
-# External dependencies (cloned by build script)
-jito-tip-router/
+# jito-tip-router is tracked as a git submodule (see .gitmodules).
 
 admin.json
+
+jito-tip-router
