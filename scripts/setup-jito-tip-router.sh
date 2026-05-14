@@ -3,9 +3,15 @@
 # /networks.toml. Sourced by other scripts; can also be invoked directly.
 #
 # Resolves $REPO_ROOT/jito-tip-router to:
-#   - cloned from jito-foundation/jito-tip-router if missing
+#   - cloned from brewlabshq/jito-tip-router (the fork we publish patches to)
+#     if missing
 #   - checked out at jito_tip_router_commit (read from [networks.mainnet] in
 #     networks.toml, since all networks pin the same commit per release).
+#
+# Two remotes are configured:
+#   - origin:   brewlabshq fork — where our patched commits live
+#   - upstream: jito-foundation — fallback fetch when the pinned commit
+#               hasn't been pushed to the fork yet
 #
 # Refuses to touch a dirty working tree so it never destroys local work.
 #
@@ -15,10 +21,15 @@
 #
 # Usage (standalone):
 #   bash scripts/setup-jito-tip-router.sh
+#
+# Overrides:
+#   JITO_TIP_ROUTER_REPO      override the origin (fork) URL
+#   JITO_TIP_ROUTER_UPSTREAM  override the upstream URL
 
 set -euo pipefail
 
-JITO_TIP_ROUTER_REPO="${JITO_TIP_ROUTER_REPO:-https://github.com/jito-foundation/jito-tip-router.git}"
+JITO_TIP_ROUTER_REPO="${JITO_TIP_ROUTER_REPO:-git@github.com:brewlabshq/jito-tip-router.git}"
+JITO_TIP_ROUTER_UPSTREAM="${JITO_TIP_ROUTER_UPSTREAM:-https://github.com/jito-foundation/jito-tip-router.git}"
 
 _setup_repo_root() {
   local script_dir
@@ -62,10 +73,30 @@ ensure_jito_tip_router() {
     git clone "$JITO_TIP_ROUTER_REPO" "$jito_dir"
   fi
 
-  # Ensure the upstream remote is configured (origin may point at a fork that
-  # lacks the pinned commit, e.g. legacy exo-tech-xyz clones).
-  if ! git -C "$jito_dir" remote get-url upstream >/dev/null 2>&1; then
-    git -C "$jito_dir" remote add upstream "$JITO_TIP_ROUTER_REPO"
+  # Make origin match the configured fork URL. Handles existing clones that
+  # were originally cloned from a different remote (e.g. upstream or a legacy
+  # exo-tech-xyz fork).
+  local current_origin
+  current_origin="$(git -C "$jito_dir" remote get-url origin 2>/dev/null || echo '')"
+  if [ "$current_origin" != "$JITO_TIP_ROUTER_REPO" ]; then
+    if [ -z "$current_origin" ]; then
+      git -C "$jito_dir" remote add origin "$JITO_TIP_ROUTER_REPO"
+    else
+      echo "Repointing origin to $JITO_TIP_ROUTER_REPO (was: $current_origin)"
+      git -C "$jito_dir" remote set-url origin "$JITO_TIP_ROUTER_REPO"
+    fi
+  fi
+
+  # Ensure upstream remote points at the canonical jito-foundation repo so the
+  # pinned commit can still be fetched when it hasn't been pushed to the fork.
+  local current_upstream
+  current_upstream="$(git -C "$jito_dir" remote get-url upstream 2>/dev/null || echo '')"
+  if [ "$current_upstream" != "$JITO_TIP_ROUTER_UPSTREAM" ]; then
+    if [ -z "$current_upstream" ]; then
+      git -C "$jito_dir" remote add upstream "$JITO_TIP_ROUTER_UPSTREAM"
+    else
+      git -C "$jito_dir" remote set-url upstream "$JITO_TIP_ROUTER_UPSTREAM"
+    fi
   fi
 
   if [ -n "$(git -C "$jito_dir" status --porcelain 2>/dev/null)" ]; then
@@ -79,7 +110,11 @@ ensure_jito_tip_router() {
   if [ "$head" != "$commit" ]; then
     echo "Updating jito-tip-router to pinned commit $commit..."
     if ! git -C "$jito_dir" cat-file -e "$commit^{commit}" 2>/dev/null; then
-      git -C "$jito_dir" fetch --tags upstream
+      # Try the fork first (where custom patches land), then jito-foundation.
+      git -C "$jito_dir" fetch --tags origin 2>/dev/null || true
+      if ! git -C "$jito_dir" cat-file -e "$commit^{commit}" 2>/dev/null; then
+        git -C "$jito_dir" fetch --tags upstream
+      fi
     fi
     git -C "$jito_dir" checkout --quiet --detach "$commit"
   fi
