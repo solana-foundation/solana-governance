@@ -78,22 +78,22 @@ If a vote account delegated to is missing (closed by the manager), the system wi
 
 ## Dependencies
 
-1. Clone `jito-tip-router` from the **brewlabshq** fork to parent directory:
+1. From the repo root, run:
+```bash
+   make bootstrap
+```
+   This clones/updates `jito-tip-router` to the commit pinned in `networks.toml`.
 
-   ```bash
-   git clone https://github.com/brewlabshq/jito-tip-router.git ../jito-tip-router
-   cd ../jito-tip-router
-   ```
-
-2. Ensure system is using Rust Version `1.89.0`, otherwise install with:
+2. Ensure system is using Rust Version `1.93.1`, otherwise install with:
 
 ```bash
-rustup toolchain install 1.89.0 // install
-rustup default 1.89.0 // set as default
+rustup toolchain install 1.93.1 // install
+rustup default 1.93.1 // set as default
 rustc --version // verify version
+rustup override set 1.93.1 // if you need to set this version for this specific project directory only
 ```
 
-3. (Optional - when using Anchor CLI) Install Solana CLI version 3.0 or higher. The bundled rustc in older Solana CLI versions may not be compatible with some dependencies.
+3. (Optional - when using Anchor CLI) Install Solana CLI version 4.0 or higher. The bundled rustc in older Solana CLI versions may not be compatible with some dependencies.
 
 4. Build repo with `cargo build`
 
@@ -176,9 +176,9 @@ Environment variables affecting snapshot IO:
 # Generates a Solana ledger snapshot for a specific slot (from validator bank state)
 # and stores at `backup-snapshots-dir`.
 # Increase file descriptor limit to with `ulimit -n 1000000` if needed,
-RUSTFLAGS="-C target-cpu=native" RAYON_NUM_THREADS=$(nproc) ZSTD_NBTHREADS=$(nproc) \
+RAYON_NUM_THREADS=$(nproc) ZSTD_NBTHREADS=$(nproc) \
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
-cargo run --release --bin cli -- \
+ncn-cli -- \
   --ledger-path /mnt/ledger \
   --full-snapshots-path /mnt/ledger/snapshots \
   --backup-snapshots-dir /mnt/ledger/snapshots \
@@ -189,10 +189,9 @@ cargo run --release --bin cli -- \
 # Create a tmp directory for `TMPDIR` and `account-paths` for storing intermediary files.
 # Output snapshot is stored in current directory by default.
 TMPDIR=/mnt/ledger/gov-tmp \
-RUSTFLAGS="-C target-cpu=native" \
 RAYON_NUM_THREADS=$(nproc) ZSTD_NBTHREADS=$(nproc) \
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
-cargo run --release --bin cli -- \
+ncn-cli -- \
   --ledger-path /mnt/ledger \
   --account-paths /mnt/ledger/gov-tmp/accounts \
   --backup-snapshots-dir /mnt/ledger/backup \
@@ -200,16 +199,15 @@ cargo run --release --bin cli -- \
 
 # (RELEASE MODE - MacOS)
 TMPDIR=/tmp \
-RUSTFLAGS="-C target-cpu=native" \
 RAYON_NUM_THREADS=$(sysctl -n hw.ncpu) ZSTD_NBTHREADS=$(sysctl -n hw.ncpu) \
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
-cargo run --release --bin cli -- \
+ncn-cli -- \
   --ledger-path test-ledger \
   --backup-snapshots-dir test-ledger/backup-snapshots \
   generate-meta-merkle --slot 340850340
 
 # Log Merkle root, hash,' and operator signature from snapshot file
-RUST_LOG=info cargo run --bin cli -- --authority-path ~/.config/solana/id.json log-meta-merkle-hash  --read-path ./meta_merkle-367628001.zip --is-compressed
+RUST_LOG=info ncn-cli -- --authority-path ~/.config/solana/id.json log-meta-merkle-hash  --read-path ./meta_merkle-367628001.zip --is-compressed
 ```
 
 #### Await Snapshot (RECOMMENDED)
@@ -221,23 +219,23 @@ This is recommended as 1) no slot watching and manual invocation is required whe
 Example:
 
 ```bash
-RUSTFLAGS="-C target-cpu=native" RAYON_NUM_THREADS=$(nproc) ZSTD_NBTHREADS=$(nproc) \
+RAYON_NUM_THREADS=$(nproc) ZSTD_NBTHREADS=$(nproc) \
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
-cargo run --release --bin cli -- \
+ncn-cli -- \
   await-snapshot \
   --scan-interval 1 \
   --slot 368478463 \
   --snapshots-dir /mnt/ledger/snapshots \
   --backup-snapshots-dir /mnt/ledger/gov-backup-snapshots \
   --backup-ledger-dir /mnt/ledger/gov-ledger-backup \
-  --agave-ledger-tool-path /home/jito/agave/target/release/agave-ledger-tool \
+  --agave-ledger-tool-path ~/.local/share/solana/install/active_release/bin/agave-ledger-tool \
   --ledger-path /mnt/ledger \
   --generate-meta-merkle   # optional
 ```
 
 ### Log On-Chain State
 
-````bash
+```bash
 # Log ProgramConfig
 RUST_LOG=info cargo run --bin cli -- \
   --rpc-url https://api.devnet.solana.com log \
@@ -252,7 +250,7 @@ RUST_LOG=info cargo run --bin cli -- \
 RUST_LOG=info cargo run --bin cli -- \
   --rpc-url https://api.devnet.solana.com log \
   --ty consensus-result --snapshot-slot <SLOT>
-
+```
 ---
 
 ### Voting Flow
@@ -281,7 +279,7 @@ RUST_LOG=info cargo run --bin cli -- \
   --authority-path ~/.config/solana/id.json \
   --rpc-url https://api.devnet.solana.com \
   remove-vote --snapshot-slot <SLOT>
-````
+```
 
 ---
 
