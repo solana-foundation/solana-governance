@@ -2,7 +2,7 @@
 # RPC endpoints, and the canonical jito-tip-router commit pinned to this release.
 
 [meta]
-release_version = "0.1.0"
+release_version = "0.1.0-40000"
 
 [networks.mainnet]
 rpc_url = "https://api.mainnet-beta.solana.com"
