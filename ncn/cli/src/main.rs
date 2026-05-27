@@ -330,8 +330,9 @@ pub enum Commands {
     /// Closes voting for `--snapshot-slot` once consensus has been reached
     /// (or the vote window has expired with a clear winner) and writes the
     /// `ConsensusResult` PDA. The on-chain instruction is permissionless,
-    /// so `--authority-path` is used purely as the fee payer for the new
-    /// PDA and does not need to hold any privileged role.
+    /// so `--payer-path` is used purely as the fee payer for the new
+    /// PDA and does not need to hold any privileged role. The `--authority-path`
+    /// is not used for this command.
     FinalizeBallot {
         /// Snapshot slot identifying the ballot box to finalize.
         #[arg(long, help = "Snapshot slot identifying the ballot box to finalize")]
