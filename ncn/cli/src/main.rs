@@ -252,8 +252,8 @@ fn main() -> Result<()> {
     }
 
     fn cast_vote_shared(cli: Cli, snapshot_slot: u64, root: [u8; 32], hash: [u8; 32]) -> Result<()> {
-        let payer = read_keypair_file(&cli.payer_path).unwrap();
-        let authority = read_keypair_file(&cli.authority_path).unwrap();
+        let payer = read_keypair_file(&cli.authority_path).map_err(|err| anyhow!("Failed to read payer keypair at {}: {}", cli.payer_path, err))?;
+        let authority = read_keypair_file(&cli.authority_path).map_err(|err| anyhow!("Failed to read authority keypair at {}: {}", cli.authority_path, err))?;
         let program = load_client_program(&payer, cli.rpc_url);
 
         let tx_sender = &TxSender {
@@ -396,8 +396,8 @@ fn main() -> Result<()> {
         Commands::InitProgramConfig {} => {
             info!("InitProgramConfig...");
 
-            let payer = read_keypair_file(&cli.payer_path).unwrap();
-            let authority = read_keypair_file(&cli.authority_path).unwrap();
+            let payer = read_keypair_file(&cli.authority_path).map_err(|err| anyhow!("Failed to read payer keypair at {}: {}", cli.payer_path, err))?;
+            let authority = read_keypair_file(&cli.authority_path).map_err(|err| anyhow!("Failed to read authority keypair at {}: {}", cli.authority_path, err))?;
             let program = load_client_program(&payer, cli.rpc_url);
 
             let tx_sender = &TxSender {
@@ -412,8 +412,8 @@ fn main() -> Result<()> {
         Commands::UpdateOperatorWhitelist { add, remove } => {
             info!("UpdateOperatorWhitelist...");
 
-            let payer = read_keypair_file(&cli.payer_path).unwrap();
-            let authority = read_keypair_file(&cli.authority_path).unwrap();
+            let payer = read_keypair_file(&cli.authority_path).map_err(|err| anyhow!("Failed to read payer keypair at {}: {}", cli.payer_path, err))?;
+            let authority = read_keypair_file(&cli.authority_path).map_err(|err| anyhow!("Failed to read authority keypair at {}: {}", cli.authority_path, err))?;
             let program = load_client_program(&payer, cli.rpc_url);
 
             let tx_sender = &TxSender {
@@ -433,8 +433,8 @@ fn main() -> Result<()> {
         } => {
             info!("UpdateProgramConfig...");
 
-            let payer = read_keypair_file(&cli.payer_path).unwrap();
-            let authority = read_keypair_file(&cli.authority_path).unwrap();
+            let payer = read_keypair_file(&cli.authority_path).map_err(|err| anyhow!("Failed to read payer keypair at {}: {}", cli.payer_path, err))?;
+            let authority = read_keypair_file(&cli.authority_path).map_err(|err| anyhow!("Failed to read authority keypair at {}: {}", cli.authority_path, err))?;
             let program = load_client_program(&payer, cli.rpc_url);
 
             let tx_sender = &TxSender {
@@ -455,8 +455,8 @@ fn main() -> Result<()> {
         Commands::FinalizeProposedAuthority {} => {
             info!("FinalizeProposedAuthority...");
 
-            let payer = read_keypair_file(&cli.payer_path).unwrap();
-            let authority = read_keypair_file(&cli.authority_path).unwrap();
+            let payer = read_keypair_file(&cli.authority_path).map_err(|err| anyhow!("Failed to read payer keypair at {}: {}", cli.payer_path, err))?;
+            let authority = read_keypair_file(&cli.authority_path).map_err(|err| anyhow!("Failed to read authority keypair at {}: {}", cli.authority_path, err))?;
             let program = load_client_program(&payer, cli.rpc_url);
 
             let tx_sender = &TxSender {
@@ -484,8 +484,8 @@ fn main() -> Result<()> {
         Commands::RemoveVote { snapshot_slot } => {
             info!("RemoveVote...");
 
-            let payer = read_keypair_file(&cli.payer_path).unwrap();
-            let authority = read_keypair_file(&cli.authority_path).unwrap();
+            let payer = read_keypair_file(&cli.authority_path).map_err(|err| anyhow!("Failed to read payer keypair at {}: {}", cli.payer_path, err))?;
+            let authority = read_keypair_file(&cli.authority_path).map_err(|err| anyhow!("Failed to read authority keypair at {}: {}", cli.authority_path, err))?;
             let program = load_client_program(&payer, cli.rpc_url);
 
             let ballot_box_pda = BallotBox::pda(snapshot_slot).0;
@@ -501,8 +501,8 @@ fn main() -> Result<()> {
         Commands::SetTieBreaker { snapshot_slot, root, hash } => {
             info!("SetTieBreaker...");
 
-            let payer = read_keypair_file(&cli.payer_path).unwrap();
-            let authority = read_keypair_file(&cli.authority_path).unwrap();
+            let payer = read_keypair_file(&cli.authority_path).map_err(|err| anyhow!("Failed to read payer keypair at {}: {}", cli.payer_path, err))?;
+            let authority = read_keypair_file(&cli.authority_path).map_err(|err| anyhow!("Failed to read authority keypair at {}: {}", cli.authority_path, err))?;
             let program = load_client_program(&payer, cli.rpc_url);
             let ballot_box_pda = BallotBox::pda(snapshot_slot).0;
 
@@ -522,8 +522,8 @@ fn main() -> Result<()> {
         Commands::ResetBallotBox { snapshot_slot } => {
             info!("ResetBallotBox...");
 
-            let payer = read_keypair_file(&cli.payer_path).unwrap();
-            let authority = read_keypair_file(&cli.authority_path).unwrap();
+            let payer = read_keypair_file(&cli.payer_path).map_err(|err| anyhow!("Failed to read payer keypair at {}: {}", cli.payer_path, err))?;
+            let authority = read_keypair_file(&cli.authority_path).map_err(|err| anyhow!("Failed to read authority keypair at {}: {}", cli.authority_path, err))?;
             let program = load_client_program(&payer, cli.rpc_url);
             let ballot_box_pda = BallotBox::pda(snapshot_slot).0;
 
@@ -539,7 +539,7 @@ fn main() -> Result<()> {
         Commands::FinalizeBallot { snapshot_slot } => {
             info!("FinalizeBallot...");
 
-            let payer = read_keypair_file(&cli.payer_path).unwrap();
+            let payer = read_keypair_file(&cli.authority_path).map_err(|err| anyhow!("Failed to read payer keypair at {}: {}", cli.payer_path, err))?;
             let program = load_client_program(&payer, cli.rpc_url);
 
             let ballot_box_pda = BallotBox::pda(snapshot_slot).0;
@@ -763,7 +763,7 @@ fn main() -> Result<()> {
             read_path,
             is_compressed,
         } => {
-            let authority = read_keypair_file(&cli.authority_path).unwrap();
+            let authority = read_keypair_file(&cli.authority_path).map_err(|err| anyhow!("Failed to read authority keypair at {}: {}", cli.authority_path, err))?;
             let snapshot = MetaMerkleSnapshot::read(read_path.clone(), is_compressed)?;
             let snapshot_hash = MetaMerkleSnapshot::snapshot_hash(read_path, is_compressed)?;
 
