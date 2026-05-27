@@ -17,36 +17,96 @@ use tip_router_operator_cli::{
 };
 use tokio::runtime::Builder;
 
+/// Solana Governance Voter Snapshot CLI.
+///
+/// Operator-facing tool for generating stake snapshots (ledger snapshot ->
+/// MetaMerkleSnapshot) and interacting with the on-chain `ncn-snapshot`
+/// program (initializing config, managing the operator whitelist, casting and
+/// removing votes, finalizing ballots, setting tie-breakers, and inspecting
+/// on-chain state).
 #[derive(Clone, Parser)]
-#[command(author, version, about)]
+#[command(author, version, about, long_about = None)]
 struct Cli {
+    /// Path to the keypair file that pays transaction fees and rent.
+    ///
+    /// This signer is used as the fee payer for all on-chain instructions
+    /// issued by this CLI. It does not need to match the program authority
+    /// or operator authority.
     #[arg(short, long, env, default_value = "/")]
     pub payer_path: PathBuf,
 
+    /// Path to the keypair file that signs privileged actions.
+    ///
+    /// Only consulted by subcommands that submit on-chain transactions or
+    /// sign messages off-chain. The role this keypair plays is documented
+    /// in the description of each such subcommand
+    /// (see `<subcommand> --help`). Read-only and snapshot-only
+    /// subcommands ignore this flag. The default `/` is a placeholder and
+    /// must be overridden whenever the chosen subcommand actually needs to
+    /// sign.
     #[arg(short, long, env, default_value = "/")]
     pub authority_path: PathBuf,
 
+    /// Operator pubkey (base58) used to tag generated snapshots.
+    ///
+    /// Stamped into the snapshot metadata so downstream tooling can
+    /// attribute a snapshot to a specific operator. Defaults to the system
+    /// program address as a placeholder when not provided.
     #[arg(short, long, env, default_value = "11111111111111111111111111111111")]
     pub operator_address: String,
 
+    /// Solana JSON-RPC endpoint used for all on-chain interactions.
+    ///
+    /// Example: `https://api.mainnet-beta.solana.com`,
+    /// `https://api.devnet.solana.com`, or a local validator URL.
     #[arg(short, long, env, default_value = "http://localhost:8899")]
     pub rpc_url: String,
 
+    /// Path to a Solana validator ledger directory.
+    ///
+    /// Required by snapshot-related subcommands (`snapshot-slot`,
+    /// `generate-meta-merkle`, `await-snapshot`). This should point at the
+    /// validator's `--ledger` directory containing rocksdb and snapshots.
     #[arg(short, long, env)]
     pub ledger_path: Option<PathBuf>,
 
+    /// Directory containing full Solana ledger snapshots
+    /// (`snapshot-<slot>-<hash>.tar.zst`).
+    ///
+    /// Defaults to `--ledger-path` when not provided. Used by
+    /// `snapshot-slot` to locate the base full snapshot to replay from.
     #[arg(short, long, env)]
     pub full_snapshots_path: Option<PathBuf>,
 
+    /// One or more accounts-db directories used during ledger replay.
+    ///
+    /// Pass a comma-separated list to spread accounts across multiple
+    /// disks. When omitted, the ledger directory is used as the single
+    /// accounts path.
     #[arg(long, env)]
     pub account_paths: Option<Vec<PathBuf>>,
 
+    /// Directory where generated snapshots (full + incremental) are written
+    /// and read.
+    ///
+    /// `snapshot-slot` writes new snapshots here, and `generate-meta-merkle`
+    /// expects to find the snapshot for the target slot in this directory.
     #[arg(short, long, env)]
     pub backup_snapshots_dir: Option<PathBuf>,
 
+    /// Solana cluster name passed through to bank loading.
+    ///
+    /// One of: `mainnet`, `devnet`, `testnet`, `development`. Affects
+    /// cluster-specific feature activation during ledger replay.
     #[arg(long, env, default_value = "mainnet")]
     pub cluster: String,
 
+    /// Optional priority fee (in micro-lamports per compute unit) attached
+    /// to outgoing transactions.
+    ///
+    /// When set, a `ComputeBudgetInstruction::SetComputeUnitPrice` is
+    /// prepended to each transaction. Useful for landing transactions
+    /// during periods of congestion.
     #[arg(long, env)]
     pub micro_lamports: Option<u64>,
 
@@ -74,156 +134,404 @@ impl Cli {
 
 #[derive(clap::Subcommand, Clone)]
 pub enum Commands {
+    /// Generate a Solana ledger snapshot for a specific target slot.
+    ///
+    /// Replays the validator bank up to `--slot` and writes a full snapshot
+    /// into `--backup-snapshots-dir`. Requires `--ledger-path` and
+    /// `--full-snapshots-path` (or defaults derived from `--ledger-path`).
     SnapshotSlot {
-        #[arg(long, env)]
+        /// Target slot to snapshot. Must be a slot that has already been
+        /// rooted in the ledger.
+        #[arg(long, env, help = "Target slot to snapshot")]
         slot: u64,
     },
+    /// Build a MetaMerkleSnapshot from an existing full ledger snapshot.
+    ///
+    /// Loads the bank at `--slot` from `--backup-snapshots-dir` and emits a
+    /// compressed `meta_merkle-<slot>.zip` containing the stake-weighted
+    /// merkle tree used for on-chain voting.
     GenerateMetaMerkle {
-        #[arg(long, env)]
+        /// Target slot. A full snapshot for this exact slot must already
+        /// exist in `--backup-snapshots-dir`.
+        #[arg(long, env, help = "Target slot for the MetaMerkleSnapshot")]
         slot: u64,
 
+        /// Directory in which `meta_merkle-<slot>.zip` will be written.
         #[arg(
             long,
             env,
             default_value = "./",
-            help = "Path to save meta merkle tree"
+            help = "Directory to write the compressed MetaMerkleSnapshot to"
         )]
         save_path: PathBuf,
     },
+    /// Print the merkle root, snapshot hash, and a signature over them from a
+    /// MetaMerkleSnapshot file.
+    ///
+    /// Useful for sharing the snapshot identity with other operators before
+    /// voting on-chain. `--authority-path` signs an off-chain message
+    /// containing the snapshot slot and meta merkle root; no on-chain
+    /// transaction is sent.
     LogMetaMerkleHash {
-        #[arg(long, env, help = "Path to read meta merkle tree")]
+        /// Path to a MetaMerkleSnapshot file (compressed `.zip` or raw).
+        #[arg(long, env, help = "Path to the MetaMerkleSnapshot file to read")]
         read_path: PathBuf,
 
-        #[arg(long, default_value = "true")]
+        /// Whether the input file is the compressed `.zip` produced by
+        /// `generate-meta-merkle`.
+        #[arg(
+            long,
+            default_value = "true",
+            help = "Set to true when `--read-path` points to a compressed `.zip`"
+        )]
         is_compressed: bool,
     },
+    /// Wait for a target slot to pass and snapshot it from on-disk snapshots.
+    ///
+    /// Polls `--snapshots-dir` until a full + incremental snapshot pair
+    /// covering `--slot` is available, copies them and the relevant ledger
+    /// range into the backup directories, replays to produce a snapshot at
+    /// `--slot`, and optionally generates the MetaMerkleSnapshot.
     AwaitSnapshot {
-        #[arg(long, help = "Scan interval in minutes")]
+        /// Polling interval, in minutes, between directory scans.
+        #[arg(
+            long,
+            help = "Polling interval (in minutes) between snapshot directory scans"
+        )]
         scan_interval: u64,
 
-        #[arg(long, help = "Target slot to snapshot")]
+        /// Target slot to snapshot once it has been rooted.
+        #[arg(long, help = "Target slot to snapshot once it has been rooted")]
         slot: u64,
 
-        #[arg(long, help = "Directory to scan for snapshots")]
+        /// Directory to scan for live validator snapshots.
+        #[arg(long, help = "Directory to scan for live validator snapshots")]
         snapshots_dir: PathBuf,
 
-        #[arg(long, help = "Directory to copy matching snapshots to")]
+        /// Directory into which the matching full + incremental snapshots
+        /// are copied and the new snapshot at `--slot` is written.
+        #[arg(
+            long,
+            help = "Directory to copy matching snapshots into and write the new snapshot to"
+        )]
         backup_snapshots_dir: PathBuf,
 
-        #[arg(long, help = "Directory to copy ledger range to")]
+        /// Directory into which the relevant ledger range is copied via
+        /// `agave-ledger-tool`.
+        #[arg(
+            long,
+            help = "Directory to copy the ledger range required for replay into"
+        )]
         backup_ledger_dir: PathBuf,
 
-        #[arg(long, help = "Path to agave-ledger-tool binary")]
+        /// Absolute path to the `agave-ledger-tool` binary used to copy the
+        /// ledger range.
+        #[arg(long, help = "Absolute path to the `agave-ledger-tool` binary")]
         agave_ledger_tool_path: PathBuf,
 
-        #[arg(long, help = "Path to live ledger directory (-l)")]
+        /// Path to the live validator ledger directory
+        /// (the same path passed to the validator's `-l`/`--ledger` flag).
+        #[arg(
+            long,
+            help = "Path to the live validator ledger directory (validator's `-l`)"
+        )]
         ledger_path: PathBuf,
 
-        #[arg(long, help = "Generate MetaMerkleSnapshot after snapshot")]
+        /// When set, also generate the MetaMerkleSnapshot after the full
+        /// snapshot at `--slot` has been written.
+        #[arg(
+            long,
+            help = "Also generate the MetaMerkleSnapshot after taking the snapshot"
+        )]
         generate_meta_merkle: bool,
     },
+    /// Initialize the on-chain `ProgramConfig` singleton.
+    ///
+    /// Must be run once per deployment. The signer of `--authority-path`
+    /// becomes the initial program authority and is recorded as
+    /// `ProgramConfig.authority`.
     InitProgramConfig {},
+    /// Add or remove operator pubkeys from the on-chain whitelist.
+    ///
+    /// Only whitelisted operators are allowed to cast votes.
+    /// `--authority-path` must be the current program authority (enforced
+    /// by `has_one = authority` on `ProgramConfig`).
     UpdateOperatorWhitelist {
-        #[arg(short, long, value_delimiter = ',', value_parser = parse_pubkey)]
+        /// Comma-separated operator pubkeys (base58) to add to the whitelist.
+        #[arg(
+            short,
+            long,
+            value_delimiter = ',',
+            value_parser = parse_pubkey,
+            help = "Comma-separated operator pubkeys (base58) to add to the whitelist"
+        )]
         add: Option<Vec<Pubkey>>,
 
-        #[arg(short, long, value_delimiter = ',', value_parser = parse_pubkey)]
+        /// Comma-separated operator pubkeys (base58) to remove from the
+        /// whitelist.
+        #[arg(
+            short,
+            long,
+            value_delimiter = ',',
+            value_parser = parse_pubkey,
+            help = "Comma-separated operator pubkeys (base58) to remove from the whitelist"
+        )]
         remove: Option<Vec<Pubkey>>,
     },
+    /// Update mutable fields on the on-chain `ProgramConfig`.
+    ///
+    /// All arguments are optional; only the provided fields are updated.
+    /// `--authority-path` must be the current program authority (enforced
+    /// by `has_one = authority` on `ProgramConfig`). Updating
+    /// `--proposed-authority` starts a two-step authority handover that
+    /// must be completed via `finalize-proposed-authority`.
     UpdateProgramConfig {
-        #[arg(long, env)]
+        /// Proposed new program authority (base58). Becomes active only
+        /// after `finalize-proposed-authority` is run by this pubkey.
+        #[arg(
+            long,
+            env,
+            help = "Proposed new program authority (base58); activated via `finalize-proposed-authority`"
+        )]
         proposed_authority: Option<Pubkey>,
 
-        #[arg(long)]
+        /// Minimum stake-weighted consensus threshold, expressed in basis
+        /// points (10000 = 100%). Example: `6000` for 60%.
+        #[arg(
+            long,
+            help = "Minimum consensus threshold in basis points (e.g. 6000 for 60%)"
+        )]
         min_consensus_threshold_bps: Option<u16>,
 
-        #[arg(long, value_parser = parse_pubkey)]
+        /// New tie-breaker admin pubkey (base58). This admin can resolve a
+        /// stalled ballot box via `set-tie-breaker`.
+        #[arg(
+            long,
+            value_parser = parse_pubkey,
+            help = "New tie-breaker admin pubkey (base58)"
+        )]
         tie_breaker_admin: Option<Pubkey>,
 
-        #[arg(long)]
+        /// Vote duration in seconds. Operators have this long after a
+        /// ballot box is created to cast votes.
+        #[arg(long, help = "Voting window duration, in seconds")]
         vote_duration: Option<i64>,
     },
+    /// Complete a pending two-step authority handover.
+    ///
+    /// `--authority-path` must be the *proposed* authority previously
+    /// staged via `update-program-config --proposed-authority`; the
+    /// on-chain constraint requires `signer == proposed_authority`. On
+    /// success the signer becomes the active program authority and
+    /// `proposed_authority` is cleared.
     FinalizeProposedAuthority {},
+    /// Finalize the winning ballot for a snapshot slot.
+    ///
+    /// Closes voting for `--snapshot-slot` once consensus has been reached
+    /// (or the vote window has expired with a clear winner) and writes the
+    /// `ConsensusResult` PDA. The on-chain instruction is permissionless,
+    /// so `--authority-path` is used purely as the fee payer for the new
+    /// PDA and does not need to hold any privileged role.
     FinalizeBallot {
-        #[arg(long, help = "Snapshot slot of ballot box")]
+        /// Snapshot slot identifying the ballot box to finalize.
+        #[arg(long, help = "Snapshot slot identifying the ballot box to finalize")]
         snapshot_slot: u64,
     },
+    /// Print the on-chain `BallotBox` for a snapshot slot.
     GetBallot {
-        #[arg(long, help = "Snapshot slot of ballot box")]
+        /// Snapshot slot identifying the ballot box to fetch.
+        #[arg(long, help = "Snapshot slot identifying the ballot box to fetch")]
         snapshot_slot: u64,
     },
+    /// Print the on-chain `ProgramConfig` singleton.
     GetProgramConfig {},
+    /// Print the operator whitelist from `ProgramConfig`.
     GetOperatorWhitelist {},
+    /// Print a single operator's vote within a ballot box.
     GetOperatorVote {
-        #[arg(long, help = "Snapshot slot of ballot box")]
+        /// Snapshot slot identifying the ballot box.
+        #[arg(long, help = "Snapshot slot identifying the ballot box")]
         snapshot_slot: u64,
-        #[arg(long, value_parser = parse_pubkey, help = "Operator pubkey")]
+        /// Operator pubkey (base58) whose vote should be looked up.
+        #[arg(
+            long,
+            value_parser = parse_pubkey,
+            help = "Operator pubkey (base58) whose vote should be looked up"
+        )]
         operator: Pubkey,
     },
+    /// Print the `ConsensusResult` PDA for a snapshot slot.
     GetConsensusResult {
-        #[arg(long, help = "Snapshot slot for consensus result")]
+        /// Snapshot slot identifying the consensus result to fetch.
+        #[arg(long, help = "Snapshot slot identifying the consensus result to fetch")]
         snapshot_slot: u64,
     },
+    /// Print the `MetaMerkleProof` PDA for a vote account.
     GetProof {
-        #[arg(long, help = "Snapshot slot for consensus result")]
+        /// Snapshot slot identifying the consensus result the proof belongs
+        /// to.
+        #[arg(
+            long,
+            help = "Snapshot slot identifying the consensus result the proof belongs to"
+        )]
         snapshot_slot: u64,
-        #[arg(long, value_parser = parse_pubkey, help = "Validator vote account")]
+        /// Validator vote account (base58) whose proof should be fetched.
+        #[arg(
+            long,
+            value_parser = parse_pubkey,
+            help = "Validator vote account (base58) whose proof should be fetched"
+        )]
         vote_account: Pubkey,
     },
+    /// Check whether a ballot box exists for a snapshot slot.
     BallotExists {
-        #[arg(long, help = "Snapshot slot of ballot box")]
+        /// Snapshot slot to check for a `BallotBox` PDA.
+        #[arg(long, help = "Snapshot slot to check for a `BallotBox` PDA")]
         snapshot_slot: u64,
     },
+    /// Print a combined status report: program config, ballot box, and
+    /// consensus result for a snapshot slot.
     Status {
-        #[arg(long, help = "Snapshot slot of ballot box")]
+        /// Snapshot slot to summarize.
+        #[arg(long, help = "Snapshot slot to summarize")]
         snapshot_slot: u64,
     },
+    /// Cast a vote on a ballot box using an explicit root + hash.
+    ///
+    /// Prefer `cast-vote-from-snapshot` when voting from a local snapshot.
+    /// `--authority-path` signs as a whitelisted operator; the handler
+    /// verifies the signer appears in
+    /// `ProgramConfig.whitelisted_operators` before recording the vote in
+    /// the `BallotBox`.
     CastVote {
-        #[arg(long, help = "Snapshot slot of ballot box")]
+        /// Snapshot slot identifying the ballot box to vote in.
+        #[arg(long, help = "Snapshot slot identifying the ballot box to vote in")]
         snapshot_slot: u64,
 
-        #[arg(long, value_parser = parse_base_58_32, help = "Meta merkle tree root, base-58 encoded.")]
+        /// Meta merkle tree root, base-58 encoded (32 bytes).
+        #[arg(
+            long,
+            value_parser = parse_base_58_32,
+            help = "Meta merkle tree root, base-58 encoded (32 bytes)"
+        )]
         root: [u8; 32],
 
-        #[arg(long, value_parser = parse_base_58_32, help = "SHA256 hash of the meta merkle snapshot, base-58 encoded.")]
+        /// SHA-256 hash of the MetaMerkleSnapshot file, base-58 encoded
+        /// (32 bytes).
+        #[arg(
+            long,
+            value_parser = parse_base_58_32,
+            help = "SHA-256 hash of the MetaMerkleSnapshot file, base-58 encoded (32 bytes)"
+        )]
         hash: [u8; 32],
     },
+    /// Cast a vote on a ballot box using a local MetaMerkleSnapshot file.
+    ///
+    /// Reads the root and computes the snapshot hash from `--read-path`,
+    /// then submits the vote. `--authority-path` signs as a whitelisted
+    /// operator; the handler verifies the signer appears in
+    /// `ProgramConfig.whitelisted_operators` before recording the vote in
+    /// the `BallotBox`.
     CastVoteFromSnapshot {
-        #[arg(long, help = "Snapshot slot of ballot box")]
+        /// Snapshot slot identifying the ballot box to vote in.
+        #[arg(long, help = "Snapshot slot identifying the ballot box to vote in")]
         snapshot_slot: u64,
 
-        #[arg(long, env, help = "Path to read meta merkle tree")]
+        /// Path to a MetaMerkleSnapshot file (compressed `.zip` or raw)
+        /// produced by `generate-meta-merkle`.
+        #[arg(long, env, help = "Path to the MetaMerkleSnapshot file to vote with")]
         read_path: PathBuf,
 
-        #[arg(long, default_value = "true")]
+        /// Whether the input file is the compressed `.zip` produced by
+        /// `generate-meta-merkle`.
+        #[arg(
+            long,
+            default_value = "true",
+            help = "Set to true when `--read-path` points to a compressed `.zip`"
+        )]
         is_compressed: bool,
     },
+    /// Remove the caller's vote from a ballot box.
+    ///
+    /// Only permitted before consensus is reached and before the vote
+    /// window expires. `--authority-path` must be the operator that
+    /// originally cast the vote; the handler removes only that signer's
+    /// tally entry.
     RemoveVote {
-        #[arg(long, help = "Snapshot slot of ballot box")]
+        /// Snapshot slot identifying the ballot box to remove the vote from.
+        #[arg(
+            long,
+            help = "Snapshot slot identifying the ballot box to remove the vote from"
+        )]
         snapshot_slot: u64,
     },
+    /// Resolve a stalled ballot by writing an explicit winning ballot.
+    ///
+    /// The provided `--root` / `--hash` are not required to match any cast
+    /// ballot. `--authority-path` must be the tie-breaker admin recorded
+    /// in `ProgramConfig` (enforced by `has_one = tie_breaker_admin`).
     SetTieBreaker {
-        #[arg(long, help = "Snapshot slot of ballot box")]
+        /// Snapshot slot identifying the ballot box to tie-break.
+        #[arg(long, help = "Snapshot slot identifying the ballot box to tie-break")]
         snapshot_slot: u64,
 
-        #[arg(long, value_parser = parse_base_58_32, help = "Meta merkle tree root, base-58 encoded.")]
+        /// Meta merkle tree root, base-58 encoded (32 bytes).
+        #[arg(
+            long,
+            value_parser = parse_base_58_32,
+            help = "Tie-breaking meta merkle tree root, base-58 encoded (32 bytes)"
+        )]
         root: [u8; 32],
 
-        #[arg(long, value_parser = parse_base_58_32, help = "SHA256 hash of the meta merkle snapshot, base-58 encoded.")]
+        /// SHA-256 hash of the corresponding MetaMerkleSnapshot, base-58
+        /// encoded (32 bytes).
+        #[arg(
+            long,
+            value_parser = parse_base_58_32,
+            help = "Tie-breaking snapshot hash (SHA-256), base-58 encoded (32 bytes)"
+        )]
         hash: [u8; 32],
     },
+    /// Reset a bricked ballot box.
+    ///
+    /// Permitted only when the ballot box's vote window has not yet
+    /// expired, consensus has not been reached, and ballot tallies are at
+    /// their maximum capacity. Clears tallies so voting can restart.
+    /// `--authority-path` must be the tie-breaker admin recorded in
+    /// `ProgramConfig` (enforced by `has_one = tie_breaker_admin`).
     ResetBallotBox {
-        #[arg(long, help = "Snapshot slot of ballot box")]
+        /// Snapshot slot identifying the ballot box to reset.
+        #[arg(long, help = "Snapshot slot identifying the ballot box to reset")]
         snapshot_slot: u64,
     },
+    /// Dump the raw `Debug` representation of an on-chain account.
+    ///
+    /// Selects the account type via `--ty`; some types require additional
+    /// arguments such as `--snapshot-slot` and/or `--vote-account`.
     Log {
-        #[arg(long, help = "Snapshot slot of ballot box or consensus result")]
+        /// Snapshot slot identifying the ballot box, consensus result, or
+        /// proof to fetch. Required for every `--ty` except
+        /// `program-config`.
+        #[arg(
+            long,
+            help = "Snapshot slot of the ballot box, consensus result, or proof (required for all `--ty` except `program-config`)"
+        )]
         snapshot_slot: Option<u64>,
 
-        #[arg(long, value_parser = parse_pubkey)]
+        /// Validator vote account (base58). Required when `--ty proof`.
+        #[arg(
+            long,
+            value_parser = parse_pubkey,
+            help = "Validator vote account (base58); required when `--ty proof`"
+        )]
         vote_account: Option<Pubkey>,
 
-        #[arg(long, value_parser = parse_log_type, help = "Account type: program-config | ballot-box | consensus-result | proof")]
+        /// Account type to dump.
+        #[arg(
+            long,
+            value_parser = parse_log_type,
+            help = "Account type to dump: `program-config` | `ballot-box` | `consensus-result` | `proof`"
+        )]
         ty: LogType,
     },
 }
