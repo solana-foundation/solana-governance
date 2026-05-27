@@ -554,7 +554,12 @@ fn main() -> Result<()> {
         client.program(ncn_snapshot::id()).unwrap()
     }
 
-    fn cast_vote_shared(cli: Cli, snapshot_slot: u64, root: [u8; 32], hash: [u8; 32]) -> Result<()> {
+    fn cast_vote_shared(
+        cli: Cli,
+        snapshot_slot: u64,
+        root: [u8; 32],
+        hash: [u8; 32],
+    ) -> Result<()> {
         let payer = read_signer_keypair(&cli.payer_path, "--payer-path")
             .context("loading payer keypair")?;
         let authority = read_signer_keypair(&cli.authority_path, "--authority-path")
@@ -578,7 +583,10 @@ fn main() -> Result<()> {
         )?;
         info!("Transaction sent: {}", tx);
 
-        info!("== Voted For Ballot Box (snapshot_slot: {}) ==", snapshot_slot);
+        info!(
+            "== Voted For Ballot Box (snapshot_slot: {}) ==",
+            snapshot_slot
+        );
         info!("Merkle Root: {}", bs58::encode(root).into_string());
         info!("Snapshot Hash: {}", bs58::encode(hash).into_string());
 
@@ -616,18 +624,30 @@ fn main() -> Result<()> {
         println!("  Snapshot Slot: {}", ballot_box.snapshot_slot);
         println!("  Epoch: {}", ballot_box.epoch);
         println!("  Slot Created: {}", ballot_box.slot_created);
-        println!("  Slot Consensus Reached: {}", ballot_box.slot_consensus_reached);
+        println!(
+            "  Slot Consensus Reached: {}",
+            ballot_box.slot_consensus_reached
+        );
         println!(
             "  Min Consensus Threshold (bps): {}",
             ballot_box.min_consensus_threshold_bps
         );
-        println!("  Vote Expiry Timestamp: {}", ballot_box.vote_expiry_timestamp);
+        println!(
+            "  Vote Expiry Timestamp: {}",
+            ballot_box.vote_expiry_timestamp
+        );
         println!(
             "  Tie Breaker Consensus: {}",
             ballot_box.tie_breaker_consensus
         );
-        println!("  Total Operator Votes: {}", ballot_box.operator_votes.len());
-        println!("  Total Ballot Tallies: {}", ballot_box.ballot_tallies.len());
+        println!(
+            "  Total Operator Votes: {}",
+            ballot_box.operator_votes.len()
+        );
+        println!(
+            "  Total Ballot Tallies: {}",
+            ballot_box.ballot_tallies.len()
+        );
 
         let (winning_root, winning_hash) = format_ballot(&ballot_box.winning_ballot);
         println!("Winning Ballot");
@@ -675,18 +695,25 @@ fn main() -> Result<()> {
                     println!("{:?}", data);
                 }
                 LogType::BallotBox => {
-                    let data: BallotBox =
-                        program.account(BallotBox::pda(snapshot_slot.expect("Missing --snapshot-slot argument")).0)?;
+                    let data: BallotBox = program.account(
+                        BallotBox::pda(snapshot_slot.expect("Missing --snapshot-slot argument")).0,
+                    )?;
                     println!("{:?}", data);
                 }
                 LogType::ConsensusResult => {
-                    let data: ConsensusResult = program
-                        .account(ConsensusResult::pda(snapshot_slot.expect("Missing --snapshot-slot argument")).0)?;
+                    let data: ConsensusResult = program.account(
+                        ConsensusResult::pda(
+                            snapshot_slot.expect("Missing --snapshot-slot argument"),
+                        )
+                        .0,
+                    )?;
                     println!("{:?}", data);
                 }
                 LogType::MetaMerkleProof => {
-                    let consensus_result_pda =
-                        ConsensusResult::pda(snapshot_slot.expect("Missing --snapshot-slot argument")).0;
+                    let consensus_result_pda = ConsensusResult::pda(
+                        snapshot_slot.expect("Missing --snapshot-slot argument"),
+                    )
+                    .0;
                     let data: MetaMerkleProof = program.account(
                         MetaMerkleProof::pda(
                             &consensus_result_pda,
@@ -781,7 +808,11 @@ fn main() -> Result<()> {
             let tx = send_finalize_proposed_authority(tx_sender)?;
             info!("Transaction sent: {}", tx);
         }
-        Commands::CastVote { snapshot_slot, root, hash } => cast_vote_shared(cli, snapshot_slot, root, hash)?,
+        Commands::CastVote {
+            snapshot_slot,
+            root,
+            hash,
+        } => cast_vote_shared(cli, snapshot_slot, root, hash)?,
         Commands::CastVoteFromSnapshot {
             snapshot_slot,
             ref read_path,
@@ -813,7 +844,11 @@ fn main() -> Result<()> {
             let tx = send_remove_vote(tx_sender, ballot_box_pda)?;
             info!("Transaction sent: {}", tx);
         }
-        Commands::SetTieBreaker { snapshot_slot, root, hash } => {
+        Commands::SetTieBreaker {
+            snapshot_slot,
+            root,
+            hash,
+        } => {
             info!("SetTieBreaker...");
 
             let payer = read_signer_keypair(&cli.payer_path, "--payer-path")
@@ -1008,7 +1043,10 @@ fn main() -> Result<()> {
                     println!("Consensus Result");
                     println!("  PDA: {}", consensus_pda);
                     println!("  Exists: true");
-                    println!("  Tie Breaker Consensus: {}", consensus.tie_breaker_consensus);
+                    println!(
+                        "  Tie Breaker Consensus: {}",
+                        consensus.tie_breaker_consensus
+                    );
                     println!("  Meta Merkle Root (base58): {}", root);
                     println!("  Snapshot Hash (base58): {}", hash);
                 }
