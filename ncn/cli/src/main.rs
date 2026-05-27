@@ -865,7 +865,7 @@ fn main() -> Result<()> {
 
                 if !exists_ge {
                     info!(
-                        "Target slot {} not yet passed; sleeping for {} minutes...",
+                        "Incremental snapshot for target slot {} not yet found; sleeping for {} minutes...",
                         slot, scan_interval
                     );
                     thread::sleep(sleep_duration);
