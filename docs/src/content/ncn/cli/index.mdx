@@ -105,6 +105,10 @@ ncn-cli \
 | `--slot <u64>` | Yes | — | Target slot |
 | `--save-path <PATH>` | No | `./` | Directory to save the output file |
 
+> **Full-snapshot lookup**
+>
+> `generate-meta-merkle` locates the full-snapshot tarball (`snapshot-<slot>-*.tar.zst`) via `--backup-snapshots-dir`, **not** `--full-snapshots-path` (which is not consumed by this subcommand). If the full snapshot isn't found under `--backup-snapshots-dir`, generation fails with `Missing snapshot at slot <X>` — point `--backup-snapshots-dir` at the directory holding your `snapshot-<slot>-*.tar.zst`.
+
 ---
 
 ### `log-meta-merkle-hash`
