@@ -83,6 +83,29 @@ pub enum SquadsError {
         /// Human-readable failure reason.
         reason: String,
     },
+
+    /// Submitting (and confirming) a transaction failed. The `reason` preserves the
+    /// underlying RPC error as a string so callers can inspect it (e.g. the router
+    /// checks for an "already in use" account-collision substring) without pinning a
+    /// specific `solana-rpc-client` error type into this crate's public API.
+    #[error("failed to send transaction: {reason}")]
+    SendTransaction {
+        /// String form of the underlying send/confirm error.
+        reason: String,
+    },
+
+    /// The router could not claim a free transaction index for the multisig because a
+    /// concurrent proposal repeatedly grabbed the same index first.
+    #[error(
+        "transaction index race: could not claim a free transaction index for multisig \
+         {multisig} after {attempts} attempt(s)"
+    )]
+    TransactionIndexRace {
+        /// The multisig whose transaction index kept colliding.
+        multisig: Pubkey,
+        /// Number of attempts made before giving up.
+        attempts: u8,
+    },
 }
 
 impl From<MessageCompileError> for SquadsError {

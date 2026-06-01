@@ -15,18 +15,32 @@ path = "src/lib.rs"
 
 [features]
 default = ["rpc"]
-# Enables `SquadsMultisigClient`, an async wrapper that fetches `Multisig` account
-# state via `solana_rpc_client::nonblocking::rpc_client::RpcClient`. Disable this
-# feature if you want to bring your own RPC stack (e.g. a Jito fork) and only use
-# the lower-level `SquadsClient` instruction builder.
-rpc = ["dep:solana-rpc-client"]
+# Enables `SquadsMultisigClient` (an async wrapper that fetches `Multisig` account
+# state via `solana_rpc_client::nonblocking::rpc_client::RpcClient`) and the
+# `router` module (direct-vs-vault transaction routing). Disable this feature if
+# you want to bring your own RPC stack (e.g. a Jito fork) and only use the
+# lower-level `SquadsClient` instruction builder.
+rpc = [
+    "dep:solana-rpc-client",
+    "dep:solana-transaction",
+    "dep:solana-keypair",
+    "dep:solana-signer",
+    "dep:solana-signature",
+    "dep:async-trait",
+]
 
 [dependencies]
 borsh = { version = "1.5", features = ["derive"] }
 sha2 = "0.10"
 solana-program = { version = ">=1.18, <3", features = ["borsh"] }
 solana-rpc-client = { version = ">=2.1, <3", optional = true }
+solana-transaction = { version = ">=2.1, <3", features = ["bincode"], optional = true }
+solana-keypair = { version = ">=2.1, <3", optional = true }
+solana-signer = { version = ">=2.1, <3", optional = true }
+solana-signature = { version = ">=2.1, <3", optional = true }
+async-trait = { version = "0.1", optional = true }
 thiserror = "1"
 
 [dev-dependencies]
 rand = "0.8"
+tokio = { version = "1", features = ["macros", "rt"] }

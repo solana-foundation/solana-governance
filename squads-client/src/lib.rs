@@ -9,6 +9,8 @@ pub mod id;
 pub mod instructions;
 pub mod message;
 pub mod pda;
+#[cfg(feature = "rpc")]
+pub mod router;
 pub mod small_vec;
 pub mod state;
 
@@ -23,6 +25,8 @@ pub use instructions::{
     ProposalCreateArgs, ProposalVoteArgs, VaultTransactionCreateAccounts,
     VaultTransactionCreateArgs,
 };
+#[cfg(feature = "rpc")]
+pub use router::{route_or_send, RoutedOutcome, RouterRpc, SquadsRoutingConfig};
 pub use message::{
     try_compile, CompiledInstruction, MessageAddressTableLookup, MessageCompileError,
     TransactionMessage,
