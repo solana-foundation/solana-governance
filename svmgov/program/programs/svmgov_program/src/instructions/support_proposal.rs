@@ -5,6 +5,7 @@ use anchor_lang::{
         vote::{program as vote_program, state::VoteState},
     },
 };
+use solana_vote_interface::state::VoteStateVersions;
 
 use crate::{
     constants::ANCHOR_DISCRIMINATOR,
@@ -76,6 +77,25 @@ impl<'info> SupportProposal<'info> {
             clock.epoch == self.proposal.creation_epoch + self.global_config.max_support_epochs,
             GovernanceError::NotInSupportPeriod
         );
+
+        // Ensure signer is the node identity (withdraw authority equivalent) of
+        // the vote account, so a supporter can only pledge stake they control.
+        let vote_account_data = self.spl_vote_account.data.borrow();
+        let versioned = VoteStateVersions::deserialize(&vote_account_data)
+            .map_err(|_| GovernanceError::InvalidVoteAccount)?;
+        let node_pubkey_bytes: [u8; 32] = match &versioned {
+            VoteStateVersions::V3(v) => v.node_pubkey.to_bytes(),
+            VoteStateVersions::V4(v) => v.node_pubkey.to_bytes(),
+            VoteStateVersions::V1_14_11(v) => v.node_pubkey.to_bytes(),
+            VoteStateVersions::Uninitialized => {
+                return Err(GovernanceError::InvalidVoteAccount.into())
+            }
+        };
+        require!(
+            node_pubkey_bytes == self.signer.key().to_bytes(),
+            GovernanceError::InvalidVoteAccount
+        );
+        drop(vote_account_data);
 
         // assuming this returns in lamports
         let supporter_stake = get_epoch_stake_for_vote_account(self.spl_vote_account.key);
