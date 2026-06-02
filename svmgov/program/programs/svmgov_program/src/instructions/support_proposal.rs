@@ -78,22 +78,22 @@ impl<'info> SupportProposal<'info> {
             GovernanceError::NotInSupportPeriod
         );
 
-        // Ensure signer is the node identity (withdraw authority equivalent) of
-        // the vote account, so a supporter can only pledge stake they control.
+        // Ensure signer is the node identity of the vote account, so a supporter
+        // can only pledge stake from a vote account they operate.
         let vote_account_data = self.spl_vote_account.data.borrow();
         let versioned = VoteStateVersions::deserialize(&vote_account_data)
-            .map_err(|_| GovernanceError::InvalidVoteAccount)?;
+            .map_err(|_| GovernanceError::FailedDeserializeNodePubkey)?;
         let node_pubkey_bytes: [u8; 32] = match &versioned {
             VoteStateVersions::V3(v) => v.node_pubkey.to_bytes(),
             VoteStateVersions::V4(v) => v.node_pubkey.to_bytes(),
             VoteStateVersions::V1_14_11(v) => v.node_pubkey.to_bytes(),
             VoteStateVersions::Uninitialized => {
-                return Err(GovernanceError::InvalidVoteAccount.into())
+                return Err(GovernanceError::InvalidVoteAccountVersion.into())
             }
         };
         require!(
             node_pubkey_bytes == self.signer.key().to_bytes(),
-            GovernanceError::InvalidVoteAccount
+            GovernanceError::VoteNodePubkeyMismatch
         );
         drop(vote_account_data);
 
