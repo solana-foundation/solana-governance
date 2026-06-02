@@ -29,7 +29,10 @@ pub struct SupportProposal<'info> {
         bump
     )]
     pub support: Account<'info, Support>, // New support account
-    /// CHECK: Vote account is too big to deserialize, so we check on owner and size, then compare node_pubkey with signer
+    /// CHECK: Owner == vote program and account size == VoteState::size_of() are
+    /// enforced here; the handler then deserializes VoteStateVersions and requires
+    /// node_pubkey == signer, so a supporter can only pledge stake from a vote
+    /// account they operate.
     #[account(
         constraint = spl_vote_account.owner == &vote_program::ID @ ProgramError::InvalidAccountOwner,
         constraint = spl_vote_account.data_len() == VoteState::size_of() @ GovernanceError::InvalidVoteAccountSize

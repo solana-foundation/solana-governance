@@ -28,7 +28,11 @@ pub struct ModifyVoteOverride<'info> {
         bump,
     )]
     pub validator_vote: UncheckedAccount<'info>, // Validator's existing vote
-    /// CHECK: Vote account is too big to deserialize, so we check on owner and size, then compare node_pubkey with signer
+    /// CHECK: Owner == vote program and account size == VoteState::size_of() are
+    /// enforced here. The signer here is the delegator (not the validator); the
+    /// handler proves stake_merkle_leaf.voting_wallet == signer and binds the
+    /// stake leaf to this vote account via the two-tier merkle proof
+    /// (stake_merkle_root nested inside meta_merkle_leaf).
     #[account(
         constraint = spl_vote_account.owner == &vote_program::ID @ ProgramError::InvalidAccountOwner,
         constraint = spl_vote_account.data_len() == VoteState::size_of() @ GovernanceError::InvalidVoteAccountSize

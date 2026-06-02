@@ -15,7 +15,12 @@ pub struct FlushMerkleRoot<'info> {
         constraint = !proposal.finalized @ GovernanceError::ProposalFinalized,
     )]
     pub proposal: Account<'info, Proposal>,
-    /// CHECK: Vote account is too big to deserialize, so we check on owner and size
+    /// CHECK: Owner == vote program is enforced here. Signer-to-vote-account
+    /// binding is transitive: signer must equal proposal.author (constrained above),
+    /// and the author already proved node_pubkey ownership of
+    /// proposal.vote_account_pubkey at create_proposal time. If the caller passes
+    /// a different spl_vote_account, the init_ballot_box CPI's PDA seed check
+    /// rejects it.
     #[account(
         constraint = spl_vote_account.owner == &vote::program::ID @ ProgramError::InvalidAccountOwner,
     )]

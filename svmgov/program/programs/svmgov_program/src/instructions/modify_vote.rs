@@ -24,7 +24,10 @@ pub struct ModifyVote<'info> {
         bump = vote.bump,
     )]
     pub vote: Account<'info, Vote>, // Existing vote to modify
-    /// CHECK: Vote account is too big to deserialize, so we check on owner and size, then compare node_pubkey with signer
+    /// CHECK: Owner == vote program and account size == VoteState::size_of() are
+    /// enforced here. The signer-to-vote-account binding is proved in the handler
+    /// via the meta merkle proof: voting_wallet == signer AND vote_account ==
+    /// spl_vote_account, both anchored to proposal.consensus_result.
     #[account(
         constraint = spl_vote_account.owner == &vote_program::ID @ ProgramError::InvalidAccountOwner,
         constraint = spl_vote_account.data_len() == VoteState::size_of() @ GovernanceError::InvalidVoteAccountSize
