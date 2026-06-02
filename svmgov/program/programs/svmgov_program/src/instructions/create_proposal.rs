@@ -37,7 +37,9 @@ pub struct CreateProposal<'info> {
         bump = proposal_index.bump
     )]
     pub proposal_index: Account<'info, ProposalIndex>,
-    /// CHECK: Vote account is too big to deserialize, so we check on owner and size, then compare node_pubkey with signer
+    /// CHECK: Owner == vote program and account size == VoteState::size_of() are
+    /// enforced here; the handler then deserializes VoteStateVersions and requires
+    /// node_pubkey == signer, proving the signer operates this vote account.
     #[account(
         constraint = spl_vote_account.owner == &vote_program::ID @ ProgramError::InvalidAccountOwner,
         constraint = spl_vote_account.data_len() == VoteState::size_of() @ GovernanceError::InvalidVoteAccountSize
