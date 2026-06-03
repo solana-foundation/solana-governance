@@ -2956,12 +2956,18 @@ dependencies = [
 name = "squads-client"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "borsh 1.6.1",
  "rand 0.8.6",
  "sha2 0.10.9",
+ "solana-keypair",
  "solana-program",
  "solana-rpc-client",
+ "solana-signature",
+ "solana-signer",
+ "solana-transaction",
  "thiserror 1.0.69",
+ "tokio",
 ]
 
 [[package]]

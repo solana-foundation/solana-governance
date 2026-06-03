@@ -10,13 +10,19 @@ use anchor_client::{
     },
     ClientError, Program,
 };
+use anyhow::{anyhow, Result};
 use ncn_snapshot::{accounts, instruction, Ballot, MetaMerkleLeaf, ProgramConfig, StakeMerkleLeaf};
+
+use crate::utils::squads::{effective_signer, route_via_squads, RoutedOutcome, SquadsRoutingConfig};
 
 pub struct TxSender<'a> {
     pub program: &'a Program<&'a Keypair>,
     pub micro_lamports: Option<u64>,
     pub payer: &'a Keypair,
     pub authority: &'a Keypair,
+    /// When set, transaction-creating commands are routed through this Squads multisig
+    /// vault instead of being signed and sent locally.
+    pub squads: Option<SquadsRoutingConfig>,
 }
 
 impl<'a> TxSender<'a> {
@@ -35,6 +41,33 @@ impl<'a> TxSender<'a> {
         signers: &[&Keypair],
     ) -> Result<Signature, ClientError> {
         send_with_anchor(ixs, self.micro_lamports, signers, self.program)
+    }
+
+    /// Routes `ixs` either directly (local sign + send, preserving the historical
+    /// behavior) or through the configured Squads multisig vault.
+    ///
+    /// The caller is responsible for refusing `--squads` for commands whose on-chain
+    /// signer-identity check cannot be satisfied by a vault PDA; that gate lives in
+    /// `main.rs` (`squads_refusal_for`) and runs before any handler is invoked.
+    pub fn route(
+        &self,
+        ixs: Vec<Instruction>,
+        direct_signers: &[&Keypair],
+    ) -> Result<RoutedOutcome> {
+        match self.squads.as_ref() {
+            None => {
+                let signature =
+                    send_with_anchor(ixs, self.micro_lamports, direct_signers, self.program)
+                        .map_err(|err| anyhow!(err.to_string()))?;
+                Ok(RoutedOutcome::Direct {
+                    signature,
+                    slot: None,
+                })
+            }
+            Some(config) => {
+                route_via_squads(self.program, ixs, self.payer, config)
+            }
+        }
     }
 }
 
@@ -62,32 +95,37 @@ fn send_with_anchor(
         .map_err(ClientError::SolanaClientError)
 }
 
-pub fn send_init_program_config(tx_sender: &TxSender) -> Result<Signature, ClientError> {
+pub fn send_init_program_config(tx_sender: &TxSender) -> Result<RoutedOutcome> {
+    let authority = effective_signer(tx_sender.squads.as_ref(), tx_sender.authority.pubkey());
     let ixs = tx_sender
         .program
         .request()
         .accounts(accounts::InitProgramConfig {
             payer: tx_sender.program.payer(),
-            authority: tx_sender.authority.pubkey(),
+            authority,
             program_config: ProgramConfig::pda().0,
             system_program: system_program::ID,
         })
         .args(instruction::InitProgramConfig {})
         .instructions()?;
 
-    tx_sender.send(ixs)
+    tx_sender.route(
+        ixs,
+        &[tx_sender.payer, tx_sender.authority],
+    )
 }
 
 pub fn send_update_operator_whitelist(
     tx_sender: &TxSender,
     operators_to_add: Option<Vec<Pubkey>>,
     operators_to_remove: Option<Vec<Pubkey>>,
-) -> Result<Signature, ClientError> {
+) -> Result<RoutedOutcome> {
+    let authority = effective_signer(tx_sender.squads.as_ref(), tx_sender.authority.pubkey());
     let ixs = tx_sender
         .program
         .request()
         .accounts(accounts::UpdateOperatorWhitelist {
-            authority: tx_sender.authority.pubkey(),
+            authority,
             program_config: ProgramConfig::pda().0,
         })
         .args(instruction::UpdateOperatorWhitelist {
@@ -96,7 +134,10 @@ pub fn send_update_operator_whitelist(
         })
         .instructions()?;
 
-    tx_sender.send(ixs)
+    tx_sender.route(
+        ixs,
+        &[tx_sender.payer, tx_sender.authority],
+    )
 }
 
 pub fn send_update_program_config(
@@ -105,10 +146,10 @@ pub fn send_update_program_config(
     min_consensus_threshold_bps: Option<u16>,
     tie_breaker_admin: Option<Pubkey>,
     vote_duration: Option<i64>,
-) -> Result<Signature, ClientError> {
-    let signers = vec![tx_sender.payer, tx_sender.authority];
+) -> Result<RoutedOutcome> {
+    let authority = effective_signer(tx_sender.squads.as_ref(), tx_sender.authority.pubkey());
     let accounts = accounts::UpdateProgramConfig {
-        authority: tx_sender.authority.pubkey(),
+        authority,
         program_config: ProgramConfig::pda().0,
     };
 
@@ -124,7 +165,10 @@ pub fn send_update_program_config(
         })
         .instructions()?;
 
-    tx_sender.send_with_signers(ixs, &signers)
+    tx_sender.route(
+        ixs,
+        &[tx_sender.payer, tx_sender.authority],
+    )
 }
 
 pub fn send_cast_vote(
@@ -241,37 +285,47 @@ pub fn send_set_tie_breaker(
     tx_sender: &TxSender,
     ballot_box: Pubkey,
     ballot: Ballot,
-) -> Result<Signature, ClientError> {
+) -> Result<RoutedOutcome> {
+    let tie_breaker_admin =
+        effective_signer(tx_sender.squads.as_ref(), tx_sender.authority.pubkey());
     let ixs = tx_sender
         .program
         .request()
         .accounts(accounts::SetTieBreaker {
-            tie_breaker_admin: tx_sender.authority.pubkey(),
+            tie_breaker_admin,
             ballot_box,
             program_config: ProgramConfig::pda().0,
         })
         .args(instruction::SetTieBreaker { ballot })
         .instructions()?;
 
-    tx_sender.send(ixs)
+    tx_sender.route(
+        ixs,
+        &[tx_sender.payer, tx_sender.authority],
+    )
 }
 
 pub fn send_reset_ballot_box(
     tx_sender: &TxSender,
     ballot_box: Pubkey,
-) -> Result<Signature, ClientError> {
+) -> Result<RoutedOutcome> {
+    let tie_breaker_admin =
+        effective_signer(tx_sender.squads.as_ref(), tx_sender.authority.pubkey());
     let ixs = tx_sender
         .program
         .request()
         .accounts(accounts::ResetBallotBox {
-            tie_breaker_admin: tx_sender.authority.pubkey(),
+            tie_breaker_admin,
             ballot_box,
             program_config: ProgramConfig::pda().0,
         })
         .args(instruction::ResetBallotBox {})
         .instructions()?;
 
-    tx_sender.send(ixs)
+    tx_sender.route(
+        ixs,
+        &[tx_sender.payer, tx_sender.authority],
+    )
 }
 
 pub fn send_init_meta_merkle_proof(
@@ -342,16 +396,20 @@ pub fn send_close_meta_merkle_proof(
     tx_sender.send(ixs)
 }
 
-pub fn send_finalize_proposed_authority(tx_sender: &TxSender) -> Result<Signature, ClientError> {
+pub fn send_finalize_proposed_authority(tx_sender: &TxSender) -> Result<RoutedOutcome> {
+    let authority = effective_signer(tx_sender.squads.as_ref(), tx_sender.authority.pubkey());
     let ixs = tx_sender
         .program
         .request()
         .accounts(accounts::FinalizeProposedAuthority {
-            authority: tx_sender.authority.pubkey(),
+            authority,
             program_config: ProgramConfig::pda().0,
         })
         .args(instruction::FinalizeProposedAuthority {})
         .instructions()?;
 
-    tx_sender.send(ixs)
+    tx_sender.route(
+        ixs,
+        &[tx_sender.payer, tx_sender.authority],
+    )
 }
