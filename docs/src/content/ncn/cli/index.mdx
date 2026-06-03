@@ -65,12 +65,13 @@ These options are available on all commands:
 
 ### `snapshot-slot`
 
-Generates and saves a Solana ledger snapshot for a specific slot.
+Generates and saves an exact-slot Solana ledger snapshot. It loads the most recent full snapshot at or before the target and **replays the ledger forward** to the target slot, then writes a fresh exact-slot snapshot. Use this for normal snapshot generation, and as the recovery path when `await-snapshot` cannot find an incremental snapshot covering the target slot (see note below). Unlike `generate-meta-merkle` — which is strict and requires an exact-slot snapshot to already exist — `snapshot-slot` creates one.
 
 ```bash
 ncn-cli \
   --ledger-path /mnt/ledger \
   --full-snapshots-path /mnt/ledger/full-snapshots \
+  --account-paths /mnt/accounts \
   --backup-snapshots-dir /mnt/ledger/backup-snapshots \
   snapshot-slot --slot <SLOT>
 ```
@@ -79,10 +80,26 @@ ncn-cli \
 |---|---|---|
 | `--slot <u64>` | Yes | Target slot to snapshot |
 
-> **Snapshot path flags**
+> **Path flags** (global options, given before the subcommand)
 >
+> - `--ledger-path`: Path to the live Solana ledger.
 > - `--full-snapshots-path`: Where the CLI reads *full* snapshots from.
-> - `--backup-snapshots-dir`: Where snapshot artifacts are copied/saved for backup.
+> - `--account-paths`: Accounts database path(s).
+> - `--backup-snapshots-dir`: Where the resulting snapshot artifacts are written.
+
+> **When to use this: `await-snapshot` is waiting forever**
+>
+> `await-snapshot` does not wait for the slot itself — it waits for an *incremental snapshot whose range covers the target slot* to appear (the `exists_ge` check in the polling loop). If snapshot retention is too narrow, the target can fall into a coverage gap where no retained incremental ends at or before it, and the poll never completes.
+>
+> Recovery: stop the validator (bank load is memory-heavy), then run `snapshot-slot` to replay-build the exact-slot snapshot, and point `generate-meta-merkle` at the same `--backup-snapshots-dir`. Run inside `tmux`/`screen` — a large replay can take hours. The target slot's blocks must still be in the blockstore (not evicted by `--limit-ledger-size`); the tool logs whether the desired slot is present.
+
+> **Determinism**
+>
+> Solana bank state at a given slot is path-independent: replaying forward from an older full snapshot reaches the same state as capturing near the target, so the recovered snapshot produces the same MetaMerkle root and snapshot hash as the rest of the cohort. Confirm with `log-meta-merkle-hash` before uploading or voting.
+
+> **Prevention**
+>
+> Retain enough incrementals that any target slot has one terminating at or before it. A working baseline: full retention `2` / full interval `100000` / incremental retention `30` / incremental interval `2500` — roughly 75,000 slots of incremental coverage, which keeps `await-snapshot` on its happy path.
 
 ---
 
@@ -104,6 +121,10 @@ ncn-cli \
 |---|---|---|---|
 | `--slot <u64>` | Yes | — | Target slot |
 | `--save-path <PATH>` | No | `./` | Directory to save the output file |
+
+> **Full-snapshot lookup**
+>
+> `generate-meta-merkle` locates the full-snapshot tarball (`snapshot-<slot>-*.tar.zst`) via `--backup-snapshots-dir`, **not** `--full-snapshots-path` (which is not consumed by this subcommand). If the full snapshot isn't found under `--backup-snapshots-dir`, generation fails with `Missing snapshot at slot <X>` — point `--backup-snapshots-dir` at the directory holding your `snapshot-<slot>-*.tar.zst`.
 
 ---
 
