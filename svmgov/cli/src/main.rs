@@ -4,7 +4,8 @@ mod instructions;
 mod utils;
 
 use anchor_client::anchor_lang::declare_program;
-use anyhow::Result;
+use anchor_client::solana_sdk::pubkey::Pubkey;
+use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand};
 
 use config::Config;
@@ -13,6 +14,7 @@ use utils::{
     commands,
     config_command::{ConfigSubcommand, handle_config_command},
     init,
+    squads::SquadsCliOpts,
     utils::*,
 };
 
@@ -63,6 +65,39 @@ struct Cli {
     )]
     network: Option<String>,
 
+    /// Route the transaction through this Squads multisig instead of signing locally.
+    #[arg(
+        long = "squads",
+        help = "Route the transaction through this Squads multisig (creates a vault transaction + proposal)",
+        global = true
+    )]
+    squads: Option<Pubkey>,
+
+    /// Vault index within the multisig (defaults to 0).
+    #[arg(
+        long = "squads-vault-index",
+        help = "Vault index within the Squads multisig",
+        default_value_t = 0,
+        global = true
+    )]
+    squads_vault_index: u8,
+
+    /// Optional memo attached to the created vault transaction.
+    #[arg(
+        long = "squads-memo",
+        help = "Optional memo attached to the Squads vault transaction",
+        global = true
+    )]
+    squads_memo: Option<String>,
+
+    /// Optional non-canonical Squads program ID.
+    #[arg(
+        long = "squads-program-id",
+        help = "Override the Squads program ID (for non-canonical deployments)",
+        global = true
+    )]
+    squads_program_id: Option<Pubkey>,
+
     /// Subcommands for the CLI
     #[command(subcommand)]
     command: Commands,
@@ -91,7 +126,6 @@ enum Commands {
         /// GitHub link for the proposal description.
         #[arg(long, help = "GitHub link for the proposal description")]
         description: String,
-
     },
 
     #[command(
@@ -105,7 +139,6 @@ enum Commands {
     SupportProposal {
         #[arg(long, help = "Proposal ID")]
         proposal_id: String,
-
     },
 
     #[command(
@@ -137,7 +170,6 @@ enum Commands {
         /// Basis points for 'Abstain' vote.
         #[arg(long, help = "Basis points for 'Abstain'")]
         abstain_votes: u64,
-
     },
 
     #[command(
@@ -164,7 +196,6 @@ enum Commands {
         /// Basis points for 'Abstain' vote.
         #[arg(long, help = "Basis points for 'Abstain'")]
         abstain_votes: u64,
-
     },
 
     #[command(
@@ -465,8 +496,66 @@ fn merge_cli_with_config(cli: Cli, config: &Config) -> Cli {
         keypair,
         rpc_url,
         network,
+        squads: cli.squads,
+        squads_vault_index: cli.squads_vault_index,
+        squads_memo: cli.squads_memo,
+        squads_program_id: cli.squads_program_id,
         command: cli.command,
     }
+}
+
+/// Returns the `--squads` refusal message for `command`, or `None` if the command is
+/// compatible with vault-PDA signing (or doesn't create a transaction at all).
+///
+/// Refused commands target on-chain instructions whose signer-identity checks cannot be
+/// satisfied by a Squads vault PDA — the program enforces that the signer is a specific
+/// validator/operator hot key, or the command is permissionless and a multisig only adds
+/// friction. See `plans/squads.md` for the full actor matrix.
+///
+/// The refusal strings cite the exact program file:line of the constraint so a reader can
+/// jump from a CLI error message straight to the source of truth.
+fn squads_refusal_for(command: &Commands) -> Option<String> {
+    let (name, constraint) = match command {
+        Commands::CreateProposal { .. } => (
+            "create-proposal",
+            "the validator identity (vote_state.node_pubkey) to be the signer",
+        ),
+        Commands::SupportProposal { .. } => (
+            "support-proposal",
+            "the validator identity (vote_state.node_pubkey) to be the signer",
+        ),
+        Commands::CastVote { .. } => (
+            "cast-vote",
+            "the snapshot voting wallet (meta_merkle_leaf.voting_wallet) to be the signer",
+        ),
+        Commands::ModifyVote { .. } => (
+            "modify-vote",
+            "the snapshot voting wallet (meta_merkle_leaf.voting_wallet) to be the signer",
+        ),
+        Commands::InitIndex {} => (
+            "init-index",
+            "no particular signer because it is permissionless, so a multisig adds friction without benefit",
+        ),
+        Commands::FinalizeProposal { .. } => (
+            "finalize-proposal",
+            "no particular signer because it is permissionless, so a multisig adds friction without benefit",
+        ),
+        Commands::CastVoteOverride { .. }
+        | Commands::ModifyVoteOverride { .. }
+        | Commands::InitGlobalConfig { .. }
+        | Commands::UpdateGlobalConfig { .. }
+        | Commands::Proposal { .. }
+        | Commands::ListProposals { .. }
+        | Commands::ShowGlobalConfig
+        | Commands::Init
+        | Commands::Config { .. } => return None,
+    };
+
+    Some(format!(
+        "The `{}` command requires {}. A Squads vault PDA cannot satisfy this on-chain \
+         check, so no vault transaction was created. Re-run without --squads to submit this transaction with your local keypair.",
+        name, constraint,
+    ))
 }
 
 async fn handle_command(cli: Cli) -> Result<()> {
@@ -482,6 +571,23 @@ async fn handle_command(cli: Cli) -> Result<()> {
         network,
         cli.command
     );
+
+    // Assemble the optional Squads routing options from the global flags.
+    let squads_opts = cli.squads.map(|multisig| SquadsCliOpts {
+        multisig,
+        vault_index: cli.squads_vault_index,
+        program_id: cli.squads_program_id,
+        memo: cli.squads_memo.clone(),
+    });
+
+    // Refuse `--squads` up front for commands whose on-chain signer-identity check cannot
+    // be satisfied by a vault PDA. Doing this before any setup avoids running RPC lookups
+    // (e.g. vote-account resolution) that assume a validator/operator hot key.
+    if squads_opts.is_some() {
+        if let Some(msg) = squads_refusal_for(&cli.command) {
+            return Err(anyhow!(msg));
+        }
+    }
 
     match &cli.command {
         Commands::CreateProposal {
@@ -591,6 +697,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 stake_account.clone(),
                 vote_account.clone(),
                 network.clone(),
+                squads_opts.clone(),
             )
             .await?;
         }
@@ -613,6 +720,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 stake_account.clone(),
                 vote_account.clone(),
                 network.clone(),
+                squads_opts.clone(),
             )
             .await?;
         }
@@ -639,6 +747,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 *voting_epochs,
                 *snapshot_epoch_extension,
                 *snapshot_slot_offset,
+                squads_opts.clone(),
             )
             .await?;
         }
@@ -665,6 +774,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 *voting_epochs,
                 *snapshot_epoch_extension,
                 *snapshot_slot_offset,
+                squads_opts.clone(),
             )
             .await?;
         }

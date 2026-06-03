@@ -16,6 +16,7 @@ use crate::{
             self, convert_merkle_proof_strings, convert_stake_merkle_leaf_data_to_idl_type,
             get_stake_account_proof,
         },
+        squads::{effective_signer, SquadsCliOpts},
         utils::{
             create_spinner, derive_vote_override_cache_pda, derive_vote_override_pda,
             derive_vote_pda, setup_all_with_staker,
@@ -23,6 +24,7 @@ use crate::{
     },
 };
 
+#[allow(clippy::too_many_arguments)]
 pub async fn modify_vote_override(
     proposal_id: String,
     for_votes: u64,
@@ -33,6 +35,7 @@ pub async fn modify_vote_override(
     stake_account_override: String,
     vote_account: String,
     network: String,
+    squads: Option<SquadsCliOpts>,
 ) -> Result<()> {
     if for_votes + against_votes + abstain_votes != BASIS_POINTS_TOTAL {
         return Err(anyhow!(
@@ -86,7 +89,8 @@ pub async fn modify_vote_override(
 
     let spinner = create_spinner("Modifying vote override...");
 
-    let sig = program
+    let signer = effective_signer(squads.as_ref(), payer.pubkey());
+    let modify_vote_override_ixs = program
         .request()
         .args(args::ModifyVoteOverride {
             for_votes_bp: for_votes,
@@ -96,7 +100,7 @@ pub async fn modify_vote_override(
             stake_merkle_leaf,
         })
         .accounts(accounts::ModifyVoteOverride {
-            signer: payer.pubkey(),
+            signer,
             spl_vote_account: vote_account_pubkey,
             spl_stake_account: Pubkey::from_str(&stake_account_str)?,
             proposal: proposal_pubkey,
@@ -108,13 +112,21 @@ pub async fn modify_vote_override(
             snapshot_program: SNAPSHOT_PROGRAM_ID,
             system_program: system_program::ID,
         })
-        .send()
-        .await?;
+        .instructions()?;
 
-    spinner.finish_with_message(format!(
-        "Vote override modified successfully. https://explorer.solana.com/tx/{}",
-        sig
-    ));
+    let rpc = program.rpc();
+    let squads_config = squads.as_ref().map(|opts| opts.to_config(payer.pubkey()));
+    let outcome = crate::utils::squads::route(
+        &rpc,
+        modify_vote_override_ixs,
+        Vec::new(),
+        &[payer.as_ref()],
+        squads_config.as_ref(),
+    )
+    .await?;
+
+    spinner.finish_and_clear();
+    println!("{}", outcome.format_structured());
 
     Ok(())
 }
