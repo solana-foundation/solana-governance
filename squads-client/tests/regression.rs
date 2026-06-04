@@ -42,6 +42,15 @@ fn instruction_discriminator_proposal_approve_pinned() {
 }
 
 #[test]
+fn instruction_discriminator_vault_transaction_execute_pinned() {
+    // python3 -c "import hashlib; print(hashlib.sha256(b'global:vault_transaction_execute').digest()[:8].hex())"
+    assert_eq!(
+        instruction_discriminator("vault_transaction_execute"),
+        [0xc2, 0x08, 0xa1, 0x57, 0x99, 0xa4, 0x19, 0xab]
+    );
+}
+
+#[test]
 fn account_discriminator_multisig_pinned() {
     assert_eq!(
         account_discriminator("Multisig"),
