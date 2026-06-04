@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 function ValidatorLogoSkeleton() {
@@ -32,26 +32,21 @@ function ValidatorLetterAvatar({
   );
 }
 
-interface ValidatorLogoProps {
+interface ValidatorLogoImageProps {
+  validatorImage: string;
   validatorName: string;
-  validatorImage?: string | null;
   accentColor: string;
 }
 
-export function ValidatorLogo({
-  validatorName,
+function ValidatorLogoImage({
   validatorImage,
+  validatorName,
   accentColor,
-}: ValidatorLogoProps) {
+}: ValidatorLogoImageProps) {
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  useEffect(() => {
-    setFailed(false);
-    setLoaded(false);
-  }, [validatorImage]);
-
-  if (!validatorImage || failed) {
+  if (failed) {
     return (
       <ValidatorLetterAvatar
         validatorName={validatorName}
@@ -75,5 +70,35 @@ export function ValidatorLogo({
         onError={() => setFailed(true)}
       />
     </div>
+  );
+}
+
+interface ValidatorLogoProps {
+  validatorName: string;
+  validatorImage?: string | null;
+  accentColor: string;
+}
+
+export function ValidatorLogo({
+  validatorName,
+  validatorImage,
+  accentColor,
+}: ValidatorLogoProps) {
+  if (!validatorImage) {
+    return (
+      <ValidatorLetterAvatar
+        validatorName={validatorName}
+        accentColor={accentColor}
+      />
+    );
+  }
+
+  return (
+    <ValidatorLogoImage
+      key={validatorImage}
+      validatorImage={validatorImage}
+      validatorName={validatorName}
+      accentColor={accentColor}
+    />
   );
 }
