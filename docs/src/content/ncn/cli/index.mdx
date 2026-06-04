@@ -2,7 +2,7 @@ import { Callout, Tabs } from 'nextra/components'
 
 # NCN CLI
 
-The NCN CLI is a Rust command-line tool for operators to generate stake snapshots, manage the on-chain `ncn-snapshot` program, and interact with the verifier service.
+The NCN CLI (Solana Governance Voter Snapshot CLI) is an operator-facing Rust tool for generating stake snapshots (ledger snapshot &rarr; `MetaMerkleSnapshot`) and interacting with the on-chain `ncn-snapshot` program: initializing config, managing the operator whitelist, casting and removing votes, finalizing ballots, setting tie-breakers, and inspecting on-chain state.
 
 ## Operator startup (snapshot-first checklist)
 
@@ -42,20 +42,20 @@ make install-ncn-cli
 
 ## Global Options
 
-These options are available on all commands:
+These options are available on all commands. Each can also be set via the matching environment variable.
 
 | Option | Description |
 |---|---|
-| `--payer-path <PATH>` | Keypair file for transaction fees |
-| `--authority-path <PATH>` | Keypair file for operator/authority actions |
-| `--rpc-url <URL>` | RPC endpoint (default: `http://localhost:8899`) |
-| `--ledger-path <PATH>` | Path to Solana ledger |
-| `--full-snapshots-path <PATH>` | Path to full snapshots directory |
-| `--account-paths <PATHS>` | Paths for intermediary account files |
-| `--backup-snapshots-dir <PATH>` | Directory for backup snapshots |
-| `--cluster <CLUSTER>` | Network cluster (`mainnet` default) |
-| `--micro-lamports <N>` | Priority fee in micro-lamports |
-| `--operator-address <PUBKEY>` | Operator public key |
+| `--payer-path <PATH>` | Keypair file that pays transaction fees and rent. Used as the fee payer for every on-chain instruction issued by the CLI. Does not need to match the program authority or operator authority. |
+| `--authority-path <PATH>` | Keypair file that signs privileged actions. Only consulted by subcommands that submit on-chain transactions or sign off-chain messages. The exact role it plays is documented per subcommand (see `<subcommand> --help`). Read-only and snapshot-only subcommands ignore it. The default `/` is a placeholder and must be overridden whenever the chosen subcommand actually needs to sign. |
+| `--operator-address <PUBKEY>` | Operator pubkey (base58) stamped into generated snapshot metadata so downstream tooling can attribute a snapshot to a specific operator. Defaults to the system program address as a placeholder. |
+| `--rpc-url <URL>` | Solana JSON-RPC endpoint used for all on-chain interactions. Examples: `https://api.mainnet-beta.solana.com`, `https://api.devnet.solana.com`, or a local validator URL. Default: `http://localhost:8899`. |
+| `--ledger-path <PATH>` | Path to a Solana validator ledger directory (the validator's `--ledger` directory containing rocksdb and snapshots). Required by snapshot-related subcommands (`snapshot-slot`, `generate-meta-merkle`, `await-snapshot`). |
+| `--full-snapshots-path <PATH>` | Directory containing full Solana ledger snapshots (`snapshot-<slot>-<hash>.tar.zst`). Defaults to `--ledger-path` when not provided. Used by `snapshot-slot` to locate the base full snapshot to replay from. |
+| `--account-paths <PATHS>` | One or more accounts-db directories used during ledger replay. Pass a comma-separated list to spread accounts across multiple disks. When omitted, the ledger directory is used as the single accounts path. |
+| `--backup-snapshots-dir <PATH>` | Directory where generated snapshots (full + incremental) are written and read. `snapshot-slot` writes new snapshots here, and `generate-meta-merkle` expects to find the snapshot for the target slot in this directory. |
+| `--cluster <CLUSTER>` | Solana cluster name passed through to bank loading. One of `mainnet`, `devnet`, `testnet`, `development`. Affects cluster-specific feature activation during ledger replay. Default: `mainnet`. |
+| `--micro-lamports <N>` | Optional priority fee (in micro-lamports per compute unit) attached to outgoing transactions. When set, a `ComputeBudgetInstruction::SetComputeUnitPrice` is prepended to each transaction. Useful for landing transactions during periods of congestion. |
 
 **Environment variable:** `NCN_SNAPSHOT_MAX_MB` — max decompressed snapshot size in MiB (default: `256`)
 
@@ -65,7 +65,7 @@ These options are available on all commands:
 
 ### `snapshot-slot`
 
-Generates and saves a Solana ledger snapshot for a specific slot.
+Generates a Solana ledger snapshot for a specific target slot. Replays the validator bank up to `--slot` and writes a full snapshot into `--backup-snapshots-dir`. Requires `--ledger-path` and `--full-snapshots-path` (or defaults derived from `--ledger-path`).
 
 ```bash
 ncn-cli \
@@ -77,7 +77,7 @@ ncn-cli \
 
 | Argument | Required | Description |
 |---|---|---|
-| `--slot <u64>` | Yes | Target slot to snapshot |
+| `--slot <u64>` | Yes | Target slot to snapshot. Must be a slot that has already been rooted in the ledger. |
 
 > **Snapshot path flags**
 >
@@ -88,7 +88,7 @@ ncn-cli \
 
 ### `generate-meta-merkle`
 
-Reads a slot's ledger snapshot and generates the two-tier Merkle snapshot. Saves as `meta_merkle-{slot}.zip`.
+Builds a `MetaMerkleSnapshot` from an existing full ledger snapshot. Loads the bank at `--slot` from `--backup-snapshots-dir` and emits a compressed `meta_merkle-<slot>.zip` containing the stake-weighted merkle tree used for on-chain voting.
 
 ```bash
 ncn-cli \
@@ -102,14 +102,14 @@ ncn-cli \
 
 | Argument | Required | Default | Description |
 |---|---|---|---|
-| `--slot <u64>` | Yes | — | Target slot |
-| `--save-path <PATH>` | No | `./` | Directory to save the output file |
+| `--slot <u64>` | Yes | — | Target slot. A full snapshot for this exact slot must already exist in `--backup-snapshots-dir`. |
+| `--save-path <PATH>` | No | `./` | Directory to write the compressed `MetaMerkleSnapshot` (`meta_merkle-<slot>.zip`) to. |
 
 ---
 
 ### `log-meta-merkle-hash`
 
-Reads a snapshot file and logs the Merkle root, snapshot hash, slot, and the operator's Ed25519 signature over the data.
+Prints the merkle root, snapshot hash, slot, and a signature over them from a `MetaMerkleSnapshot` file. Useful for sharing the snapshot identity with other operators before voting on-chain. `--authority-path` signs an off-chain message containing the snapshot slot and meta merkle root; no on-chain transaction is sent.
 
 ```bash
 ncn-cli \
@@ -121,14 +121,14 @@ ncn-cli \
 
 | Argument | Required | Description |
 |---|---|---|
-| `--read-path <PATH>` | Yes | Path to the snapshot file |
-| `--is-compressed <bool>` | No | Whether the file is gzip-compressed (default: `true`) |
+| `--read-path <PATH>` | Yes | Path to a `MetaMerkleSnapshot` file (compressed `.zip` or raw). |
+| `--is-compressed <bool>` | No | Set to `true` when `--read-path` points to a compressed `.zip` produced by `generate-meta-merkle` (default: `true`). |
 
 ---
 
 ### `await-snapshot`
 
-Polls for snapshot files, waits until the target slot passes, copies full and incremental snapshots, runs `agave-ledger-tool` to copy the ledger, and optionally triggers MetaMerkle generation. This is the primary command used by automated operator infrastructure.
+Waits for a target slot to pass and snapshots it from on-disk snapshots. Polls `--snapshots-dir` until a full + incremental snapshot pair covering `--slot` is available, copies them and the relevant ledger range into the backup directories, replays to produce a snapshot at `--slot`, and optionally generates the `MetaMerkleSnapshot`. This is the primary command used by automated operator infrastructure.
 
 > **Important**
 >
@@ -163,14 +163,14 @@ ncn-cli \
 
 | Argument | Required | Default | Description |
 |---|---|---|---|
-| `--scan-interval <minutes>` | Yes | — | How often to poll for snapshot files |
-| `--slot <u64>` | Yes | — | Target slot to wait for |
-| `--snapshots-dir <PATH>` | Yes | — | Source directory containing live snapshots (read-only input) |
-| `--backup-snapshots-dir <PATH>` | Yes | — | New destination directory where snapshots are copied for backup |
-| `--backup-ledger-dir <PATH>` | Yes | — | Destination directory where ledger range is copied |
-| `--agave-ledger-tool-path <PATH>` | Yes | — | Path to `agave-ledger-tool` binary |
-| `--ledger-path <PATH>` | Yes | — | Path to live Solana ledger |
-| `--generate-meta-merkle` | No | — | Flag: also run MetaMerkle generation after snapshot |
+| `--scan-interval <minutes>` | Yes | — | Polling interval (in minutes) between snapshot directory scans. |
+| `--slot <u64>` | Yes | — | Target slot to snapshot once it has been rooted. |
+| `--snapshots-dir <PATH>` | Yes | — | Directory to scan for live validator snapshots (read-only input). |
+| `--backup-snapshots-dir <PATH>` | Yes | — | Directory into which the matching full + incremental snapshots are copied and the new snapshot at `--slot` is written. |
+| `--backup-ledger-dir <PATH>` | Yes | — | Directory into which the relevant ledger range is copied via `agave-ledger-tool`. |
+| `--agave-ledger-tool-path <PATH>` | Yes | — | Absolute path to the `agave-ledger-tool` binary used to copy the ledger range. |
+| `--ledger-path <PATH>` | Yes | — | Path to the live validator ledger directory (the same path passed to the validator's `-l`/`--ledger` flag). |
+| `--generate-meta-merkle` | No | — | Flag: also generate the `MetaMerkleSnapshot` after the full snapshot at `--slot` has been written. |
 
 ---
 
@@ -178,7 +178,7 @@ ncn-cli \
 
 ### `init-program-config`
 
-Initializes the `ProgramConfig` singleton on-chain. Called once during initial deployment.
+Initializes the on-chain `ProgramConfig` singleton. Must be run once per deployment. The signer of `--authority-path` becomes the initial program authority and is recorded as `ProgramConfig.authority`.
 
 ```bash
 ncn-cli \
@@ -192,7 +192,7 @@ ncn-cli \
 
 ### `update-program-config`
 
-Updates one or more `ProgramConfig` fields.
+Updates mutable fields on the on-chain `ProgramConfig`. All arguments are optional; only the provided fields are updated. `--authority-path` must be the current program authority (enforced by `has_one = authority` on `ProgramConfig`). Updating `--proposed-authority` starts a two-step authority handover that must be completed via `finalize-proposed-authority`.
 
 ```bash
 ncn-cli \
@@ -208,16 +208,16 @@ ncn-cli \
 
 | Argument | Type | Description |
 |---|---|---|
-| `--min-consensus-threshold-bps <u16>` | Optional | Minimum consensus threshold (1–10,000) |
-| `--vote-duration <i64>` | Optional | Voting window in seconds |
-| `--tie-breaker-admin <Pubkey>` | Optional | New tie-breaker admin key |
-| `--proposed-authority <Pubkey>` | Optional | Initiate two-step authority transfer |
+| `--min-consensus-threshold-bps <u16>` | Optional | Minimum stake-weighted consensus threshold in basis points (10000 = 100%). Example: `6000` for 60%. |
+| `--vote-duration <i64>` | Optional | Voting window duration, in seconds. Operators have this long after a ballot box is created to cast votes. |
+| `--tie-breaker-admin <Pubkey>` | Optional | New tie-breaker admin pubkey (base58). This admin can resolve a stalled ballot box via `set-tie-breaker`. |
+| `--proposed-authority <Pubkey>` | Optional | Proposed new program authority (base58). Becomes active only after `finalize-proposed-authority` is run by this pubkey. |
 
 ---
 
 ### `finalize-proposed-authority`
 
-Accepts a pending authority transfer. Must be signed by the `proposed_authority` key.
+Completes a pending two-step authority handover. `--authority-path` must be the *proposed* authority previously staged via `update-program-config --proposed-authority`; the on-chain constraint requires `signer == proposed_authority`. On success the signer becomes the active program authority and `proposed_authority` is cleared.
 
 ```bash
 ncn-cli \
@@ -231,7 +231,7 @@ ncn-cli \
 
 ### `update-operator-whitelist`
 
-Add or remove operators from the whitelist.
+Adds or removes operator pubkeys from the on-chain whitelist. Only whitelisted operators are allowed to cast votes. `--authority-path` must be the current program authority (enforced by `has_one = authority` on `ProgramConfig`).
 
 ```bash
 # Add operators
@@ -262,8 +262,8 @@ ncn-cli \
 
 | Flag | Description |
 |---|---|
-| `-a <pubkeys>` | Comma-separated pubkeys to add |
-| `-r <pubkeys>` | Comma-separated pubkeys to remove |
+| `-a, --add <pubkeys>` | Comma-separated operator pubkeys (base58) to add to the whitelist. |
+| `-r, --remove <pubkeys>` | Comma-separated operator pubkeys (base58) to remove from the whitelist. |
 
 ---
 
@@ -271,7 +271,7 @@ ncn-cli \
 
 ### `cast-vote`
 
-Casts an operator vote with an explicit Merkle root and snapshot hash.
+Casts an operator vote on a ballot box using an explicit Merkle root and snapshot hash. Prefer `cast-vote-from-snapshot` when voting from a local snapshot. `--authority-path` signs as a whitelisted operator; the handler verifies the signer appears in `ProgramConfig.whitelisted_operators` before recording the vote in the `BallotBox`.
 
 ```bash
 ncn-cli \
@@ -286,15 +286,15 @@ ncn-cli \
 
 | Argument | Required | Description |
 |---|---|---|
-| `--snapshot-slot <u64>` | Yes | The slot's BallotBox to vote on |
-| `--root <base58>` | Yes | MetaMerkle root from the snapshot |
-| `--hash <base58>` | Yes | Snapshot hash |
+| `--snapshot-slot <u64>` | Yes | Snapshot slot identifying the ballot box to vote in. |
+| `--root <base58>` | Yes | Meta merkle tree root, base-58 encoded (32 bytes). |
+| `--hash <base58>` | Yes | SHA-256 hash of the `MetaMerkleSnapshot` file, base-58 encoded (32 bytes). |
 
 ---
 
 ### `cast-vote-from-snapshot`
 
-Reads a snapshot file and casts the vote automatically from its root and hash.
+Casts an operator vote using a local `MetaMerkleSnapshot` file. Reads the root and computes the snapshot hash from `--read-path`, then submits the vote. `--authority-path` signs as a whitelisted operator; the handler verifies the signer appears in `ProgramConfig.whitelisted_operators` before recording the vote in the `BallotBox`.
 
 ```bash
 ncn-cli \
@@ -309,15 +309,15 @@ ncn-cli \
 
 | Argument | Required | Description |
 |---|---|---|
-| `--snapshot-slot <u64>` | Yes | Target BallotBox slot |
-| `--read-path <PATH>` | Yes | Path to snapshot file |
-| `--is-compressed <bool>` | No | Whether the file is gzip-compressed (default: `true`) |
+| `--snapshot-slot <u64>` | Yes | Snapshot slot identifying the ballot box to vote in. |
+| `--read-path <PATH>` | Yes | Path to a `MetaMerkleSnapshot` file (compressed `.zip` or raw) produced by `generate-meta-merkle`. |
+| `--is-compressed <bool>` | No | Set to `true` when `--read-path` points to a compressed `.zip` produced by `generate-meta-merkle` (default: `true`). |
 
 ---
 
 ### `remove-vote`
 
-Removes an operator's existing vote from a `BallotBox`. Only allowed before expiry and before consensus.
+Removes the caller's vote from a `BallotBox`. Only permitted before consensus is reached and before the vote window expires. `--authority-path` must be the operator that originally cast the vote; the handler removes only that signer's tally entry.
 
 ```bash
 ncn-cli \
@@ -327,11 +327,15 @@ ncn-cli \
   remove-vote --snapshot-slot <SLOT>
 ```
 
+| Argument | Required | Description |
+|---|---|---|
+| `--snapshot-slot <u64>` | Yes | Snapshot slot identifying the ballot box to remove the vote from. |
+
 ---
 
 ### `set-tie-breaker`
 
-Forces a winner on an expired, deadlocked `BallotBox`. Must be signed by the `tie_breaker_admin` key.
+Resolves a stalled ballot by writing an explicit winning ballot. The provided `--root` / `--hash` are not required to match any cast ballot. `--authority-path` must be the tie-breaker admin recorded in `ProgramConfig` (enforced by `has_one = tie_breaker_admin`).
 
 ```bash
 # Set tie-breaking result if consensus was not reached
@@ -344,11 +348,17 @@ ncn-cli \
   --root <MERKLE_ROOT> --hash <SNAPSHOT_HASH>
 ```
 
+| Argument | Required | Description |
+|---|---|---|
+| `--snapshot-slot <u64>` | Yes | Snapshot slot identifying the ballot box to tie-break. |
+| `--root <base58>` | Yes | Tie-breaking meta merkle tree root, base-58 encoded (32 bytes). |
+| `--hash <base58>` | Yes | Tie-breaking snapshot hash (SHA-256) of the corresponding `MetaMerkleSnapshot`, base-58 encoded (32 bytes). |
+
 ---
 
 ### `reset-ballot-box`
 
-Emergency recovery: clears all votes and tallies from a `BallotBox` where all 64 tally slots are full. Must be signed by the `tie_breaker_admin`.
+Resets a bricked `BallotBox`. Permitted only when the ballot box's vote window has not yet expired, consensus has not been reached, and ballot tallies are at their maximum capacity. Clears tallies so voting can restart. `--authority-path` must be the tie-breaker admin recorded in `ProgramConfig` (enforced by `has_one = tie_breaker_admin`).
 
 ```bash
 ncn-cli \
@@ -358,19 +368,26 @@ ncn-cli \
   reset-ballot-box --snapshot-slot <SLOT>
 ```
 
+| Argument | Required | Description |
+|---|---|---|
+| `--snapshot-slot <u64>` | Yes | Snapshot slot identifying the ballot box to reset. |
+
 ---
 
 ### `finalize-ballot`
 
-Permissionless. Creates the `ConsensusResult` from a `BallotBox` that has already reached consensus. Anyone can call this.
+Finalizes the winning ballot for a snapshot slot. Closes voting for `--snapshot-slot` once consensus has been reached (or the vote window has expired with a clear winner) and writes the `ConsensusResult` PDA. The on-chain instruction is permissionless, so `--payer-path` is used purely as the fee payer for the new PDA and does not need to hold any privileged role. The `--authority-path` is not used for this command.
 
 ```bash
 ncn-cli \
   --payer-path ~/.config/solana/id.json \
-  --authority-path ~/.config/solana/id.json \
   --rpc-url https://api.devnet.solana.com \
   finalize-ballot --snapshot-slot <SLOT>
 ```
+
+| Argument | Required | Description |
+|---|---|---|
+| `--snapshot-slot <u64>` | Yes | Snapshot slot identifying the ballot box to finalize. |
 
 ---
 
@@ -384,7 +401,7 @@ Use these commands when you only want to inspect on-chain state (no transactions
 
 ### `log`
 
-Fetches and displays an on-chain account.
+Dumps the raw `Debug` representation of an on-chain account. Selects the account type via `--ty`; some types require additional arguments such as `--snapshot-slot` and/or `--vote-account`.
 
 ```bash
 # View ProgramConfig
@@ -412,9 +429,9 @@ ncn-cli \
 
 | Argument | Required | Description |
 |---|---|---|
-| `--ty <TYPE>` | Yes | `program-config`, `ballot-box`, `consensus-result`, `proof` |
-| `--snapshot-slot <u64>` | For ballot/result/proof | Target slot |
-| `--vote-account <Pubkey>` | For `proof` only | Validator vote account |
+| `--ty <TYPE>` | Yes | Account type to dump: `program-config` \| `ballot-box` \| `consensus-result` \| `proof`. |
+| `--snapshot-slot <u64>` | For ballot/result/proof | Snapshot slot of the ballot box, consensus result, or proof. Required for all `--ty` except `program-config`. |
+| `--vote-account <Pubkey>` | For `proof` only | Validator vote account (base58). Required when `--ty proof`. |
 
 ---
 
@@ -422,7 +439,7 @@ ncn-cli \
 
 ### `get-program-config`
 
-Fetches and prints the on-chain `ProgramConfig`.
+Prints the on-chain `ProgramConfig` singleton.
 
 ```bash
 ncn-cli \
@@ -434,7 +451,7 @@ ncn-cli \
 
 ### `get-operator-whitelist`
 
-Fetches and prints all whitelisted operators from `ProgramConfig`.
+Prints the operator whitelist from `ProgramConfig`.
 
 ```bash
 ncn-cli \
@@ -446,7 +463,7 @@ ncn-cli \
 
 ### `get-ballot`
 
-Fetches and prints the `BallotBox` for a snapshot slot, including tallies and operator votes.
+Prints the on-chain `BallotBox` for a snapshot slot, including tallies and operator votes.
 
 ```bash
 ncn-cli \
@@ -457,13 +474,13 @@ ncn-cli \
 
 | Argument | Required | Description |
 |---|---|---|
-| `--snapshot-slot <u64>` | Yes | Snapshot slot of the target `BallotBox` |
+| `--snapshot-slot <u64>` | Yes | Snapshot slot identifying the ballot box to fetch. |
 
 ---
 
 ### `get-operator-vote`
 
-Looks up an operator's vote inside a slot's `BallotBox`.
+Prints a single operator's vote within a ballot box.
 
 ```bash
 ncn-cli \
@@ -475,14 +492,14 @@ ncn-cli \
 
 | Argument | Required | Description |
 |---|---|---|
-| `--snapshot-slot <u64>` | Yes | Snapshot slot of the target `BallotBox` |
-| `--operator <Pubkey>` | Yes | Operator public key to query |
+| `--snapshot-slot <u64>` | Yes | Snapshot slot identifying the ballot box. |
+| `--operator <Pubkey>` | Yes | Operator pubkey (base58) whose vote should be looked up. |
 
 ---
 
 ### `get-consensus-result`
 
-Fetches and prints the `ConsensusResult` for a snapshot slot.
+Prints the `ConsensusResult` PDA for a snapshot slot.
 
 ```bash
 ncn-cli \
@@ -493,13 +510,13 @@ ncn-cli \
 
 | Argument | Required | Description |
 |---|---|---|
-| `--snapshot-slot <u64>` | Yes | Snapshot slot for `ConsensusResult` PDA |
+| `--snapshot-slot <u64>` | Yes | Snapshot slot identifying the consensus result to fetch. |
 
 ---
 
 ### `get-proof`
 
-Fetches and prints the `MetaMerkleProof` for a vote account and consensus result.
+Prints the `MetaMerkleProof` PDA for a vote account.
 
 ```bash
 ncn-cli \
@@ -511,14 +528,14 @@ ncn-cli \
 
 | Argument | Required | Description |
 |---|---|---|
-| `--snapshot-slot <u64>` | Yes | Snapshot slot for `ConsensusResult` PDA |
-| `--vote-account <Pubkey>` | Yes | Validator vote account public key |
+| `--snapshot-slot <u64>` | Yes | Snapshot slot identifying the consensus result the proof belongs to. |
+| `--vote-account <Pubkey>` | Yes | Validator vote account (base58) whose proof should be fetched. |
 
 ---
 
 ### `ballot-exists`
 
-Checks whether the `BallotBox` account exists for a snapshot slot.
+Checks whether a `BallotBox` exists for a snapshot slot.
 
 ```bash
 ncn-cli \
@@ -529,17 +546,13 @@ ncn-cli \
 
 | Argument | Required | Description |
 |---|---|---|
-| `--snapshot-slot <u64>` | Yes | Snapshot slot of the target `BallotBox` |
+| `--snapshot-slot <u64>` | Yes | Snapshot slot to check for a `BallotBox` PDA. |
 
 ---
 
 ### `status`
 
-Shows a consolidated read-only status view for:
-
-- `ProgramConfig`
-- `BallotBox` for `--snapshot-slot`
-- `ConsensusResult` for `--snapshot-slot`
+Prints a combined status report: program config, ballot box, and consensus result for a snapshot slot.
 
 ```bash
 ncn-cli \
@@ -551,7 +564,7 @@ ncn-cli \
 
 | Argument | Required | Description |
 |---|---|---|
-| `--snapshot-slot <u64>` | Yes | Snapshot slot used for ballot/result status checks |
+| `--snapshot-slot <u64>` | Yes | Snapshot slot to summarize. |
 
 ---
 
@@ -594,10 +607,9 @@ ncn-cli \
   --rpc-url <RPC_URL> log \
   --ty ballot-box --snapshot-slot <SLOT>
 
-# 6. Finalize once consensus is reached (permissionless)
+# 6. Finalize once consensus is reached (permissionless; --authority-path is not used)
 ncn-cli \
   --payer-path <PATH_TO_PAYER_KEYPAIR> \
-  --authority-path <PATH_TO_AUTHORITY_KEYPAIR> \
   --rpc-url <RPC_URL> \
   finalize-ballot --snapshot-slot <SLOT>
 ```
