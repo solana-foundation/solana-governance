@@ -49,13 +49,10 @@ interface TopVotersTableProps {
 
 export default function TopVotersTable({ proposal }: TopVotersTableProps) {
   const [searchValue, setSearchValue] = React.useState("");
-  // const [outcomeFilter, setOutcomeFilter] =
-  //   React.useState<VoteOutcomeFilter>("all");
   const [sorting, setSorting] = React.useState<SortingState>(() => [
     ...DEFAULT_SORTING,
   ]);
 
-  // Fetch votes for the proposal
   const { data: topVoters = [], isLoading: isLoadingVotes } = useProposalVotes(
     proposal?.publicKey
   );
@@ -101,7 +98,6 @@ export default function TopVotersTable({ proposal }: TopVotersTableProps) {
   const handleReset = () => {
     const nextSorting: SortingState = [...DEFAULT_SORTING];
     setSearchValue("");
-    // setOutcomeFilter("all");
     table.setSorting(nextSorting);
     table.setPageIndex(0);
   };
