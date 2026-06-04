@@ -31,3 +31,14 @@ thiserror = "1"
 [dev-dependencies]
 rand = "0.8"
 tokio = { version = "1", features = ["macros", "rt"] }
+surfpool-sdk = "1.3.0"
+# Used by the integration tests to bincode-roundtrip v2 `Instruction`s into the v3
+# Solana SDK types that surfpool-sdk speaks. The Solana wire format is stable
+# across SDK major versions, so this round-trip is safe.
+bincode = "1"
+serde = "1"
+# v3 `Transaction` (with `bincode` feature for `new_signed_with_payer` +
+# `SerializableTransaction`) so the integration tests can sign and submit
+# transactions against the surfnet RPC.
+solana-transaction = { version = "3", features = ["bincode"] }
+solana-commitment-config = "3"
