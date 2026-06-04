@@ -452,11 +452,9 @@ mod tests {
     #[test]
     fn multisig_client_new_binds_multisig_and_default_vault_index() {
         use std::sync::Arc;
-        let rpc = Arc::new(
-            solana_rpc_client::nonblocking::rpc_client::RpcClient::new(
-                "http://localhost:8899".into(),
-            ),
-        );
+        let rpc = Arc::new(solana_rpc_client::nonblocking::rpc_client::RpcClient::new(
+            "http://localhost:8899".into(),
+        ));
         let multisig = Pubkey::new_unique();
         let client = SquadsMultisigClient::new(rpc, multisig);
         assert_eq!(client.multisig, multisig);
@@ -468,11 +466,9 @@ mod tests {
     #[test]
     fn multisig_client_from_create_key_derives_multisig_pda() {
         use std::sync::Arc;
-        let rpc = Arc::new(
-            solana_rpc_client::nonblocking::rpc_client::RpcClient::new(
-                "http://localhost:8899".into(),
-            ),
-        );
+        let rpc = Arc::new(solana_rpc_client::nonblocking::rpc_client::RpcClient::new(
+            "http://localhost:8899".into(),
+        ));
         let create_key = Pubkey::new_unique();
         let client = SquadsMultisigClient::from_create_key(rpc, &create_key);
         let (expected, _) = crate::pda::multisig_pda(&create_key, Some(&PROGRAM_ID));
@@ -484,11 +480,9 @@ mod tests {
     #[test]
     fn multisig_client_builder_overrides_vault_index_and_program_id() {
         use std::sync::Arc;
-        let rpc = Arc::new(
-            solana_rpc_client::nonblocking::rpc_client::RpcClient::new(
-                "http://localhost:8899".into(),
-            ),
-        );
+        let rpc = Arc::new(solana_rpc_client::nonblocking::rpc_client::RpcClient::new(
+            "http://localhost:8899".into(),
+        ));
         let multisig = Pubkey::new_unique();
         let alt_program = Pubkey::new_unique();
         let client = SquadsMultisigClient::new(rpc, multisig)
@@ -502,11 +496,9 @@ mod tests {
     #[test]
     fn multisig_client_vault_pda_uses_stored_vault_index() {
         use std::sync::Arc;
-        let rpc = Arc::new(
-            solana_rpc_client::nonblocking::rpc_client::RpcClient::new(
-                "http://localhost:8899".into(),
-            ),
-        );
+        let rpc = Arc::new(solana_rpc_client::nonblocking::rpc_client::RpcClient::new(
+            "http://localhost:8899".into(),
+        ));
         let multisig = Pubkey::new_unique();
         let client = SquadsMultisigClient::new(rpc, multisig).with_vault_index(7);
 
@@ -519,11 +511,9 @@ mod tests {
     #[test]
     fn multisig_client_web_url_routes_to_bound_multisig() {
         use std::sync::Arc;
-        let rpc = Arc::new(
-            solana_rpc_client::nonblocking::rpc_client::RpcClient::new(
-                "http://localhost:8899".into(),
-            ),
-        );
+        let rpc = Arc::new(solana_rpc_client::nonblocking::rpc_client::RpcClient::new(
+            "http://localhost:8899".into(),
+        ));
         let multisig = Pubkey::new_unique();
         let url = SquadsMultisigClient::new(rpc, multisig).web_url();
         assert!(url.contains(&multisig.to_string()));

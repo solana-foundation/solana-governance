@@ -1,5 +1,5 @@
-//! Anchor instruction builders for `vault_transaction_create`, `proposal_create`, and
-//! `proposal_approve` on the Squads V4 multisig program.
+//! Anchor instruction builders for `vault_transaction_create`, `proposal_create`,
+//! `proposal_approve`, and `vault_transaction_execute` on the Squads V4 multisig program.
 //!
 //! Each builder returns a [`solana_program::instruction::Instruction`] with the correct
 //! account ordering, discriminator, and borsh-encoded args.
@@ -266,6 +266,55 @@ pub fn proposal_approve_ix(
 }
 
 // ============================================================================
+// vault_transaction_execute
+// ============================================================================
+
+/// Account inputs for `vault_transaction_execute`. The on-chain handler executes the
+/// inner instructions stored in a previously-approved [`crate::VaultTransaction`] by
+/// signing CPIs from the multisig's vault PDA.
+#[derive(Clone, Copy, Debug)]
+pub struct VaultTransactionExecuteAccounts {
+    /// The multisig (read-only).
+    pub multisig: Pubkey,
+    /// The proposal (writable — status flips to `Executed`).
+    pub proposal: Pubkey,
+    /// The VaultTransaction (read-only — the stored message is replayed via CPI).
+    pub transaction: Pubkey,
+    /// A multisig member with [`crate::Permission::Execute`]. Signer and fee payer.
+    pub member: Pubkey,
+}
+
+/// Build a `vault_transaction_execute` instruction.
+///
+/// `message_account_keys` must be the `remaining_accounts` slice in the order the
+/// stored `TransactionMessage::account_keys` references them. Each entry's
+/// `is_signer` MUST be `false` (the Squads program signs CPIs internally using
+/// `invoke_signed` with the vault PDA's seeds). `is_writable` MUST match the
+/// writability bucket the key landed in during [`crate::try_compile`].
+///
+/// The args struct is empty; the instruction body is just the 8-byte discriminator.
+pub fn vault_transaction_execute_ix(
+    program_id: &Pubkey,
+    accounts: VaultTransactionExecuteAccounts,
+    message_account_keys: &[AccountMeta],
+) -> std::io::Result<Instruction> {
+    let data = instruction_discriminator("vault_transaction_execute").to_vec();
+
+    let mut metas = Vec::with_capacity(4 + message_account_keys.len());
+    metas.push(AccountMeta::new_readonly(accounts.multisig, false));
+    metas.push(AccountMeta::new(accounts.proposal, false));
+    metas.push(AccountMeta::new_readonly(accounts.transaction, false));
+    metas.push(AccountMeta::new(accounts.member, true));
+    metas.extend_from_slice(message_account_keys);
+
+    Ok(Instruction {
+        program_id: *program_id,
+        accounts: metas,
+        data,
+    })
+}
+
+// ============================================================================
 // Deserialization helpers (round-trip support for testing)
 // ============================================================================
 
@@ -437,5 +486,62 @@ mod tests {
         assert_eq!(body[0], 1, "Some tag");
         assert_eq!(&body[1..5], &2u32.to_le_bytes());
         assert_eq!(&body[5..7], b"ok");
+    }
+
+    #[test]
+    fn vault_transaction_execute_ix_has_correct_account_ordering() {
+        let program_id = Pubkey::new_unique();
+        let multisig = Pubkey::new_unique();
+        let proposal = Pubkey::new_unique();
+        let transaction = Pubkey::new_unique();
+        let member = Pubkey::new_unique();
+        let vault = Pubkey::new_unique();
+        let recipient = Pubkey::new_unique();
+        let remaining = vec![
+            AccountMeta::new(vault, false),
+            AccountMeta::new(recipient, false),
+        ];
+        let ix = vault_transaction_execute_ix(
+            &program_id,
+            VaultTransactionExecuteAccounts {
+                multisig,
+                proposal,
+                transaction,
+                member,
+            },
+            &remaining,
+        )
+        .unwrap();
+
+        assert_eq!(ix.program_id, program_id);
+        // Body is exactly the 8-byte discriminator — no args.
+        assert_eq!(
+            ix.data,
+            instruction_discriminator("vault_transaction_execute").to_vec()
+        );
+        assert_eq!(ix.accounts.len(), 4 + remaining.len());
+        assert_eq!(
+            ix.accounts[0],
+            AccountMeta::new_readonly(multisig, false),
+            "multisig is readonly non-signer"
+        );
+        assert_eq!(
+            ix.accounts[1],
+            AccountMeta::new(proposal, false),
+            "proposal is mut non-signer"
+        );
+        assert_eq!(
+            ix.accounts[2],
+            AccountMeta::new_readonly(transaction, false),
+            "transaction is readonly non-signer"
+        );
+        assert_eq!(
+            ix.accounts[3],
+            AccountMeta::new(member, true),
+            "member is mut signer"
+        );
+        // Remaining accounts must be appended verbatim.
+        assert_eq!(ix.accounts[4], remaining[0]);
+        assert_eq!(ix.accounts[5], remaining[1]);
     }
 }

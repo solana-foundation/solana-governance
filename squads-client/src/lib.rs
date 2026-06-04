@@ -19,9 +19,9 @@ pub use error::{Result as SquadsResult, SquadsError};
 pub use id::{with_program_id_or_default, PROGRAM_ID};
 pub use instructions::{
     proposal_approve_ix, proposal_create_ix, vault_transaction_create_from_instructions,
-    vault_transaction_create_ix, ProposalApproveAccounts, ProposalCreateAccounts,
-    ProposalCreateArgs, ProposalVoteArgs, VaultTransactionCreateAccounts,
-    VaultTransactionCreateArgs,
+    vault_transaction_create_ix, vault_transaction_execute_ix, ProposalApproveAccounts,
+    ProposalCreateAccounts, ProposalCreateArgs, ProposalVoteArgs, VaultTransactionCreateAccounts,
+    VaultTransactionCreateArgs, VaultTransactionExecuteAccounts,
 };
 pub use message::{
     try_compile, CompiledInstruction, MessageAddressTableLookup, MessageCompileError,
