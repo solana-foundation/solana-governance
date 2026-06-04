@@ -5,6 +5,7 @@ use anchor_lang::{
         vote::{program as vote_program, state::VoteState},
     },
 };
+use solana_vote_interface::state::VoteStateVersions;
 
 use crate::{
     constants::ANCHOR_DISCRIMINATOR,
@@ -28,7 +29,10 @@ pub struct SupportProposal<'info> {
         bump
     )]
     pub support: Account<'info, Support>, // New support account
-    /// CHECK: Vote account is too big to deserialize, so we check on owner and size, then compare node_pubkey with signer
+    /// CHECK: Owner == vote program and account size == VoteState::size_of() are
+    /// enforced here; the handler then deserializes VoteStateVersions and requires
+    /// node_pubkey == signer, so a supporter can only pledge stake from a vote
+    /// account they operate.
     #[account(
         constraint = spl_vote_account.owner == &vote_program::ID @ ProgramError::InvalidAccountOwner,
         constraint = spl_vote_account.data_len() == VoteState::size_of() @ GovernanceError::InvalidVoteAccountSize
@@ -76,6 +80,25 @@ impl<'info> SupportProposal<'info> {
             clock.epoch == self.proposal.creation_epoch + self.global_config.max_support_epochs,
             GovernanceError::NotInSupportPeriod
         );
+
+        // Ensure signer is the node identity of the vote account, so a supporter
+        // can only pledge stake from a vote account they operate.
+        let vote_account_data = self.spl_vote_account.data.borrow();
+        let versioned = VoteStateVersions::deserialize(&vote_account_data)
+            .map_err(|_| GovernanceError::FailedDeserializeNodePubkey)?;
+        let node_pubkey_bytes: [u8; 32] = match &versioned {
+            VoteStateVersions::V3(v) => v.node_pubkey.to_bytes(),
+            VoteStateVersions::V4(v) => v.node_pubkey.to_bytes(),
+            VoteStateVersions::V1_14_11(v) => v.node_pubkey.to_bytes(),
+            VoteStateVersions::Uninitialized => {
+                return Err(GovernanceError::InvalidVoteAccountVersion.into())
+            }
+        };
+        require!(
+            node_pubkey_bytes == self.signer.key().to_bytes(),
+            GovernanceError::VoteNodePubkeyMismatch
+        );
+        drop(vote_account_data);
 
         // assuming this returns in lamports
         let supporter_stake = get_epoch_stake_for_vote_account(self.spl_vote_account.key);
