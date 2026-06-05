@@ -4,6 +4,7 @@ export interface TopVoterRecord {
   id: string;
   validatorName: string;
   validatorIdentity: string;
+  validatorImage?: string | null;
   stakeAccount?: string;
   stakedLamports: number;
   // voteOutcome: VoteOutcome;

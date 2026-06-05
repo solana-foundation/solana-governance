@@ -2,6 +2,7 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { SortableHeaderButton } from "@/components/governance/shared/SortableHeaderButton";
+import { ValidatorLogo } from "./ValidatorLogo";
 import {
   formatAddress,
   formatLamportsDisplay,
@@ -28,17 +29,20 @@ export const topVoterColumns: ColumnDef<TopVoterRecord>[] = [
       />
     ),
     cell: ({ row }) => {
-      const { validatorName, validatorIdentity, accentColor } = row.original;
+      const {
+        validatorName,
+        validatorIdentity,
+        validatorImage,
+        accentColor,
+      } = row.original;
 
       return (
         <div className="flex items-center gap-4">
-          <div
-            className="flex size-8 items-center justify-center rounded-full text-[14px] font-semibold uppercase text-white shadow-lg"
-            style={{ background: accentColor }}
-            aria-hidden
-          >
-            {validatorName.slice(0, 1)}
-          </div>
+          <ValidatorLogo
+            validatorName={validatorName}
+            validatorImage={validatorImage}
+            accentColor={accentColor}
+          />
           <div className="flex flex-col text-left">
             <span className="text-sm font-medium text-white/60">
               {validatorName}
