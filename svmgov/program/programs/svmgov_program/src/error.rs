@@ -94,4 +94,6 @@ pub enum GovernanceError {
     StakeAccountOwnerMismatch,
     #[msg("Unauthorized: only the admin can perform this action")]
     UnauthorizedAdmin,
+    #[msg("Invalid program")]
+    InvalidProgram,
 }

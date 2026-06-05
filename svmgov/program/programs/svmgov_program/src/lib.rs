@@ -49,7 +49,6 @@ pub mod svmgov_program {
         max_title_length: Option<u16>,
         max_description_length: Option<u16>,
         max_support_epochs: Option<u64>,
-        
         min_proposal_stake_lamports: Option<u64>,
         cluster_support_pct_min_bps: Option<u64>,
         discussion_epochs: Option<u64>,
@@ -68,6 +67,11 @@ pub mod svmgov_program {
             snapshot_epoch_extension,
             snapshot_slot_offset,
         )?;
+        Ok(())
+    }
+
+    pub fn update_config_admin(ctx: Context<UpdateConfigAdmin>) -> Result<()> {
+        ctx.accounts.update_config_admin()?;
         Ok(())
     }
 

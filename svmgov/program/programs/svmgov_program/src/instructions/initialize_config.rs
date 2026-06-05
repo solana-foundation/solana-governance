@@ -1,17 +1,16 @@
 use anchor_lang::prelude::*;
 
 use crate::{
-    constants::{ADMIN_PUBKEY, ANCHOR_DISCRIMINATOR},
+    constants::{
+        ANCHOR_DISCRIMINATOR, BASIS_POINTS_MAX, MAX_DESC_ACCOUNT_SIZE, MAX_TITLE_ACCOUNT_SIZE,
+    },
     error::GovernanceError,
     state::GlobalConfig,
 };
 
 #[derive(Accounts)]
 pub struct InitializeConfig<'info> {
-    #[account(
-        mut,
-        constraint = admin.key() == ADMIN_PUBKEY @ GovernanceError::UnauthorizedAdmin,
-    )]
+    #[account(mut)]
     pub admin: Signer<'info>,
     #[account(
         init,
@@ -22,6 +21,16 @@ pub struct InitializeConfig<'info> {
     )]
     pub global_config: Account<'info, GlobalConfig>,
     pub system_program: Program<'info, System>,
+    // links the passed program_data to THIS program's id
+    #[account(
+      constraint = program.programdata_address()? == Some(program_data.key()) @ GovernanceError::InvalidProgram
+  )]
+    pub program: Program<'info, crate::program::SvmgovProgram>,
+    // Ensure the admin is the upgrade authority for the program to prevent unauthorized initialization
+    #[account(
+        constraint = program_data.upgrade_authority_address == Some(admin.key()) @ GovernanceError::UnauthorizedAdmin
+    )]
+    pub program_data: Account<'info, ProgramData>,
 }
 
 impl<'info> InitializeConfig<'info> {

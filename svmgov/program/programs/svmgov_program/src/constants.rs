@@ -1,8 +1,3 @@
-use anchor_lang::prelude::{pubkey, Pubkey};
-
-// Admin wallet that can initialize and update GlobalConfig
-pub const ADMIN_PUBKEY: Pubkey = pubkey!("BjHS1TPhG47CJGyghwKYrDZeHwmqh9frBk4Ba3uSXeRy");
-
 // Structural constants that never change
 pub const ANCHOR_DISCRIMINATOR: usize = 8;
 pub const BASIS_POINTS_MAX: u64 = 10_000;

@@ -1,11 +1,18 @@
 use anchor_lang::prelude::*;
 
-use crate::{constants::ADMIN_PUBKEY, error::GovernanceError, state::GlobalConfig};
+use crate::{
+    error::GovernanceError,
+    instructions::{
+        validate_cluster_support_pct_min_bps, validate_max_description_length,
+        validate_max_title_length,
+    },
+    state::GlobalConfig,
+};
 
 #[derive(Accounts)]
 pub struct UpdateConfig<'info> {
     #[account(
-        constraint = admin.key() == ADMIN_PUBKEY @ GovernanceError::UnauthorizedAdmin,
+        constraint = admin.key() == global_config.admin @ GovernanceError::UnauthorizedAdmin,
     )]
     pub admin: Signer<'info>,
     #[account(
