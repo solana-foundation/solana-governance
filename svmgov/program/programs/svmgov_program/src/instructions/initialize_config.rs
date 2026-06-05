@@ -47,6 +47,12 @@ impl<'info> InitializeConfig<'info> {
         snapshot_slot_offset: i64,
         bumps: &InitializeConfigBumps,
     ) -> Result<()> {
+        validate_cluster_support_pct_min_bps(cluster_support_pct_min_bps)?;
+
+        validate_max_title_length(max_title_length)?;
+
+        validate_max_description_length(max_description_length)?;
+
         self.global_config.set_inner(GlobalConfig {
             admin: self.admin.key(),
             max_title_length,
@@ -62,4 +68,32 @@ impl<'info> InitializeConfig<'info> {
         });
         Ok(())
     }
+}
+
+/// Validate that the cluster support percentage minimum in basis points is between 0 and 10,000 (inclusive)
+/// This will prevent a downstream error when calculating the required support for a proposal, which would
+/// occur if this value is set above 10,000 (100%).
+pub fn validate_cluster_support_pct_min_bps(cluster_support_pct_min_bps: u64) -> Result<()> {
+    if cluster_support_pct_min_bps > BASIS_POINTS_MAX {
+        return Err(GovernanceError::InvalidClusterSupportPctMin.into());
+    }
+    Ok(())
+}
+
+/// Validate that the max title length is greater than 0 and less than the maximum title size enforced
+/// downstream.
+pub fn validate_max_title_length(max_title_length: u16) -> Result<()> {
+    if max_title_length == 0 || max_title_length as usize > MAX_TITLE_ACCOUNT_SIZE {
+        return Err(GovernanceError::InvalidMaxTitleLength.into());
+    }
+    Ok(())
+}
+
+/// Validate that the max description length is greater than 0 and less than the maximum description size enforced
+/// downstream.
+pub fn validate_max_description_length(max_description_length: u16) -> Result<()> {
+    if max_description_length == 0 || max_description_length as usize > MAX_DESC_ACCOUNT_SIZE {
+        return Err(GovernanceError::InvalidMaxDescriptionLength.into());
+    }
+    Ok(())
 }

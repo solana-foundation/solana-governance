@@ -96,4 +96,14 @@ pub enum GovernanceError {
     UnauthorizedAdmin,
     #[msg("Invalid program")]
     InvalidProgram,
+    #[msg(
+        "Invalid cluster support percentage minimum in basis points (must be between 0 and 10,000)"
+    )]
+    InvalidClusterSupportPctMin,
+    // Must be less than MAX_TITLE_ACCOUNT_SIZE to fit in the title account
+    #[msg("Invalid max title length (must be greater than 0 and less than or equal to 200)")]
+    InvalidMaxTitleLength,
+    // Must be less than MAX_DESC_ACCOUNT_SIZE to fit in the description account
+    #[msg("Invalid max description length (must be greater than 0 and less than or equal to 500)")]
+    InvalidMaxDescriptionLength,
 }

@@ -39,9 +39,11 @@ impl<'info> UpdateConfig<'info> {
         let config = &mut self.global_config;
 
         if let Some(v) = max_title_length {
+            validate_max_title_length(v)?;
             config.max_title_length = v;
         }
         if let Some(v) = max_description_length {
+            validate_max_description_length(v)?;
             config.max_description_length = v;
         }
         if let Some(v) = max_support_epochs {
@@ -51,6 +53,7 @@ impl<'info> UpdateConfig<'info> {
             config.min_proposal_stake_lamports = v;
         }
         if let Some(v) = cluster_support_pct_min_bps {
+            validate_cluster_support_pct_min_bps(v)?;
             config.cluster_support_pct_min_bps = v;
         }
         if let Some(v) = discussion_epochs {
