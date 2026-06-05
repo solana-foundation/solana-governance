@@ -70,11 +70,17 @@ pub mod svmgov_program {
         Ok(())
     }
 
-    pub fn update_config_admin(
-        ctx: Context<UpdateConfigAdmin>,
-        proposed_admin: Pubkey,
-    ) -> Result<()> {
-        ctx.accounts.update_config_admin(proposed_admin)?;
+    /// Step 1 of the two-step admin transfer: the current admin nominates a new admin.
+    /// The transfer only completes once the nominee calls `accept_admin`.
+    pub fn nominate_admin(ctx: Context<NominateAdmin>, proposed_admin: Pubkey) -> Result<()> {
+        ctx.accounts.nominate_admin(proposed_admin)?;
+        Ok(())
+    }
+
+    /// Step 2 of the two-step admin transfer: the nominated admin accepts and becomes
+    /// the active admin.
+    pub fn accept_admin(ctx: Context<AcceptAdmin>) -> Result<()> {
+        ctx.accounts.accept_admin()?;
         Ok(())
     }
 

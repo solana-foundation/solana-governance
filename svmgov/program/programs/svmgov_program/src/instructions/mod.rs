@@ -8,8 +8,8 @@ pub mod initialize_index;
 pub mod modify_vote;
 pub mod modify_vote_override;
 pub mod support_proposal;
+pub mod transfer_admin;
 pub mod update_config;
-pub mod update_config_admin;
 
 pub use cast_vote::*;
 pub use cast_vote_override::*;
@@ -21,5 +21,5 @@ pub use initialize_index::*;
 pub use modify_vote::*;
 pub use modify_vote_override::*;
 pub use support_proposal::*;
+pub use transfer_admin::*;
 pub use update_config::*;
-pub use update_config_admin::*;

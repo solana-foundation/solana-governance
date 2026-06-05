@@ -55,6 +55,7 @@ impl<'info> InitializeConfig<'info> {
 
         self.global_config.set_inner(GlobalConfig {
             admin: self.admin.key(),
+            pending_admin: None,
             max_title_length,
             max_description_length,
             max_support_epochs,

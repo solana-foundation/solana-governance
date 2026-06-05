@@ -5,6 +5,9 @@ use anchor_lang::prelude::*;
 pub struct GlobalConfig {
     /// The admin pubkey who can update this config
     pub admin: Pubkey,
+    /// A pending admin nominated by the current admin. The transfer only completes
+    /// once this key signs `accept_admin`. `None` when no transfer is in progress.
+    pub pending_admin: Option<Pubkey>,
     /// Maximum length for proposal titles
     pub max_title_length: u16,
     /// Maximum length for proposal descriptions

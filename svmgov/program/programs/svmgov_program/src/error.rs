@@ -108,4 +108,10 @@ pub enum GovernanceError {
     // Must be less than MAX_DESC_ACCOUNT_SIZE to fit in the description account
     #[msg("Invalid max description length (must be greater than 0 and less than or equal to 500)")]
     InvalidMaxDescriptionLength,
+    #[msg("Admin cannot be the default (all-zero) pubkey")]
+    InvalidAdmin,
+    #[msg("No pending admin nomination exists to accept")]
+    NoPendingAdmin,
+    #[msg("Signer is not the pending admin nominee")]
+    NotPendingAdmin,
 }
