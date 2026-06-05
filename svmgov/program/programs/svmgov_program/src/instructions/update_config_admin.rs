@@ -14,15 +14,13 @@ pub struct UpdateConfigAdmin<'info> {
         bump = global_config.bump,
     )]
     pub global_config: Account<'info, GlobalConfig>,
-
-    pub proposed_admin: Signer<'info>,
 }
 
 impl<'info> UpdateConfigAdmin<'info> {
-    pub fn update_config_admin(&mut self) -> Result<()> {
+    pub fn update_config_admin(&mut self, proposed_admin: Pubkey) -> Result<()> {
         let config = &mut self.global_config;
 
-        config.admin = self.proposed_admin.key();
+        config.admin = proposed_admin;
 
         Ok(())
     }

@@ -70,8 +70,11 @@ pub mod svmgov_program {
         Ok(())
     }
 
-    pub fn update_config_admin(ctx: Context<UpdateConfigAdmin>) -> Result<()> {
-        ctx.accounts.update_config_admin()?;
+    pub fn update_config_admin(
+        ctx: Context<UpdateConfigAdmin>,
+        proposed_admin: Pubkey,
+    ) -> Result<()> {
+        ctx.accounts.update_config_admin(proposed_admin)?;
         Ok(())
     }
 
