@@ -161,7 +161,7 @@ pub async fn initialize_global_config(
     .await?;
 
     spinner.finish_and_clear();
-    println!("{}", outcome.format_structured());
+    println!("Global config updated: {}", outcome.format_structured());
 
     Ok(())
 }
