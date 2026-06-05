@@ -383,11 +383,14 @@ enum Commands {
     },
 
     #[command(
-        about = "Initialize the on-chain global config (admin only)",
+        about = "Initialize the on-chain global config (program upgrade authority only)",
         long_about = "This command initializes the on-chain GlobalConfig account with governance parameters. \
-                      Only the admin keypair can execute this. This must be called once before any proposals can be created.\n\n\
+                      It must be signed by the program's upgrade authority, who becomes the stored config admin. \
+                      This must be called once before any proposals can be created.\n\n\
+                      Note: max-title-length must be between 1 and 200 (bytes), max-description-length between 1 and 500 (bytes), \
+                      and cluster-support-pct-min-bps between 0 and 10,000.\n\n\
                       Example:\n\
-                      $ svmgov -k /path/to/admin.json init-global-config --max-title-length 128 --max-description-length 512 --max-support-epochs 0 --min-proposal-stake-lamports 1000000000 --cluster-support-pct-min-bps 100 --discussion-epochs 3 --voting-epochs 3 --snapshot-epoch-extension 1"
+                      $ svmgov -k /path/to/upgrade-authority.json init-global-config --max-title-length 128 --max-description-length 512 --max-support-epochs 0 --min-proposal-stake-lamports 1000000000 --cluster-support-pct-min-bps 100 --discussion-epochs 3 --voting-epochs 3 --snapshot-epoch-extension 1 --snapshot-slot-offset 1000"
     )]
     InitGlobalConfig {
         #[arg(long, help = "Maximum length for proposal titles")]
@@ -421,7 +424,8 @@ enum Commands {
     #[command(
         about = "Update the on-chain global config (admin only)",
         long_about = "This command updates one or more fields of the on-chain GlobalConfig account. \
-                      Only the admin keypair can execute this. Only pass the fields you want to change.\n\n\
+                      Only the configured admin (GlobalConfig.admin) can execute this. Only pass the fields you want to change.\n\n\
+                      Bounds: max-title-length 1-200 (bytes), max-description-length 1-500 (bytes), cluster-support-pct-min-bps 0-10,000.\n\n\
                       Example:\n\
                       $ svmgov -k /path/to/admin.json update-global-config --voting-epochs 5 --discussion-epochs 4"
     )]
@@ -461,6 +465,32 @@ enum Commands {
                       $ svmgov show-global-config"
     )]
     ShowGlobalConfig,
+
+    #[command(
+        about = "Nominate a new config admin (step 1 of 2, current admin only)",
+        long_about = "This command nominates a new admin for the on-chain GlobalConfig. It is the first \
+                      step of a two-step transfer and must be signed by the current admin. The transfer does \
+                      not take effect until the nominee runs `accept-admin`, which proves the new admin key \
+                      is controllable and makes multisig-to-multisig handoffs safe (each side signs its own \
+                      transaction).\n\n\
+                      Example:\n\
+                      $ svmgov -k /path/to/current-admin.json nominate-admin --new-admin <NEW_ADMIN_PUBKEY>"
+    )]
+    NominateAdmin {
+        /// Pubkey (base58) of the proposed new admin.
+        #[arg(long, help = "Base58 pubkey of the proposed new admin")]
+        new_admin: String,
+    },
+
+    #[command(
+        about = "Accept the config admin role (step 2 of 2, nominee only)",
+        long_about = "This command completes a two-step admin transfer. It must be signed by the pending \
+                      admin (the pubkey previously passed to `nominate-admin`). On success the signer becomes \
+                      the active GlobalConfig admin and the pending nomination is cleared.\n\n\
+                      Example:\n\
+                      $ svmgov -k /path/to/new-admin.json accept-admin"
+    )]
+    AcceptAdmin,
 
     #[command(
         about = "Initialize the CLI configuration",
@@ -562,7 +592,9 @@ fn squads_refusal_for(command: &Commands) -> Option<String> {
         | Commands::ListProposals { .. }
         | Commands::ShowGlobalConfig
         | Commands::Init
-        | Commands::Config { .. } => return None,
+        | Commands::Config { .. }
+        | Commands::NominateAdmin { .. }
+        | Commands::AcceptAdmin => return None,
     };
 
     Some(format!(
@@ -798,6 +830,12 @@ async fn handle_command(cli: Cli) -> Result<()> {
         }
         Commands::ShowGlobalConfig => {
             instructions::show_global_config(cli.rpc_url).await?;
+        }
+        Commands::NominateAdmin { new_admin } => {
+            instructions::nominate_admin(cli.keypair, new_admin.clone(), cli.rpc_url).await?;
+        }
+        Commands::AcceptAdmin => {
+            instructions::accept_admin(cli.keypair, cli.rpc_url).await?;
         }
         Commands::Init => {
             init::run_init().await?;

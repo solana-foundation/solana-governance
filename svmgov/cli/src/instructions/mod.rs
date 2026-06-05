@@ -12,7 +12,10 @@ pub use cast_vote::cast_vote;
 pub use cast_vote_override::cast_vote_override;
 pub use create_proposal::create_proposal;
 pub use finalize_proposal::finalize_proposal;
-pub use global_config::{initialize_global_config, show_global_config, update_global_config};
+pub use global_config::{
+    accept_admin, initialize_global_config, nominate_admin, show_global_config,
+    update_global_config,
+};
 pub use init_index::initialize_index;
 pub use modify_vote::modify_vote;
 pub use modify_vote_override::modify_vote_override;
