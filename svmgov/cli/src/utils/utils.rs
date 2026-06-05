@@ -141,7 +141,7 @@ fn load_identity_keypair(keypair_path: Option<String>) -> Result<Keypair> {
         path
     } else {
         return Err(anyhow!(
-            "No identity keypair path provided. Please specify the path using the --identity_keypair flag."
+            "No identity keypair path provided. Please specify the path using the --keypair flag."
         ));
     };
 
