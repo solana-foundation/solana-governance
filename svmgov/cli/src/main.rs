@@ -390,7 +390,7 @@ enum Commands {
                       Note: max-title-length must be between 1 and 200 (bytes), max-description-length between 1 and 500 (bytes), \
                       and cluster-support-pct-min-bps between 0 and 10,000.\n\n\
                       Example:\n\
-                      $ svmgov -k /path/to/upgrade-authority.json init-global-config --max-title-length 128 --max-description-length 512 --max-support-epochs 0 --min-proposal-stake-lamports 1000000000 --cluster-support-pct-min-bps 100 --discussion-epochs 3 --voting-epochs 3 --snapshot-epoch-extension 1 --snapshot-slot-offset 1000"
+                      $ svmgov -k /path/to/upgrade-authority.json init-global-config --max-title-length 128 --max-description-length 500 --max-support-epochs 0 --min-proposal-stake-lamports 1000000000 --cluster-support-pct-min-bps 100 --discussion-epochs 3 --voting-epochs 3 --snapshot-epoch-extension 1 --snapshot-slot-offset 1000"
     )]
     InitGlobalConfig {
         #[arg(long, help = "Maximum length for proposal titles")]
