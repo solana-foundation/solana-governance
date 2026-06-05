@@ -6,11 +6,13 @@ pub enum GovernanceError {
     NotEnoughStake,
     #[msg("The title of the proposal cannot be empty")]
     TitleEmpty,
-    #[msg("The title of the proposal is too long, max 50 char")]
+    // Max bytes is set by the MAX_TITLE_ACCOUNT_SIZE constant
+    #[msg("The title of the proposal is too long, max 200 bytes")]
     TitleTooLong,
     #[msg("The description of the proposal cannot be empty")]
     DescriptionEmpty,
-    #[msg("The description of the proposal is too long, max 250 char")]
+    // Max bytes is set by the MAX_DESC_ACCOUNT_SIZE constant
+    #[msg("The description of the proposal is too long, max 500 bytes")]
     DescriptionTooLong,
     #[msg("The description of the proposal must point to a github link")]
     DescriptionInvalid,
