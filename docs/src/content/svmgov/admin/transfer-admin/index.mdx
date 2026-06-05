@@ -1,0 +1,60 @@
+import { Callout } from 'nextra/components'
+
+# Transfer Admin
+
+Hand off the `GlobalConfig.admin` authority using a **two-step** nominate / accept flow.
+
+## Why two steps
+
+A single-step transfer risks setting `admin` to a key that can't sign, permanently locking out config management. The two-step flow proves the new admin controls its key before authority moves:
+
+1. **`nominate-admin`** — the current admin records a `pending_admin`.
+2. **`accept-admin`** — the nominee signs to promote themselves; `pending_admin` is cleared.
+
+Each step is signed by a different party in a **separate transaction**, so this works for multisig-to-multisig handoffs (e.g. two Squads) that cannot co-sign a single transaction.
+
+<Callout type="info">
+  The current admin can re-run `nominate-admin` at any time to change the nominee before it's accepted. A pending nomination grants no authority until accepted.
+</Callout>
+
+## Step 1 — Nominate
+
+**Signer:** current admin.
+
+```bash
+svmgov -k <CURRENT_ADMIN_KEYPAIR> nominate-admin \
+  --new-admin <NEW_ADMIN_PUBKEY>
+```
+
+| Argument | Type | Description |
+|---|---|---|
+| `--new-admin` | Pubkey (base58) | The nominee who must accept to take over |
+
+The nominee cannot be the default (all-zero) pubkey (`InvalidAdmin`). Verify the pending nominee with [`show-global-config`](/svmgov/admin/show-global-config).
+
+## Step 2 — Accept
+
+**Signer:** the nominee (must equal `pending_admin`).
+
+```bash
+svmgov -k <NEW_ADMIN_KEYPAIR> accept-admin
+```
+
+On success the signer becomes `GlobalConfig.admin` and `pending_admin` is reset to `none`. Accepting with the wrong key fails with `NotPendingAdmin`; accepting when nothing is pending fails with `NoPendingAdmin`.
+
+## Events
+
+- `AdminNominated { current_admin, pending_admin }` — emitted by `nominate-admin`.
+- `AdminTransferred { previous_admin, new_admin }` — emitted by `accept-admin`.
+
+## Global Arguments
+
+| Option | Short | Description |
+|---|---|---|
+| `--keypair <PATH>` | `-k` | Path to the signer keypair |
+| `--rpc-url <URL>` | `-r` | Custom RPC URL |
+
+## Related
+
+- [Administration overview](/svmgov/admin)
+- [Update Global Config](/svmgov/admin/update-global-config)

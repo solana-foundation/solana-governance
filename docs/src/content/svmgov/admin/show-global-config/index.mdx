@@ -1,0 +1,38 @@
+# Show Global Config
+
+Fetch and print the current on-chain `GlobalConfig`. Read-only — no signer required.
+
+## Usage
+
+```bash
+svmgov show-global-config
+```
+
+## Output
+
+```text
+On-chain Global Config:
+  admin:                       <PUBKEY>
+  pending_admin:               none
+  max_title_length:            128
+  max_description_length:      512
+  max_support_epochs:          0
+  min_proposal_stake_lamports: 1000000000
+  cluster_support_pct_min_bps: 100
+  discussion_epochs:           3
+  voting_epochs:               3
+  snapshot_epoch_extension:    1
+  snapshot_slot_offset:        1000
+```
+
+`pending_admin` shows the nominee of an in-progress admin transfer, or `none` when no transfer is pending. See [Transfer Admin](/svmgov/admin/transfer-admin).
+
+## Global Arguments
+
+| Option | Short | Description |
+|---|---|---|
+| `--rpc-url <URL>` | `-r` | Custom RPC URL |
+
+## Related
+
+- [Administration overview](/svmgov/admin)

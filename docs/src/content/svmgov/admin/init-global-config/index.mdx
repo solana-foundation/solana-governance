@@ -1,0 +1,56 @@
+import { Callout } from 'nextra/components'
+
+# Initialize Global Config
+
+Create the on-chain `GlobalConfig` singleton and set all governance parameters. **One-time setup**, required before any proposals can be created.
+
+## Signer
+
+The transaction must be signed by the **program's upgrade authority**. Init is gated on-chain: the program verifies the supplied `program_data` account belongs to this program and that its `upgrade_authority_address` equals the signer. The signer becomes the stored `GlobalConfig.admin`.
+
+<Callout type="warning">
+  Run this **before** making the program immutable. If the upgrade authority is set to `None`, initialization can no longer succeed.
+</Callout>
+
+The CLI derives and passes the program and `ProgramData` accounts automatically, and runs a best-effort pre-flight check that the signer is the upgrade authority before sending.
+
+## Usage
+
+```bash
+svmgov -k <UPGRADE_AUTHORITY_KEYPAIR> init-global-config \
+  --max-title-length 128 \
+  --max-description-length 512 \
+  --max-support-epochs 0 \
+  --min-proposal-stake-lamports 1000000000 \
+  --cluster-support-pct-min-bps 100 \
+  --discussion-epochs 3 \
+  --voting-epochs 3 \
+  --snapshot-epoch-extension 1 \
+  --snapshot-slot-offset 1000
+```
+
+## Arguments
+
+| Argument | Type | Description | Bound |
+|---|---|---|---|
+| `--max-title-length` | u16 | Max bytes in a proposal title | 1–200 |
+| `--max-description-length` | u16 | Max bytes in a proposal description | 1–500 |
+| `--max-support-epochs` | u64 | Max epochs a proposal can stay in the support phase | |
+| `--min-proposal-stake-lamports` | u64 | Min stake (lamports) to create a proposal | |
+| `--cluster-support-pct-min-bps` | u64 | Cluster support threshold (basis points) | 0–10,000 |
+| `--discussion-epochs` | u64 | Epochs reserved for discussion | |
+| `--voting-epochs` | u64 | Epochs in the voting window | |
+| `--snapshot-epoch-extension` | u64 | Extension epochs before the snapshot slot is set | |
+| `--snapshot-slot-offset` | i64 | Slot offset from epoch start for the snapshot | |
+
+## Global Arguments
+
+| Option | Short | Description |
+|---|---|---|
+| `--keypair <PATH>` | `-k` | Path to the signer keypair (the upgrade authority) |
+| `--rpc-url <URL>` | `-r` | Custom RPC URL |
+
+## Related
+
+- [Update Global Config](/svmgov/admin/update-global-config)
+- [Administration overview](/svmgov/admin)
