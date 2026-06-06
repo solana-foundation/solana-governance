@@ -19,8 +19,8 @@ use crate::{
         },
         squads::{effective_signer, SquadsCliOpts},
         utils::{
-            create_spinner, derive_vote_override_cache_pda, derive_vote_override_pda,
-            derive_vote_pda, setup_all_with_staker,
+            compute_vote_expiry_timestamp, create_spinner, derive_vote_override_cache_pda,
+            derive_vote_override_pda, derive_vote_pda, setup_all_with_staker,
         },
     },
 };
@@ -37,6 +37,7 @@ pub async fn cast_vote_override(
     vote_account: String,
     network: String,
     squads: Option<SquadsCliOpts>,
+    close_timestamp_override: Option<i64>,
 ) -> Result<()> {
     if for_votes + against_votes + abstain_votes != BASIS_POINTS_TOTAL {
         return Err(anyhow!(
@@ -111,10 +112,16 @@ pub async fn cast_vote_override(
         let voting_wallet = Pubkey::from_str(&meta_merkle_proof.meta_merkle_leaf.voting_wallet)
             .map_err(|e| anyhow!("Invalid voting wallet in proof: {}", e))?;
 
+        let close_timestamp = match close_timestamp_override {
+            Some(ts) => ts,
+            None => compute_vote_expiry_timestamp(&program, proposal.end_epoch).await?,
+        };
+        info!("Setting MetaMerkleProof close_timestamp to {}", close_timestamp);
+
         let init_meta_merkle_proof_ix = merkle_proof_program
             .request()
             .args(ncn_snapshot::instruction::InitMetaMerkleProof {
-                close_timestamp: 1,
+                close_timestamp,
                 meta_merkle_leaf: MetaMerkleLeaf {
                     voting_wallet,
                     vote_account: vote_account_pubkey,

@@ -11,10 +11,14 @@ use crate::{
     svmgov_program::{accounts::Proposal, client::{accounts, args}},
     utils::{
         api_helpers::{self, get_vote_account_proof},
-        utils::{create_spinner, derive_vote_override_cache_pda, derive_vote_pda, setup_all},
+        utils::{
+            compute_vote_expiry_timestamp, create_spinner, derive_vote_override_cache_pda,
+            derive_vote_pda, setup_all,
+        },
     },
 };
 
+#[allow(clippy::too_many_arguments)]
 pub async fn cast_vote(
     proposal_id: String,
     votes_for: u64,
@@ -23,6 +27,7 @@ pub async fn cast_vote(
     identity_keypair: Option<String>,
     rpc_url: Option<String>,
     network: String,
+    close_timestamp_override: Option<i64>,
 ) -> Result<()> {
     if votes_for + votes_against + abstain != BASIS_POINTS_TOTAL {
         return Err(anyhow!(
@@ -81,10 +86,16 @@ pub async fn cast_vote(
         let voting_wallet = Pubkey::from_str(&proof_response.meta_merkle_leaf.voting_wallet)
             .map_err(|e| anyhow!("Invalid voting wallet in proof: {}", e))?;
 
+        let close_timestamp = match close_timestamp_override {
+            Some(ts) => ts,
+            None => compute_vote_expiry_timestamp(&program, proposal.end_epoch).await?,
+        };
+        info!("Setting MetaMerkleProof close_timestamp to {}", close_timestamp);
+
         let init_meta_merkle_proof_ix = merkle_proof_program
             .request()
             .args(ncn_snapshot::instruction::InitMetaMerkleProof {
-                close_timestamp: 1,
+                close_timestamp,
                 meta_merkle_leaf: MetaMerkleLeaf {
                     voting_wallet,
                     vote_account,

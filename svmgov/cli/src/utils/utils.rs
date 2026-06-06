@@ -429,6 +429,38 @@ pub async fn fetch_global_config(program: &Program<Arc<Keypair>>) -> Result<Glob
         .map_err(|e| anyhow!("Failed to fetch GlobalConfig: {}", e))
 }
 
+/// Estimate the Unix timestamp at which voting expires for a proposal — i.e. the start of
+/// `end_epoch`, after which voting is no longer valid (`current_epoch < end_epoch`). This is
+/// the recommended value for a `MetaMerkleProof` `close_timestamp`, after which the proof may
+/// be closed permissionlessly.
+///
+/// There is no on-chain expiry timestamp (the proposal only stores `end_epoch`), so this
+/// estimates it: anchor to the current chain block time and add the remaining slots until the
+/// start of `end_epoch` at ~400ms/slot. If voting has already ended the result is in the past,
+/// which correctly allows immediate permissionless close.
+pub async fn compute_vote_expiry_timestamp(
+    program: &Program<Arc<Keypair>>,
+    end_epoch: u64,
+) -> Result<i64> {
+    const MS_PER_SLOT: i64 = 400; // solana_sdk::clock::DEFAULT_MS_PER_SLOT
+
+    let rpc = program.rpc();
+    let info = rpc
+        .get_epoch_info()
+        .await
+        .map_err(|e| anyhow!("Failed to fetch epoch info: {}", e))?;
+    let now = rpc
+        .get_block_time(info.absolute_slot)
+        .await
+        .map_err(|e| anyhow!("Failed to fetch block time: {}", e))?;
+
+    // Slots from "now" until the first slot of `end_epoch`. Negative if voting already ended.
+    let slots_remaining = (end_epoch as i64 - info.epoch as i64) * info.slots_in_epoch as i64
+        - info.slot_index as i64;
+
+    Ok(now + slots_remaining * MS_PER_SLOT / 1000)
+}
+
 /// Derives the ProgramConfig PDA using the seeds [b"ProgramConfig"]
 /// This matches the on-chain derivation in the support_proposal instruction.
 pub fn derive_program_config_pda(ballot_program_id: &Pubkey) -> Pubkey {
