@@ -167,7 +167,7 @@ Example response:
   "stake_accounts": [],
   "vote_accounts": [
     {
-      "active_stake": :33334695348563,
+      "active_stake": 33334695348563,
       "vote_account": "1vgZrjS88D7RA1CbcSAovvyd6cSVqk3Ag1Ty2kSrJVd"
     }
   ],
