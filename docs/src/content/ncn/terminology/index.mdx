@@ -101,6 +101,8 @@ A temporary on-chain account storing a validator's proof path in the `MetaMerkle
 
 **PDA seeds:** `["MetaMerkleProof", consensus_result_pubkey, vote_account_pubkey]`
 
+It carries a `close_timestamp` chosen by the payer; once that time has elapsed, anyone may close the account permissionlessly to reclaim its rent. The `svmgov` CLI defaults this to the proposal's vote-expiry time so the proof stays protected for the duration of voting.
+
 ---
 
 ## Voting Terms
