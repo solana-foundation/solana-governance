@@ -77,6 +77,15 @@ pub async fn cast_vote(
         }
     };
 
+    // A close_timestamp override only takes effect when the account is created below; warn if
+    // the user passed one but the account already exists so the value is not silently dropped.
+    if meta_merkle_proof_account.is_some() && close_timestamp_override.is_some() {
+        log::warn!(
+            "--close-timestamp was provided, but the MetaMerkleProof account already exists. \
+             close_timestamp is only set when the account is created, so the provided value will be ignored."
+        );
+    }
+
     // First transaction: Initialize meta merkle proof if needed
     if meta_merkle_proof_account.is_none() {
         info!("Creating meta merkle proof account");

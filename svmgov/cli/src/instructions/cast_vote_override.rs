@@ -103,6 +103,15 @@ pub async fn cast_vote_override(
         }
     };
 
+    // A close_timestamp override only takes effect when the account is created below; warn if
+    // the user passed one but the account already exists so the value is not silently dropped.
+    if meta_merkle_proof_account.is_some() && close_timestamp_override.is_some() {
+        log::warn!(
+            "--close-timestamp was provided, but the MetaMerkleProof account already exists. \
+             close_timestamp is only set when the account is created, so the provided value will be ignored."
+        );
+    }
+
     // Preflight: initialize the meta merkle proof account if it does not yet exist. This
     // instruction accepts any payer, so it is sent by the proposer rather than the vault.
     let mut preflight_ixs = Vec::new();
