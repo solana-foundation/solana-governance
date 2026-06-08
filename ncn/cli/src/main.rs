@@ -279,7 +279,19 @@ pub enum Commands {
     /// Must be run once per deployment. The signer of `--authority-path`
     /// becomes the initial program authority and is recorded as
     /// `ProgramConfig.authority`.
-    InitProgramConfig {},
+    InitProgramConfig {
+        /// svmgov governance program id (base58) whose Proposal PDAs are
+        /// authorized to open ballot boxes via CPI. Recorded as
+        /// `ProgramConfig.svmgov_program_pubkey` and checked in
+        /// `init_ballot_box`. Source it from `networks.toml`'s
+        /// `svmgov_program_id`.
+        #[arg(
+            long,
+            value_parser = parse_pubkey,
+            help = "svmgov governance program id (base58) authorized to open ballot boxes"
+        )]
+        svmgov_program_id: Pubkey,
+    },
     /// Add or remove operator pubkeys from the on-chain whitelist.
     ///
     /// Only whitelisted operators are allowed to cast votes.
@@ -345,6 +357,15 @@ pub enum Commands {
         /// ballot box is created to cast votes.
         #[arg(long, help = "Voting window duration, in seconds")]
         vote_duration: Option<i64>,
+
+        /// New svmgov governance program id (base58). Retargets which svmgov
+        /// program may open ballot boxes — no ncn redeploy required.
+        #[arg(
+            long,
+            value_parser = parse_pubkey,
+            help = "New svmgov governance program id (base58) authorized to open ballot boxes"
+        )]
+        svmgov_program_id: Option<Pubkey>,
     },
     /// Complete a pending two-step authority handover.
     ///
@@ -644,6 +665,7 @@ fn main() -> Result<()> {
         );
         println!("  Tie Breaker Admin: {}", config.tie_breaker_admin);
         println!("  Vote Duration: {}", config.vote_duration);
+        println!("  Svmgov Program: {}", config.svmgov_program_pubkey);
         println!(
             "  Whitelisted Operators: {}",
             config.whitelisted_operators.len()
@@ -734,7 +756,7 @@ fn main() -> Result<()> {
                 "finalize-ballot",
                 "no particular signer because it is permissionless, so a multisig adds friction without benefit",
             ),
-            Commands::InitProgramConfig {}
+            Commands::InitProgramConfig { .. }
             | Commands::UpdateOperatorWhitelist { .. }
             | Commands::UpdateProgramConfig { .. }
             | Commands::FinalizeProposedAuthority {}
@@ -818,7 +840,7 @@ fn main() -> Result<()> {
                 }
             }
         }
-        Commands::InitProgramConfig {} => {
+        Commands::InitProgramConfig { svmgov_program_id } => {
             info!("InitProgramConfig...");
 
             let payer = read_signer_keypair(&cli.payer_path, "--payer-path")
@@ -834,7 +856,7 @@ fn main() -> Result<()> {
                 authority: &authority,
                 squads: squads_opts.as_ref().map(|o| o.to_config(payer.pubkey())),
             };
-            let outcome = send_init_program_config(tx_sender)?;
+            let outcome = send_init_program_config(tx_sender, svmgov_program_id)?;
             println!("{}", outcome.format_structured());
         }
         Commands::UpdateOperatorWhitelist { add, remove } => {
@@ -861,6 +883,7 @@ fn main() -> Result<()> {
             min_consensus_threshold_bps,
             tie_breaker_admin,
             vote_duration,
+            svmgov_program_id,
         } => {
             info!("UpdateProgramConfig...");
 
@@ -883,6 +906,7 @@ fn main() -> Result<()> {
                 min_consensus_threshold_bps,
                 tie_breaker_admin,
                 vote_duration,
+                svmgov_program_id,
             )?;
             println!("{}", outcome.format_structured());
         }
