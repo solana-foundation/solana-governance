@@ -22,6 +22,10 @@ pub struct ProgramConfig {
     pub tie_breaker_admin: Pubkey,
     /// Duration for which ballot box will be opened for voting.
     pub vote_duration: i64,
+    /// The svmgov governance program whose Proposal PDAs are authorized to open
+    /// ballot boxes. Checked in `init_ballot_box`; updatable by the authority so
+    /// the program can be retargeted at a new svmgov deployment without a redeploy.
+    pub svmgov_program_pubkey: Pubkey,
 }
 
 impl ProgramConfig {
