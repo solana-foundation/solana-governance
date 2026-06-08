@@ -3,7 +3,10 @@ use std::{fmt, fs, str::FromStr, sync::Arc, time::Duration};
 use anchor_client::{
     Client, Cluster, Program,
     solana_client::nonblocking::rpc_client::RpcClient,
-    solana_sdk::{native_token::LAMPORTS_PER_SOL, signature::Keypair, signer::Signer},
+    solana_sdk::{
+        commitment_config::CommitmentConfig, native_token::LAMPORTS_PER_SOL, signature::Keypair,
+        signer::Signer,
+    },
 };
 use anchor_lang::{Id, prelude::Pubkey};
 use anyhow::{Result, anyhow};
@@ -435,9 +438,9 @@ pub async fn fetch_global_config(program: &Program<Arc<Keypair>>) -> Result<Glob
 /// be closed permissionlessly.
 ///
 /// There is no on-chain expiry timestamp (the proposal only stores `end_epoch`), so this
-/// estimates it: anchor to the current chain block time and add the remaining slots until the
-/// start of `end_epoch` at ~400ms/slot. If voting has already ended the result is in the past,
-/// which correctly allows immediate permissionless close.
+/// estimates it: anchor to a recent confirmed block time and project forward to the start of
+/// `end_epoch` at ~400ms/slot. If voting has already ended the result is in the past, which
+/// correctly allows immediate permissionless close.
 pub async fn compute_vote_expiry_timestamp(
     program: &Program<Arc<Keypair>>,
     end_epoch: u64,
@@ -445,20 +448,51 @@ pub async fn compute_vote_expiry_timestamp(
     const MS_PER_SLOT: i64 = 400; // solana_sdk::clock::DEFAULT_MS_PER_SLOT
 
     let rpc = program.rpc();
+
+    // Use the confirmed commitment so the reference slot has a block time available — the
+    // processed chain head is frequently unconfirmed and `get_block_time` would fail for it.
     let info = rpc
-        .get_epoch_info()
+        .get_epoch_info_with_commitment(CommitmentConfig::confirmed())
         .await
         .map_err(|e| anyhow!("Failed to fetch epoch info: {}", e))?;
-    let now = rpc
-        .get_block_time(info.absolute_slot)
-        .await
-        .map_err(|e| anyhow!("Failed to fetch block time: {}", e))?;
 
-    // Slots from "now" until the first slot of `end_epoch`. Negative if voting already ended.
-    let slots_remaining = (end_epoch as i64 - info.epoch as i64) * info.slots_in_epoch as i64
-        - info.slot_index as i64;
+    // Absolute slot at the start of `end_epoch` — the point at which voting expires.
+    let epoch_start_slot = (info.absolute_slot - info.slot_index) as i64;
+    let target_slot =
+        epoch_start_slot + (end_epoch as i64 - info.epoch as i64) * info.slots_in_epoch as i64;
 
-    Ok(now + slots_remaining * MS_PER_SLOT / 1000)
+    // Anchor the estimate to a real block time and project forward. Whichever slot resolves is
+    // used as the reference, so the slot delta (and thus the estimate) stays consistent.
+    let (ref_slot, ref_time) = block_time_at_or_before(&rpc, info.absolute_slot).await?;
+    let slot_delta = target_slot - ref_slot as i64;
+
+    Ok(ref_time + slot_delta * MS_PER_SLOT / 1000)
+}
+
+/// Fetch a block time at or before `slot`, walking backwards over skipped slots (which have no
+/// block and therefore no block time) until one resolves. Returns the `(slot, unix_timestamp)`
+/// pair that succeeded.
+async fn block_time_at_or_before(rpc: &RpcClient, slot: u64) -> Result<(u64, i64)> {
+    const MAX_ATTEMPTS: u32 = 8;
+
+    let mut slot = slot;
+    let mut last_err = None;
+    for _ in 0..MAX_ATTEMPTS {
+        match rpc.get_block_time(slot).await {
+            Ok(time) => return Ok((slot, time)),
+            Err(e) => {
+                last_err = Some(e.to_string());
+                slot = slot.saturating_sub(1);
+            }
+        }
+    }
+
+    Err(anyhow!(
+        "Failed to fetch a recent block time (tried {} slots ending at {}): {}",
+        MAX_ATTEMPTS,
+        slot,
+        last_err.unwrap_or_else(|| "unknown error".to_string())
+    ))
 }
 
 /// Derives the ProgramConfig PDA using the seeds [b"ProgramConfig"]
