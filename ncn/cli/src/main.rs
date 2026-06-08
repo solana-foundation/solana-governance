@@ -110,6 +110,24 @@ struct Cli {
     #[arg(long, env)]
     pub micro_lamports: Option<u64>,
 
+    /// Route transaction-creating commands through this Squads multisig vault instead of
+    /// signing and sending them locally. The payer keypair is used as the proposing
+    /// member (and must hold the multisig's `Initiate` permission).
+    #[arg(long, env, value_parser = parse_pubkey)]
+    pub squads: Option<Pubkey>,
+
+    /// Vault index within the multisig that will execute the wrapped instructions.
+    #[arg(long, env, default_value = "0")]
+    pub squads_vault_index: u8,
+
+    /// Optional non-canonical Squads program ID override.
+    #[arg(long, env, value_parser = parse_pubkey)]
+    pub squads_program_id: Option<Pubkey>,
+
+    /// Optional memo attached to the created vault transaction.
+    #[arg(long, env)]
+    pub squads_memo: Option<String>,
+
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -129,6 +147,17 @@ impl Cli {
             incremental_snapshots_path: backup_snapshots_dir.clone(),
             backup_snapshots_dir,
         }
+    }
+
+    /// Materializes the raw `--squads*` flags into a [`SquadsCliOpts`], or `None` when
+    /// `--squads` was not supplied (direct mode).
+    pub fn squads_opts(&self) -> Option<SquadsCliOpts> {
+        self.squads.map(|multisig| SquadsCliOpts {
+            multisig,
+            vault_index: self.squads_vault_index,
+            program_id: self.squads_program_id,
+            memo: self.squads_memo.clone(),
+        })
     }
 }
 
@@ -572,6 +601,7 @@ fn main() -> Result<()> {
             micro_lamports: cli.micro_lamports,
             payer: &payer,
             authority: &authority,
+            squads: None,
         };
         let ballot_box_pda = BallotBox::pda(snapshot_slot).0;
         let tx = send_cast_vote(
@@ -680,6 +710,68 @@ fn main() -> Result<()> {
         }
     }
 
+    /// Returns the `--squads` refusal message for `command`, or `None` if the command is
+    /// compatible with vault-PDA signing (or doesn't create a transaction at all).
+    ///
+    /// Refused commands target on-chain instructions whose signer-identity checks cannot
+    /// be satisfied by a Squads vault PDA — the program enforces that the signer is a
+    /// whitelisted operator, or the command is permissionless and a multisig only adds
+    /// friction. See `plans/squads.md` for the full actor matrix.
+    ///
+    /// The refusal strings cite the exact program file:line of the constraint so a reader
+    /// can jump from a CLI error message straight to the source of truth.
+    fn squads_refusal_for(command: &Commands) -> Option<String> {
+        let (name, constraint) = match command {
+            Commands::CastVote { .. } | Commands::CastVoteFromSnapshot { .. } => (
+                "cast-vote",
+                "a whitelisted operator (ballot_box.voter_list.contains(operator)) to be the signer",
+            ),
+            Commands::RemoveVote { .. } => (
+                "remove-vote",
+                "a whitelisted operator (ballot_box.voter_list.contains(operator)) to be the signer",
+            ),
+            Commands::FinalizeBallot { .. } => (
+                "finalize-ballot",
+                "no particular signer because it is permissionless, so a multisig adds friction without benefit",
+            ),
+            Commands::InitProgramConfig {}
+            | Commands::UpdateOperatorWhitelist { .. }
+            | Commands::UpdateProgramConfig { .. }
+            | Commands::FinalizeProposedAuthority {}
+            | Commands::SetTieBreaker { .. }
+            | Commands::ResetBallotBox { .. }
+            | Commands::SnapshotSlot { .. }
+            | Commands::GenerateMetaMerkle { .. }
+            | Commands::LogMetaMerkleHash { .. }
+            | Commands::AwaitSnapshot { .. }
+            | Commands::GetBallot { .. }
+            | Commands::GetProgramConfig { .. }
+            | Commands::GetOperatorWhitelist { .. }
+            | Commands::GetOperatorVote { .. }
+            | Commands::GetConsensusResult { .. }
+            | Commands::GetProof { .. }
+            | Commands::BallotExists { .. }
+            | Commands::Status { .. }
+            | Commands::Log { .. } => return None,
+        };
+
+        Some(format!(
+            "The `{}` command requires {}. A Squads vault PDA cannot satisfy this on-chain \
+             check, so no vault transaction was created. Re-run without --squads to submit this transaction with your local keypair.",
+            name, constraint, 
+        ))
+    }
+
+    // Refuse `--squads` up front for commands whose on-chain signer-identity check cannot
+    // be satisfied by a vault PDA, before any keypair is loaded or RPC call is made.
+    if cli.squads.is_some() {
+        if let Some(msg) = squads_refusal_for(&cli.command) {
+            return Err(anyhow!(msg));
+        }
+    }
+
+    let squads_opts = cli.squads_opts();
+
     match cli.command {
         // === On-chain Instructions ===
         Commands::Log {
@@ -740,9 +832,10 @@ fn main() -> Result<()> {
                 micro_lamports: cli.micro_lamports,
                 payer: &payer,
                 authority: &authority,
+                squads: squads_opts.as_ref().map(|o| o.to_config(payer.pubkey())),
             };
-            let tx = send_init_program_config(tx_sender)?;
-            info!("Transaction sent: {}", tx);
+            let outcome = send_init_program_config(tx_sender)?;
+            println!("{}", outcome.format_structured());
         }
         Commands::UpdateOperatorWhitelist { add, remove } => {
             info!("UpdateOperatorWhitelist...");
@@ -758,9 +851,10 @@ fn main() -> Result<()> {
                 micro_lamports: cli.micro_lamports,
                 payer: &payer,
                 authority: &authority,
+                squads: squads_opts.as_ref().map(|o| o.to_config(payer.pubkey())),
             };
-            let tx = send_update_operator_whitelist(tx_sender, add, remove)?;
-            info!("Transaction sent: {}", tx);
+            let outcome = send_update_operator_whitelist(tx_sender, add, remove)?;
+            println!("{}", outcome.format_structured());
         }
         Commands::UpdateProgramConfig {
             proposed_authority,
@@ -781,15 +875,16 @@ fn main() -> Result<()> {
                 micro_lamports: cli.micro_lamports,
                 payer: &payer,
                 authority: &authority,
+                squads: squads_opts.as_ref().map(|o| o.to_config(payer.pubkey())),
             };
-            let tx = send_update_program_config(
+            let outcome = send_update_program_config(
                 tx_sender,
                 proposed_authority,
                 min_consensus_threshold_bps,
                 tie_breaker_admin,
                 vote_duration,
             )?;
-            info!("Transaction sent: {}", tx);
+            println!("{}", outcome.format_structured());
         }
         Commands::FinalizeProposedAuthority {} => {
             info!("FinalizeProposedAuthority...");
@@ -805,9 +900,10 @@ fn main() -> Result<()> {
                 micro_lamports: cli.micro_lamports,
                 payer: &payer,
                 authority: &authority,
+                squads: squads_opts.as_ref().map(|o| o.to_config(payer.pubkey())),
             };
-            let tx = send_finalize_proposed_authority(tx_sender)?;
-            info!("Transaction sent: {}", tx);
+            let outcome = send_finalize_proposed_authority(tx_sender)?;
+            println!("{}", outcome.format_structured());
         }
         Commands::CastVote {
             snapshot_slot,
@@ -841,6 +937,7 @@ fn main() -> Result<()> {
                 micro_lamports: cli.micro_lamports,
                 payer: &payer,
                 authority: &authority,
+                squads: None,
             };
             let tx = send_remove_vote(tx_sender, ballot_box_pda)?;
             info!("Transaction sent: {}", tx);
@@ -864,13 +961,14 @@ fn main() -> Result<()> {
                 micro_lamports: cli.micro_lamports,
                 payer: &payer,
                 authority: &authority,
+                squads: squads_opts.as_ref().map(|o| o.to_config(payer.pubkey())),
             };
             let ballot = Ballot {
                 meta_merkle_root: root,
                 snapshot_hash: hash,
             };
-            let tx = send_set_tie_breaker(tx_sender, ballot_box_pda, ballot)?;
-            info!("Transaction sent: {}", tx);
+            let outcome = send_set_tie_breaker(tx_sender, ballot_box_pda, ballot)?;
+            println!("{}", outcome.format_structured());
         }
         Commands::ResetBallotBox { snapshot_slot } => {
             info!("ResetBallotBox...");
@@ -887,9 +985,10 @@ fn main() -> Result<()> {
                 micro_lamports: cli.micro_lamports,
                 payer: &payer,
                 authority: &authority,
+                squads: squads_opts.as_ref().map(|o| o.to_config(payer.pubkey())),
             };
-            let tx = send_reset_ballot_box(tx_sender, ballot_box_pda)?;
-            info!("Transaction sent: {}", tx);
+            let outcome = send_reset_ballot_box(tx_sender, ballot_box_pda)?;
+            println!("{}", outcome.format_structured());
         }
         Commands::FinalizeBallot { snapshot_slot } => {
             info!("FinalizeBallot...");
@@ -905,6 +1004,7 @@ fn main() -> Result<()> {
                 micro_lamports: cli.micro_lamports,
                 payer: &payer,
                 authority: &payer,
+                squads: None,
             };
             let tx = send_finalize_ballot(tx_sender, ballot_box_pda, consensus_result_pda)?;
             info!("Transaction sent: {}", tx);

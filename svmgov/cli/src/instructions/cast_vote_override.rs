@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use anchor_client::solana_sdk::{pubkey::Pubkey, signer::Signer, transaction::Transaction};
+use anchor_client::solana_sdk::{pubkey::Pubkey, signer::Signer};
 use anchor_lang::system_program;
 use anyhow::{Result, anyhow};
 use ncn_snapshot::{ID as SNAPSHOT_PROGRAM_ID, MetaMerkleLeaf, MetaMerkleProof};
@@ -17,6 +17,7 @@ use crate::{
             self, convert_merkle_proof_strings, convert_stake_merkle_leaf_data_to_idl_type,
             get_stake_account_proof, get_vote_account_proof,
         },
+        squads::{effective_signer, SquadsCliOpts},
         utils::{
             create_spinner, derive_vote_override_cache_pda, derive_vote_override_pda,
             derive_vote_pda, setup_all_with_staker,
@@ -24,6 +25,7 @@ use crate::{
     },
 };
 
+#[allow(clippy::too_many_arguments)]
 pub async fn cast_vote_override(
     proposal_id: String,
     for_votes: u64,
@@ -34,6 +36,7 @@ pub async fn cast_vote_override(
     stake_account_override: String,
     vote_account: String,
     network: String,
+    squads: Option<SquadsCliOpts>,
 ) -> Result<()> {
     if for_votes + against_votes + abstain_votes != BASIS_POINTS_TOTAL {
         return Err(anyhow!(
@@ -99,11 +102,11 @@ pub async fn cast_vote_override(
         }
     };
 
-    // First transaction: Initialize meta merkle proof if needed
+    // Preflight: initialize the meta merkle proof account if it does not yet exist. This
+    // instruction accepts any payer, so it is sent by the proposer rather than the vault.
+    let mut preflight_ixs = Vec::new();
     if meta_merkle_proof_account.is_none() {
         info!("Creating meta merkle proof account");
-
-        let init_spinner = create_spinner("Initializing meta merkle proof...");
 
         let voting_wallet = Pubkey::from_str(&meta_merkle_proof.meta_merkle_leaf.voting_wallet)
             .map_err(|e| anyhow!("Invalid voting wallet in proof: {}", e))?;
@@ -138,32 +141,12 @@ pub async fn cast_vote_override(
             })
             .instructions()?;
 
-        let blockhash = merkle_proof_program.rpc().get_latest_blockhash().await?;
-        let transaction = Transaction::new_signed_with_payer(
-            &init_meta_merkle_proof_ix,
-            Some(&payer.pubkey()),
-            &[&payer],
-            blockhash,
-        );
-
-        let sig = merkle_proof_program
-            .rpc()
-            .send_and_confirm_transaction(&transaction)
-            .await?;
-        log::debug!(
-            "Meta merkle proof initialization transaction sent successfully: signature={}",
-            sig
-        );
-
-        init_spinner.finish_with_message(format!(
-            "Meta merkle proof initialized. https://explorer.solana.com/tx/{}",
-            sig
-        ));
+        preflight_ixs.extend(init_meta_merkle_proof_ix);
     }
 
-    // Second transaction: Cast vote override
     let spinner = create_spinner("Sending vote override transaction...");
 
+    let signer = effective_signer(squads.as_ref(), payer.pubkey());
     let cast_vote_override_ixs = program
         .request()
         .args(args::CastVoteOverride {
@@ -174,7 +157,7 @@ pub async fn cast_vote_override(
             stake_merkle_leaf,
         })
         .accounts(accounts::CastVoteOverride {
-            signer: payer.pubkey(),
+            signer,
             spl_vote_account: vote_account_pubkey,
             spl_stake_account: Pubkey::from_str(&stake_account_str)?,
             proposal: proposal_pubkey,
@@ -188,27 +171,19 @@ pub async fn cast_vote_override(
         })
         .instructions()?;
 
-    let blockhash = program.rpc().get_latest_blockhash().await?;
-    let transaction = Transaction::new_signed_with_payer(
-        &cast_vote_override_ixs,
-        Some(&payer.pubkey()),
-        &[&payer],
-        blockhash,
-    );
+    let rpc = program.rpc();
+    let squads_config = squads.as_ref().map(|opts| opts.to_config(payer.pubkey()));
+    let outcome = crate::utils::squads::route(
+        &rpc,
+        cast_vote_override_ixs,
+        preflight_ixs,
+        &[payer.as_ref()],
+        squads_config.as_ref(),
+    )
+    .await?;
 
-    let sig = program
-        .rpc()
-        .send_and_confirm_transaction(&transaction)
-        .await?;
-    log::debug!(
-        "Cast vote override transaction sent successfully: signature={}",
-        sig
-    );
-
-    spinner.finish_with_message(format!(
-        "Vote override cast successfully. https://explorer.solana.com/tx/{}",
-        sig
-    ));
+    spinner.finish_and_clear();
+    println!("{}", outcome.format_structured());
 
     Ok(())
 }

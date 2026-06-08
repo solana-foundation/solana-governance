@@ -1,17 +1,21 @@
 use std::sync::Arc;
 
-use anchor_client::solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
+use anchor_client::solana_sdk::{signature::Keypair, signer::Signer};
 use anchor_lang::system_program;
 use anyhow::Result;
 
 use crate::{
     svmgov_program::client::{accounts, args},
-    utils::utils::{
-        anchor_client_setup, create_spinner, derive_global_config_pda, fetch_global_config,
-        setup_admin,
+    utils::{
+        squads::{effective_signer, SquadsCliOpts},
+        utils::{
+            anchor_client_setup, create_spinner, derive_global_config_pda, fetch_global_config,
+            setup_admin,
+        },
     },
 };
 
+#[allow(clippy::too_many_arguments)]
 pub async fn initialize_global_config(
     keypair: Option<String>,
     rpc_url: Option<String>,
@@ -24,10 +28,12 @@ pub async fn initialize_global_config(
     voting_epochs: u64,
     snapshot_epoch_extension: u64,
     snapshot_slot_offset: i64,
+    squads: Option<SquadsCliOpts>,
 ) -> Result<()> {
     let (payer, program) = setup_admin(keypair, rpc_url)?;
 
     let global_config_pda = derive_global_config_pda(&program.id());
+    let admin = effective_signer(squads.as_ref(), payer.pubkey());
 
     let spinner = create_spinner("Initializing global config...");
 
@@ -45,29 +51,30 @@ pub async fn initialize_global_config(
             snapshot_slot_offset,
         })
         .accounts(accounts::InitializeConfig {
-            admin: payer.pubkey(),
+            admin,
             global_config: global_config_pda,
             system_program: system_program::ID,
         })
         .instructions()?;
 
-    let blockhash = program.rpc().get_latest_blockhash().await?;
-    let transaction =
-        Transaction::new_signed_with_payer(&ixs, Some(&payer.pubkey()), &[&payer], blockhash);
+    let rpc = program.rpc();
+    let squads_config = squads.as_ref().map(|opts| opts.to_config(payer.pubkey()));
+    let outcome = crate::utils::squads::route(
+        &rpc,
+        ixs,
+        Vec::new(),
+        &[payer.as_ref()],
+        squads_config.as_ref(),
+    )
+    .await?;
 
-    let sig = program
-        .rpc()
-        .send_and_confirm_transaction(&transaction)
-        .await?;
-
-    spinner.finish_with_message(format!(
-        "Global config initialized. https://explorer.solana.com/tx/{}",
-        sig
-    ));
+    spinner.finish_and_clear();
+    println!("{}", outcome.format_structured());
 
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn update_global_config(
     keypair: Option<String>,
     rpc_url: Option<String>,
@@ -80,10 +87,12 @@ pub async fn update_global_config(
     voting_epochs: Option<u64>,
     snapshot_epoch_extension: Option<u64>,
     snapshot_slot_offset: Option<i64>,
+    squads: Option<SquadsCliOpts>,
 ) -> Result<()> {
     let (payer, program) = setup_admin(keypair, rpc_url)?;
 
     let global_config_pda = derive_global_config_pda(&program.id());
+    let admin = effective_signer(squads.as_ref(), payer.pubkey());
 
     let spinner = create_spinner("Updating global config...");
 
@@ -101,24 +110,24 @@ pub async fn update_global_config(
             snapshot_slot_offset,
         })
         .accounts(accounts::UpdateConfig {
-            admin: payer.pubkey(),
+            admin,
             global_config: global_config_pda,
         })
         .instructions()?;
 
-    let blockhash = program.rpc().get_latest_blockhash().await?;
-    let transaction =
-        Transaction::new_signed_with_payer(&ixs, Some(&payer.pubkey()), &[&payer], blockhash);
+    let rpc = program.rpc();
+    let squads_config = squads.as_ref().map(|opts| opts.to_config(payer.pubkey()));
+    let outcome = crate::utils::squads::route(
+        &rpc,
+        ixs,
+        Vec::new(),
+        &[payer.as_ref()],
+        squads_config.as_ref(),
+    )
+    .await?;
 
-    let sig = program
-        .rpc()
-        .send_and_confirm_transaction(&transaction)
-        .await?;
-
-    spinner.finish_with_message(format!(
-        "Global config updated. https://explorer.solana.com/tx/{}",
-        sig
-    ));
+    spinner.finish_and_clear();
+    println!("{}", outcome.format_structured());
 
     Ok(())
 }

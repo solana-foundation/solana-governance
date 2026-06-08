@@ -15,7 +15,11 @@ use ncn_snapshot::{
     MAX_BALLOT_TALLIES, MAX_OPERATOR_VOTES,
 };
 
-use crate::utils::{assert::assert_client_err, data_types::ProgramTestContext, fetch_utils::*};
+use crate::utils::{
+    assert::{assert_client_err, assert_err_contains},
+    data_types::ProgramTestContext,
+    fetch_utils::*,
+};
 
 const VOTE_DURATION: i64 = 10;
 const MIN_CONSENSUS_BPS: u16 = 6666;
@@ -29,8 +33,9 @@ fn test_program_config(
         micro_lamports: None,
         payer: &context.payer,
         authority: &context.payer,
+        squads: None,
     };
-    send_init_program_config(tx_sender)?;
+    send_init_program_config(tx_sender).unwrap();
 
     // Verify values in ProgramConfig
     let program_config: ProgramConfig = program.account(context.program_config_pda)?;
@@ -44,7 +49,7 @@ fn test_program_config(
     // Add operators
     let mut operators_to_add: Vec<Pubkey> = context.operators.iter().map(|x| x.pubkey()).collect();
 
-    send_update_operator_whitelist(tx_sender, Some(operators_to_add.clone()), None)?;
+    send_update_operator_whitelist(tx_sender, Some(operators_to_add.clone()), None).unwrap();
 
     // Verify values in ProgramConfig
     let program_config: ProgramConfig = program.account(context.program_config_pda)?;
@@ -54,7 +59,7 @@ fn test_program_config(
     let new_operator = Keypair::new();
     operators_to_add.push(new_operator.pubkey());
     operators_to_add.push(new_operator.pubkey());
-    send_update_operator_whitelist(tx_sender, Some(operators_to_add.clone()), None)?;
+    send_update_operator_whitelist(tx_sender, Some(operators_to_add.clone()), None).unwrap();
     let program_config: ProgramConfig = program.account(context.program_config_pda)?;
 
     // Verify that the new operator is added only once.
@@ -69,7 +74,7 @@ fn test_program_config(
     // Remove operators
     let operators_to_remove = operators_to_add[8..].to_vec();
 
-    send_update_operator_whitelist(tx_sender, None, Some(operators_to_remove))?;
+    send_update_operator_whitelist(tx_sender, None, Some(operators_to_remove)).unwrap();
 
     // Verify values in ProgramConfig
     let program_config: ProgramConfig = program.account(context.program_config_pda)?;
@@ -81,7 +86,7 @@ fn test_program_config(
     // Overlap between operators to add and to remove should fail.
     let overlap = vec![Keypair::new().pubkey()];
     let tx = send_update_operator_whitelist(tx_sender, Some(overlap.clone()), Some(overlap));
-    assert_client_err(tx, "Overlapping operators");
+    assert_err_contains(tx, "Overlapping operators");
 
     let new_authority = Keypair::new();
 
@@ -91,7 +96,8 @@ fn test_program_config(
         Some(MIN_CONSENSUS_BPS),
         Some(program.payer()),
         Some(VOTE_DURATION),
-    )?;
+    )
+    .unwrap();
 
     // Verify values in ProgramConfig
     let program_config: ProgramConfig = program.account(context.program_config_pda)?;
@@ -117,8 +123,9 @@ fn test_program_config(
         micro_lamports: None,
         payer: &context.payer,
         authority: &new_authority,
+        squads: None,
     };
-    send_finalize_proposed_authority(tx_sender2)?;
+    send_finalize_proposed_authority(tx_sender2).unwrap();
 
     // Verify values in ProgramConfig
     let program_config: ProgramConfig = program.account(context.program_config_pda)?;
@@ -126,7 +133,7 @@ fn test_program_config(
     assert_eq!(program_config.proposed_authority, None);
 
     // Propose new authority as program payer.
-    send_update_program_config(tx_sender2, Some(context.payer.pubkey()), None, None, None)?;
+    send_update_program_config(tx_sender2, Some(context.payer.pubkey()), None, None, None).unwrap();
     // Finalize proposed authority.
     send_finalize_proposed_authority(tx_sender)?;
 
@@ -162,6 +169,7 @@ fn test_balloting(
         micro_lamports: None,
         payer: &context.payer,
         authority: operator1,
+        squads: None,
     };
 
     let tx = send_init_ballot_box(tx_sender1, ballot_box_pda, snapshot_slot)?;
@@ -233,6 +241,7 @@ fn test_balloting(
         micro_lamports: None,
         payer: &context.payer,
         authority: &Keypair::new(),
+        squads: None,
     };
     let tx = send_cast_vote(tx_sender_null, ballot_box_pda, ballot1.clone());
     assert_client_err(tx, "Operator not whitelisted");
@@ -248,6 +257,7 @@ fn test_balloting(
         micro_lamports: None,
         payer: &context.payer,
         authority: operator2,
+        squads: None,
     };
     let tx = send_cast_vote(tx_sender2, ballot_box_pda, ballot2.clone())?;
     let (tx_slot, _tx_block_time) = fetch_tx_block_details(program, tx);
@@ -283,6 +293,7 @@ fn test_balloting(
             micro_lamports: None,
             payer: &context.payer,
             authority: operator,
+            squads: None,
         };
         let tx = send_cast_vote(tx_sender, ballot_box_pda, ballot3.clone())?;
         let (tx_slot, _tx_block_time) = fetch_tx_block_details(program, tx);
@@ -347,6 +358,7 @@ fn test_balloting(
         micro_lamports: None,
         payer: &context.payer,
         authority: operator8,
+        squads: None,
     };
     let tx = send_cast_vote(tx_sender8, ballot_box_pda, ballot3.clone())?;
     let (tx_slot, _tx_block_time) = fetch_tx_block_details(program, tx);
@@ -397,6 +409,7 @@ fn test_tie_breaker(
         micro_lamports: None,
         payer: &context.payer,
         authority: operator1,
+        squads: None,
     };
     let tx = send_init_ballot_box(tx_sender1, ballot_box_pda, snapshot_slot)?;
     let (slot_created, tx_block_time) = fetch_tx_block_details(program, tx);
@@ -449,6 +462,7 @@ fn test_tie_breaker(
             micro_lamports: None,
             payer: &context.payer,
             authority: operator,
+            squads: None,
         };
         let tx = send_cast_vote(tx_sender, ballot_box_pda, ballot1.clone())?;
         let (tx_slot, _tx_block_time) = fetch_tx_block_details(program, tx);
@@ -467,6 +481,7 @@ fn test_tie_breaker(
             micro_lamports: None,
             payer: &context.payer,
             authority: operator,
+            squads: None,
         };
         let tx = send_cast_vote(tx_sender, ballot_box_pda, ballot2.clone())?;
         let (tx_slot, _tx_block_time) = fetch_tx_block_details(program, tx);
@@ -490,9 +505,10 @@ fn test_tie_breaker(
         micro_lamports: None,
         payer: &context.payer,
         authority: &context.payer,
+        squads: None,
     };
     let tx = send_set_tie_breaker(tx_sender_admin, ballot_box_pda, ballot1.clone());
-    assert_client_err(tx, "Voting not expired");
+    assert_err_contains(tx, "Voting not expired");
 
     // Sleep till expiry
     let current_slot = program.rpc().get_slot()?;
@@ -505,7 +521,9 @@ fn test_tie_breaker(
         meta_merkle_root: [222; 32],
         snapshot_hash: [222; 32],
     };
-    let tx = send_set_tie_breaker(tx_sender_admin, ballot_box_pda, winning_ballot.clone())?;
+    let tx = send_set_tie_breaker(tx_sender_admin, ballot_box_pda, winning_ballot.clone())
+        .unwrap()
+        .signature();
     let (consensus_slot, _tx_block_time) = fetch_tx_block_details(program, tx);
 
     // Casting vote after expiry should fail.
@@ -514,6 +532,7 @@ fn test_tie_breaker(
         micro_lamports: None,
         payer: &context.payer,
         authority: &context.operators[7],
+        squads: None,
     };
     let tx = send_cast_vote(tx_sender, ballot_box_pda, ballot1.clone());
     assert_client_err(tx, "Voting has expired");
@@ -536,7 +555,7 @@ fn test_tie_breaker(
 
     // Setting tie breaker vote after consensus fails.
     let tx = send_set_tie_breaker(tx_sender_admin, ballot_box_pda, ballot1.clone());
-    assert_client_err(tx, "Consensus has reached");
+    assert_err_contains(tx, "Consensus has reached");
 
     Ok(())
 }
@@ -554,6 +573,7 @@ fn test_reset_ballot_box(
         micro_lamports: None,
         payer: &context.payer,
         authority: &context.operators[0],
+        squads: None,
     };
 
     let tx = send_init_ballot_box(tx_sender_operator, ballot_box_pda, snapshot_slot)?;
@@ -591,9 +611,10 @@ fn test_reset_ballot_box(
         micro_lamports: None,
         payer: &context.payer,
         authority: &context.payer,
+        squads: None,
     };
     let tx = send_reset_ballot_box(tx_sender_admin, ballot_box_pda);
-    assert_client_err(tx, "Ballot tallies not at max length");
+    assert_err_contains(tx, "Ballot tallies not at max length");
 
     // Cast final vote
     let final_ballot = Ballot {
@@ -608,7 +629,7 @@ fn test_reset_ballot_box(
     assert_eq!(ballot_box.operator_votes.len(), 1);
 
     // Reset ballot box should succeed
-    send_reset_ballot_box(tx_sender_admin, ballot_box_pda)?;
+    send_reset_ballot_box(tx_sender_admin, ballot_box_pda).unwrap();
 
     // Verify that votes and tallies are cleared
     let ballot_box: BallotBox = program.account(ballot_box_pda)?;
@@ -634,6 +655,7 @@ fn test_merkle_proofs(
         micro_lamports: Some(100),
         payer: &context.payer,
         authority: &context.payer,
+        squads: None,
     };
 
     let bundle = &context.meta_merkle_snapshot.leaf_bundles[0];
@@ -704,6 +726,7 @@ fn test_invalid_merkle_proofs(
         micro_lamports: Some(100),
         payer: &context.payer,
         authority: &context.payer,
+        squads: None,
     };
 
     let bundle1 = &context.meta_merkle_snapshot.leaf_bundles[0];
