@@ -117,7 +117,6 @@ TARGETS=(
   svmgov/program/Anchor.toml
   svmgov/cli/idls/svmgov_program.json
   ncn/programs/ncn-snapshot/src/lib.rs
-  ncn/programs/ncn-snapshot/src/instructions/ballot/init_ballot_box.rs
   ncn/Anchor.toml
   frontend/src/chain/idl/svmgov_program.json
   frontend/src/chain/idl/gov-v1.json
