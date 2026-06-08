@@ -170,6 +170,13 @@ enum Commands {
         /// Basis points for 'Abstain' vote.
         #[arg(long, help = "Basis points for 'Abstain'")]
         abstain_votes: u64,
+
+        /// Optional override for the MetaMerkleProof close timestamp.
+        #[arg(
+            long,
+            help = "MetaMerkleProof close timestamp (Unix seconds); defaults to the proposal's vote-expiry time"
+        )]
+        close_timestamp: Option<i64>,
     },
 
     #[command(
@@ -311,6 +318,13 @@ enum Commands {
         /// Vote account pubkey for the validator
         #[arg(long, help = "Vote account pubkey (base58) for the validator")]
         vote_account: String,
+
+        /// Optional override for the MetaMerkleProof close timestamp.
+        #[arg(
+            long,
+            help = "MetaMerkleProof close timestamp (Unix seconds); defaults to the proposal's vote-expiry time"
+        )]
+        close_timestamp: Option<i64>,
     },
 
     #[command(
@@ -621,6 +635,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
             for_votes,
             against_votes,
             abstain_votes,
+            close_timestamp,
         } => {
             instructions::cast_vote(
                 proposal_id.to_string(),
@@ -630,6 +645,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 cli.keypair,
                 cli.rpc_url,
                 network.clone(),
+                *close_timestamp,
             )
             .await?;
         }
@@ -686,6 +702,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
             stake_account,
             staker_keypair,
             vote_account,
+            close_timestamp,
         } => {
             instructions::cast_vote_override(
                 proposal_id.to_string(),
@@ -698,6 +715,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 vote_account.clone(),
                 network.clone(),
                 squads_opts.clone(),
+                *close_timestamp,
             )
             .await?;
         }
