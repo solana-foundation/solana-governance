@@ -35,7 +35,8 @@ fn test_program_config(
         authority: &context.payer,
         squads: None,
     };
-    send_init_program_config(tx_sender).unwrap();
+    let svmgov_program_id = Pubkey::new_unique();
+    send_init_program_config(tx_sender, svmgov_program_id).unwrap();
 
     // Verify values in ProgramConfig
     let program_config: ProgramConfig = program.account(context.program_config_pda)?;
@@ -45,6 +46,7 @@ fn test_program_config(
     assert_eq!(program_config.whitelisted_operators.len(), 0);
     assert_eq!(program_config.min_consensus_threshold_bps, 0);
     assert_eq!(program_config.vote_duration, 0);
+    assert_eq!(program_config.svmgov_program_pubkey, svmgov_program_id);
 
     // Add operators
     let mut operators_to_add: Vec<Pubkey> = context.operators.iter().map(|x| x.pubkey()).collect();
@@ -89,6 +91,7 @@ fn test_program_config(
     assert_err_contains(tx, "Overlapping operators");
 
     let new_authority = Keypair::new();
+    let new_svmgov_program_id = Pubkey::new_unique();
 
     send_update_program_config(
         tx_sender,
@@ -96,6 +99,7 @@ fn test_program_config(
         Some(MIN_CONSENSUS_BPS),
         Some(program.payer()),
         Some(VOTE_DURATION),
+        Some(new_svmgov_program_id),
     )
     .unwrap();
 
@@ -116,6 +120,7 @@ fn test_program_config(
         MIN_CONSENSUS_BPS
     );
     assert_eq!(program_config.vote_duration, VOTE_DURATION);
+    assert_eq!(program_config.svmgov_program_pubkey, new_svmgov_program_id);
 
     // Finalize proposed authority
     let tx_sender2 = &TxSender {
@@ -133,7 +138,15 @@ fn test_program_config(
     assert_eq!(program_config.proposed_authority, None);
 
     // Propose new authority as program payer.
-    send_update_program_config(tx_sender2, Some(context.payer.pubkey()), None, None, None).unwrap();
+    send_update_program_config(
+        tx_sender2,
+        Some(context.payer.pubkey()),
+        None,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     // Finalize proposed authority.
     send_finalize_proposed_authority(tx_sender)?;
 
