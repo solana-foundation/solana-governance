@@ -123,7 +123,7 @@ pub async fn initialize_global_config(
     let program_data = derive_program_data_pda(&program_id);
     let admin = effective_signer(squads.as_ref(), payer.pubkey());
 
-    ensure_upgrade_authority(&program, &program_data, &payer.pubkey()).await?;
+    ensure_upgrade_authority(&program, &program_data, &admin).await?;
 
     let spinner = create_spinner("Initializing global config...");
 
