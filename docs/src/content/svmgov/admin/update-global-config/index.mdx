@@ -1,0 +1,50 @@
+import { Callout } from 'nextra/components'
+
+# Update Global Config
+
+Change one or more fields of the on-chain `GlobalConfig`. Every parameter is optional — only the flags you pass are updated.
+
+## Signer
+
+The transaction must be signed by the current `GlobalConfig.admin`. A non-admin signer is rejected on-chain with `UnauthorizedAdmin`.
+
+## Usage
+
+```bash
+# Update just the voting and discussion windows
+svmgov -k <ADMIN_KEYPAIR> update-global-config \
+  --voting-epochs 5 \
+  --discussion-epochs 4
+```
+
+## Arguments
+
+All arguments are optional; omit the ones you don't want to change. Same meanings and bounds as [`init-global-config`](/svmgov/admin/init-global-config):
+
+| Argument | Type | Bound |
+|---|---|---|
+| `--max-title-length` | u16 | 1–200 (bytes) |
+| `--max-description-length` | u16 | 1–500 (bytes) |
+| `--max-support-epochs` | u64 | |
+| `--min-proposal-stake-lamports` | u64 | |
+| `--cluster-support-pct-min-bps` | u64 | 0–10,000 |
+| `--discussion-epochs` | u64 | |
+| `--voting-epochs` | u64 | |
+| `--snapshot-epoch-extension` | u64 | |
+| `--snapshot-slot-offset` | i64 | |
+
+<Callout type="info">
+  Out-of-bounds values are rejected client-side before sending, and on-chain via `InvalidMaxTitleLength`, `InvalidMaxDescriptionLength`, or `InvalidClusterSupportPctMin`.
+</Callout>
+
+## Global Arguments
+
+| Option | Short | Description |
+|---|---|---|
+| `--keypair <PATH>` | `-k` | Path to the admin keypair |
+| `--rpc-url <URL>` | `-r` | Custom RPC URL |
+
+## Related
+
+- [Show Global Config](/svmgov/admin/show-global-config)
+- [Transfer Admin](/svmgov/admin/transfer-admin)

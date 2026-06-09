@@ -4,8 +4,8 @@ use anchor_client::{
     Client, Cluster, Program,
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_sdk::{
-        commitment_config::CommitmentConfig, native_token::LAMPORTS_PER_SOL, signature::Keypair,
-        signer::Signer,
+        bpf_loader_upgradeable, commitment_config::CommitmentConfig,
+        native_token::LAMPORTS_PER_SOL, signature::Keypair, signer::Signer,
     },
 };
 use anchor_lang::{Id, prelude::Pubkey};
@@ -141,7 +141,7 @@ fn load_identity_keypair(keypair_path: Option<String>) -> Result<Keypair> {
         path
     } else {
         return Err(anyhow!(
-            "No identity keypair path provided. Please specify the path using the --identity_keypair flag."
+            "No identity keypair path provided. Please specify the path using the --keypair flag."
         ));
     };
 
@@ -199,8 +199,6 @@ async fn find_spl_vote_account(
 
     Ok(Pubkey::from_str(&vote_account.vote_pubkey)?)
 }
-
-
 
 fn set_cluster(rpc_url: Option<String>) -> Cluster {
     if let Some(rpc_url) = rpc_url {
@@ -421,6 +419,15 @@ pub fn derive_vote_override_cache_pda(
 pub fn derive_global_config_pda(program_id: &Pubkey) -> Pubkey {
     let seeds = &[b"global_config".as_ref()];
     let (pda, _) = Pubkey::find_program_address(seeds, program_id);
+    pda
+}
+
+/// Derives the ProgramData PDA for an upgradeable program: the account owned by the
+/// BPF Upgradeable Loader that stores the program's upgrade authority. This matches the
+/// `program_data` account required by `initialize_config`.
+pub fn derive_program_data_pda(program_id: &Pubkey) -> Pubkey {
+    let seeds = &[program_id.as_ref()];
+    let (pda, _) = Pubkey::find_program_address(seeds, &bpf_loader_upgradeable::ID);
     pda
 }
 

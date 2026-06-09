@@ -1,11 +1,18 @@
 use anchor_lang::prelude::*;
 
-use crate::{constants::ADMIN_PUBKEY, error::GovernanceError, state::GlobalConfig};
+use crate::{
+    error::GovernanceError,
+    instructions::{
+        validate_cluster_support_pct_min_bps, validate_max_description_length,
+        validate_max_title_length,
+    },
+    state::GlobalConfig,
+};
 
 #[derive(Accounts)]
 pub struct UpdateConfig<'info> {
     #[account(
-        constraint = admin.key() == ADMIN_PUBKEY @ GovernanceError::UnauthorizedAdmin,
+        constraint = admin.key() == global_config.admin @ GovernanceError::UnauthorizedAdmin,
     )]
     pub admin: Signer<'info>,
     #[account(
@@ -32,9 +39,11 @@ impl<'info> UpdateConfig<'info> {
         let config = &mut self.global_config;
 
         if let Some(v) = max_title_length {
+            validate_max_title_length(v)?;
             config.max_title_length = v;
         }
         if let Some(v) = max_description_length {
+            validate_max_description_length(v)?;
             config.max_description_length = v;
         }
         if let Some(v) = max_support_epochs {
@@ -44,6 +53,7 @@ impl<'info> UpdateConfig<'info> {
             config.min_proposal_stake_lamports = v;
         }
         if let Some(v) = cluster_support_pct_min_bps {
+            validate_cluster_support_pct_min_bps(v)?;
             config.cluster_support_pct_min_bps = v;
         }
         if let Some(v) = discussion_epochs {

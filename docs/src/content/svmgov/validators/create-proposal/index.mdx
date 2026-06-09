@@ -23,8 +23,8 @@ svmgov create-proposal \
 
 | Argument | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `--title` | String | **Yes** | — | Proposal title (max ~50 chars) |
-| `--description` | String | **Yes** | — | GitHub link for full proposal details. Must start with `https://github.com`, max ~250 chars |
+| `--title` | String | **Yes** | — | Proposal title. Length in bytes must be ≤ `max_title_length` (config-set, up to 200 bytes) |
+| `--description` | String | **Yes** | — | GitHub link for full proposal details. Must start with `https://github.com`; length in bytes must be ≤ `max_description_length` (config-set, up to 500 bytes) |
 | `--network` | String | **Yes** | — | Network for fetching Merkle proofs: `mainnet`, `testnet` |
 | `--seed` | u64 | No | Random | Unique seed for PDA derivation |
 

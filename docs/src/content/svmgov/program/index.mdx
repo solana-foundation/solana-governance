@@ -22,9 +22,10 @@ The global governance configuration singleton. Initialized by the admin once.
 
 | Field | Type | Description |
 |---|---|---|
-| `admin` | `Pubkey` | Admin who can update config |
-| `max_title_length` | `u16` | Maximum characters in a proposal title |
-| `max_description_length` | `u16` | Maximum characters in a proposal description |
+| `admin` | `Pubkey` | Admin who can update config. Set to the program upgrade authority at init; transferable via the two-step `nominate_admin` / `accept_admin` flow |
+| `pending_admin` | `Option<Pubkey>` | Nominated next admin awaiting acceptance; `None` when no transfer is in progress |
+| `max_title_length` | `u16` | Maximum bytes in a proposal title (≤ 200) |
+| `max_description_length` | `u16` | Maximum bytes in a proposal description (≤ 500) |
 | `max_support_epochs` | `u64` | Max epochs a proposal can remain in the support phase |
 | `min_proposal_stake_lamports` | `u64` | Minimum stake (lamports) to create a proposal |
 | `cluster_support_pct_min_bps` | `u64` | % of cluster stake required to activate voting (basis points) |
@@ -57,8 +58,8 @@ The main proposal account. One per governance proposal.
 | Field | Type | Description |
 |---|---|---|
 | `author` | `Pubkey` | Validator who created the proposal |
-| `title` | `String` | Short title (max ~50 chars enforced by `max_title_length`) |
-| `description` | `String` | GitHub URL for full proposal text (max ~250 chars) |
+| `title` | `String` | Short title (length in bytes ≤ `max_title_length`, ≤ 200) |
+| `description` | `String` | GitHub URL for full proposal text (length in bytes ≤ `max_description_length`, ≤ 500) |
 | `creation_epoch` | `u64` | Epoch when created |
 | `start_epoch` | `u64` | Epoch when voting begins |
 | `end_epoch` | `u64` | Epoch when voting ends |
@@ -172,28 +173,55 @@ Aggregates all delegator overrides for a validator on a proposal. Used when a de
 
 ### `initialize_config`
 
-One-time initialization. Sets all governance parameters.
+One-time initialization. Sets all governance parameters and stores the signer as `admin`.
 
-**Signer:** `admin` (must match `ADMIN_PUBKEY` constant)
+**Signer:** the program's **upgrade authority**. Init is gated by passing the program's `program` and `program_data` accounts and requiring `program_data.upgrade_authority_address == admin`. The signer becomes the stored `admin`.
 
-| Parameter | Type | Description |
-|---|---|---|
-| `max_title_length` | `u16` | Max title chars |
-| `max_description_length` | `u16` | Max description chars |
-| `max_support_epochs` | `u64` | Max epochs in support phase |
-| `min_proposal_stake_lamports` | `u64` | Min stake to create a proposal |
-| `cluster_support_pct_min_bps` | `u64` | Cluster support threshold |
-| `discussion_epochs` | `u64` | Epochs of discussion |
-| `voting_epochs` | `u64` | Epochs for voting |
-| `snapshot_epoch_extension` | `u64` | Extension epochs before snapshot |
+**Required accounts:** `admin` (signer), `global_config` (PDA, init), `system_program`, `program` (this program), `program_data` (this program's ProgramData account).
+
+| Parameter | Type | Description | Validation |
+|---|---|---|---|
+| `max_title_length` | `u16` | Max title bytes | 1–200 |
+| `max_description_length` | `u16` | Max description bytes | 1–500 |
+| `max_support_epochs` | `u64` | Max epochs in support phase | |
+| `min_proposal_stake_lamports` | `u64` | Min stake to create a proposal | |
+| `cluster_support_pct_min_bps` | `u64` | Cluster support threshold | 0–10,000 |
+| `discussion_epochs` | `u64` | Epochs of discussion | |
+| `voting_epochs` | `u64` | Epochs for voting | |
+| `snapshot_epoch_extension` | `u64` | Extension epochs before snapshot | |
+| `snapshot_slot_offset` | `i64` | Slot offset from epoch start for the snapshot | |
 
 ---
 
 ### `update_config`
 
-Updates any subset of config fields. All params are `Option<T>`.
+Updates any subset of config fields. All params are `Option<T>`; only the `Some` fields are written.
 
-**Signer:** `admin`
+**Signer:** the stored `admin` (`GlobalConfig.admin`).
+
+The same bounds as `initialize_config` apply to `max_title_length` (1–200), `max_description_length` (1–500), and `cluster_support_pct_min_bps` (0–10,000).
+
+---
+
+### `nominate_admin`
+
+Step 1 of the two-step admin transfer. Records `proposed_admin` in `GlobalConfig.pending_admin`. Overwrites any prior nomination; rejects the all-zero pubkey. Emits `AdminNominated`.
+
+**Signer:** the current `admin`.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `proposed_admin` | `Pubkey` | The nominee who must call `accept_admin` to take over |
+
+---
+
+### `accept_admin`
+
+Step 2 of the two-step admin transfer. Promotes the signer to `admin` and clears `pending_admin`. Emits `AdminTransferred`.
+
+**Signer:** the pending admin (must equal `GlobalConfig.pending_admin`).
+
+Because the transfer only completes when the nominee signs, authority can never be handed to a key that cannot sign — and each side signs its own, separate transaction, which makes multisig-to-multisig handoffs (e.g. Squads) feasible.
 
 ---
 
@@ -315,9 +343,9 @@ Resets the `consensus_result` on a proposal by recalculating the snapshot slot a
 |---|---|
 | `NotEnoughStake` | Insufficient stake to create or vote |
 | `TitleEmpty` | Proposal title is empty |
-| `TitleTooLong` | Title exceeds max length |
+| `TitleTooLong` | Title exceeds max length (bytes) |
 | `DescriptionEmpty` | Description is empty |
-| `DescriptionTooLong` | Description exceeds max length |
+| `DescriptionTooLong` | Description exceeds max length (bytes) |
 | `DescriptionInvalid` | Description must be a `https://github.com` link |
 | `InvalidProposalId` | Invalid proposal ID |
 | `VotingNotStarted` | Proposal has not yet entered voting phase |
@@ -351,3 +379,11 @@ Resets the `consensus_result` on a proposal by recalculating the snapshot slot a
 | `SnapshotProgramUpgraded` | Snapshot program upgrade protection triggered |
 | `MerkleRootNotSet` | Merkle root not yet set for this proposal |
 | `SupportPeriodExpired` | Support period has expired |
+| `UnauthorizedAdmin` | Signer is not the configured `GlobalConfig.admin` |
+| `InvalidProgram` | `program`/`program_data` do not belong to this program (init upgrade-authority gate) |
+| `InvalidClusterSupportPctMin` | `cluster_support_pct_min_bps` must be 0–10,000 |
+| `InvalidMaxTitleLength` | `max_title_length` must be 1–200 (bytes) |
+| `InvalidMaxDescriptionLength` | `max_description_length` must be 1–500 (bytes) |
+| `InvalidAdmin` | Nominated admin cannot be the default (all-zero) pubkey |
+| `NoPendingAdmin` | `accept_admin` called with no pending nomination |
+| `NotPendingAdmin` | Signer is not the pending admin nominee |

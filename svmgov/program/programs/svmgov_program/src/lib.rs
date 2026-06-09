@@ -49,7 +49,6 @@ pub mod svmgov_program {
         max_title_length: Option<u16>,
         max_description_length: Option<u16>,
         max_support_epochs: Option<u64>,
-        
         min_proposal_stake_lamports: Option<u64>,
         cluster_support_pct_min_bps: Option<u64>,
         discussion_epochs: Option<u64>,
@@ -68,6 +67,20 @@ pub mod svmgov_program {
             snapshot_epoch_extension,
             snapshot_slot_offset,
         )?;
+        Ok(())
+    }
+
+    /// Step 1 of the two-step admin transfer: the current admin nominates a new admin.
+    /// The transfer only completes once the nominee calls `accept_admin`.
+    pub fn nominate_admin(ctx: Context<NominateAdmin>, proposed_admin: Pubkey) -> Result<()> {
+        ctx.accounts.nominate_admin(proposed_admin)?;
+        Ok(())
+    }
+
+    /// Step 2 of the two-step admin transfer: the nominated admin accepts and becomes
+    /// the active admin.
+    pub fn accept_admin(ctx: Context<AcceptAdmin>) -> Result<()> {
+        ctx.accounts.accept_admin()?;
         Ok(())
     }
 

@@ -6,11 +6,13 @@ pub enum GovernanceError {
     NotEnoughStake,
     #[msg("The title of the proposal cannot be empty")]
     TitleEmpty,
-    #[msg("The title of the proposal is too long, max 50 char")]
+    // Max bytes is set by the MAX_TITLE_ACCOUNT_SIZE constant
+    #[msg("The title of the proposal is too long, max 200 bytes")]
     TitleTooLong,
     #[msg("The description of the proposal cannot be empty")]
     DescriptionEmpty,
-    #[msg("The description of the proposal is too long, max 250 char")]
+    // Max bytes is set by the MAX_DESC_ACCOUNT_SIZE constant
+    #[msg("The description of the proposal is too long, max 500 bytes")]
     DescriptionTooLong,
     #[msg("The description of the proposal must point to a github link")]
     DescriptionInvalid,
@@ -94,4 +96,22 @@ pub enum GovernanceError {
     StakeAccountOwnerMismatch,
     #[msg("Unauthorized: only the admin can perform this action")]
     UnauthorizedAdmin,
+    #[msg("Invalid program")]
+    InvalidProgram,
+    #[msg(
+        "Invalid cluster support percentage minimum in basis points (must be between 0 and 10,000)"
+    )]
+    InvalidClusterSupportPctMin,
+    // Must be less than MAX_TITLE_ACCOUNT_SIZE to fit in the title account
+    #[msg("Invalid max title length (must be greater than 0 and less than or equal to 200)")]
+    InvalidMaxTitleLength,
+    // Must be less than MAX_DESC_ACCOUNT_SIZE to fit in the description account
+    #[msg("Invalid max description length (must be greater than 0 and less than or equal to 500)")]
+    InvalidMaxDescriptionLength,
+    #[msg("Admin cannot be the default (all-zero) pubkey")]
+    InvalidAdmin,
+    #[msg("No pending admin nomination exists to accept")]
+    NoPendingAdmin,
+    #[msg("Signer is not the pending admin nominee")]
+    NotPendingAdmin,
 }

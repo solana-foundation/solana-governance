@@ -1,0 +1,41 @@
+import { Callout } from 'nextra/components'
+
+# Administration
+
+Operator-facing commands for managing the on-chain `GlobalConfig` — the singleton account that holds every governance parameter (length limits, support threshold, epoch windows, minimum proposal stake) and the `admin` authority allowed to change them.
+
+These commands are not needed by validators or stakers participating in governance; they are for whoever operates the deployment.
+
+## The admin model
+
+- **Initialization is gated to the program's upgrade authority.** `init-global-config` requires the signer to be the program's upgrade authority (verified on-chain against the program's `ProgramData` account). The signer becomes the stored `GlobalConfig.admin`. This prevents anyone from front-running initialization and seizing control of governance parameters.
+- **Updates require the stored admin.** Only `GlobalConfig.admin` can run `update-global-config`.
+- **Admin is transferable via a two-step handoff.** `nominate-admin` (current admin) then `accept-admin` (nominee). See [Transfer Admin](/svmgov/admin/transfer-admin).
+
+<Callout type="warning">
+  Initialize the global config **before** relinquishing the program's upgrade authority. If the program is made immutable (upgrade authority set to `None`), `init-global-config` can no longer succeed.
+</Callout>
+
+## Commands
+
+| Command | Who signs | Purpose |
+|---|---|---|
+| [`init-global-config`](/svmgov/admin/init-global-config) | program upgrade authority | One-time creation of `GlobalConfig` |
+| [`update-global-config`](/svmgov/admin/update-global-config) | current admin | Change one or more parameters |
+| [`show-global-config`](/svmgov/admin/show-global-config) | nobody (read-only) | Display current parameters and pending admin |
+| [`nominate-admin`](/svmgov/admin/transfer-admin) | current admin | Step 1 of admin transfer |
+| [`accept-admin`](/svmgov/admin/transfer-admin) | nominee | Step 2 of admin transfer |
+
+## Parameter bounds
+
+The CLI validates these client-side before sending, and the program enforces them on-chain:
+
+| Parameter | Bound |
+|---|---|
+| `max_title_length` | 1–200 (bytes) |
+| `max_description_length` | 1–500 (bytes) |
+| `cluster_support_pct_min_bps` | 0–10,000 (basis points) |
+
+<Callout type="info">
+  Title and description limits are measured in **bytes**, not characters. Multi-byte UTF-8 input (emoji, non-Latin scripts) consumes more than one byte per character.
+</Callout>

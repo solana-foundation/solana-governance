@@ -37,8 +37,9 @@ This repository also includes a command-line interface (CLI) program, `svmgov`, 
 To use this program, you'll need to:
 
 1. **Build and deploy**: Build the program using `anchor build` and deploy it to a Solana cluster.
-2. **Initialize index**: Use the `initialize_index` instruction to set up the proposal index PDA.
-3. **Create a proposal**: Use the `create_proposal` instruction to create a new proposal with merkle proof verification for stake validation.
+2. **Initialize the global config**: Use the `initialize_config` instruction to create the `GlobalConfig` singleton and set governance parameters. This must be signed by the program's **upgrade authority**, who becomes the stored `admin`. Run it before relinquishing upgrade authority.
+3. **Initialize index**: Use the `initialize_index` instruction to set up the proposal index PDA.
+4. **Create a proposal**: Use the `create_proposal` instruction to create a new proposal with merkle proof verification for stake validation.
 4. **Support a proposal**: Use the `support_proposal` instruction to show support for a proposal with stake verification.
 5. **Cast a vote**: Use the `cast_vote` instruction to cast a validator vote on a proposal.
 6. **Cast delegator vote**: Use the `cast_vote_override` instruction for delegators to vote on a proposal. This works in two scenarios:
@@ -47,6 +48,11 @@ To use this program, you'll need to:
 7. **Modify vote**: Use the `modify_vote` instruction to update an existing vote.
 8. **Add merkle root**: Use the `add_merkle_root` instruction to set the merkle root hash for a proposal.
 9. **Finalize proposal**: Use the `finalize_proposal` instruction to determine the outcome after voting ends.
+
+### Administration
+
+- **Update config**: The stored `admin` can change governance parameters with `update_config` (each updatable field is optional). `max_title_length` (1–200 bytes), `max_description_length` (1–500 bytes), and `cluster_support_pct_min_bps` (0–10,000) are bounds-checked on-chain.
+- **Transfer admin**: Admin authority is handed off with a two-step flow — the current admin calls `nominate_admin(new_admin)`, then the nominee calls `accept_admin` to take over. Because each side signs its own transaction, multisig-to-multisig handoffs (e.g. Squads) are supported, and authority is never transferred to a key that cannot sign.
 
 ## Events
 
@@ -169,6 +175,28 @@ Emitted when a proposal is finalized after voting ends.
 - `total_abstain_votes: u64` - Total lamports voted "Abstain"
 - `total_votes_count: u32` - Total number of votes cast
 - `finalization_timestamp: i64` - Unix timestamp of finalization
+
+</details>
+
+### AdminNominated
+Emitted when the current admin nominates a new admin (step 1 of the two-step transfer).
+
+<details>
+<summary><strong>Click to view event fields</strong></summary>
+
+- `current_admin: Pubkey` - The admin that issued the nomination
+- `pending_admin: Pubkey` - The nominated admin awaiting acceptance
+
+</details>
+
+### AdminTransferred
+Emitted when a nominated admin accepts the role (step 2 of the two-step transfer).
+
+<details>
+<summary><strong>Click to view event fields</strong></summary>
+
+- `previous_admin: Pubkey` - The admin before the transfer
+- `new_admin: Pubkey` - The new active admin
 
 </details>
 

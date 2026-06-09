@@ -102,3 +102,15 @@ pub struct MerkleRootFlushed {
     pub new_snapshot_slot: u64,
     pub flush_timestamp: i64,
 }
+
+#[event]
+pub struct AdminNominated {
+    pub current_admin: Pubkey,
+    pub pending_admin: Pubkey,
+}
+
+#[event]
+pub struct AdminTransferred {
+    pub previous_admin: Pubkey,
+    pub new_admin: Pubkey,
+}

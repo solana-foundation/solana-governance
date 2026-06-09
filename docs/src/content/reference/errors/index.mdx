@@ -29,9 +29,9 @@ All error codes from both the `ncn-snapshot` and `svmgov` programs.
 |---|---|
 | `NotEnoughStake` | Insufficient stake to create proposal or vote |
 | `TitleEmpty` | Proposal title is empty |
-| `TitleTooLong` | Title exceeds `max_title_length` |
+| `TitleTooLong` | Title exceeds `max_title_length` (measured in bytes) |
 | `DescriptionEmpty` | Description is empty |
-| `DescriptionTooLong` | Description exceeds `max_description_length` |
+| `DescriptionTooLong` | Description exceeds `max_description_length` (measured in bytes) |
 | `DescriptionInvalid` | Description must be a `https://github.com` URL |
 | `InvalidProposalId` | Invalid proposal ID |
 | `VotingNotStarted` | Proposal has not entered voting phase yet |
@@ -66,3 +66,11 @@ All error codes from both the `ncn-snapshot` and `svmgov` programs.
 | `SnapshotProgramUpgraded` | Program upgrade protection triggered — snapshot program upgrade detected |
 | `MerkleRootNotSet` | Tried to vote before ConsensusResult is available |
 | `SupportPeriodExpired` | Support period (`max_support_epochs`) has elapsed |
+| `UnauthorizedAdmin` | Signer is not the configured `GlobalConfig.admin` |
+| `InvalidProgram` | `program`/`program_data` do not belong to this program (init upgrade-authority gate) |
+| `InvalidClusterSupportPctMin` | `cluster_support_pct_min_bps` must be between 0 and 10,000 |
+| `InvalidMaxTitleLength` | `max_title_length` must be between 1 and 200 (bytes) |
+| `InvalidMaxDescriptionLength` | `max_description_length` must be between 1 and 500 (bytes) |
+| `InvalidAdmin` | Nominated admin cannot be the default (all-zero) pubkey |
+| `NoPendingAdmin` | `accept_admin` called with no pending nomination |
+| `NotPendingAdmin` | Signer is not the pending admin nominee |

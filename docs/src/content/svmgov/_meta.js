@@ -8,6 +8,9 @@ export default {
   program: {
     title: 'Program Reference',
   },
+  admin: {
+    title: 'Administration',
+  },
   validators: {
     title: 'For Validators',
   },
