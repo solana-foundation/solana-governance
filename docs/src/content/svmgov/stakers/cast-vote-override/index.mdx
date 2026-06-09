@@ -33,6 +33,7 @@ svmgov cast-vote-override \
 | `--vote-account` | String | **Yes** | Your validator's vote account address (base58) |
 | `--network` | String | **Yes** | Network: `mainnet`, `testnet` |
 | `--staker-keypair` | String | **Yes** | Path to staker keypair JSON |
+| `--close-timestamp` | i64 | No | Unix timestamp after which the `MetaMerkleProof` PDA can be closed permissionlessly. Defaults to the proposal's vote-expiry time |
 
 ## Global Arguments
 
@@ -88,6 +89,10 @@ Then calls `cast_vote_override` which:
 
 <Callout>
   Multiple stake accounts delegated to the same validator can each be overridden independently. Each creates a separate `VoteOverride` PDA.
+</Callout>
+
+<Callout>
+  If the validator's `MetaMerkleProof` PDA does not yet exist, the CLI creates it first and sets its `close_timestamp` to the proposal's vote-expiry time (or the `--close-timestamp` override), so it can be reclaimed permissionlessly once voting ends. You normally don't need to set this flag.
 </Callout>
 
 ## Related

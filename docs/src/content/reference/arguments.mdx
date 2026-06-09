@@ -82,6 +82,7 @@ When voting, `for_votes + against_votes + abstain_votes` must equal exactly **10
 | `--against-votes` | u64 | Yes | Basis points Against (0–10,000) |
 | `--abstain-votes` | u64 | Yes | Basis points Abstain (0–10,000) |
 | `--network` | String | Yes | Network |
+| `--close-timestamp` | i64 | No | _(`cast-vote` only)_ Unix timestamp after which the `MetaMerkleProof` PDA may be closed permissionlessly. Defaults to the proposal's vote-expiry time |
 
 ### `finalize-proposal`
 
@@ -117,3 +118,4 @@ When voting, `for_votes + against_votes + abstain_votes` must equal exactly **10
 | `--vote-account` | String | Yes | Validator vote account pubkey (base58) |
 | `--network` | String | Yes | Network |
 | `--staker-keypair` | String | Yes | Staker keypair path |
+| `--close-timestamp` | i64 | No | _(`cast-vote-override` only)_ Unix timestamp after which the `MetaMerkleProof` PDA may be closed permissionlessly. Defaults to the proposal's vote-expiry time |
