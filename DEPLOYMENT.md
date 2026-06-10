@@ -6,13 +6,28 @@ decide, and the **contract initialization** order.
 
 ## How the pieces fit (read first)
 
-- `svmgov` = governance (proposals, support, votes). Admin is **hardcoded** in the program.
-- `ncn-snapshot` = operator consensus on stake snapshots. Authority is **whoever signs init**.
+- `svmgov` = governance (proposals, support, votes). The config **admin** is **not**
+  hardcoded: it is set at `init-global-config` to the program's **upgrade authority** and is
+  transferable on-chain afterward (two-step `nominate-admin` / `accept-admin`).
+- `ncn-snapshot` = operator consensus on stake snapshots. Authority is **whoever signs init**. The authority is transferable on-chain afterward (two-step `update-program-config` / `finalize-proposed-authority`).
 - They are coupled by program ID: `svmgov.support_proposal` CPIs into
-  `ncn-snapshot.init_ballot_box`, and `ncn` checks the proposal PDA belongs to `svmgov`
-  (`InvalidProposal`), while `svmgov` checks the snapshot program ID
-  (`InvalidSnapshotProgram`). **Both IDs must be synced everywhere before building, or CPIs
-  fail.**
+  `ncn-snapshot.init_ballot_box`, and `ncn` authorizes the opening proposal PDA against the
+  svmgov program stored in `ProgramConfig.svmgov_program_pubkey`. That value is **set at
+  `init-program-config` (not baked into the ncn program)** and can be retargeted later with
+  `update-program-config --svmgov-program-id`, so a wrong ID no longer bricks the deployment.
+  The declared program IDs (`declare_id!`) and IDLs are still kept in sync by `make sync`, so
+  set the IDs correctly before building.
+- ⚠️ **This protection is one-directional — the reverse reference (svmgov → ncn) is
+  compile-time, not config.** svmgov's ballot-box-opening paths (`support_proposal`, and
+  `flush_merkle_root` for reset/recovery) hard-require the ncn program and its `ProgramConfig`
+  to equal `ncn_snapshot::ID`, baked into the svmgov binary at build (kept current by
+  `make sync`). There is **no `GlobalConfig` field to retarget it**. A normal in-place upgrade
+  of ncn-snapshot keeps the same program ID and is safe; but **redeploying ncn-snapshot under a
+  new program ID** locks out new ballot boxes (`support_proposal` rejects the new program) and
+  can only be fixed by re-syncing the ID, rebuilding, and **upgrading the svmgov program** — a
+  config update is not enough, and it is unrecoverable if svmgov has been made immutable. Treat
+  the ncn-snapshot program ID as effectively permanent for a given svmgov deployment, and keep
+  svmgov upgradeable unless you are certain it will never change.
 - Off-chain: operators run **verifier-service**; **ncn-meta-cron** builds verifier
   whitelists; **ncn-router** serves/redirects to verifiers; **frontend** reads on-chain
   config + verifier proofs.
@@ -30,13 +45,16 @@ decide, and the **contract initialization** order.
         IDs are the ones you actually control.
   - [ ] `jito_tip_router_commit` = `d60e3eb…` is the intended release commit.
 - [ ] Deploy/upgrade authority keypairs secured (program upgrade authority — decide multisig
-      vs single key, ideally **squads/multisig** for mainnet).
-- [ ] **svmgov admin key**: `ADMIN_PUBKEY = BjHS1TPhG47CJGyghwKYrDZeHwmqh9frBk4Ba3uSXeRy` is
-      hardcoded (`svmgov/program/programs/svmgov_program/src/constants.rs:4`). ✅ `admin.json`
-      in the repo matches it — but that file is a **plaintext secret committed locally**;
-      confirm it's gitignored and move custody to a secure signer for mainnet. If you want a
-      different admin, you must change the constant and rebuild.
-- [ ] Fund deploy + admin + ncn authority keypairs with SOL.
+      vs single key, ideally **squads/multisig** for mainnet). Note: the svmgov **upgrade
+      authority is also the bootstrap admin** — whoever signs `init-global-config` must be the
+      program's upgrade authority (verified on-chain against `ProgramData`) and becomes the
+      stored `GlobalConfig.admin`.
+- [ ] **svmgov admin key**: no longer hardcoded. Decide the `init-global-config` signer (=
+      the program's upgrade authority — a single key or a squads vault) and fund it. The admin
+      is rotatable on-chain afterward via the two-step `nominate-admin` / `accept-admin` flow,
+      so it need not equal the long-term admin. (The repo's `admin.json` is gitignored and
+      carries no special on-chain meaning anymore.)
+- [ ] Fund deploy + svmgov admin + ncn authority keypairs with SOL.
 
 ## Phase 1 — Build & sync program IDs
 
@@ -47,6 +65,13 @@ decide, and the **contract initialization** order.
 - [ ] `make build-programs` — builds `svmgov` + `ncn` and copies IDL into `svmgov/cli/idls/`
       and `frontend/src/chain/idl/`.
 - [ ] Confirm built `declare_id!` in both `lib.rs` == `networks.toml` IDs == on-chain target.
+- [ ] ⚠️ Confirm svmgov was rebuilt **after** `make sync` — svmgov bakes in the ncn program ID
+      (`ncn_snapshot::ID`) at build time, and this svmgov→ncn pointer is **not stored in any
+      account, not returned by any instruction, and not shown by `show-global-config`**. A bad
+      or stale sync here is invisible on-chain and only surfaces at the first `support-proposal`
+      (see Phase 6). Verify `ncn-snapshot/src/lib.rs` `declare_id!` == `networks.toml`
+      `ncn_snapshot_program_id` before building, and ideally hash the deployed binary against a
+      reproducible build.
 
 ## Phase 2 — Deploy the programs
 
@@ -59,53 +84,65 @@ decide, and the **contract initialization** order.
 
 ## Phase 3 — Initialize contracts (order matters)
 
-**svmgov** (signer must be `admin.json`):
-- [ ] `init-global-config` (one-time, admin-gated) — sets all params below in one shot.
+**svmgov** (`init-global-config` signer must be the program **upgrade authority**):
+
+- [ ] `init-global-config` (one-time) — must be signed by the program's upgrade authority,
+      who becomes the stored `GlobalConfig.admin`. Sets all params below in one shot.
+      ⚠️ Run this **before** making the program immutable: if the upgrade authority is set to
+      `None`, init can never succeed.
 - [ ] `init-index` — creates `ProposalIndex` (permissionless, but do it now; required before
       any proposal).
-- [ ] `show-global-config` — verify written values.
+- [ ] `show-global-config` — verify written values (incl. `admin` and any `pending_admin`).
+- [ ] (optional) `nominate-admin` → `accept-admin` to hand the admin role to its long-term
+      holder (e.g. a squads vault) if that differs from the upgrade authority that initialized.
 
 **ncn-snapshot** (signer = `--authority-path`, becomes the authority):
-- [ ] `init-program-config` — ⚠️ sets **only `authority`**; `min_consensus_threshold_bps`,
-      `vote_duration`, `tie_breaker_admin` are left **zero/unset** and the program is not
-      usable until configured.
+
+- [ ] `init-program-config --svmgov-program-id <svmgov_program_id>` — sets `authority` **and**
+      the `svmgov_program_pubkey` authorized to open ballot boxes (source it from
+      `networks.toml`'s `svmgov_program_id`). ⚠️ `min_consensus_threshold_bps`, `vote_duration`,
+      `tie_breaker_admin` are still left **zero/unset** and the program is not usable until
+      configured.
 - [ ] `update-program-config --min-consensus-threshold-bps <…> --vote-duration <…>
-      --tie-breaker-admin <…>` — **must run before any voting** (threshold must be 1–10000,
-      vote_duration > 0).
+  --tie-breaker-admin <…>` — **must run before any voting** (threshold must be 1–10000,
+      vote_duration > 0). Can also pass `--svmgov-program-id <…>` to retarget the authorized
+      svmgov program if it was set wrong or svmgov is redeployed (no ncn redeploy needed).
 - [ ] `update-operator-whitelist --add <op1,op2,…>` — add the production operator set
       (max 64).
 - [ ] `log --ty program-config` — verify authority, threshold, vote_duration,
-      tie_breaker_admin, whitelist.
+      tie_breaker_admin, svmgov program, whitelist.
 
 ## Phase 4 — Admin values to decide (fill these in before Phase 3)
 
 **svmgov `init-global-config`:**
 
-| Flag | Meaning | Decide |
-|---|---|---|
-| `--max-title-length` | proposal title chars | e.g. 50 |
-| `--max-description-length` | desc chars (must be a `https://github.com` link) | e.g. 250 |
-| `--max-support-epochs` | max epochs in support phase | ? |
-| `--min-proposal-stake-lamports` | min stake to create a proposal | ? |
-| `--cluster-support-pct-min-bps` | % cluster stake to activate voting (bps) | ? |
-| `--discussion-epochs` | discussion epochs after activation | ? |
-| `--voting-epochs` | active voting window (epochs) | ? |
-| `--snapshot-epoch-extension` | extension epochs before snapshot slot | ? |
-| `--snapshot-slot-offset` | slot offset from epoch start (can be negative) | ? |
+| Flag                            | Meaning                                                                    | Decide   |
+| ------------------------------- | -------------------------------------------------------------------------- | -------- |
+| `--max-title-length`            | proposal title length, **in bytes** (1–200)                                | e.g. 50  |
+| `--max-description-length`      | desc length **in bytes** (1–500); desc must be a `https://github.com` link | e.g. 250 |
+| `--max-support-epochs`          | max epochs in support phase                                                | ?        |
+| `--min-proposal-stake-lamports` | min stake to create a proposal                                             | ?        |
+| `--cluster-support-pct-min-bps` | % cluster stake to activate voting (bps, 0–10000)                          | ?        |
+| `--discussion-epochs`           | discussion epochs after activation                                         | ?        |
+| `--voting-epochs`               | active voting window (epochs)                                              | ?        |
+| `--snapshot-epoch-extension`    | extension epochs before snapshot slot                                      | ?        |
+| `--snapshot-slot-offset`        | slot offset from epoch start (can be negative)                             | ?        |
 
 **ncn `update-program-config`:**
 
-| Flag | Meaning | Decide |
-|---|---|---|
-| `--min-consensus-threshold-bps` | fraction of operators for consensus (e.g. 6000 = 60%) | ? |
-| `--vote-duration` | seconds a BallotBox stays open | ? |
-| `--tie-breaker-admin` | resolves deadlocks / can reset bricked ballot box | ? (multisig?) |
-| operator whitelist | the actual production operators | ? |
+| Flag                            | Meaning                                                                                       | Decide                                |
+| ------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `--min-consensus-threshold-bps` | fraction of operators for consensus (e.g. 6000 = 60%)                                         | ?                                     |
+| `--vote-duration`               | seconds a BallotBox stays open                                                                | ?                                     |
+| `--tie-breaker-admin`           | resolves deadlocks / can reset bricked ballot box                                             | ? (multisig?)                         |
+| `--svmgov-program-id`           | svmgov program allowed to open ballot boxes (set at `init-program-config`; retargetable here) | = `networks.toml` `svmgov_program_id` |
+| operator whitelist              | the actual production operators                                                               | ?                                     |
 
 ## Phase 5 — Off-chain services
 
 **Verifier-service** (each operator; `ncn/verifier-service/`, Docker on EC2 per
 `DEPLOYMENT.md`):
+
 - [ ] `make install-verifier-service` (or run `src/scripts/setup.sh` on host).
 - [ ] Required env: `OPERATOR_PUBKEY` (base58), `METRICS_AUTH_TOKEN`. Optional: `DB_PATH`
       (`/data/governance.db`), `PORT` (3000, host 80→3000), rate-limit vars,
@@ -117,6 +154,7 @@ decide, and the **contract initialization** order.
 - [ ] Operator's pubkey is in the **ncn on-chain whitelist** (Phase 3).
 
 **ncn-router + ncn-meta-cron** (`ncn-router/`):
+
 - [ ] `config.toml` lists the production verifier `name` + `verification_domain` set
       (currently 10 entries — confirm).
 - [ ] Required env: **`NCN_PROGRAM_ID`** (must equal deployed `ncn_snapshot_program_id`). Set
@@ -130,6 +168,7 @@ decide, and the **contract initialization** order.
 - [ ] Verify router serves a verifier given `?network=mainnet`.
 
 **Frontend** (`frontend/`, Next.js):
+
 - [ ] Set `NEXT_PUBLIC_SOLANA_RPC_MAINNET` (+ testnet/devnet) to production RPCs;
       `NEXT_PUBLIC_SENTRY_DSN` / `SENTRY_AUTH_TOKEN` if using Sentry.
 - [ ] Confirm IDL in `frontend/src/chain/idl/` is the freshly-built one (Phase 1) and program
@@ -144,18 +183,58 @@ decide, and the **contract initialization** order.
       `init_ballot_box` CPI) → operators generate snapshot + `cast-vote` → consensus →
       `finalize-ballot` → validator `cast-vote` on svmgov via verifier proof →
       `finalize-proposal`.
+- [ ] ⚠️ The **support-past-threshold step is the only validation of the svmgov→ncn pointer**
+      (svmgov's baked-in `ncn_snapshot::ID`). That linkage cannot be checked on-chain
+      beforehand — `support_proposal` is the first instruction to exercise it, so do **not**
+      skip this step. A green deploy + init + create-proposal does not prove the two programs
+      are correctly wired.
 - [ ] Confirm tie-breaker + `reset-ballot-box` paths work for the configured
       `tie_breaker_admin`.
+- [ ] `cast-vote` / `cast-vote-override` set the temporary `MetaMerkleProof` PDA's
+      `close_timestamp` to the proposal's vote-expiry by default so it's reclaimable
+      permissionlessly after voting — no action needed unless you want different close
+      semantics (then pass `--close-timestamp <unix>`).
 
 ## Phase 7 — Handover & custody
 
 - [ ] Program upgrade authorities moved to multisig.
 - [ ] ncn authority transfer (if needed): `update-program-config --proposed-authority <X>`
       then `finalize-proposed-authority` signed by X (two-step).
-- [ ] svmgov admin is fixed by the hardcoded constant — to rotate it requires a program
-      upgrade; document this.
-- [ ] Secure/rotate `admin.json` and ncn authority keys out of any working tree; document key
-      locations and the on-chain values set.
+- [ ] svmgov admin transfer (if needed): `nominate-admin --new-admin <X>` (current admin)
+      then `accept-admin` signed by X (two-step). No program upgrade required.
+- [ ] Secure/rotate the svmgov admin key and ncn authority keys out of any working tree;
+      document key locations and the on-chain values set.
+
+---
+
+## Signing admin/authority transactions with Squads
+
+Both CLIs accept global flags to route an instruction through a **Squads multisig vault**
+instead of signing locally — use this for every privileged operation on mainnet:
+
+- `--squads <MULTISIG_PUBKEY>` (required to enable), `--squads-vault-index <N>` (default `0`),
+  `--squads-memo <text>`, `--squads-program-id <PUBKEY>` (only for non-canonical Squads
+  deployments).
+- The CLI builds a `vault_transaction_create` + `proposal_create` pair signed by your local
+  keypair (the **proposing member**, which must hold the multisig's `Initiate` permission).
+  It does **not** approve or execute — multisig members still approve and execute the proposal
+  in Squads afterward.
+- The on-chain authority must **be the vault PDA**. So set the program's upgrade authority /
+  ncn authority / `tie_breaker_admin` / `GlobalConfig.admin` to the vault address first, then
+  run the command with `--squads`.
+
+Squads-compatible admin/authority commands:
+
+- **svmgov:** `init-global-config` (vault must be the upgrade authority), `update-global-config`,
+  `nominate-admin`, `accept-admin`.
+- **ncn:** `init-program-config`, `update-program-config`, `update-operator-whitelist`,
+  `set-tie-breaker`, `reset-ballot-box`, `finalize-proposed-authority`.
+
+The CLI **refuses `--squads`** for commands whose on-chain check requires a specific
+validator/operator hot key or is permissionless (svmgov `create-proposal` / `support-proposal`
+/ `cast-vote` / `modify-vote` / `init-index` / `finalize-proposal`; ncn `cast-vote` /
+`remove-vote` / `finalize-ballot`) — a vault PDA can't satisfy those, so run them with the
+local keypair.
 
 ---
 
@@ -163,6 +242,14 @@ decide, and the **contract initialization** order.
 
 1. `networks.toml` uses public RPCs and identical program IDs across all networks — fix for
    mainnet.
-2. `init-program-config` leaves the ncn config at zeros, so the `update-program-config` step
-   is mandatory, not optional.
-3. `admin.json` is a committed plaintext keypair — confirm gitignore and custody.
+2. `init-program-config` records `authority` + `svmgov_program_pubkey` but leaves
+   `min_consensus_threshold_bps` / `vote_duration` / `tie_breaker_admin` at zero, so the
+   `update-program-config` step is mandatory, not optional.
+3. svmgov `init-global-config` must be signed by the program's **upgrade authority** and must
+   run **before** the program is made immutable — otherwise the config can never be
+   initialized. The signer becomes the admin; rotate later via `nominate-admin` / `accept-admin`.
+4. The ncn→svmgov program reference is retargetable on-chain, but the svmgov→ncn reference is
+   **not** — svmgov bakes in `ncn_snapshot::ID` at build time. Redeploying ncn-snapshot under a
+   **new** program ID locks out new ballot boxes and requires a svmgov rebuild + upgrade to fix
+   (unrecoverable if svmgov is immutable). In-place ncn upgrades (same ID) are unaffected. See
+   "How the pieces fit."
