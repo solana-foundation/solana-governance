@@ -144,7 +144,7 @@ Later phases are driven by two CLIs: **`svmgov`** (governance — `init-global-c
       svmgov program if it was set wrong or svmgov is redeployed (no ncn redeploy needed).
 - [ ] `update-operator-whitelist --add <op1,op2,…>` — add the production operator set
       (max 64).
-- [ ] `log --ty program-config` — verify authority, threshold, vote_duration,
+- [ ] `ncn-cli get-program-config` & `ncn-cli get-operator-whitelist` — verify authority, threshold, vote_duration,
       tie_breaker_admin, svmgov program, whitelist.
 
 ## Phase 5 — Admin values to decide (fill these in before Phase 4)
