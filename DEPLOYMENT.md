@@ -69,11 +69,46 @@ decide, and the **contract initialization** order.
       (`ncn_snapshot::ID`) at build time, and this svmgov→ncn pointer is **not stored in any
       account, not returned by any instruction, and not shown by `show-global-config`**. A bad
       or stale sync here is invisible on-chain and only surfaces at the first `support-proposal`
-      (see Phase 6). Verify `ncn-snapshot/src/lib.rs` `declare_id!` == `networks.toml`
+      (see Phase 7). Verify `ncn-snapshot/src/lib.rs` `declare_id!` == `networks.toml`
       `ncn_snapshot_program_id` before building, and ideally hash the deployed binary against a
       reproducible build.
 
-## Phase 2 — Deploy the programs
+## Phase 2 — Build the CLIs
+
+Later phases are driven by two CLIs: **`svmgov`** (governance — `init-global-config`,
+`create-proposal`, `support-proposal`, `cast-vote`, …) and **`ncn-cli`** (operator consensus —
+`init-program-config`, `update-operator-whitelist`, snapshots, voting). Build/install both now.
+
+- [ ] ⚠️ Build the CLIs **after** `make sync` + `make build-programs` (Phase 1). Like the svmgov
+      program, the `svmgov` CLI links `ncn_snapshot::ID` at compile time plus the synced IDLs in
+      `svmgov/cli/idls/`; a stale build aims `support-proposal` at the wrong ncn program.
+
+**svmgov CLI** → installs the `svmgov` binary:
+
+- [ ] `bash svmgov/cli/install.sh` — cleans `svmgov/cli/target`, runs `cargo build --release`,
+      and copies the binary to `/usr/local/bin/svmgov` (falls back to `~/.local/bin/svmgov` when
+      `/usr/local/bin` isn't writable), appending a PATH entry to your shell rc if needed.
+- [ ] `svmgov --version` to confirm it's on `PATH`.
+
+**ncn CLI** → installs the `ncn-cli` binary:
+
+- [ ] `make install-ncn-cli` — ensures `jito-tip-router` is present (re-runs `make bootstrap`
+      as needed), builds `cargo build --locked --release -p cli` from `ncn/` with
+      `RUSTFLAGS=-C target-cpu=native` and the required compile-time program-ID env vars
+      (`RESTAKING_PROGRAM_ID`, `VAULT_PROGRAM_ID`, `TIP_ROUTER_PROGRAM_ID` — mainnet defaults
+      baked in; export your own first to override), then installs the binary as `ncn-cli`. Also
+      appends a shell wrapper defaulting `RAYON_NUM_THREADS` / `ZSTD_NBTHREADS` / `RUST_LOG` for
+      snapshot performance.
+- [ ] Open a new shell (to load the wrapper) and run `ncn-cli --version` to confirm.
+
+**No-install build** (locked-down hosts — skip global install, `sudo`, and shell-rc edits): run
+`cargo build --release` in `svmgov/cli` (binary → `svmgov/cli/target/release/svmgov`), and
+`cargo build --locked --release -p cli` in `ncn/` after `make bootstrap` (binary →
+`ncn/target/release/cli`), exporting the three `*_PROGRAM_ID` vars first (see
+`ncn/scripts/install-ncn-cli.sh` for defaults). Invoke by full path, or `cargo run --release
+--bin cli --` for ncn.
+
+## Phase 3 — Deploy the programs
 
 - [ ] Deploy `ncn-snapshot` (`anchor deploy` / `solana program deploy`) to the
       `ncn_snapshot_program_id` address.
@@ -82,7 +117,7 @@ decide, and the **contract initialization** order.
 - [ ] Record deployed addresses; confirm they match `docs/.../program-ids` and
       `networks.toml`.
 
-## Phase 3 — Initialize contracts (order matters)
+## Phase 4 — Initialize contracts (order matters)
 
 **svmgov** (`init-global-config` signer must be the program **upgrade authority**):
 
@@ -112,7 +147,7 @@ decide, and the **contract initialization** order.
 - [ ] `log --ty program-config` — verify authority, threshold, vote_duration,
       tie_breaker_admin, svmgov program, whitelist.
 
-## Phase 4 — Admin values to decide (fill these in before Phase 3)
+## Phase 5 — Admin values to decide (fill these in before Phase 4)
 
 **svmgov `init-global-config`:**
 
@@ -138,7 +173,7 @@ decide, and the **contract initialization** order.
 | `--svmgov-program-id`           | svmgov program allowed to open ballot boxes (set at `init-program-config`; retargetable here) | = `networks.toml` `svmgov_program_id` |
 | operator whitelist              | the actual production operators                                                               | ?                                     |
 
-## Phase 5 — Off-chain services
+## Phase 6 — Off-chain services
 
 **Verifier-service** (each operator; `ncn/verifier-service/`, Docker on EC2 per
 `ncn/verifier-service/DEPLOYMENT.md`):
@@ -151,7 +186,7 @@ decide, and the **contract initialization** order.
 - [ ] Cloudflare proxy + rate-limit rules (`/upload`, `/proof/*`); TLS mode decided.
 - [ ] DB cleanup cron (`cleanup.sh`: `DB`, `DAYS`, `SLOTS_PER_DAY`).
 - [ ] Smoke: `curl /healthz`, `/version`, `docker logs verifier`.
-- [ ] Operator's pubkey is in the **ncn on-chain whitelist** (Phase 3).
+- [ ] Operator's pubkey is in the **ncn on-chain whitelist** (Phase 4).
 
 **ncn-router + ncn-meta-cron** (`ncn-router/`):
 
@@ -177,7 +212,7 @@ decide, and the **contract initialization** order.
       `GlobalConfig` for 1h).
 - [ ] Verify dashboard loads config, proposals, and verifier-backed proofs.
 
-## Phase 6 — End-to-end verification
+## Phase 7 — End-to-end verification
 
 - [ ] On a non-prod or staging slot: create proposal → support past threshold (triggers
       `init_ballot_box` CPI) → operators generate snapshot + `cast-vote` → consensus →
@@ -195,7 +230,7 @@ decide, and the **contract initialization** order.
       permissionlessly after voting — no action needed unless you want different close
       semantics (then pass `--close-timestamp <unix>`).
 
-## Phase 7 — Handover & custody
+## Phase 8 — Handover & custody
 
 - [ ] Program upgrade authorities moved to multisig.
 - [ ] ncn authority transfer (if needed): `update-program-config --proposed-authority <X>`
