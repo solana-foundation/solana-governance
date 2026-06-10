@@ -1,0 +1,10 @@
+signer "proposer" "svm::secret_key" {
+    description = "Keypair with proposer rights on squads multisig"
+    keypair_json = input.proposer_keypair_json
+}
+
+signer "squads" "svm::squads" {
+    description = "Squad signer for managing multisig proposals"
+    multisig_account_public_key = input.squad_multisig_public_key
+    initiator = signer.proposer
+}

@@ -1,0 +1,33 @@
+################################################################
+# Manage program deployment through Crypto Infrastructure as Code
+################################################################
+
+addon "svm" {
+    rpc_api_url = input.rpc_api_url
+    network_id = input.network_id
+}
+
+action "deploy_ncn_program" "svm::deploy_program" {
+    description = "Deploy ncn_snapshot program"
+    program = svm::get_program_from_anchor_project(
+        "ncn_snapshot", 
+        "ncn/target/deploy/ncn_snapshot-keypair.json",
+        "ncn/target/idl/ncn_snapshot.json",
+        "ncn/target/deploy/ncn_snapshot.so"
+    ) 
+    authority = signer.squads
+    payer = signer.proposer
+}
+
+
+action "deploy_svmgov_program" "svm::deploy_program" {
+    description = "Deploy svmgov_program program"
+    program = svm::get_program_from_anchor_project(
+        "svmgov_program", 
+        "svmgov/program/target/deploy/svmgov_program-keypair.json",
+        "svmgov/program/target/idl/svmgov_program.json",
+        "svmgov/program/target/deploy/svmgov_program.so"
+    ) 
+    authority = signer.squads
+    payer = signer.proposer
+}
