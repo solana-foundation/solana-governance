@@ -104,7 +104,7 @@ decide, and the **contract initialization** order.
       `tie_breaker_admin` are still left **zero/unset** and the program is not usable until
       configured.
 - [ ] `update-program-config --min-consensus-threshold-bps <…> --vote-duration <…>
-  --tie-breaker-admin <…>` — **must run before any voting** (threshold must be 1–10000,
+--tie-breaker-admin <…>` — **must run before any voting** (threshold must be 1–10000,
       vote_duration > 0). Can also pass `--svmgov-program-id <…>` to retarget the authorized
       svmgov program if it was set wrong or svmgov is redeployed (no ncn redeploy needed).
 - [ ] `update-operator-whitelist --add <op1,op2,…>` — add the production operator set
@@ -141,7 +141,7 @@ decide, and the **contract initialization** order.
 ## Phase 5 — Off-chain services
 
 **Verifier-service** (each operator; `ncn/verifier-service/`, Docker on EC2 per
-`DEPLOYMENT.md`):
+`ncn/verifier-service/DEPLOYMENT.md`):
 
 - [ ] `make install-verifier-service` (or run `src/scripts/setup.sh` on host).
 - [ ] Required env: `OPERATOR_PUBKEY` (base58), `METRICS_AUTH_TOKEN`. Optional: `DB_PATH`
