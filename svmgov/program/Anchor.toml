@@ -6,16 +6,16 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-svmgov_program = "4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU"
+svmgov_program = "govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU"
 
 [programs.devnet]
-svmgov_program = "4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU"
+svmgov_program = "govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU"
 
 [programs.testnet]
-svmgov_program = "4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU"
+svmgov_program = "govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU"
 
 [programs.mainnet]
-svmgov_program = "4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU"
+svmgov_program = "govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU"
 
 [registry]
 url = "https://api.apr.dev"

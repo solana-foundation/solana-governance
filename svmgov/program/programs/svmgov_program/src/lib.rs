@@ -11,7 +11,7 @@ use instructions::*;
 
 use ncn_snapshot::StakeMerkleLeaf;
 
-declare_id!("4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU");
+declare_id!("govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU");
 
 #[program]
 pub mod svmgov_program {
