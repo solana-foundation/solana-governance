@@ -11,7 +11,7 @@ use anchor_lang::prelude::*;
 pub use instructions::*;
 pub use state::*;
 
-declare_id!("HsiPGfvF441TrU8eCLLerQDcEMtyzYszBfKxqoSuaD9R");
+declare_id!("ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf");
 
 #[program]
 pub mod ncn_snapshot {

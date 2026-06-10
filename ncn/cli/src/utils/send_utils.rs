@@ -99,12 +99,19 @@ pub fn send_init_program_config(
     tx_sender: &TxSender,
     svmgov_program_pubkey: Pubkey,
 ) -> Result<RoutedOutcome> {
+    // InitProgramConfig has two signer slots: `payer` (funds the ProgramConfig PDA rent)
+    // and `authority` (becomes program_config.authority). When routed through Squads, the
+    // wrapped instruction is signed solely by the vault PDA at execution time, so BOTH
+    // slots must resolve to the vault PDA — otherwise the proposal would also require the
+    // local payer's signature, which Squads cannot supply, leaving it unexecutable. In
+    // direct mode they stay the local payer/authority keypairs.
+    let payer = effective_signer(tx_sender.squads.as_ref(), tx_sender.program.payer());
     let authority = effective_signer(tx_sender.squads.as_ref(), tx_sender.authority.pubkey());
     let ixs = tx_sender
         .program
         .request()
         .accounts(accounts::InitProgramConfig {
-            payer: tx_sender.program.payer(),
+            payer,
             authority,
             program_config: ProgramConfig::pda().0,
             system_program: system_program::ID,

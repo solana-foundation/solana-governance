@@ -6,30 +6,30 @@ release_version = "0.1.0-40000"
 
 [networks.mainnet]
 rpc_url = "https://api.mainnet-beta.solana.com"
-svmgov_program_id       = "4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU"
-ncn_snapshot_program_id = "HsiPGfvF441TrU8eCLLerQDcEMtyzYszBfKxqoSuaD9R"
+svmgov_program_id       = "govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU"
+ncn_snapshot_program_id = "ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf"
 jito_tip_router_commit  = "d60e3eb75917f8f183c6cbc1a176796f0d095708"
 
 [networks.mainnet-staging]
 rpc_url = "https://api.mainnet-beta.solana.com"
-svmgov_program_id       = "4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU"
-ncn_snapshot_program_id = "HsiPGfvF441TrU8eCLLerQDcEMtyzYszBfKxqoSuaD9R"
+svmgov_program_id       = "govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU"
+ncn_snapshot_program_id = "ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf"
 jito_tip_router_commit  = "d60e3eb75917f8f183c6cbc1a176796f0d095708"
 
 [networks.testnet]
 rpc_url = "https://api.testnet.solana.com"
-svmgov_program_id       = "4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU"
-ncn_snapshot_program_id = "HsiPGfvF441TrU8eCLLerQDcEMtyzYszBfKxqoSuaD9R"
+svmgov_program_id       = "govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU"
+ncn_snapshot_program_id = "ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf"
 jito_tip_router_commit  = "d60e3eb75917f8f183c6cbc1a176796f0d095708"
 
 [networks.testnet-staging]
 rpc_url = "https://api.testnet.solana.com"
-svmgov_program_id       = "4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU"
-ncn_snapshot_program_id = "HsiPGfvF441TrU8eCLLerQDcEMtyzYszBfKxqoSuaD9R"
+svmgov_program_id       = "govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU"
+ncn_snapshot_program_id = "ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf"
 jito_tip_router_commit  = "d60e3eb75917f8f183c6cbc1a176796f0d095708"
 
 [networks.localnet]
 rpc_url = "http://localhost:8899"
-svmgov_program_id       = "4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU"
-ncn_snapshot_program_id = "HsiPGfvF441TrU8eCLLerQDcEMtyzYszBfKxqoSuaD9R"
+svmgov_program_id       = "govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU"
+ncn_snapshot_program_id = "ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf"
 jito_tip_router_commit  = "d60e3eb75917f8f183c6cbc1a176796f0d095708"

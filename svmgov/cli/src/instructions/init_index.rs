@@ -3,15 +3,17 @@ use anyhow::Result;
 
 use crate::{
     svmgov_program::client::{accounts, args},
-    utils::utils::{create_spinner, derive_proposal_index_pda, setup_all},
+    utils::utils::{create_spinner, derive_proposal_index_pda, setup_admin},
 };
 
 pub async fn initialize_index(
     identity_keypair: Option<String>,
     rpc_url: Option<String>,
 ) -> Result<()> {
-    let (payer, _vote_account, program, _merkle_proof_program) =
-        setup_all(identity_keypair, rpc_url).await?;
+    // init-index is permissionless on-chain: the signer only pays rent for the
+    // ProposalIndex PDA. Use setup_admin (no vote-account lookup) rather than
+    // setup_all, which requires the signer to be a validator identity.
+    let (payer, program) = setup_admin(identity_keypair, rpc_url)?;
 
     let proposal_index = derive_proposal_index_pda(&program.id());
 

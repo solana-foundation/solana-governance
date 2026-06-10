@@ -1,0 +1,19 @@
+---
+name: program
+id: program
+runbooks:
+  - name: deployment
+    description: Deploy programs
+    location: runbooks/deployment
+environments:
+  localnet:
+      network_id: localnet
+      rpc_api_url: http://127.0.0.1:8899
+      squad_multisig_public_key: AYqpqhQxY5m3JT5J214jmvvpAuGSn5K7XeyXzpcGHDDh
+      proposer_keypair_json: ./proposer.json
+  mainnet:
+      network_id: mainnet
+      rpc_api_url: <RPC_URL>
+      squad_multisig_public_key: <>
+      payer_keypair_json: <>
+      proposer_keypair_json: <>
