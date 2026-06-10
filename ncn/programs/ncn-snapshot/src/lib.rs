@@ -17,8 +17,11 @@ declare_id!("HsiPGfvF441TrU8eCLLerQDcEMtyzYszBfKxqoSuaD9R");
 pub mod ncn_snapshot {
     use super::*;
 
-    pub fn init_program_config(ctx: Context<InitProgramConfig>) -> Result<()> {
-        init_program_config::handler(ctx)
+    pub fn init_program_config(
+        ctx: Context<InitProgramConfig>,
+        svmgov_program_pubkey: Pubkey,
+    ) -> Result<()> {
+        init_program_config::handler(ctx, svmgov_program_pubkey)
     }
 
     pub fn update_operator_whitelist(
@@ -35,6 +38,7 @@ pub mod ncn_snapshot {
         min_consensus_threshold_bps: Option<u16>,
         tie_breaker_admin: Option<Pubkey>,
         vote_duration: Option<i64>,
+        svmgov_program_pubkey: Option<Pubkey>,
     ) -> Result<()> {
         update_program_config::handler(
             ctx,
@@ -42,6 +46,7 @@ pub mod ncn_snapshot {
             min_consensus_threshold_bps,
             tie_breaker_admin,
             vote_duration,
+            svmgov_program_pubkey,
         )
     }
 

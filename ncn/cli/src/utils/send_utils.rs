@@ -95,7 +95,10 @@ fn send_with_anchor(
         .map_err(ClientError::SolanaClientError)
 }
 
-pub fn send_init_program_config(tx_sender: &TxSender) -> Result<RoutedOutcome> {
+pub fn send_init_program_config(
+    tx_sender: &TxSender,
+    svmgov_program_pubkey: Pubkey,
+) -> Result<RoutedOutcome> {
     let authority = effective_signer(tx_sender.squads.as_ref(), tx_sender.authority.pubkey());
     let ixs = tx_sender
         .program
@@ -106,7 +109,9 @@ pub fn send_init_program_config(tx_sender: &TxSender) -> Result<RoutedOutcome> {
             program_config: ProgramConfig::pda().0,
             system_program: system_program::ID,
         })
-        .args(instruction::InitProgramConfig {})
+        .args(instruction::InitProgramConfig {
+            svmgov_program_pubkey,
+        })
         .instructions()?;
 
     tx_sender.route(
@@ -146,6 +151,7 @@ pub fn send_update_program_config(
     min_consensus_threshold_bps: Option<u16>,
     tie_breaker_admin: Option<Pubkey>,
     vote_duration: Option<i64>,
+    svmgov_program_pubkey: Option<Pubkey>,
 ) -> Result<RoutedOutcome> {
     let authority = effective_signer(tx_sender.squads.as_ref(), tx_sender.authority.pubkey());
     let accounts = accounts::UpdateProgramConfig {
@@ -162,6 +168,7 @@ pub fn send_update_program_config(
             min_consensus_threshold_bps,
             tie_breaker_admin,
             vote_duration,
+            svmgov_program_pubkey,
         })
         .instructions()?;
 

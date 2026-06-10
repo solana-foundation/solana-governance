@@ -18,9 +18,10 @@ pub struct InitProgramConfig<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(ctx: Context<InitProgramConfig>) -> Result<()> {
+pub fn handler(ctx: Context<InitProgramConfig>, svmgov_program_pubkey: Pubkey) -> Result<()> {
     let program_config = &mut ctx.accounts.program_config;
     program_config.authority = ctx.accounts.authority.key();
+    program_config.svmgov_program_pubkey = svmgov_program_pubkey;
 
     Ok(())
 }

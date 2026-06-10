@@ -178,15 +178,20 @@ ncn-cli \
 
 ### `init-program-config`
 
-Initializes the on-chain `ProgramConfig` singleton. Must be run once per deployment. The signer of `--authority-path` becomes the initial program authority and is recorded as `ProgramConfig.authority`.
+Initializes the on-chain `ProgramConfig` singleton. Must be run once per deployment. The signer of `--authority-path` becomes the initial program authority and is recorded as `ProgramConfig.authority`. `--svmgov-program-id` binds which svmgov governance program is allowed to open ballot boxes (it is verified in `init_ballot_box` when a proposal reaches consensus and CPIs in); source it from `networks.toml`'s `svmgov_program_id`.
 
 ```bash
 ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url https://api.devnet.solana.com \
-  init-program-config
+  init-program-config \
+  --svmgov-program-id <PUBKEY>
 ```
+
+| Argument | Type | Description |
+|---|---|---|
+| `--svmgov-program-id <Pubkey>` | Required | svmgov governance program id (base58) whose Proposal PDAs are authorized to open ballot boxes. Recorded as `ProgramConfig.svmgov_program_pubkey`. |
 
 ---
 
@@ -203,7 +208,8 @@ ncn-cli \
   --min-consensus-threshold-bps 6667 \
   --vote-duration 86400 \
   --tie-breaker-admin <PUBKEY> \
-  --proposed-authority <PUBKEY>
+  --proposed-authority <PUBKEY> \
+  --svmgov-program-id <PUBKEY>
 ```
 
 | Argument | Type | Description |
@@ -212,6 +218,7 @@ ncn-cli \
 | `--vote-duration <i64>` | Optional | Voting window duration, in seconds. Operators have this long after a ballot box is created to cast votes. |
 | `--tie-breaker-admin <Pubkey>` | Optional | New tie-breaker admin pubkey (base58). This admin can resolve a stalled ballot box via `set-tie-breaker`. |
 | `--proposed-authority <Pubkey>` | Optional | Proposed new program authority (base58). Becomes active only after `finalize-proposed-authority` is run by this pubkey. |
+| `--svmgov-program-id <Pubkey>` | Optional | New svmgov governance program id (base58) authorized to open ballot boxes. Retargets ncn at a new svmgov deployment without redeploying the ncn program. |
 
 ---
 

@@ -2,9 +2,6 @@ use anchor_lang::prelude::*;
 
 use crate::{error::ErrorCode, BallotBox, ProgramConfig};
 
-#[cfg(not(feature = "skip-pda-check"))]
-const GOV_PROGRAM_ID: Pubkey = pubkey!("4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU");
-
 #[derive(Accounts)]
 #[instruction(snapshot_slot: u64, proposal_seed: u64, spl_vote_account: Pubkey)]
 pub struct InitBallotBox<'info> {
@@ -17,10 +14,11 @@ pub struct InitBallotBox<'info> {
             spl_vote_account.as_ref()
         ],
         bump,
-        seeds::program = GOV_PROGRAM_ID
+        seeds::program = program_config.svmgov_program_pubkey
     ))]
-    /// Verifies that signer is a Proposal PDA from the governance program.
-    /// When `skip-pda-check` feature is enabled, this check is disabled to allow local testing without CPI.
+    /// Verifies the signer is a Proposal PDA from the svmgov program recorded in
+    /// `ProgramConfig.svmgov_program_pubkey`. When the `skip-pda-check` feature is
+    /// enabled, this check is disabled to allow local testing without CPI.
     pub proposal: Signer<'info>,
     #[account(
         init,
