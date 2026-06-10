@@ -49,7 +49,7 @@ decide, and the **contract initialization** order.
       authority is also the bootstrap admin** — whoever signs `init-global-config` must be the
       program's upgrade authority (verified on-chain against `ProgramData`) and becomes the
       stored `GlobalConfig.admin`.
-- [ ] **svmgov admin key**: no longer hardcoded. Decide the `init-global-config` signer (=
+- [ ] **svmgov admin key**: Decide the `init-global-config` signer (=
       the program's upgrade authority — a single key or a squads vault) and fund it. The admin
       is rotatable on-chain afterward via the two-step `nominate-admin` / `accept-admin` flow,
       so it need not equal the long-term admin. (The repo's `admin.json` is gitignored and
