@@ -236,11 +236,13 @@ pub async fn nominate_admin(
     keypair: Option<String>,
     new_admin: String,
     rpc_url: Option<String>,
+    squads: Option<SquadsCliOpts>,
 ) -> Result<()> {
     let proposed_admin = Pubkey::from_str(&new_admin)
         .map_err(|e| anyhow!("Invalid new admin pubkey '{}': {}", new_admin, e))?;
 
     let (payer, program) = setup_admin(keypair, rpc_url)?;
+    let admin = effective_signer(squads.as_ref(), payer.pubkey());
 
     let global_config_pda = derive_global_config_pda(&program.id());
 
@@ -250,32 +252,41 @@ pub async fn nominate_admin(
         .request()
         .args(args::NominateAdmin { proposed_admin })
         .accounts(accounts::NominateAdmin {
-            admin: payer.pubkey(),
+            admin,
             global_config: global_config_pda,
         })
         .instructions()?;
 
-    let blockhash = program.rpc().get_latest_blockhash().await?;
-    let transaction =
-        Transaction::new_signed_with_payer(&ixs, Some(&payer.pubkey()), &[&payer], blockhash);
+    let rpc = program.rpc();
+    let squads_config = squads.as_ref().map(|opts| opts.to_config(payer.pubkey()));
+    let outcome = crate::utils::squads::route(
+        &rpc,
+        ixs,
+        Vec::new(),
+        &[payer.as_ref()],
+        squads_config.as_ref(),
+    )
+    .await?;
+    spinner.finish_and_clear();
+    println!("{}", outcome.format_structured());
 
-    let sig = program
-        .rpc()
-        .send_and_confirm_transaction(&transaction)
-        .await?;
-
-    spinner.finish_with_message(format!(
-        "Nominated {} as admin. They must run `accept-admin` to complete the transfer. https://explorer.solana.com/tx/{}",
-        proposed_admin, sig
-    ));
+    println!(
+        "Nominating {} as admin. They must run `accept-admin` to complete the transfer.",
+        proposed_admin
+    );
 
     Ok(())
 }
 
 /// Step 2 of the two-step admin transfer. The nominated admin accepts the role and
 /// becomes the active admin. Signed by the nominee (the pending admin).
-pub async fn accept_admin(keypair: Option<String>, rpc_url: Option<String>) -> Result<()> {
+pub async fn accept_admin(
+    keypair: Option<String>,
+    rpc_url: Option<String>,
+    squads: Option<SquadsCliOpts>,
+) -> Result<()> {
     let (payer, program) = setup_admin(keypair, rpc_url)?;
+    let new_admin = effective_signer(squads.as_ref(), payer.pubkey());
 
     let global_config_pda = derive_global_config_pda(&program.id());
 
@@ -285,25 +296,23 @@ pub async fn accept_admin(keypair: Option<String>, rpc_url: Option<String>) -> R
         .request()
         .args(args::AcceptAdmin {})
         .accounts(accounts::AcceptAdmin {
-            new_admin: payer.pubkey(),
+            new_admin: new_admin,
             global_config: global_config_pda,
         })
         .instructions()?;
 
-    let blockhash = program.rpc().get_latest_blockhash().await?;
-    let transaction =
-        Transaction::new_signed_with_payer(&ixs, Some(&payer.pubkey()), &[&payer], blockhash);
-
-    let sig = program
-        .rpc()
-        .send_and_confirm_transaction(&transaction)
-        .await?;
-
-    spinner.finish_with_message(format!(
-        "Admin role accepted. {} is now the config admin. https://explorer.solana.com/tx/{}",
-        payer.pubkey(),
-        sig
-    ));
+    let rpc = program.rpc();
+    let squads_config = squads.as_ref().map(|opts| opts.to_config(payer.pubkey()));
+    let outcome = crate::utils::squads::route(
+        &rpc,
+        ixs,
+        Vec::new(),
+        &[payer.as_ref()],
+        squads_config.as_ref(),
+    )
+    .await?;
+    spinner.finish_and_clear();
+    println!("{}", outcome.format_structured());
 
     Ok(())
 }

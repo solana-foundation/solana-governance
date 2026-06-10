@@ -832,10 +832,19 @@ async fn handle_command(cli: Cli) -> Result<()> {
             instructions::show_global_config(cli.rpc_url).await?;
         }
         Commands::NominateAdmin { new_admin } => {
-            instructions::nominate_admin(cli.keypair, new_admin.clone(), cli.rpc_url).await?;
+            instructions::nominate_admin(
+                cli.keypair, 
+                new_admin.clone(), 
+                cli.rpc_url, 
+                squads_opts.clone()
+            ).await?;
         }
         Commands::AcceptAdmin => {
-            instructions::accept_admin(cli.keypair, cli.rpc_url).await?;
+            instructions::accept_admin(
+                cli.keypair, 
+                cli.rpc_url, 
+                squads_opts.clone()
+            ).await?;
         }
         Commands::Init => {
             init::run_init().await?;
