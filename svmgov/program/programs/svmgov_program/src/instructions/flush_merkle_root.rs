@@ -75,12 +75,16 @@ impl<'info> FlushMerkleRoot<'info> {
         // flush deterministic: re-flushing never drops the discussion window and never
         // pushes start_epoch forward, so a flush cannot shorten or repeatedly postpone
         // the schedule without revalidating support.
-        let support_epoch = self.proposal.creation_epoch + self.global_config.max_support_epochs;
+        let support_epoch = self
+            .proposal
+            .creation_epoch
+            .checked_add(self.global_config.max_support_epochs)
+            .ok_or(GovernanceError::ArithmeticOverflow)?;
         let target_epoch = proposal_target_epoch(
             support_epoch,
             self.global_config.discussion_epochs,
             self.global_config.snapshot_epoch_extension,
-        );
+        )?;
         // SECURITY: enforce the future-slot invariant *before* mutating any proposal
         // state. `init_ballot_box` below is skipped whenever `ballot_box` already
         // exists, so this is the only place the `snapshot_slot > clock.slot` guard is

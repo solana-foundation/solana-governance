@@ -141,7 +141,7 @@ impl<'info> SupportProposal<'info> {
                 clock.epoch,
                 self.global_config.discussion_epochs,
                 self.global_config.snapshot_epoch_extension,
-            );
+            )?;
             // SECURITY: enforce the future-slot invariant before mutating proposal
             // state. The init_ballot_box CPI below is skipped whenever `ballot_box`
             // already exists, so this re-check prevents a proposal from being bound

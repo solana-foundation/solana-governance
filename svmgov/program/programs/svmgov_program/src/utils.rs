@@ -169,12 +169,17 @@ pub fn get_epoch_slot_range(epoch: u64) -> (u64, u64) {
 /// anchored on the *current* epoch (as it previously did) it would drop the
 /// `discussion_epochs` window and let the author push `start_epoch` forward
 /// indefinitely before voting begins, without revalidating support.
+///
+/// Returns `ArithmeticOverflow` if the summed epoch exceeds `u64`.
 pub fn proposal_target_epoch(
     support_epoch: u64,
     discussion_epochs: u64,
     snapshot_epoch_extension: u64,
-) -> u64 {
-    support_epoch + discussion_epochs + snapshot_epoch_extension
+) -> core::result::Result<u64, crate::error::GovernanceError> {
+    support_epoch
+        .checked_add(discussion_epochs)
+        .and_then(|v| v.checked_add(snapshot_epoch_extension))
+        .ok_or(crate::error::GovernanceError::ArithmeticOverflow)
 }
 
 /// Computes the snapshot slot for a proposal's voting lineage from the snapshot
@@ -291,14 +296,16 @@ mod tests {
 
         // support_proposal anchors on clock.epoch (== support_epoch)
         let support_target =
-            proposal_target_epoch(support_epoch, discussion_epochs, snapshot_epoch_extension);
+            proposal_target_epoch(support_epoch, discussion_epochs, snapshot_epoch_extension)
+                .unwrap();
         // flush_merkle_root anchors on the immutable creation_epoch + max_support_epochs,
         // so it reconstructs exactly the support-derived schedule.
         let flush_target = proposal_target_epoch(
             creation_epoch + max_support_epochs,
             discussion_epochs,
             snapshot_epoch_extension,
-        );
+        )
+        .unwrap();
 
         assert_eq!(support_target, flush_target);
         assert_eq!(flush_target, 13); // 7 + 2 + 3 + 1
@@ -308,8 +315,18 @@ mod tests {
     fn target_epoch_includes_discussion_period() {
         // The discussion window must remain part of the schedule. Dropping it (as
         // the old flush did) shortened time-to-vote by exactly `discussion_epochs`.
-        let with_discussion = proposal_target_epoch(9, 3, 1);
-        let without_discussion = proposal_target_epoch(9, 0, 1);
+        let with_discussion = proposal_target_epoch(9, 3, 1).unwrap();
+        let without_discussion = proposal_target_epoch(9, 0, 1).unwrap();
         assert_eq!(with_discussion - without_discussion, 3);
+    }
+
+    #[test]
+    fn target_epoch_rejects_overflow() {
+        // Bounded, admin-set inputs should never reach this, but the checked math
+        // surfaces a clean error instead of relying on the release overflow-checks panic.
+        assert!(matches!(
+            proposal_target_epoch(u64::MAX, 1, 0),
+            Err(GovernanceError::ArithmeticOverflow)
+        ));
     }
 }
