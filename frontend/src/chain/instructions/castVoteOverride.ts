@@ -1,4 +1,9 @@
-import { PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import {
+  PublicKey,
+  SystemProgram,
+  Transaction,
+  TransactionInstruction,
+} from "@solana/web3.js";
 import {
   CastVoteOverrideParams,
   TransactionResult,
@@ -17,6 +22,7 @@ import {
   deriveVoteOverridePda,
   deriveVoteOverrideCachePda,
   getMetaMerkleProofPda,
+  computeProofCloseTimestamp,
 } from "./helpers";
 import { BN } from "@coral-xyz/anchor";
 
@@ -79,6 +85,10 @@ export async function castVoteOverride(
     "confirmed"
   );
 
+  // Instructions are sent in a single atomic transaction so the proof cannot be deleted by an
+  // attacker between creating it and consuming it in the override vote.
+  const instructions: TransactionInstruction[] = [];
+
   if (!merkleAccountInfo) {
     const govV1Program = createGovV1ProgramWithWallet(
       wallet,
@@ -93,6 +103,15 @@ export async function castVoteOverride(
 
     const metaMerkleProofData = metaMerkleProof.meta_merkle_proof.map((proof) =>
       Array.from(new PublicKey(proof).toBytes())
+    );
+
+    // Set close_timestamp to the proposal's vote expiry so the proof cannot be closed
+    // permissionlessly while voting is open. See computeProofCloseTimestamp.
+    const proposalAccount =
+      await program.account.proposal.fetch(proposalPubkey);
+    const closeTimestamp = await computeProofCloseTimestamp(
+      program.provider.connection,
+      proposalAccount.endEpoch.toNumber()
     );
 
     const initMerkleInstruction = await govV1Program.methods
@@ -110,7 +129,7 @@ export async function castVoteOverride(
           ),
         },
         metaMerkleProofData,
-        new BN(1)
+        new BN(closeTimestamp)
       )
       .accountsStrict({
         consensusResult,
@@ -120,21 +139,7 @@ export async function castVoteOverride(
       })
       .instruction();
 
-    const recentBlockhash =
-      await program.provider.connection.getLatestBlockhash("confirmed");
-
-    const transaction = new Transaction();
-    transaction.add(initMerkleInstruction);
-    transaction.feePayer = wallet.publicKey;
-    transaction.recentBlockhash = recentBlockhash.blockhash;
-
-    const tx = await wallet.signTransaction(transaction);
-
-    const signature = await program.provider.connection.sendRawTransaction(
-      tx.serialize(),
-      { preflightCommitment: "confirmed" }
-    );
-    console.log("signature initMerkleInstruction", signature);
+    instructions.push(initMerkleInstruction);
   }
 
   // Convert merkle proof data
@@ -192,8 +197,10 @@ export async function castVoteOverride(
     })
     .instruction();
 
+  instructions.push(castVoteOverrideInstruction);
+
   const transaction = new Transaction();
-  transaction.add(castVoteOverrideInstruction);
+  transaction.add(...instructions);
   transaction.feePayer = wallet.publicKey;
   transaction.recentBlockhash = (
     await program.provider.connection.getLatestBlockhash("confirmed")

@@ -216,6 +216,81 @@ export function getMetaMerkleProofPda(
   return metaMerkleProofPda;
 }
 
+// Milliseconds per slot (matches solana_sdk::clock::DEFAULT_MS_PER_SLOT and the svmgov CLI's
+// compute_vote_expiry_timestamp).
+const MS_PER_SLOT = 400;
+
+/**
+ * Estimate the Unix timestamp (in seconds) at which voting expires for a proposal — i.e. the
+ * start of `endEpoch`, after which voting is no longer valid. This is the value a newly created
+ * `MetaMerkleProof` should use for its `close_timestamp`: until this time the proof cannot be
+ * closed permissionlessly, so it survives for the whole voting window and an attacker cannot
+ * delete the shared proof state between the init and vote steps. Mirrors the svmgov CLI's
+ * `compute_vote_expiry_timestamp`.
+ *
+ * There is no on-chain expiry timestamp (the proposal only stores `end_epoch`), so this estimates
+ * it: anchor to a recent confirmed block time and project forward to the start of `endEpoch` at
+ * ~400ms/slot. If voting has already ended the result is in the past, which correctly allows
+ * immediate permissionless close.
+ */
+export async function computeProofCloseTimestamp(
+  connection: Connection,
+  endEpoch: number
+): Promise<number> {
+  const info = await connection.getEpochInfo("confirmed");
+
+  // Absolute slot at the start of `endEpoch` — the point at which voting expires.
+  const epochStartSlot = info.absoluteSlot - info.slotIndex;
+  const targetSlot =
+    epochStartSlot + (endEpoch - info.epoch) * info.slotsInEpoch;
+
+  // Anchor the estimate to a real block time and project forward. Whichever slot resolves is
+  // used as the reference, so the slot delta (and thus the estimate) stays consistent.
+  const [refSlot, refTime] = await blockTimeAtOrBefore(
+    connection,
+    info.absoluteSlot
+  );
+  const slotDelta = targetSlot - refSlot;
+
+  // Math.trunc (toward zero) matches Rust's i64 integer division in the CLI helper, so an
+  // already-expired proposal yields the same past timestamp in both code paths.
+  return refTime + Math.trunc((slotDelta * MS_PER_SLOT) / 1000);
+}
+
+/**
+ * Fetch a block time at or before `slot`, walking backwards over skipped slots (which have no
+ * block and therefore no block time) until one resolves. Returns the `[slot, unixTimestamp]`
+ * pair that succeeded. Mirrors the svmgov CLI helper of the same purpose.
+ */
+async function blockTimeAtOrBefore(
+  connection: Connection,
+  slot: number
+): Promise<[number, number]> {
+  const MAX_ATTEMPTS = 8;
+
+  let candidate = slot;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      const blockTime = await connection.getBlockTime(candidate);
+      if (blockTime !== null) {
+        return [candidate, blockTime];
+      }
+      lastErr = new Error(`no block time available for slot ${candidate}`);
+    } catch (e) {
+      lastErr = e;
+    }
+    if (candidate === 0) break;
+    candidate = Math.max(0, candidate - 1);
+  }
+
+  throw new Error(
+    `Failed to fetch a recent block time (tried ${MAX_ATTEMPTS} slots ending at ${candidate}): ${String(
+      lastErr
+    )}`
+  );
+}
+
 // Convert merkle proof strings to the format expected by the program
 export function convertMerkleProofStrings(proofStrings: string[]): number[][] {
   return proofStrings.map((proof) =>
