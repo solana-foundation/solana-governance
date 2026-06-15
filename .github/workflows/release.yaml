@@ -1,0 +1,110 @@
+name: Release CLIs
+
+# Builds the ncn and svmgov CLIs for each supported platform and publishes them
+# to a single GitHub Release. Triggered by pushing a `v*` tag, or manually via the
+# Actions tab (supply the tag to build and release).
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build and publish (e.g. v0.2.0). The tag must already exist."
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+env:
+  RUST_VERSION: "1.93.1"
+  # Build-time program IDs for the ncn CLI (defaults from ncn/scripts/install-ncn-cli.sh).
+  RESTAKING_PROGRAM_ID: RestkWeAVL8fRGgzhfeoqFhsqKRchg6aa1XrcH96z4Q
+  VAULT_PROGRAM_ID: Vau1t6sLNxnzB7ZDsef8TLbPLfyZMYXH8WTNqUdm9g8
+  TIP_ROUTER_PROGRAM_ID: "11111111111111111111111111111111"
+
+jobs:
+  build:
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: x86_64-linux
+          - os: macos-latest
+            platform: aarch64-macos
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            ncn
+            svmgov/cli
+
+      # The ncn CLI depends on a vendored jito-tip-router checkout that is not
+      # committed; this clones it at the commit pinned in networks.toml.
+      - name: Bootstrap jito-tip-router
+        run: bash scripts/setup-jito-tip-router.sh
+
+      - name: Build ncn CLI
+        working-directory: ncn
+        run: cargo build --locked --release -p cli
+
+      - name: Build svmgov CLI
+        working-directory: svmgov/cli
+        run: cargo build --locked --release
+
+      - name: Stage binaries
+        run: |
+          mkdir -p dist
+          cp ncn/target/release/cli "dist/ncn-cli-${{ matrix.platform }}"
+          cp svmgov/cli/target/release/svmgov "dist/svmgov-${{ matrix.platform }}"
+          chmod +x dist/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate SHA256SUMS
+        working-directory: dist
+        run: sha256sum ncn-cli-* svmgov-* > SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: ${{ github.event.inputs.tag || github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: dist/*
