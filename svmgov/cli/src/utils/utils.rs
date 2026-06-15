@@ -483,8 +483,10 @@ async fn block_time_at_or_before(rpc: &RpcClient, slot: u64) -> Result<(u64, i64
     const MAX_ATTEMPTS: u32 = 8;
 
     let mut slot = slot;
+    let mut last_tried = slot;
     let mut last_err = None;
     for _ in 0..MAX_ATTEMPTS {
+        last_tried = slot;
         match rpc.get_block_time(slot).await {
             Ok(time) => return Ok((slot, time)),
             Err(e) => {
@@ -497,7 +499,7 @@ async fn block_time_at_or_before(rpc: &RpcClient, slot: u64) -> Result<(u64, i64
     Err(anyhow!(
         "Failed to fetch a recent block time (tried {} slots ending at {}): {}",
         MAX_ATTEMPTS,
-        slot,
+        last_tried,
         last_err.unwrap_or_else(|| "unknown error".to_string())
     ))
 }

@@ -269,8 +269,12 @@ async function blockTimeAtOrBefore(
   const MAX_ATTEMPTS = 8;
 
   let candidate = slot;
+  let lastTried = slot;
+  let attempts = 0;
   let lastErr: unknown;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    lastTried = candidate;
+    attempts = attempt + 1;
     try {
       const blockTime = await connection.getBlockTime(candidate);
       if (blockTime !== null) {
@@ -285,7 +289,7 @@ async function blockTimeAtOrBefore(
   }
 
   throw new Error(
-    `Failed to fetch a recent block time (tried ${MAX_ATTEMPTS} slots ending at ${candidate}): ${String(
+    `Failed to fetch a recent block time (tried ${attempts} slots ending at ${lastTried}): ${String(
       lastErr
     )}`
   );

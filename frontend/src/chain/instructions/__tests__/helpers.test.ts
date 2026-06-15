@@ -102,10 +102,11 @@ describe("computeProofCloseTimestamp", () => {
       async () => null
     );
 
+    // Walks back from absoluteSlot (500_000) over MAX_ATTEMPTS = 8 slots, so the
+    // lowest slot actually tried — and thus the reported "ending at" — is 499_993.
     await expect(computeProofCloseTimestamp(connection, 102)).rejects.toThrow(
-      /Failed to fetch a recent block time/
+      /Failed to fetch a recent block time \(tried 8 slots ending at 499993\)/
     );
-    // MAX_ATTEMPTS = 8
     expect(getBlockTime).toHaveBeenCalledTimes(8);
   });
 });
