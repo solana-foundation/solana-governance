@@ -158,6 +158,25 @@ pub fn get_epoch_slot_range(epoch: u64) -> (u64, u64) {
     (start_slot, end_slot)
 }
 
+/// Computes the schedule anchor epoch for a proposal: the epoch whose start slot
+/// drives `snapshot_slot`, and from which `start_epoch` (anchor + 1) and
+/// `end_epoch` are derived.
+///
+/// `support_epoch` is the epoch in which the proposal crossed the cluster-support
+/// threshold (`creation_epoch + max_support_epochs`). Both `support_proposal` and
+/// `flush_merkle_root` MUST derive their schedule from this same anchor so that a
+/// flush reconstructs the original, support-derived schedule. If `flush` instead
+/// anchored on the *current* epoch (as it previously did) it would drop the
+/// `discussion_epochs` window and let the author push `start_epoch` forward
+/// indefinitely before voting begins, without revalidating support.
+pub fn proposal_target_epoch(
+    support_epoch: u64,
+    discussion_epochs: u64,
+    snapshot_epoch_extension: u64,
+) -> u64 {
+    support_epoch + discussion_epochs + snapshot_epoch_extension
+}
+
 /// Computes the snapshot slot for a proposal's voting lineage from the snapshot
 /// `target_epoch` and the configured `snapshot_slot_offset`, enforcing that the
 /// resulting slot is strictly in the future relative to `current_slot`.
@@ -258,5 +277,39 @@ mod tests {
             compute_future_snapshot_slot(target_epoch, offset, current_slot),
             Err(GovernanceError::SnapshotSlotNotInFuture)
         ));
+    }
+
+    #[test]
+    fn flush_and_support_share_the_same_target_epoch() {
+        // support_proposal only runs when clock.epoch == creation_epoch +
+        // max_support_epochs, and anchors the schedule on that epoch.
+        let creation_epoch = 7;
+        let max_support_epochs = 2;
+        let discussion_epochs = 3;
+        let snapshot_epoch_extension = 1;
+        let support_epoch = creation_epoch + max_support_epochs;
+
+        // support_proposal anchors on clock.epoch (== support_epoch)
+        let support_target =
+            proposal_target_epoch(support_epoch, discussion_epochs, snapshot_epoch_extension);
+        // flush_merkle_root anchors on the immutable creation_epoch + max_support_epochs,
+        // so it reconstructs exactly the support-derived schedule.
+        let flush_target = proposal_target_epoch(
+            creation_epoch + max_support_epochs,
+            discussion_epochs,
+            snapshot_epoch_extension,
+        );
+
+        assert_eq!(support_target, flush_target);
+        assert_eq!(flush_target, 13); // 7 + 2 + 3 + 1
+    }
+
+    #[test]
+    fn target_epoch_includes_discussion_period() {
+        // The discussion window must remain part of the schedule. Dropping it (as
+        // the old flush did) shortened time-to-vote by exactly `discussion_epochs`.
+        let with_discussion = proposal_target_epoch(9, 3, 1);
+        let without_discussion = proposal_target_epoch(9, 0, 1);
+        assert_eq!(with_discussion - without_discussion, 3);
     }
 }

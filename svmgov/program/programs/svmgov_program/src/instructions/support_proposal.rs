@@ -12,7 +12,7 @@ use crate::{
     error::GovernanceError,
     events::ProposalSupported,
     state::{GlobalConfig, Proposal, Support},
-    utils::compute_future_snapshot_slot,
+    utils::{compute_future_snapshot_slot, proposal_target_epoch},
 };
 
 #[derive(Accounts)]
@@ -133,9 +133,15 @@ impl<'info> SupportProposal<'info> {
             // this is for emit checks
             current_voting_emit = true;
 
-            let target_epoch = clock.epoch
-                + self.global_config.discussion_epochs
-                + self.global_config.snapshot_epoch_extension;
+            // At this point `clock.epoch == creation_epoch + max_support_epochs`
+            // (enforced above), i.e. clock.epoch is the support epoch. Deriving the
+            // schedule through the shared helper keeps it identical to the schedule
+            // flush_merkle_root reconstructs from creation_epoch + max_support_epochs.
+            let target_epoch = proposal_target_epoch(
+                clock.epoch,
+                self.global_config.discussion_epochs,
+                self.global_config.snapshot_epoch_extension,
+            );
             // SECURITY: enforce the future-slot invariant before mutating proposal
             // state. The init_ballot_box CPI below is skipped whenever `ballot_box`
             // already exists, so this re-check prevents a proposal from being bound

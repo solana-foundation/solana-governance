@@ -2,7 +2,7 @@ use anchor_lang::{prelude::*, solana_program::vote};
 
 use crate::{
     error::GovernanceError, events::MerkleRootFlushed, state::{GlobalConfig, Proposal},
-    utils::compute_future_snapshot_slot,
+    utils::{compute_future_snapshot_slot, proposal_target_epoch},
 };
 
 #[derive(Accounts)]
@@ -68,9 +68,19 @@ impl<'info> FlushMerkleRoot<'info> {
             GovernanceError::ConsensusResultNotSet
         );
 
-        // Recalculate snapshot_slot based on current epoch
-        // Using the same logic as in support_proposal
-        let target_epoch = clock.epoch + self.global_config.snapshot_epoch_extension;
+        // SECURITY: reconstruct the *original*, support-derived schedule rather than
+        // re-anchoring on the current epoch. `support_proposal` set the schedule from
+        // the support epoch (creation_epoch + max_support_epochs) plus discussion_epochs
+        // and snapshot_epoch_extension. Anchoring on the immutable creation_epoch makes
+        // flush deterministic: re-flushing never drops the discussion window and never
+        // pushes start_epoch forward, so a flush cannot shorten or repeatedly postpone
+        // the schedule without revalidating support.
+        let support_epoch = self.proposal.creation_epoch + self.global_config.max_support_epochs;
+        let target_epoch = proposal_target_epoch(
+            support_epoch,
+            self.global_config.discussion_epochs,
+            self.global_config.snapshot_epoch_extension,
+        );
         // SECURITY: enforce the future-slot invariant *before* mutating any proposal
         // state. `init_ballot_box` below is skipped whenever `ballot_box` already
         // exists, so this is the only place the `snapshot_slot > clock.slot` guard is
