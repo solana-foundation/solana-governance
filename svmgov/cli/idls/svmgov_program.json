@@ -532,11 +532,10 @@
         {
           "name": "spl_vote_account",
           "docs": [
-            "binding is transitive: signer must equal proposal.author (constrained above),",
-            "and the author already proved node_pubkey ownership of",
-            "proposal.vote_account_pubkey at create_proposal time. If the caller passes",
-            "a different spl_vote_account, the init_ballot_box CPI's PDA seed check",
-            "rejects it."
+            "to the proposal by the init_ballot_box CPI's PDA seed check, which re-derives",
+            "[b\"proposal\", proposal_seed, spl_vote_account] against the signing proposal",
+            "PDA. A mismatched vote account is therefore rejected regardless of who signs",
+            "this instruction (the signer is the admin, not necessarily the author)."
           ]
         },
         {

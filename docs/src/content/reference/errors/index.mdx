@@ -52,7 +52,7 @@ All error codes from both the `ncn-snapshot` and `svmgov` programs.
 | `InvalidStakeState` | Stake account is in unexpected state (not `Stake`) |
 | `InvalidStakeAccountSize` | Stake account has unexpected byte size |
 | `InvalidSnapshotProgram` | Provided program ID is not the ncn-snapshot program |
-| `UnauthorizedMerkleRootUpdate` | Only the proposal author can call `flush_merkle_root` |
+| `UnauthorizedAdmin` | Only the program admin (`global_config.admin`) can call `flush_merkle_root` |
 | `MerkleRootAlreadySet` | `flush_merkle_root` called when root is already set |
 | `InvalidMerkleRoot` | Merkle root cannot be all zeros |
 | `InvalidSnapshotSlot` | Snapshot slot must be past or current slot |

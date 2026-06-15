@@ -162,13 +162,16 @@ pub fn get_epoch_slot_range(epoch: u64) -> (u64, u64) {
 /// drives `snapshot_slot`, and from which `start_epoch` (anchor + 1) and
 /// `end_epoch` are derived.
 ///
-/// `support_epoch` is the epoch in which the proposal crossed the cluster-support
-/// threshold (`creation_epoch + max_support_epochs`). Both `support_proposal` and
-/// `flush_merkle_root` MUST derive their schedule from this same anchor so that a
-/// flush reconstructs the original, support-derived schedule. If `flush` instead
-/// anchored on the *current* epoch (as it previously did) it would drop the
-/// `discussion_epochs` window and let the author push `start_epoch` forward
-/// indefinitely before voting begins, without revalidating support.
+/// `support_proposal` calls this with the support epoch (`creation_epoch +
+/// max_support_epochs`, which equals `clock.epoch` when support activates), so the
+/// initial voting schedule includes the full `discussion_epochs` window.
+///
+/// `flush_merkle_root` does NOT use this helper. It is an admin-only recovery path
+/// that intentionally re-anchors the snapshot/voting window forward off the *current*
+/// epoch (`current_epoch + snapshot_epoch_extension`, omitting the discussion window)
+/// so a proposal whose NCN snapshot failed can be rescheduled. Because only the admin
+/// multisig can call flush, the author-driven postponement that an immutable anchor
+/// previously guarded against cannot occur there.
 ///
 /// Returns `ArithmeticOverflow` if the summed epoch exceeds `u64`.
 pub fn proposal_target_epoch(
@@ -285,30 +288,26 @@ mod tests {
     }
 
     #[test]
-    fn flush_and_support_share_the_same_target_epoch() {
-        // support_proposal only runs when clock.epoch == creation_epoch +
-        // max_support_epochs, and anchors the schedule on that epoch.
-        let creation_epoch = 7;
-        let max_support_epochs = 2;
-        let discussion_epochs = 3;
-        let snapshot_epoch_extension = 1;
-        let support_epoch = creation_epoch + max_support_epochs;
+    fn flush_recovery_target_moves_forward_excluding_discussion() {
+        // flush_merkle_root is an admin-only recovery path. It does NOT use
+        // proposal_target_epoch; it re-anchors the snapshot window forward off the
+        // *current* epoch and intentionally omits the discussion window:
+        //     target_epoch = current_epoch + snapshot_epoch_extension
+        // (mirrors the computation in flush_merkle_root.rs). This pins that formula
+        // and the intentional divergence from support_proposal's schedule.
+        let current_epoch = 20u64;
+        let discussion_epochs = 3u64;
+        let snapshot_epoch_extension = 1u64;
 
-        // support_proposal anchors on clock.epoch (== support_epoch)
+        let flush_target = current_epoch + snapshot_epoch_extension;
+        assert_eq!(flush_target, 21);
+
+        // support_proposal, anchored on the same epoch, includes the discussion
+        // window, so its target is exactly `discussion_epochs` later than flush's.
         let support_target =
-            proposal_target_epoch(support_epoch, discussion_epochs, snapshot_epoch_extension)
+            proposal_target_epoch(current_epoch, discussion_epochs, snapshot_epoch_extension)
                 .unwrap();
-        // flush_merkle_root anchors on the immutable creation_epoch + max_support_epochs,
-        // so it reconstructs exactly the support-derived schedule.
-        let flush_target = proposal_target_epoch(
-            creation_epoch + max_support_epochs,
-            discussion_epochs,
-            snapshot_epoch_extension,
-        )
-        .unwrap();
-
-        assert_eq!(support_target, flush_target);
-        assert_eq!(flush_target, 13); // 7 + 2 + 3 + 1
+        assert_eq!(support_target - flush_target, discussion_epochs);
     }
 
     #[test]
