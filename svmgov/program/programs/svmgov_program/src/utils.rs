@@ -157,3 +157,106 @@ pub fn get_epoch_slot_range(epoch: u64) -> (u64, u64) {
 
     (start_slot, end_slot)
 }
+
+/// Computes the snapshot slot for a proposal's voting lineage from the snapshot
+/// `target_epoch` and the configured `snapshot_slot_offset`, enforcing that the
+/// resulting slot is strictly in the future relative to `current_slot`.
+///
+/// The `snapshot_slot > current_slot` invariant mirrors the guard inside
+/// `ncn_snapshot::init_ballot_box`. Both `support_proposal` and
+/// `flush_merkle_root` skip that CPI whenever the supplied `ballot_box` account
+/// already exists, so without re-checking here a caller could bind a proposal to
+/// an already-finalized `ConsensusResult` for a past slot (proposal backdating).
+///
+/// Returns the validated `snapshot_slot`, or an error if the offset underflows
+/// below zero or the resulting slot is not in the future.
+pub fn compute_future_snapshot_slot(
+    target_epoch: u64,
+    snapshot_slot_offset: i64,
+    current_slot: u64,
+) -> core::result::Result<u64, crate::error::GovernanceError> {
+    let (start_slot, _) = get_epoch_slot_range(target_epoch);
+    let offset_result = (start_slot as i64)
+        .checked_add(snapshot_slot_offset)
+        .ok_or(crate::error::GovernanceError::ArithmeticOverflow)?;
+    if offset_result < 0 {
+        return Err(crate::error::GovernanceError::ArithmeticOverflow);
+    }
+    let snapshot_slot = offset_result as u64;
+    if snapshot_slot <= current_slot {
+        return Err(crate::error::GovernanceError::SnapshotSlotNotInFuture);
+    }
+    Ok(snapshot_slot)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::GovernanceError;
+
+    #[test]
+    fn epoch_slot_range_is_correct() {
+        assert_eq!(get_epoch_slot_range(0), (0, 431_999));
+        assert_eq!(get_epoch_slot_range(1), (432_000, 863_999));
+    }
+
+    #[test]
+    fn future_snapshot_slot_accepts_future_slot() {
+        // Epoch 2 starts at slot 864_000; current slot is well before that.
+        assert_eq!(
+            compute_future_snapshot_slot(2, 0, 500_000).unwrap(),
+            864_000
+        );
+    }
+
+    #[test]
+    fn future_snapshot_slot_applies_positive_offset() {
+        assert_eq!(
+            compute_future_snapshot_slot(2, 100, 500_000).unwrap(),
+            864_100
+        );
+    }
+
+    #[test]
+    fn future_snapshot_slot_rejects_past_slot() {
+        // Recomputed snapshot slot (864_000) is behind the current slot.
+        assert!(matches!(
+            compute_future_snapshot_slot(2, 0, 900_000),
+            Err(GovernanceError::SnapshotSlotNotInFuture)
+        ));
+    }
+
+    #[test]
+    fn future_snapshot_slot_rejects_current_slot() {
+        // Must be strictly greater than the current slot, not equal to it.
+        assert!(matches!(
+            compute_future_snapshot_slot(2, 0, 864_000),
+            Err(GovernanceError::SnapshotSlotNotInFuture)
+        ));
+    }
+
+    #[test]
+    fn future_snapshot_slot_rejects_negative_offset_underflow() {
+        // A negative offset that drives the slot below zero is an overflow error.
+        assert!(matches!(
+            compute_future_snapshot_slot(0, -1, 0),
+            Err(GovernanceError::ArithmeticOverflow)
+        ));
+    }
+
+    #[test]
+    fn future_snapshot_slot_rejects_backdating_via_negative_offset() {
+        // Mirrors the reported exploit: a negative `snapshot_slot_offset` pulls the
+        // recomputed snapshot slot into an already-past slot. It must be rejected
+        // rather than silently accepted (which previously let a proposal bind onto
+        // a stale, already-finalized ConsensusResult by skipping init_ballot_box).
+        let target_epoch = 5;
+        let (start_slot, _) = get_epoch_slot_range(target_epoch); // 2_160_000
+        let current_slot = start_slot + 10; // we are already past the snapshot start
+        let offset = -20i64; // recomputed slot = start_slot - 20 < current_slot
+        assert!(matches!(
+            compute_future_snapshot_slot(target_epoch, offset, current_slot),
+            Err(GovernanceError::SnapshotSlotNotInFuture)
+        ));
+    }
+}
