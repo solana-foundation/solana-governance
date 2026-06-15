@@ -2,7 +2,7 @@ use anchor_lang::{prelude::*, solana_program::vote};
 
 use crate::{
     error::GovernanceError, events::MerkleRootFlushed, state::{GlobalConfig, Proposal},
-    utils::get_epoch_slot_range,
+    utils::compute_future_snapshot_slot,
 };
 
 #[derive(Accounts)]
@@ -71,16 +71,29 @@ impl<'info> FlushMerkleRoot<'info> {
         // Recalculate snapshot_slot based on current epoch
         // Using the same logic as in support_proposal
         let target_epoch = clock.epoch + self.global_config.snapshot_epoch_extension;
-        let (start_slot, _) = get_epoch_slot_range(target_epoch);
-        let offset_result = (start_slot as i64)
-            .checked_add(self.global_config.snapshot_slot_offset)
-            .ok_or(GovernanceError::ArithmeticOverflow)?;
-        require!(offset_result >= 0, GovernanceError::ArithmeticOverflow);
-        let snapshot_slot = offset_result as u64;
-        self.proposal.snapshot_slot = snapshot_slot;
-        // start voting 1 epoch after snapshot
-        self.proposal.start_epoch = target_epoch + 1;
-        self.proposal.end_epoch = target_epoch + 1 + self.global_config.voting_epochs;
+        // SECURITY: enforce the future-slot invariant *before* mutating any proposal
+        // state. `init_ballot_box` below is skipped whenever `ballot_box` already
+        // exists, so this is the only place the `snapshot_slot > clock.slot` guard is
+        // guaranteed to run. Without it a proposal could be backdated onto an
+        // already-finalized ConsensusResult for a past slot.
+        let snapshot_slot = compute_future_snapshot_slot(
+            target_epoch,
+            self.global_config.snapshot_slot_offset,
+            clock.slot,
+        )?;
+
+        // SECURITY: bind `ballot_box` to the exact PDA implied by the recomputed
+        // snapshot slot so a caller cannot pass an arbitrary non-empty account to
+        // skip the init_ballot_box CPI (and its validation) below.
+        let (expected_ballot_box, _) = Pubkey::find_program_address(
+            &[b"BallotBox", &snapshot_slot.to_le_bytes()],
+            &self.ballot_program.key,
+        );
+        require_keys_eq!(
+            self.ballot_box.key(),
+            expected_ballot_box,
+            GovernanceError::InvalidBallotBox
+        );
 
         // Calculate new consensus_result PDA based on new snapshot_slot
         let (consensus_result_pda, _) = Pubkey::find_program_address(
@@ -88,6 +101,11 @@ impl<'info> FlushMerkleRoot<'info> {
             &self.ballot_program.key,
         );
 
+        // All validation passed; commit the recomputed lineage.
+        self.proposal.snapshot_slot = snapshot_slot;
+        // start voting 1 epoch after snapshot
+        self.proposal.start_epoch = target_epoch + 1;
+        self.proposal.end_epoch = target_epoch + 1 + self.global_config.voting_epochs;
         self.proposal.consensus_result = Some(consensus_result_pda);
 
         // Initialize ballot box if it doesn't exist

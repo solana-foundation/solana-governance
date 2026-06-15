@@ -1784,6 +1784,11 @@
       "code": 6052,
       "name": "NotPendingAdmin",
       "msg": "Signer is not the pending admin nominee"
+    },
+    {
+      "code": 6053,
+      "name": "InvalidBallotBox",
+      "msg": "Invalid ballot box: provided account does not match the expected BallotBox PDA for the snapshot slot"
     }
   ],
   "types": [

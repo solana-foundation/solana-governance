@@ -114,4 +114,8 @@ pub enum GovernanceError {
     NoPendingAdmin,
     #[msg("Signer is not the pending admin nominee")]
     NotPendingAdmin,
+    #[msg(
+        "Invalid ballot box: provided account does not match the expected BallotBox PDA for the snapshot slot"
+    )]
+    InvalidBallotBox,
 }

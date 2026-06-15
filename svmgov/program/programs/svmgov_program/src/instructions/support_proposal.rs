@@ -12,7 +12,7 @@ use crate::{
     error::GovernanceError,
     events::ProposalSupported,
     state::{GlobalConfig, Proposal, Support},
-    utils::get_epoch_slot_range,
+    utils::compute_future_snapshot_slot,
 };
 
 #[derive(Accounts)]
@@ -133,27 +133,36 @@ impl<'info> SupportProposal<'info> {
             // this is for emit checks
             current_voting_emit = true;
 
-            let (start_slot, _) = get_epoch_slot_range(
-                clock.epoch
-                    + self.global_config.discussion_epochs
-                    + self.global_config.snapshot_epoch_extension,
+            let target_epoch = clock.epoch
+                + self.global_config.discussion_epochs
+                + self.global_config.snapshot_epoch_extension;
+            // SECURITY: enforce the future-slot invariant before mutating proposal
+            // state. The init_ballot_box CPI below is skipped whenever `ballot_box`
+            // already exists, so this re-check prevents a proposal from being bound
+            // onto an already-finalized ConsensusResult for a past slot.
+            snapshot_slot = compute_future_snapshot_slot(
+                target_epoch,
+                self.global_config.snapshot_slot_offset,
+                clock.slot,
+            )?;
+
+            // SECURITY: bind `ballot_box` to the exact PDA implied by the snapshot
+            // slot so a caller cannot pass an arbitrary non-empty account to skip
+            // the init_ballot_box CPI (and its validation) below.
+            let (expected_ballot_box, _) = Pubkey::find_program_address(
+                &[b"BallotBox", &snapshot_slot.to_le_bytes()],
+                &self.ballot_program.key,
             );
-            let offset_result = (start_slot as i64)
-                .checked_add(self.global_config.snapshot_slot_offset)
-                .ok_or(GovernanceError::ArithmeticOverflow)?;
-            require!(offset_result >= 0, GovernanceError::ArithmeticOverflow);
-            snapshot_slot = offset_result as u64;
+            require_keys_eq!(
+                self.ballot_box.key(),
+                expected_ballot_box,
+                GovernanceError::InvalidBallotBox
+            );
+
             // start voting 1 epoch after snapshot
             // checking in any vote or others is start_epoch <= current_epoch < end_epoch
-            proposal_account.start_epoch = clock.epoch
-                + self.global_config.discussion_epochs
-                + self.global_config.snapshot_epoch_extension
-                + 1;
-            proposal_account.end_epoch = clock.epoch
-                + self.global_config.discussion_epochs
-                + self.global_config.snapshot_epoch_extension
-                + 1
-                + self.global_config.voting_epochs;
+            proposal_account.start_epoch = target_epoch + 1;
+            proposal_account.end_epoch = target_epoch + 1 + self.global_config.voting_epochs;
             proposal_account.snapshot_slot = snapshot_slot; // 1000 slots into snapshot
 
             let (consensus_result_pda, _) = Pubkey::find_program_address(
