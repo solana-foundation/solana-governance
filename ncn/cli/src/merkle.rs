@@ -1,8 +1,8 @@
+use crate::utils::{decompress_gzip_with_limit, max_snapshot_bytes, read_all_with_limit};
 use borsh::{BorshDeserialize, BorshSerialize};
 use flate2::{write::GzEncoder, Compression};
-use ncn_snapshot::{MetaMerkleLeaf, StakeMerkleLeaf};
-use crate::utils::{decompress_gzip_with_limit, max_snapshot_bytes, read_all_with_limit};
 use meta_merkle_tree::{merkle_tree::MerkleTree, utils::get_proof};
+use ncn_snapshot::{MetaMerkleLeaf, StakeMerkleLeaf};
 use solana_sdk::hash::{hash, Hash};
 use std::fs::File;
 use std::io::{self, Write};
@@ -19,12 +19,19 @@ pub struct MetaMerkleSnapshot {
 }
 
 impl MetaMerkleSnapshot {
-    pub fn save_compressed(&self, path: PathBuf) -> io::Result<()> {
+    pub fn to_compressed_bytes(&self) -> io::Result<Vec<u8>> {
         let data = self.try_to_vec()?;
-        let file = File::create(path)?;
-        let mut enc = GzEncoder::new(file, Compression::default());
+        let mut enc = GzEncoder::new(Vec::new(), Compression::default());
         enc.write_all(&data)?;
-        enc.finish()?;
+        enc.finish()
+    }
+
+    pub fn save_compressed(&self, path: PathBuf) -> io::Result<()> {
+        let data = self.to_compressed_bytes()?;
+        let file = File::create(path)?;
+        let mut writer = io::BufWriter::new(file);
+        writer.write_all(&data)?;
+        writer.flush()?;
 
         Ok(())
     }

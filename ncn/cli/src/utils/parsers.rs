@@ -30,6 +30,16 @@ pub fn parse_log_type(s: &str) -> Result<LogType, String> {
     }
 }
 
+pub fn parse_verifier_network(s: &str) -> Result<String, String> {
+    match s {
+        "devnet" | "testnet" | "mainnet" => Ok(s.to_string()),
+        _ => Err(format!(
+            "invalid verifier network '{}'. Must be one of: devnet, testnet, mainnet",
+            s
+        )),
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum LogType {
     ProgramConfig,

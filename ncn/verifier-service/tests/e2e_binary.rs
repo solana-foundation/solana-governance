@@ -7,6 +7,19 @@ use reqwest::{
 };
 use solana_sdk::{signature::Keypair, signer::Signer};
 
+const NETWORK: &str = "testnet";
+
+fn sign_upload_message(
+    keypair: &Keypair,
+    slot: u64,
+    network: &str,
+    merkle_root: &str,
+    snapshot_hash: &str,
+) -> String {
+    let message = cli::upload_signature_message(slot, network, merkle_root, snapshot_hash);
+    keypair.sign_message(&message).to_string()
+}
+
 #[tokio::test]
 #[serial_test::serial]
 async fn e2e_binary_endpoints() -> anyhow::Result<()> {
@@ -23,12 +36,8 @@ async fn e2e_binary_endpoints() -> anyhow::Result<()> {
         cli::MetaMerkleSnapshot::read_from_bytes_with_hash(bytes.clone(), true)?;
     let slot = snapshot.slot;
     let merkle_root = bs58::encode(snapshot.root).into_string();
-
-    // Build signature over slot || merkle_root
-    let mut message = Vec::new();
-    message.extend_from_slice(&slot.to_le_bytes());
-    message.extend_from_slice(merkle_root.as_bytes());
-    let signature = keypair.sign_message(&message).to_string();
+    let encoded_hash = bs58::encode(snapshot_hash.to_bytes()).into_string();
+    let signature = sign_upload_message(&keypair, slot, NETWORK, &merkle_root, &encoded_hash);
 
     // Test GET /healthz
     let client = reqwest::Client::new();
@@ -38,8 +47,9 @@ async fn e2e_binary_endpoints() -> anyhow::Result<()> {
     // Test POST /upload
     let form = Form::new()
         .text("slot", slot.to_string())
-        .text("network", "testnet")
+        .text("network", NETWORK)
         .text("merkle_root", merkle_root.clone())
+        .text("snapshot_hash", encoded_hash.clone())
         .text("signature", signature)
         .part("file", Part::bytes(bytes).file_name("meta_merkle.bin"));
 
@@ -67,7 +77,7 @@ async fn e2e_binary_endpoints() -> anyhow::Result<()> {
         "network": "testnet",
         "slot": slot,
         "merkle_root": merkle_root,
-        "snapshot_hash": bs58::encode(snapshot_hash.to_bytes()).into_string(),
+        "snapshot_hash": encoded_hash,
         "created_at": meta["created_at"],
     });
     assert_eq!(meta, expected_meta);
@@ -203,4 +213,131 @@ async fn e2e_binary_endpoints() -> anyhow::Result<()> {
     assert!(not_found.is_empty());
 
     Ok(())
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn e2e_rejects_replayed_signature_and_incoherent_stake_root() -> anyhow::Result<()> {
+    let keypair = Keypair::new();
+    let (base_url, _guard) = setup_server(&keypair).await?;
+
+    let snapshot_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("tests/src/fixtures/meta_merkle_340850340.zip");
+    let honest_bytes = tokio::fs::read(&snapshot_path).await?;
+    let (honest_snapshot, honest_snapshot_hash) =
+        cli::MetaMerkleSnapshot::read_from_bytes_with_hash(honest_bytes.clone(), true)?;
+    let slot = honest_snapshot.slot;
+    let merkle_root = bs58::encode(honest_snapshot.root).into_string();
+    let honest_hash = bs58::encode(honest_snapshot_hash.to_bytes()).into_string();
+    let honest_signature = sign_upload_message(&keypair, slot, NETWORK, &merkle_root, &honest_hash);
+    let client = reqwest::Client::new();
+
+    let wrong_signature =
+        sign_upload_message(&Keypair::new(), slot, NETWORK, &merkle_root, &honest_hash);
+    let unauthorized_upload = Form::new()
+        .text("slot", slot.to_string())
+        .text("network", NETWORK)
+        .text("merkle_root", merkle_root.clone())
+        .text("snapshot_hash", honest_hash.clone())
+        .text("signature", wrong_signature)
+        .part(
+            "file",
+            Part::bytes(b"not a snapshot".to_vec()).file_name("invalid_snapshot.zip"),
+        );
+    let unauthorized_response = client
+        .post(format!("{}/upload", base_url))
+        .multipart(unauthorized_upload)
+        .send()
+        .await?;
+    assert_eq!(unauthorized_response.status(), StatusCode::UNAUTHORIZED);
+
+    let honest_upload = Form::new()
+        .text("slot", slot.to_string())
+        .text("network", NETWORK)
+        .text("merkle_root", merkle_root.clone())
+        .text("snapshot_hash", honest_hash.clone())
+        .text("signature", honest_signature.clone())
+        .part(
+            "file",
+            Part::bytes(honest_bytes).file_name("honest_snapshot.zip"),
+        );
+    let honest_response = client
+        .post(format!("{}/upload", base_url))
+        .multipart(honest_upload)
+        .send()
+        .await?;
+    assert!(
+        honest_response.status().is_success(),
+        "honest upload failed with {}",
+        honest_response.status()
+    );
+
+    let honest_meta: serde_json::Value = client
+        .get(format!("{}/meta?network={}", base_url, NETWORK))
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    assert_eq!(honest_meta["snapshot_hash"], honest_hash);
+
+    let mut tampered_snapshot = honest_snapshot;
+    tampered_snapshot.leaf_bundles[0].stake_merkle_leaves[0].active_stake += 1;
+    let tampered_bytes = encode_snapshot(&tampered_snapshot)?;
+    let (_, tampered_snapshot_hash) =
+        cli::MetaMerkleSnapshot::read_from_bytes_with_hash(tampered_bytes.clone(), true)?;
+    let tampered_hash = bs58::encode(tampered_snapshot_hash.to_bytes()).into_string();
+
+    let replay_upload = Form::new()
+        .text("slot", slot.to_string())
+        .text("network", NETWORK)
+        .text("merkle_root", merkle_root.clone())
+        .text("snapshot_hash", honest_hash)
+        .text("signature", honest_signature)
+        .part(
+            "file",
+            Part::bytes(tampered_bytes.clone()).file_name("replayed_snapshot.zip"),
+        );
+    let replay_response = client
+        .post(format!("{}/upload", base_url))
+        .multipart(replay_upload)
+        .send()
+        .await?;
+    assert_eq!(replay_response.status(), StatusCode::BAD_REQUEST);
+
+    let tampered_signature =
+        sign_upload_message(&keypair, slot, NETWORK, &merkle_root, &tampered_hash);
+    let incoherent_upload = Form::new()
+        .text("slot", slot.to_string())
+        .text("network", NETWORK)
+        .text("merkle_root", merkle_root.clone())
+        .text("snapshot_hash", tampered_hash)
+        .text("signature", tampered_signature)
+        .part(
+            "file",
+            Part::bytes(tampered_bytes).file_name("incoherent_snapshot.zip"),
+        );
+    let incoherent_response = client
+        .post(format!("{}/upload", base_url))
+        .multipart(incoherent_upload)
+        .send()
+        .await?;
+    assert_eq!(incoherent_response.status(), StatusCode::BAD_REQUEST);
+
+    let final_meta: serde_json::Value = client
+        .get(format!("{}/meta?network={}", base_url, NETWORK))
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    assert_eq!(final_meta["snapshot_hash"], honest_meta["snapshot_hash"]);
+
+    Ok(())
+}
+
+fn encode_snapshot(snapshot: &cli::MetaMerkleSnapshot) -> anyhow::Result<Vec<u8>> {
+    Ok(snapshot.to_compressed_bytes()?)
 }

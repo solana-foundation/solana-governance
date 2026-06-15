@@ -6,25 +6,39 @@ use crate::consts::{MARINADE_OPS_VOTING_WALLET, MARINADE_WITHDRAW_AUTHORITY};
 use im::HashMap;
 pub use merkle::*;
 
+use anchor_lang::prelude::Pubkey as AnchorPubkey;
 use anyhow::Error;
 use borsh_stake::BorshDeserialize;
-use ncn_snapshot::{MetaMerkleLeaf, StakeMerkleLeaf};
 use itertools::Itertools;
 use meta_merkle_tree::{
     generated_merkle_tree::Delegation, merkle_tree::MerkleTree, utils::get_proof,
 };
-use anchor_lang::prelude::Pubkey as AnchorPubkey;
+use ncn_snapshot::{MetaMerkleLeaf, StakeMerkleLeaf};
 use solana_program::pubkey::Pubkey;
-use solana_stake_interface::stake_history::StakeHistory;
-use solana_stake_interface::sysvar::stake_history;
 use solana_runtime::{bank::Bank, stakes::StakeAccount};
 use solana_sdk::account::from_account;
 use solana_sdk::account::AccountSharedData;
 use solana_sdk::account::ReadableAccount;
+use solana_stake_interface::stake_history::StakeHistory;
+use solana_stake_interface::sysvar::stake_history;
 use spl_stake_pool::find_withdraw_authority_program_address;
 use spl_stake_pool::state::AccountType;
 use spl_stake_pool::state::StakePool;
 use std::sync::Arc;
+
+pub fn upload_signature_message(
+    slot: u64,
+    network: &str,
+    merkle_root: &str,
+    snapshot_hash: &str,
+) -> Vec<u8> {
+    let mut message = Vec::new();
+    message.extend_from_slice(&slot.to_le_bytes());
+    message.extend_from_slice(network.as_bytes());
+    message.extend_from_slice(merkle_root.as_bytes());
+    message.extend_from_slice(snapshot_hash.as_bytes());
+    message
+}
 
 fn to_anchor_pubkey(pubkey: Pubkey) -> AnchorPubkey {
     AnchorPubkey::from(pubkey.to_bytes())
@@ -50,8 +64,7 @@ fn group_delegations_by_voter_pubkey_active_stake(
     bank: &Bank,
 ) -> im::HashMap<Pubkey, Vec<Delegation>> {
     let stake_history =
-        from_account::<StakeHistory, _>(&bank.get_account(&stake_history::id()).unwrap())
-            .unwrap();
+        from_account::<StakeHistory, _>(&bank.get_account(&stake_history::id()).unwrap()).unwrap();
     let grouped = delegations
         .iter()
         .filter_map(|(stake_pubkey, stake_account)| {
@@ -105,8 +118,10 @@ fn update_stake_pool_voter_map(
     }
 
     if let Ok(stake_pool) = StakePool::deserialize(&mut &account.data()[..]) {
-        let (withdraw_authority, _) =
-            find_withdraw_authority_program_address(&spl_stake_pool::id(), &to_anchor_pubkey(*stake_pool_pubkey));
+        let (withdraw_authority, _) = find_withdraw_authority_program_address(
+            &spl_stake_pool::id(),
+            &to_anchor_pubkey(*stake_pool_pubkey),
+        );
         if stake_pool.manager == AnchorPubkey::default() {
             return;
         }
