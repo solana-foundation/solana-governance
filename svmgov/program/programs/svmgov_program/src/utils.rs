@@ -184,7 +184,7 @@ pub fn compute_future_snapshot_slot(
     }
     let snapshot_slot = offset_result as u64;
     if snapshot_slot <= current_slot {
-        return Err(crate::error::GovernanceError::InvalidSnapshotSlot);
+        return Err(crate::error::GovernanceError::SnapshotSlotNotInFuture);
     }
     Ok(snapshot_slot)
 }
@@ -222,7 +222,7 @@ mod tests {
         // Recomputed snapshot slot (864_000) is behind the current slot.
         assert!(matches!(
             compute_future_snapshot_slot(2, 0, 900_000),
-            Err(GovernanceError::InvalidSnapshotSlot)
+            Err(GovernanceError::SnapshotSlotNotInFuture)
         ));
     }
 
@@ -231,7 +231,7 @@ mod tests {
         // Must be strictly greater than the current slot, not equal to it.
         assert!(matches!(
             compute_future_snapshot_slot(2, 0, 864_000),
-            Err(GovernanceError::InvalidSnapshotSlot)
+            Err(GovernanceError::SnapshotSlotNotInFuture)
         ));
     }
 
@@ -256,7 +256,7 @@ mod tests {
         let offset = -20i64; // recomputed slot = start_slot - 20 < current_slot
         assert!(matches!(
             compute_future_snapshot_slot(target_epoch, offset, current_slot),
-            Err(GovernanceError::InvalidSnapshotSlot)
+            Err(GovernanceError::SnapshotSlotNotInFuture)
         ));
     }
 }
