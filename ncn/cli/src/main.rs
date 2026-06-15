@@ -194,17 +194,21 @@ pub enum Commands {
         )]
         save_path: PathBuf,
     },
-    /// Print the merkle root, snapshot hash, and a signature over them from a
+    /// Print the merkle root, snapshot hash, and upload signature for a
     /// MetaMerkleSnapshot file.
     ///
     /// Useful for sharing the snapshot identity with other operators before
     /// voting on-chain. `--authority-path` signs an off-chain message
-    /// containing the snapshot slot and meta merkle root; no on-chain
-    /// transaction is sent.
+    /// containing the snapshot slot, verifier network, meta merkle root, and
+    /// snapshot hash; no on-chain transaction is sent.
     LogMetaMerkleHash {
         /// Path to a MetaMerkleSnapshot file (compressed `.zip` or raw).
         #[arg(long, env, help = "Path to the MetaMerkleSnapshot file to read")]
         read_path: PathBuf,
+
+        /// Verifier-service network namespace that this upload will target.
+        #[arg(long, env, default_value = "mainnet", value_parser = parse_verifier_network)]
+        network: String,
 
         /// Whether the input file is the compressed `.zip` produced by
         /// `generate-meta-merkle`.
@@ -780,7 +784,7 @@ fn main() -> Result<()> {
         Some(format!(
             "The `{}` command requires {}. A Squads vault PDA cannot satisfy this on-chain \
              check, so no vault transaction was created. Re-run without --squads to submit this transaction with your local keypair.",
-            name, constraint, 
+            name, constraint,
         ))
     }
 
@@ -1244,6 +1248,7 @@ fn main() -> Result<()> {
         }
         Commands::LogMetaMerkleHash {
             read_path,
+            network,
             is_compressed,
         } => {
             let authority = read_signer_keypair(&cli.authority_path, "--authority-path")
@@ -1254,13 +1259,17 @@ fn main() -> Result<()> {
             let encoded_root = bs58::encode(snapshot.root).into_string();
             let encoded_hash = bs58::encode(snapshot_hash.to_bytes()).into_string();
 
-            let mut message = Vec::new();
-            message.extend_from_slice(&snapshot.slot.to_le_bytes());
-            message.extend_from_slice(&encoded_root.as_bytes());
+            let message = cli::upload_signature_message(
+                snapshot.slot,
+                &network,
+                &encoded_root,
+                &encoded_hash,
+            );
             let signature = authority.sign_message(&message);
 
             println!("Signature: {}", bs58::encode(signature).into_string());
             println!("Slot: {}", snapshot.slot);
+            println!("Network: {}", network);
             println!("Merkle Root: {}", encoded_root);
             println!("Snapshot Hash: {}", encoded_hash);
         }

@@ -88,6 +88,7 @@ pub async fn setup_server(keypair: &Keypair) -> anyhow::Result<(String, ChildGua
         .env("DB_PATH", ":memory:")
         .env("PORT", port.to_string())
         .env("RUST_LOG", "info")
+        .env("UPLOAD_RATE_BURST", "10")
         .env("UPLOAD_BODY_LIMIT", (512 * 1024 * 1024).to_string())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

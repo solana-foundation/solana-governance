@@ -42,7 +42,8 @@ DB_PATH=":memory:" RUST_LOG=info cargo run --bin verifier-service
 The `/upload` endpoint requires Ed25519 signature verification to prevent unauthorized snapshot uploads:
 
 - **Environment Variable**: Set `OPERATOR_PUBKEY` to the base58-encoded public key of the authorized operator
-- **Message Format**: Signatures are verified over `slot.to_le_bytes() || merkle_root_bs58_string.as_bytes()`
+- **Message Format**: Signatures are verified over `slot.to_le_bytes() || network.as_bytes() || merkle_root_bs58_string.as_bytes() || snapshot_hash_bs58_string.as_bytes()`
+- **Upload Fields**: Include `snapshot_hash` as a multipart text field before the file part. The server verifies the signature first, then recomputes the uploaded file hash and rejects mismatches.
 - **Signature Format**: Base58-encoded Ed25519 signature
 
 ### Admin Endpoint Authentication
@@ -123,11 +124,22 @@ Environment variables:
 
 To test the upload endpoint with a snapshot (replace fields with actual values):
 
+Generate the signature with the same verifier network namespace used in the upload form:
+
+```bash
+cargo run -p cli -- \
+  --authority-path ./operator-keypair.json \
+  log-meta-merkle-hash \
+  --read-path ./meta_merkle-340850340.zip \
+  --network testnet
+```
+
 ```bash
 curl -X POST http://localhost:3000/upload \
   -F "slot=340850340" \
   -F "network=testnet" \
   -F "merkle_root=34sfrZPCyuLXsq5v1ybahTVSwQQE6A3VJyr9JcgxsW21" \
+  -F "snapshot_hash=2ejpKvga5pGMyQGhmi59U6PThwKFzLy8SAjxt5yG8raH" \
   -F "signature=3nn1EGUqZ5GSXgfAs86miP4z5HtVdKYdQeDdhm1p2M5XxfK16cxwBJYonFdN4BDT7qzpx6TyEhHUrnF2Bh7wGm71" \
   -F "file=@meta_merkle-340850340.zip" \
   -w "\nHTTP Status: %{http_code}\n" \
