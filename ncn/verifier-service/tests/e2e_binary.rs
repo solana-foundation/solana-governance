@@ -1,7 +1,9 @@
 mod common;
 use common::setup_server;
 
+use anchor_lang::solana_program::hash::Hash;
 use meta_merkle_tree::{merkle_tree::MerkleTree, utils::get_proof};
+use ncn_snapshot::merkle_helper::verify_helper;
 use reqwest::{
     multipart::{Form, Part},
     StatusCode,
@@ -19,6 +21,19 @@ fn sign_upload_message(
 ) -> String {
     let message = cli::upload_signature_message(slot, network, merkle_root, snapshot_hash);
     keypair.sign_message(&message).to_string()
+}
+
+fn decode_proof_strings(proof: &[String]) -> Vec<[u8; 32]> {
+    proof
+        .iter()
+        .map(|node| {
+            let bytes = bs58::decode(node).into_vec().expect("base58 proof node");
+            assert_eq!(bytes.len(), 32, "proof node must decode to 32 bytes");
+            let mut hash = [0u8; 32];
+            hash.copy_from_slice(&bytes);
+            hash
+        })
+        .collect()
 }
 
 #[tokio::test]
@@ -380,7 +395,10 @@ async fn e2e_same_slot_reupload_fully_replaces_rows() -> anyhow::Result<()> {
         .text("merkle_root", merkle_root.clone())
         .text("snapshot_hash", full_hash.clone())
         .text("signature", full_signature)
-        .part("file", Part::bytes(full_bytes).file_name("full_snapshot.zip"));
+        .part(
+            "file",
+            Part::bytes(full_bytes).file_name("full_snapshot.zip"),
+        );
     let resp = client
         .post(format!("{}/upload", base_url))
         .multipart(full_upload)
@@ -442,8 +460,13 @@ async fn e2e_same_slot_reupload_fully_replaces_rows() -> anyhow::Result<()> {
         modified_hash, full_hash,
         "reupload must carry a distinct snapshot hash"
     );
-    let modified_signature =
-        sign_upload_message(&keypair, slot, NETWORK, &modified_merkle_root, &modified_hash);
+    let modified_signature = sign_upload_message(
+        &keypair,
+        slot,
+        NETWORK,
+        &modified_merkle_root,
+        &modified_hash,
+    );
 
     let modified_upload = Form::new()
         .text("slot", slot.to_string())
@@ -549,6 +572,167 @@ async fn e2e_same_slot_reupload_fully_replaces_rows() -> anyhow::Result<()> {
             stake_account
         );
     }
+
+    Ok(())
+}
+
+/// A snapshot whose `bundle.proof` bytes have been poisoned (but whose leaves and
+/// root are honest) must still be served with the canonical, on-chain-verifiable
+/// proof. This proves the verifier derives proofs from the leaves rather than
+/// echoing the unsigned upload bytes back to clients.
+#[tokio::test]
+#[serial_test::serial]
+async fn e2e_serves_derived_proof_when_upload_proof_bytes_are_poisoned() -> anyhow::Result<()> {
+    let keypair = Keypair::new();
+    let (base_url, _guard) = setup_server(&keypair).await?;
+    let client = reqwest::Client::new();
+
+    let snapshot_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("tests/src/fixtures/meta_merkle_340850340.zip");
+    let honest_bytes = tokio::fs::read(&snapshot_path).await?;
+    let (mut snapshot, _) =
+        cli::MetaMerkleSnapshot::read_from_bytes_with_hash(honest_bytes.clone(), true)?;
+
+    let slot = snapshot.slot;
+    let merkle_root = bs58::encode(snapshot.root).into_string();
+    let root_hash: Hash = snapshot.root.into();
+
+    // The leaf and its canonical (honest) proof we expect the verifier to serve.
+    let target_leaf = snapshot.leaf_bundles[0].meta_merkle_leaf.clone();
+    let vote_account = target_leaf.vote_account.to_string();
+    let canonical_proof = snapshot.leaf_bundles[0]
+        .proof
+        .clone()
+        .expect("fixture proof must be present");
+    assert!(
+        !canonical_proof.is_empty(),
+        "fixture proof should be non-empty so poisoning is observable"
+    );
+
+    // Poison the uploaded proof bytes while leaving leaves and root intact, then
+    // sign the exact bytes so the upload is authorized.
+    snapshot.leaf_bundles[0].proof = Some(vec![[0xaa; 32], [0xbb; 32]]);
+    let poisoned_bytes = encode_snapshot(&snapshot)?;
+    let (_, poisoned_hash) =
+        cli::MetaMerkleSnapshot::read_from_bytes_with_hash(poisoned_bytes.clone(), true)?;
+    let encoded_hash = bs58::encode(poisoned_hash.to_bytes()).into_string();
+    let signature = sign_upload_message(&keypair, slot, NETWORK, &merkle_root, &encoded_hash);
+
+    let upload = Form::new()
+        .text("slot", slot.to_string())
+        .text("network", NETWORK)
+        .text("merkle_root", merkle_root.clone())
+        .text("snapshot_hash", encoded_hash)
+        .text("signature", signature)
+        .part(
+            "file",
+            Part::bytes(poisoned_bytes).file_name("poisoned_proof.zip"),
+        );
+    let response = client
+        .post(format!("{}/upload", base_url))
+        .multipart(upload)
+        .send()
+        .await?;
+    assert!(
+        response.status().is_success(),
+        "honest leaves with poisoned proof bytes should still upload, got {}",
+        response.status()
+    );
+
+    let vote_proof: serde_json::Value = client
+        .get(format!(
+            "{}/proof/vote_account/{}?network={}&slot={}",
+            base_url, vote_account, NETWORK, slot
+        ))
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+
+    let served: Vec<String> = vote_proof["meta_merkle_proof"]
+        .as_array()
+        .expect("meta_merkle_proof array")
+        .iter()
+        .map(|v| v.as_str().unwrap().to_string())
+        .collect();
+    let served_bytes = decode_proof_strings(&served);
+
+    // The served proof must be the canonical one derived from the leaves, not the
+    // poisoned bytes, and it must verify with the same logic used on-chain.
+    let canonical_strings: Vec<String> = canonical_proof
+        .iter()
+        .map(|hash| bs58::encode(hash).into_string())
+        .collect();
+    assert_eq!(
+        served, canonical_strings,
+        "verifier must serve the derived canonical proof, not the uploaded bytes"
+    );
+    assert_ne!(
+        served_bytes,
+        vec![[0xaa; 32], [0xbb; 32]],
+        "verifier must not echo poisoned proof bytes"
+    );
+    assert!(
+        verify_helper(&target_leaf.hash().to_bytes(), &served_bytes, root_hash).is_ok(),
+        "served proof must verify against the signed root"
+    );
+
+    Ok(())
+}
+
+/// A snapshot whose leaves do not hash up to the signed root must be rejected,
+/// even when the request is signed over the exact uploaded bytes.
+#[tokio::test]
+#[serial_test::serial]
+async fn e2e_rejects_leaves_that_do_not_reproduce_signed_root() -> anyhow::Result<()> {
+    let keypair = Keypair::new();
+    let (base_url, _guard) = setup_server(&keypair).await?;
+    let client = reqwest::Client::new();
+
+    let snapshot_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("tests/src/fixtures/meta_merkle_340850340.zip");
+    let honest_bytes = tokio::fs::read(&snapshot_path).await?;
+    let (mut snapshot, _) =
+        cli::MetaMerkleSnapshot::read_from_bytes_with_hash(honest_bytes.clone(), true)?;
+
+    let slot = snapshot.slot;
+    // Keep the signed root and the per-bundle stake roots unchanged, but mutate a
+    // meta leaf so its hash (and therefore the derived meta root) diverges from the
+    // signed root. This isolates the reconstruction guard from the stake-root check.
+    let merkle_root = bs58::encode(snapshot.root).into_string();
+    snapshot.leaf_bundles[0].meta_merkle_leaf.active_stake += 1;
+
+    let tampered_bytes = encode_snapshot(&snapshot)?;
+    let (_, tampered_hash) =
+        cli::MetaMerkleSnapshot::read_from_bytes_with_hash(tampered_bytes.clone(), true)?;
+    let encoded_hash = bs58::encode(tampered_hash.to_bytes()).into_string();
+    let signature = sign_upload_message(&keypair, slot, NETWORK, &merkle_root, &encoded_hash);
+
+    let upload = Form::new()
+        .text("slot", slot.to_string())
+        .text("network", NETWORK)
+        .text("merkle_root", merkle_root)
+        .text("snapshot_hash", encoded_hash)
+        .text("signature", signature)
+        .part(
+            "file",
+            Part::bytes(tampered_bytes).file_name("root_mismatch.zip"),
+        );
+    let response = client
+        .post(format!("{}/upload", base_url))
+        .multipart(upload)
+        .send()
+        .await?;
+    assert_eq!(
+        response.status(),
+        StatusCode::BAD_REQUEST,
+        "leaves that do not reproduce the signed root must be rejected"
+    );
 
     Ok(())
 }

@@ -92,14 +92,30 @@ pub async fn handle_upload(
         StatusCode::BAD_REQUEST
     })?;
 
-    // 7. Index data in database
-    index_snapshot_data(&pool, &snapshot, &network, &merkle_root, &encoded_hash)
-        .await
-        .map_err(|e| {
-            info!("Failed to index snapshot data: {}", e);
-            metrics::record_upload_outcome(metrics::UploadOutcome::Internal);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    // 7. Reconstruct the meta merkle tree from the uploaded leaves and confirm it
+    // reproduces the signed root. Every proof we later serve is derived from this
+    // tree, so the uploaded `bundle.proof` bytes are never trusted or persisted.
+    let meta_merkle_tree = reconstruct_meta_merkle_tree(&snapshot).map_err(|e| {
+        info!("Failed to reconstruct meta merkle tree: {}", e);
+        metrics::record_upload_outcome(metrics::UploadOutcome::BadRequest);
+        StatusCode::BAD_REQUEST
+    })?;
+
+    // 8. Index data in database
+    index_snapshot_data(
+        &pool,
+        &snapshot,
+        &meta_merkle_tree,
+        &network,
+        &merkle_root,
+        &encoded_hash,
+    )
+    .await
+    .map_err(|e| {
+        info!("Failed to index snapshot data: {}", e);
+        metrics::record_upload_outcome(metrics::UploadOutcome::Internal);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     metrics::record_upload_outcome(metrics::UploadOutcome::Success);
 
@@ -138,10 +154,45 @@ fn derive_stake_merkle_root(
     stake_merkle.get_root().map(|root| root.to_bytes())
 }
 
+/// Rebuild the meta merkle tree from the uploaded meta leaves and confirm it
+/// reproduces the snapshot's signed root.
+///
+/// The bundles are stored in the same order in which the canonical tree was
+/// built, so leaf `i` corresponds to tree index `i`. Rehashing the leaves in
+/// that order yields the exact tree, which lets us (a) reject any snapshot whose
+/// leaves do not hash up to the signed root and (b) derive each vote account's
+/// proof ourselves instead of trusting the unsigned `bundle.proof` bytes. The
+/// returned tree is consumed by [`index_snapshot_data`] to compute proofs that
+/// are guaranteed to verify against the on-chain consensus root.
+fn reconstruct_meta_merkle_tree(snapshot: &MetaMerkleSnapshot) -> Result<MerkleTree> {
+    let hashed_nodes: Vec<[u8; 32]> = snapshot
+        .leaf_bundles
+        .iter()
+        .map(|bundle| bundle.meta_merkle_leaf.hash().to_bytes())
+        .collect();
+    let meta_merkle = MerkleTree::new(&hashed_nodes[..], true);
+
+    let derived_root = meta_merkle
+        .get_root()
+        .ok_or_else(|| anyhow::anyhow!("meta merkle tree has no root"))?
+        .to_bytes();
+
+    if derived_root != snapshot.root {
+        return Err(anyhow::anyhow!(
+            "derived meta merkle root {} does not match signed root {}",
+            bs58::encode(derived_root).into_string(),
+            bs58::encode(snapshot.root).into_string()
+        ));
+    }
+
+    Ok(meta_merkle)
+}
+
 /// Index snapshot data in the database
 async fn index_snapshot_data(
     pool: &SqlitePool,
     snapshot: &MetaMerkleSnapshot,
+    meta_merkle_tree: &MerkleTree,
     network: &str,
     merkle_root: &str,
     snapshot_hash: &str,
@@ -170,11 +221,11 @@ async fn index_snapshot_data(
         }
         let meta_leaf = &bundle.meta_merkle_leaf;
 
-        // Convert meta merkle proof to base58 strings
-        let meta_merkle_proof: Vec<String> = bundle
-            .proof
-            .as_ref()
-            .unwrap_or(&Vec::new())
+        // Derive the meta merkle proof from the reconstructed tree rather than
+        // trusting the unsigned `bundle.proof` bytes carried in the upload. Bundle
+        // `bundle_idx` maps to tree index `bundle_idx` by construction, so this
+        // proof is guaranteed to verify against the signed root.
+        let meta_merkle_proof: Vec<String> = get_proof(meta_merkle_tree, bundle_idx)
             .iter()
             .map(|hash| bs58::encode(hash).into_string())
             .collect();
@@ -420,5 +471,114 @@ mod tests {
 
         let result = validate_stake_merkle_roots(&snapshot);
         assert!(result.is_err(), "incoherent stake roots must be rejected");
+    }
+
+    /// Build a coherent snapshot from arbitrary meta leaves, mirroring how the CLI
+    /// generates one: hash the leaves in order, build the tree, and store each
+    /// bundle's canonical proof alongside the derived root.
+    fn build_snapshot(slot: u64, count: u8) -> MetaMerkleSnapshot {
+        let leaves: Vec<ncn_snapshot::MetaMerkleLeaf> = (0..count)
+            .map(|seed| ncn_snapshot::MetaMerkleLeaf {
+                voting_wallet: AnchorPubkey::new_unique(),
+                vote_account: AnchorPubkey::new_unique(),
+                stake_merkle_root: [seed; 32],
+                active_stake: u64::from(seed) + 1,
+            })
+            .collect();
+
+        let hashed_nodes: Vec<[u8; 32]> = leaves.iter().map(|l| l.hash().to_bytes()).collect();
+        let tree = MerkleTree::new(&hashed_nodes[..], true);
+        let root = tree.get_root().expect("root").to_bytes();
+
+        let leaf_bundles = leaves
+            .into_iter()
+            .enumerate()
+            .map(|(i, meta_merkle_leaf)| cli::MetaMerkleLeafBundle {
+                meta_merkle_leaf,
+                stake_merkle_leaves: vec![],
+                proof: Some(get_proof(&tree, i)),
+            })
+            .collect();
+
+        MetaMerkleSnapshot {
+            root,
+            leaf_bundles,
+            slot,
+        }
+    }
+
+    #[test]
+    fn test_reconstruct_meta_merkle_tree_accepts_coherent_snapshot() {
+        let snapshot = build_snapshot(SLOT1, 5);
+        let tree = reconstruct_meta_merkle_tree(&snapshot).expect("coherent snapshot reconstructs");
+
+        // Every proof derived from the reconstructed tree must verify against the
+        // signed root using the exact logic the program runs on-chain.
+        for (i, bundle) in snapshot.leaf_bundles.iter().enumerate() {
+            let proof = get_proof(&tree, i);
+            assert!(
+                ncn_snapshot::merkle_helper::verify_helper(
+                    &bundle.meta_merkle_leaf.hash().to_bytes(),
+                    &proof,
+                    snapshot.root.into(),
+                )
+                .is_ok(),
+                "derived proof for leaf {} should verify against signed root",
+                i
+            );
+        }
+    }
+
+    #[test]
+    fn test_reconstruct_meta_merkle_tree_rejects_root_mismatch() {
+        let mut snapshot = build_snapshot(SLOT1, 5);
+        // Claimed root no longer matches the leaves it is supposed to commit to.
+        snapshot.root[0] ^= 0xff;
+
+        assert!(
+            reconstruct_meta_merkle_tree(&snapshot).is_err(),
+            "snapshot whose leaves do not hash to the signed root must be rejected"
+        );
+    }
+
+    #[test]
+    fn test_reconstruct_meta_merkle_tree_rejects_tampered_leaf() {
+        let mut snapshot = build_snapshot(SLOT1, 5);
+        // Mutate a leaf while leaving the signed root untouched: the derived root
+        // now diverges from the signed root, so the upload must be rejected.
+        snapshot.leaf_bundles[0].meta_merkle_leaf.active_stake += 1;
+
+        assert!(
+            reconstruct_meta_merkle_tree(&snapshot).is_err(),
+            "tampered leaf must break root reconstruction"
+        );
+    }
+
+    #[test]
+    fn test_reconstruct_meta_merkle_tree_ignores_uploaded_proof_bytes() {
+        let mut snapshot = build_snapshot(SLOT1, 5);
+        // Poison the uploaded proof bytes for one bundle. Reconstruction works off
+        // the leaves alone, so the derived proof stays canonical and verifiable.
+        snapshot.leaf_bundles[0].proof = Some(vec![[0xaa; 32], [0xbb; 32]]);
+        snapshot.leaf_bundles[2].proof = None;
+
+        let tree = reconstruct_meta_merkle_tree(&snapshot)
+            .expect("poisoned proof bytes do not affect reconstruction");
+
+        let derived = get_proof(&tree, 0);
+        assert_ne!(
+            derived,
+            vec![[0xaa; 32], [0xbb; 32]],
+            "derived proof must not echo the poisoned upload bytes"
+        );
+        assert!(
+            ncn_snapshot::merkle_helper::verify_helper(
+                &snapshot.leaf_bundles[0].meta_merkle_leaf.hash().to_bytes(),
+                &derived,
+                snapshot.root.into(),
+            )
+            .is_ok(),
+            "derived proof must verify even when uploaded proof bytes are poisoned"
+        );
     }
 }
