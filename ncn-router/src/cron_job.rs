@@ -335,6 +335,11 @@ fn compare_with_chain(
             .unwrap_or_default()
     };
 
+    // Collapse to one canonical record per verifier origin before persisting.
+    // `ncn-router` samples whitelist rows uniformly, so duplicate rows for the
+    // same domain would grant that origin extra routing weight.
+    let whitelist_verifiers = dedupe_verifiers_by_domain(whitelist_verifiers);
+
     let whitelist = WhitelistSnapshot {
         network: network.to_string(),
         slot: snapshot_slot,
@@ -364,6 +369,25 @@ fn compare_with_chain(
     }
 
     Ok(())
+}
+
+/// Keep one canonical whitelist record per verifier origin (`domain`),
+/// preserving the first occurrence. Later duplicates are dropped with a warning
+/// so operators can spot misconfiguration (e.g. the same domain listed twice).
+fn dedupe_verifiers_by_domain(verifiers: Vec<WhitelistVerifier>) -> Vec<WhitelistVerifier> {
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut deduped: Vec<WhitelistVerifier> = Vec::with_capacity(verifiers.len());
+    for verifier in verifiers {
+        if seen.insert(verifier.domain.clone()) {
+            deduped.push(verifier);
+        } else {
+            eprintln!(
+                "[ncn-meta-cron] dropping duplicate whitelist entry for domain '{}' (name='{}', status='{}')",
+                verifier.domain, verifier.name, verifier.status
+            );
+        }
+    }
+    deduped
 }
 
 fn fetch_winning_ballot_cron(
@@ -458,6 +482,39 @@ fn normalize_base_url(domain: &str) -> String {
     s
 }
 
+/// Build a successful log entry, binding it to the *requested* `network` rather
+/// than the verifier-reported `meta.network`.
+///
+/// A malicious verifier could otherwise label a `testnet` response as `mainnet`
+/// (or vice versa) so that a single origin lands twice in one network's whitelist
+/// as `ok`, minting duplicate routing tickets in `ncn-router`. We always trust the
+/// network we asked for and only warn when the verifier disagrees.
+fn log_entry_from_meta(
+    name: &str,
+    domain: &str,
+    network: &str,
+    timestamp: &str,
+    meta: MetaResponse,
+) -> LogEntry {
+    if meta.network != network {
+        eprintln!(
+            "[ncn-meta-cron] verifier '{}' ({}) reported network '{}' for requested network '{}'; binding entry to requested network",
+            name, domain, meta.network, network
+        );
+    }
+    LogEntry {
+        timestamp: timestamp.to_string(),
+        name: name.to_string(),
+        domain: domain.to_string(),
+        network: network.to_string(),
+        slot: meta.slot,
+        merkle_root: meta.merkle_root,
+        snapshot_hash: meta.snapshot_hash,
+        created_at: meta.created_at,
+        error: None,
+    }
+}
+
 fn fetch_meta(
     client: &Client,
     name: &str,
@@ -482,17 +539,7 @@ fn fetch_meta(
                 };
             }
             match resp.json::<MetaResponse>() {
-                Ok(meta) => LogEntry {
-                    timestamp: timestamp.to_string(),
-                    name: name.to_string(),
-                    domain: domain.to_string(),
-                    network: meta.network,
-                    slot: meta.slot,
-                    merkle_root: meta.merkle_root,
-                    snapshot_hash: meta.snapshot_hash,
-                    created_at: meta.created_at,
-                    error: None,
-                },
+                Ok(meta) => log_entry_from_meta(name, domain, network, timestamp, meta),
                 Err(e) => LogEntry {
                     timestamp: timestamp.to_string(),
                     name: name.to_string(),
@@ -517,5 +564,81 @@ fn fetch_meta(
             created_at: None,
             error: Some(e.to_string()),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn meta(network: &str, slot: u64) -> MetaResponse {
+        MetaResponse {
+            network: network.to_string(),
+            slot,
+            merkle_root: "root".to_string(),
+            snapshot_hash: "hash".to_string(),
+            created_at: None,
+        }
+    }
+
+    fn verifier(name: &str, domain: &str, status: &str) -> WhitelistVerifier {
+        WhitelistVerifier {
+            name: name.to_string(),
+            domain: domain.to_string(),
+            status: status.to_string(),
+            reason: None,
+        }
+    }
+
+    #[test]
+    fn log_entry_binds_to_requested_network_not_reported() {
+        // Malicious verifier mislabels a testnet response as "mainnet".
+        let entry = log_entry_from_meta(
+            "malicious",
+            "http://evil",
+            "testnet",
+            "2026-01-01T00:00:00Z",
+            meta("mainnet", 222),
+        );
+        // The entry is recorded under the network we actually asked for, so it
+        // cannot leak into the mainnet whitelist.
+        assert_eq!(entry.network, "testnet");
+        assert_eq!(entry.slot, 222);
+        assert!(entry.error.is_none());
+    }
+
+    #[test]
+    fn log_entry_keeps_network_when_report_matches() {
+        let entry = log_entry_from_meta(
+            "honest",
+            "http://good",
+            "mainnet",
+            "2026-01-01T00:00:00Z",
+            meta("mainnet", 111),
+        );
+        assert_eq!(entry.network, "mainnet");
+        assert_eq!(entry.slot, 111);
+    }
+
+    #[test]
+    fn dedupe_collapses_duplicate_domains_keeping_first() {
+        let verifiers = vec![
+            verifier("first", "http://dup", "ok"),
+            verifier("second", "http://dup", "ok"),
+            verifier("other", "http://other", "ok"),
+        ];
+        let deduped = dedupe_verifiers_by_domain(verifiers);
+        assert_eq!(deduped.len(), 2);
+        // First occurrence wins; the duplicate origin is collapsed to one record.
+        assert_eq!(deduped[0].name, "first");
+        assert_eq!(deduped[0].domain, "http://dup");
+        assert_eq!(deduped[1].domain, "http://other");
+        assert_eq!(
+            deduped
+                .iter()
+                .filter(|v| v.domain == "http://dup")
+                .count(),
+            1
+        );
     }
 }

@@ -152,11 +152,7 @@ fn handle_request(state: Arc<RouterState>, request: tiny_http::Request) {
     };
 
     let mut rng = rand::thread_rng();
-    let ok_verifiers: Vec<&WhitelistVerifier> = snapshot
-        .verifiers
-        .iter()
-        .filter(|v| v.status == "ok")
-        .collect();
+    let ok_verifiers = select_routable_verifiers(&snapshot.verifiers);
 
     if ok_verifiers.is_empty() {
         let body = format!(
@@ -249,6 +245,20 @@ fn respond_proxy(client: &Client, request: tiny_http::Request, target: &str) {
     }
 }
 
+/// Select the verifiers eligible for routing: `status == "ok"`, de-duplicated by
+/// `domain`. The whitelist is sampled uniformly, so a single origin appearing in
+/// multiple rows would otherwise be sampled as extra routing tickets. Keeping one
+/// row per domain enforces "one ticket per origin" at the sampling site,
+/// independent of how the whitelist file was produced.
+fn select_routable_verifiers(verifiers: &[WhitelistVerifier]) -> Vec<&WhitelistVerifier> {
+    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    verifiers
+        .iter()
+        .filter(|v| v.status == "ok")
+        .filter(|v| seen.insert(v.domain.as_str()))
+        .collect()
+}
+
 fn split_path_and_query(url: &str) -> (&str, std::collections::HashMap<String, String>) {
     let mut parts = url.splitn(2, '?');
     let path = parts.next().unwrap_or("/");
@@ -325,4 +335,52 @@ fn load_whitelist(
 
 fn json_header() -> Header {
     Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).expect("header")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn verifier(name: &str, domain: &str, status: &str) -> WhitelistVerifier {
+        WhitelistVerifier {
+            name: name.to_string(),
+            domain: domain.to_string(),
+            status: status.to_string(),
+            reason: None,
+        }
+    }
+
+    #[test]
+    fn routable_verifiers_dedupe_duplicate_domains() {
+        // A single origin listed twice as "ok" must yield one routing ticket.
+        let verifiers = vec![
+            verifier("malicious", "http://evil", "ok"),
+            verifier("malicious-dup", "http://evil", "ok"),
+            verifier("honest", "http://good", "ok"),
+        ];
+        let routable = select_routable_verifiers(&verifiers);
+        assert_eq!(routable.len(), 2);
+        assert_eq!(
+            routable
+                .iter()
+                .filter(|v| v.domain == "http://evil")
+                .count(),
+            1
+        );
+        let domains: Vec<&str> = routable.iter().map(|v| v.domain.as_str()).collect();
+        assert!(domains.contains(&"http://evil"));
+        assert!(domains.contains(&"http://good"));
+    }
+
+    #[test]
+    fn routable_verifiers_exclude_non_ok() {
+        let verifiers = vec![
+            verifier("a", "http://a", "ok"),
+            verifier("b", "http://b", "error"),
+            verifier("c", "http://c", "mismatch"),
+        ];
+        let routable = select_routable_verifiers(&verifiers);
+        assert_eq!(routable.len(), 1);
+        assert_eq!(routable[0].domain, "http://a");
+    }
 }
