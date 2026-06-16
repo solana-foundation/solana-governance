@@ -124,10 +124,19 @@ fn handle_request(state: Arc<RouterState>, request: tiny_http::Request) {
     let url = request.url().to_string();
     let (path, query) = split_path_and_query(&url);
 
-    let network = query
-        .get("network")
-        .map(|s| s.as_str())
-        .unwrap_or("mainnet");
+    let network = match query.get("network").map(|s| s.as_str()).unwrap_or("mainnet") {
+        "mainnet" => "mainnet",
+        "testnet" => "testnet",
+        other => {
+            let body = format!(r#"{{"error":"invalid_network","network":"{}"}}"#, other);
+            let _ = request.respond(
+                Response::from_string(body)
+                    .with_status_code(StatusCode(400))
+                    .with_header(json_header()),
+            );
+            return;
+        },
+    };
 
     let (path_prefix, cache) = match network {
         "testnet" => (&state.testnet_path, &state.testnet_cache),
