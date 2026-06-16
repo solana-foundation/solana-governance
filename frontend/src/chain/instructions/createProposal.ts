@@ -7,7 +7,6 @@ import {
 } from "./types";
 import {
   createProgramWithWallet,
-  getVoteAccountProof,
   deriveProposalIndexPda,
   deriveGlobalConfigPda,
 } from "./helpers";
@@ -19,15 +18,10 @@ import { deriveProposalAccount } from "../helpers";
 export async function createProposal(
   params: CreateProposalParams,
   blockchainParams: BlockchainParams,
-  slot: number | undefined,
 ): Promise<TransactionResult> {
   const { title, description, seed, wallet } = params;
   if (!wallet || !wallet.publicKey) {
     throw new Error("Wallet not connected");
-  }
-
-  if (slot === undefined) {
-    throw new Error("Slot is not defined");
   }
 
   // Generate random seed if not provided
@@ -50,13 +44,6 @@ export async function createProposal(
 
   const splVoteAccount = new PublicKey(validatorVoteAccount.votePubkey);
   const proposalPda = deriveProposalAccount(program, seedValue, splVoteAccount);
-
-  const voteAccountProof = await getVoteAccountProof(
-    validatorVoteAccount.votePubkey,
-    blockchainParams.network,
-    slot,
-  );
-  console.log("fetched voteAccountProof", voteAccountProof);
 
   // Build and send transaction using accountsPartial like in tests
   const proposalInstruction = await program.methods
