@@ -341,3 +341,188 @@ async fn e2e_rejects_replayed_signature_and_incoherent_stake_root() -> anyhow::R
 fn encode_snapshot(snapshot: &cli::MetaMerkleSnapshot) -> anyhow::Result<Vec<u8>> {
     Ok(snapshot.to_compressed_bytes()?)
 }
+
+/// Reuploading the same `(network, slot)` with a different (subset) snapshot
+/// body must fully replace the slot's rows, not merge into a hybrid snapshot.
+/// Rows for accounts omitted from the reupload must be cleared so that `/meta`,
+/// `/proof/*`, and `/voter/*` all describe the single snapshot identified by the
+/// advertised `snapshot_hash`.
+#[tokio::test]
+#[serial_test::serial]
+async fn e2e_same_slot_reupload_fully_replaces_rows() -> anyhow::Result<()> {
+    let keypair = Keypair::new();
+    let (base_url, _guard) = setup_server(&keypair).await?;
+    let client = reqwest::Client::new();
+
+    let snapshot_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("tests/src/fixtures/meta_merkle_340850340.zip");
+    let full_bytes = tokio::fs::read(&snapshot_path).await?;
+    let (full_snapshot, full_hash) =
+        cli::MetaMerkleSnapshot::read_from_bytes_with_hash(full_bytes.clone(), true)?;
+
+    assert!(
+        full_snapshot.leaf_bundles.len() >= 2,
+        "fixture must contain at least two bundles"
+    );
+
+    let slot = full_snapshot.slot;
+    let merkle_root = bs58::encode(full_snapshot.root).into_string();
+    let full_hash = bs58::encode(full_hash.to_bytes()).into_string();
+    let full_signature = sign_upload_message(&keypair, slot, NETWORK, &merkle_root, &full_hash);
+
+    // First upload: the complete fixture snapshot.
+    let full_upload = Form::new()
+        .text("slot", slot.to_string())
+        .text("network", NETWORK)
+        .text("merkle_root", merkle_root.clone())
+        .text("snapshot_hash", full_hash.clone())
+        .text("signature", full_signature)
+        .part("file", Part::bytes(full_bytes).file_name("full_snapshot.zip"));
+    let resp = client
+        .post(format!("{}/upload", base_url))
+        .multipart(full_upload)
+        .send()
+        .await?;
+    assert!(
+        resp.status().is_success(),
+        "full upload failed status={}",
+        resp.status()
+    );
+
+    // Keep (and modify) the first bundle; omit the second on the reupload.
+    let mut modified_bundle = full_snapshot.leaf_bundles[0].clone();
+    let omitted_bundle = full_snapshot.leaf_bundles[1].clone();
+    modified_bundle.meta_merkle_leaf.active_stake = modified_bundle
+        .meta_merkle_leaf
+        .active_stake
+        .saturating_add(1);
+
+    // The omitted account is queryable after the full upload.
+    let omitted_vote_account = omitted_bundle.meta_merkle_leaf.vote_account.to_string();
+    let omitted_before = client
+        .get(format!(
+            "{}/proof/vote_account/{}?network={}&slot={}",
+            base_url, omitted_vote_account, NETWORK, slot
+        ))
+        .send()
+        .await?;
+    assert!(
+        omitted_before.status().is_success(),
+        "omitted account should be present after the full upload, got status={}",
+        omitted_before.status()
+    );
+
+    // Second upload: same (network, slot), only the modified bundle. Signed with
+    // its own snapshot hash so it passes the byte-binding check.
+    let modified_snapshot = cli::MetaMerkleSnapshot {
+        root: full_snapshot.root,
+        leaf_bundles: vec![modified_bundle.clone()],
+        slot,
+    };
+    let modified_bytes = modified_snapshot.to_compressed_bytes()?;
+    let (_, modified_hash) =
+        cli::MetaMerkleSnapshot::read_from_bytes_with_hash(modified_bytes.clone(), true)?;
+    let modified_hash = bs58::encode(modified_hash.to_bytes()).into_string();
+    assert_ne!(
+        modified_hash, full_hash,
+        "reupload must carry a distinct snapshot hash"
+    );
+    let modified_signature =
+        sign_upload_message(&keypair, slot, NETWORK, &merkle_root, &modified_hash);
+
+    let modified_upload = Form::new()
+        .text("slot", slot.to_string())
+        .text("network", NETWORK)
+        .text("merkle_root", merkle_root.clone())
+        .text("snapshot_hash", modified_hash.clone())
+        .text("signature", modified_signature)
+        .part(
+            "file",
+            Part::bytes(modified_bytes).file_name("modified_snapshot.zip"),
+        );
+    let resp = client
+        .post(format!("{}/upload", base_url))
+        .multipart(modified_upload)
+        .send()
+        .await?;
+    assert!(
+        resp.status().is_success(),
+        "modified upload failed status={}",
+        resp.status()
+    );
+
+    // /meta now advertises the new snapshot hash.
+    let meta: serde_json::Value = client
+        .get(format!("{}/meta?network={}", base_url, NETWORK))
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    assert_eq!(meta["snapshot_hash"], modified_hash);
+
+    // The modified account reflects the reuploaded data.
+    let modified_vote_account = modified_bundle.meta_merkle_leaf.vote_account.to_string();
+    let modified_proof: serde_json::Value = client
+        .get(format!(
+            "{}/proof/vote_account/{}?network={}&slot={}",
+            base_url, modified_vote_account, NETWORK, slot
+        ))
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    assert_eq!(
+        modified_proof["meta_merkle_leaf"]["active_stake"].as_u64(),
+        Some(modified_bundle.meta_merkle_leaf.active_stake)
+    );
+
+    // The omitted account is no longer queryable for this slot: the reupload
+    // fully replaced the slot instead of leaving a hybrid snapshot behind.
+    let omitted_after = client
+        .get(format!(
+            "{}/proof/vote_account/{}?network={}&slot={}",
+            base_url, omitted_vote_account, NETWORK, slot
+        ))
+        .send()
+        .await?;
+    assert_eq!(
+        omitted_after.status(),
+        StatusCode::NOT_FOUND,
+        "omitted vote account must be cleared on reupload"
+    );
+
+    // A stake row under the omitted bundle must be cleared too. Check a single
+    // representative account (one not also present in the retained bundle) to
+    // stay within the request rate limit.
+    let retained_stake_accounts: std::collections::HashSet<String> = modified_bundle
+        .stake_merkle_leaves
+        .iter()
+        .map(|leaf| leaf.stake_account.to_string())
+        .collect();
+    if let Some(stake_account) = omitted_bundle
+        .stake_merkle_leaves
+        .iter()
+        .map(|leaf| leaf.stake_account.to_string())
+        .find(|account| !retained_stake_accounts.contains(account))
+    {
+        let stake_after = client
+            .get(format!(
+                "{}/proof/stake_account/{}?network={}&slot={}",
+                base_url, stake_account, NETWORK, slot
+            ))
+            .send()
+            .await?;
+        assert_eq!(
+            stake_after.status(),
+            StatusCode::NOT_FOUND,
+            "omitted stake account {} must be cleared on reupload",
+            stake_account
+        );
+    }
+
+    Ok(())
+}
