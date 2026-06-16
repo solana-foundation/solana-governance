@@ -371,20 +371,42 @@ fn compare_with_chain(
     Ok(())
 }
 
-/// Keep one canonical whitelist record per verifier origin (`domain`),
-/// preserving the first occurrence. Later duplicates are dropped with a warning
-/// so operators can spot misconfiguration (e.g. the same domain listed twice).
+/// Keep one canonical whitelist record per verifier origin (`domain`).
+///
+/// When a domain appears more than once (e.g. it is listed twice in the config),
+/// an `ok` record is preferred over a non-`ok` one so a transient failure on one
+/// poll cannot shadow a successful poll for the same origin. Among records of the
+/// same rank the first occurrence wins, which keeps the output deterministic in
+/// config order. This still collapses each origin to a single row, so a verifier
+/// can never hold extra routing tickets — it just avoids demoting an origin that
+/// did verify successfully. Mirrors the `status == "ok"`-first selection in
+/// `ncn-router`'s `select_routable_verifiers`.
 fn dedupe_verifiers_by_domain(verifiers: Vec<WhitelistVerifier>) -> Vec<WhitelistVerifier> {
-    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut deduped: Vec<WhitelistVerifier> = Vec::with_capacity(verifiers.len());
+    let mut index_by_domain: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
+    let mut deduped: Vec<WhitelistVerifier> = Vec::new();
     for verifier in verifiers {
-        if seen.insert(verifier.domain.clone()) {
-            deduped.push(verifier);
-        } else {
-            eprintln!(
-                "[ncn-meta-cron] dropping duplicate whitelist entry for domain '{}' (name='{}', status='{}')",
-                verifier.domain, verifier.name, verifier.status
-            );
+        match index_by_domain.get(&verifier.domain) {
+            None => {
+                index_by_domain.insert(verifier.domain.clone(), deduped.len());
+                deduped.push(verifier);
+            }
+            Some(&idx) => {
+                // Replace a previously kept non-ok record with an ok one; otherwise
+                // keep what we already have (first-wins within the same rank).
+                if deduped[idx].status != "ok" && verifier.status == "ok" {
+                    eprintln!(
+                        "[ncn-meta-cron] duplicate whitelist entry for domain '{}': preferring ok record (name='{}') over previously kept status '{}'",
+                        verifier.domain, verifier.name, deduped[idx].status
+                    );
+                    deduped[idx] = verifier;
+                } else {
+                    eprintln!(
+                        "[ncn-meta-cron] dropping duplicate whitelist entry for domain '{}' (name='{}', status='{}')",
+                        verifier.domain, verifier.name, verifier.status
+                    );
+                }
+            }
         }
     }
     deduped
@@ -629,7 +651,8 @@ mod tests {
         ];
         let deduped = dedupe_verifiers_by_domain(verifiers);
         assert_eq!(deduped.len(), 2);
-        // First occurrence wins; the duplicate origin is collapsed to one record.
+        // Among same-rank records the first occurrence wins; the duplicate origin
+        // is collapsed to one record.
         assert_eq!(deduped[0].name, "first");
         assert_eq!(deduped[0].domain, "http://dup");
         assert_eq!(deduped[1].domain, "http://other");
@@ -640,5 +663,28 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn dedupe_prefers_ok_over_non_ok_for_same_domain() {
+        // A transient failure on the first poll must not shadow a later successful
+        // poll for the same origin.
+        let verifiers = vec![
+            verifier("transient-fail", "http://dup", "error"),
+            verifier("succeeded", "http://dup", "ok"),
+            verifier("other", "http://other", "ok"),
+        ];
+        let deduped = dedupe_verifiers_by_domain(verifiers);
+        assert_eq!(deduped.len(), 2);
+        // Still one row per origin (no extra routing tickets), and the ok record
+        // wins even though the error record came first. Order is preserved: the
+        // duplicated domain keeps its first-seen position.
+        let dup = deduped
+            .iter()
+            .find(|v| v.domain == "http://dup")
+            .expect("dup domain present");
+        assert_eq!(dup.status, "ok");
+        assert_eq!(dup.name, "succeeded");
+        assert_eq!(deduped[0].domain, "http://dup");
     }
 }
