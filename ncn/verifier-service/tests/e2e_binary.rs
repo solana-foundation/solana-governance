@@ -1,6 +1,7 @@
 mod common;
 use common::setup_server;
 
+use meta_merkle_tree::{merkle_tree::MerkleTree, utils::get_proof};
 use reqwest::{
     multipart::{Form, Part},
     StatusCode,
@@ -399,6 +400,17 @@ async fn e2e_same_slot_reupload_fully_replaces_rows() -> anyhow::Result<()> {
         .active_stake
         .saturating_add(1);
 
+    // Re-derive the meta-merkle root and proof over the replacement leaf set
+    // (a single bundle here), mirroring how the CLI builds a snapshot. A real
+    // operator computes a fresh root for the bundles they actually upload;
+    // reusing the original full-tree root would leave merkle_root and the
+    // stored meta_merkle_proof cryptographically stale for the new data.
+    let meta_hashed_nodes = vec![modified_bundle.meta_merkle_leaf.hash().to_bytes()];
+    let meta_merkle = MerkleTree::new(&meta_hashed_nodes[..], true);
+    let modified_root = meta_merkle.get_root().expect("meta merkle root").to_bytes();
+    modified_bundle.proof = Some(get_proof(&meta_merkle, 0));
+    let modified_merkle_root = bs58::encode(modified_root).into_string();
+
     // The omitted account is queryable after the full upload.
     let omitted_vote_account = omitted_bundle.meta_merkle_leaf.vote_account.to_string();
     let omitted_before = client
@@ -414,10 +426,11 @@ async fn e2e_same_slot_reupload_fully_replaces_rows() -> anyhow::Result<()> {
         omitted_before.status()
     );
 
-    // Second upload: same (network, slot), only the modified bundle. Signed with
-    // its own snapshot hash so it passes the byte-binding check.
+    // Second upload: same (network, slot), only the modified bundle, committed
+    // to by its own freshly-derived root. Signed with its own snapshot hash so
+    // it passes the byte-binding check.
     let modified_snapshot = cli::MetaMerkleSnapshot {
-        root: full_snapshot.root,
+        root: modified_root,
         leaf_bundles: vec![modified_bundle.clone()],
         slot,
     };
@@ -430,12 +443,12 @@ async fn e2e_same_slot_reupload_fully_replaces_rows() -> anyhow::Result<()> {
         "reupload must carry a distinct snapshot hash"
     );
     let modified_signature =
-        sign_upload_message(&keypair, slot, NETWORK, &merkle_root, &modified_hash);
+        sign_upload_message(&keypair, slot, NETWORK, &modified_merkle_root, &modified_hash);
 
     let modified_upload = Form::new()
         .text("slot", slot.to_string())
         .text("network", NETWORK)
-        .text("merkle_root", merkle_root.clone())
+        .text("merkle_root", modified_merkle_root.clone())
         .text("snapshot_hash", modified_hash.clone())
         .text("signature", modified_signature)
         .part(
@@ -453,7 +466,7 @@ async fn e2e_same_slot_reupload_fully_replaces_rows() -> anyhow::Result<()> {
         resp.status()
     );
 
-    // /meta now advertises the new snapshot hash.
+    // /meta now advertises the new snapshot hash and the new (consistent) root.
     let meta: serde_json::Value = client
         .get(format!("{}/meta?network={}", base_url, NETWORK))
         .send()
@@ -462,8 +475,10 @@ async fn e2e_same_slot_reupload_fully_replaces_rows() -> anyhow::Result<()> {
         .json()
         .await?;
     assert_eq!(meta["snapshot_hash"], modified_hash);
+    assert_eq!(meta["merkle_root"], modified_merkle_root);
 
-    // The modified account reflects the reuploaded data.
+    // The modified account reflects the reuploaded data, and its served proof
+    // is the one derived from the replacement tree (empty for a single leaf).
     let modified_vote_account = modified_bundle.meta_merkle_leaf.vote_account.to_string();
     let modified_proof: serde_json::Value = client
         .get(format!(
@@ -478,6 +493,17 @@ async fn e2e_same_slot_reupload_fully_replaces_rows() -> anyhow::Result<()> {
     assert_eq!(
         modified_proof["meta_merkle_leaf"]["active_stake"].as_u64(),
         Some(modified_bundle.meta_merkle_leaf.active_stake)
+    );
+    let expected_proof: Vec<String> = modified_bundle
+        .proof
+        .clone()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|hash| bs58::encode(hash).into_string())
+        .collect();
+    assert_eq!(
+        modified_proof["meta_merkle_proof"],
+        serde_json::json!(expected_proof)
     );
 
     // The omitted account is no longer queryable for this slot: the reupload
