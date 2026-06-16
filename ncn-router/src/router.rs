@@ -124,10 +124,28 @@ fn handle_request(state: Arc<RouterState>, request: tiny_http::Request) {
     let url = request.url().to_string();
     let (path, query) = split_path_and_query(&url);
 
-    let network = query
-        .get("network")
-        .map(|s| s.as_str())
-        .unwrap_or("mainnet");
+    let network = match select_network(&query) {
+        NetworkSelection::Supported(n) => n,
+        NetworkSelection::Duplicate => {
+            let body = serde_json::json!({ "error": "duplicate_network" }).to_string();
+            let _ = request.respond(
+                Response::from_string(body)
+                    .with_status_code(StatusCode(400))
+                    .with_header(json_header()),
+            );
+            return;
+        }
+        NetworkSelection::Invalid(other) => {
+            let body =
+                serde_json::json!({ "error": "invalid_network", "network": other }).to_string();
+            let _ = request.respond(
+                Response::from_string(body)
+                    .with_status_code(StatusCode(400))
+                    .with_header(json_header()),
+            );
+            return;
+        }
+    };
 
     let (path_prefix, cache) = match network {
         "testnet" => (&state.testnet_path, &state.testnet_cache),
@@ -138,10 +156,7 @@ fn handle_request(state: Arc<RouterState>, request: tiny_http::Request) {
     let snapshot = match snapshot_opt {
         Some(s) => s,
         None => {
-            let body = format!(
-                r#"{{"error":"no_whitelist_data","network":"{}"}}"#,
-                network
-            );
+            let body = format!(r#"{{"error":"no_whitelist_data","network":"{}"}}"#, network);
             let _ = request.respond(
                 Response::from_string(body)
                     .with_status_code(StatusCode(503))
@@ -150,6 +165,28 @@ fn handle_request(state: Arc<RouterState>, request: tiny_http::Request) {
             return;
         }
     };
+
+    // Defense in depth: the snapshot we loaded must actually describe the
+    // network we selected. A mislabeled or misconfigured whitelist file would
+    // otherwise let us serve traffic against the wrong trust boundary.
+    if snapshot.network != network {
+        eprintln!(
+            "[ncn-router] whitelist network mismatch: selected={}, snapshot={}",
+            network, snapshot.network
+        );
+        let body = serde_json::json!({
+            "error": "whitelist_network_mismatch",
+            "selected": network,
+            "snapshot": snapshot.network,
+        })
+        .to_string();
+        let _ = request.respond(
+            Response::from_string(body)
+                .with_status_code(StatusCode(500))
+                .with_header(json_header()),
+        );
+        return;
+    }
 
     let mut rng = rand::thread_rng();
     let ok_verifiers = select_routable_verifiers(&snapshot.verifiers);
@@ -193,9 +230,8 @@ fn handle_request(state: Arc<RouterState>, request: tiny_http::Request) {
     if state.mode == RouterMode::Proxy {
         respond_proxy(&state.http_client, request, &target);
     } else {
-        let response = Response::empty(302).with_header(
-            Header::from_bytes(&b"Location"[..], target.as_bytes()).expect("header"),
-        );
+        let response = Response::empty(302)
+            .with_header(Header::from_bytes(&b"Location"[..], target.as_bytes()).expect("header"));
         let _ = request.respond(response);
     }
 }
@@ -245,6 +281,40 @@ fn respond_proxy(client: &Client, request: tiny_http::Request, target: &str) {
     }
 }
 
+/// The outcome of resolving the effective network from the decoded query.
+#[derive(Debug, PartialEq, Eq)]
+enum NetworkSelection {
+    /// A supported network that has a configured whitelist snapshot.
+    Supported(&'static str),
+    /// The `network` parameter appeared more than once.
+    Duplicate,
+    /// The `network` parameter was present but not a supported value.
+    Invalid(String),
+}
+
+/// Split a request URL into its path and the list of percent-decoded query
+/// parameters.
+///
+/// The query is parsed with the `application/x-www-form-urlencoded` rules used
+/// by the downstream Axum verifiers (`form_urlencoded`), so the router and the
+/// verifier agree on the canonical meaning of every parameter. This closes the
+/// parser differential that let percent-encoding tricks such as
+/// `?%6eetwork=testnet` or `?network=%74estnet` be read as `network=testnet`
+/// downstream while the router's naive byte matching fell back to mainnet.
+///
+/// The pairs are kept in their original order (rather than a map) so duplicate
+/// `network` parameters can be detected and the forwarded query can be
+/// re-serialized deterministically.
+fn split_path_and_query(url: &str) -> (&str, Vec<(String, String)>) {
+    let mut parts = url.splitn(2, '?');
+    let path = parts.next().unwrap_or("/");
+    let pairs = match parts.next() {
+        Some(qs) => form_urlencoded::parse(qs.as_bytes()).into_owned().collect(),
+        None => Vec::new(),
+    };
+    (path, pairs)
+}
+
 /// Select the verifiers eligible for routing: `status == "ok"`, de-duplicated by
 /// `domain`. The whitelist is sampled uniformly, so a single origin appearing in
 /// multiple rows would otherwise be sampled as extra routing tickets. Keeping one
@@ -259,42 +329,46 @@ fn select_routable_verifiers(verifiers: &[WhitelistVerifier]) -> Vec<&WhitelistV
         .collect()
 }
 
-fn split_path_and_query(url: &str) -> (&str, std::collections::HashMap<String, String>) {
-    let mut parts = url.splitn(2, '?');
-    let path = parts.next().unwrap_or("/");
-    let mut query_map = std::collections::HashMap::new();
-    if let Some(qs) = parts.next() {
-        for pair in qs.split('&') {
-            if pair.is_empty() {
-                continue;
-            }
-            let mut kv = pair.splitn(2, '=');
-            let k = kv.next().unwrap_or("").to_string();
-            let v = kv.next().unwrap_or("").to_string();
-            if !k.is_empty() {
-                query_map.insert(k, v);
-            }
-        }
-    }
-    (path, query_map)
-}
-
-fn encode_query(query: &std::collections::HashMap<String, String>) -> String {
-    let mut pairs: Vec<String> = Vec::new();
+/// Derive the effective network from the canonical (percent-decoded) query
+/// parameters.
+///
+/// Only `mainnet` and `testnet` have whitelist snapshots, so any other value is
+/// rejected rather than silently falling back to mainnet. A missing `network`
+/// parameter defaults to mainnet (matching the verifier's `DEFAULT_NETWORK`),
+/// and a duplicated `network` parameter is rejected outright.
+fn select_network(query: &[(String, String)]) -> NetworkSelection {
+    let mut value: Option<&str> = None;
     for (k, v) in query {
-        if v.is_empty() {
-            pairs.push(k.clone());
-        } else {
-            pairs.push(format!("{}={}", k, v));
+        if k == "network" {
+            if value.is_some() {
+                return NetworkSelection::Duplicate;
+            }
+            value = Some(v.as_str());
         }
     }
-    pairs.join("&")
+    match value.unwrap_or("mainnet") {
+        "mainnet" => NetworkSelection::Supported("mainnet"),
+        "testnet" => NetworkSelection::Supported("testnet"),
+        other => NetworkSelection::Invalid(other.to_string()),
+    }
 }
 
-fn load_whitelist(
-    path: &str,
-    cache_lock: &RwLock<CachedWhitelist>,
-) -> Option<WhitelistSnapshot> {
+/// Re-serialize the decoded query parameters into a canonical
+/// `application/x-www-form-urlencoded` string.
+///
+/// Forwarding the canonical form (rather than the raw inbound bytes) guarantees
+/// the downstream verifier decodes exactly the parameters the router used to
+/// pick the whitelist, so the selected trust boundary and the serviced request
+/// can never disagree.
+fn encode_query(query: &[(String, String)]) -> String {
+    let mut serializer = form_urlencoded::Serializer::new(String::new());
+    for (k, v) in query {
+        serializer.append_pair(k, v);
+    }
+    serializer.finish()
+}
+
+fn load_whitelist(path: &str, cache_lock: &RwLock<CachedWhitelist>) -> Option<WhitelistSnapshot> {
     let metadata = match fs::metadata(path) {
         Ok(m) => m,
         Err(_) => return None,
@@ -348,6 +422,126 @@ mod tests {
             status: status.to_string(),
             reason: None,
         }
+    }
+
+    fn selection(url: &str) -> NetworkSelection {
+        let (_, query) = split_path_and_query(url);
+        select_network(&query)
+    }
+
+    fn canonical_query(url: &str) -> String {
+        let (_, query) = split_path_and_query(url);
+        encode_query(&query)
+    }
+
+    // --- Regression: legitimate, previously-accepted traffic still works. ---
+
+    #[test]
+    fn plain_networks_select_their_whitelist() {
+        assert_eq!(
+            selection("/meta?network=testnet"),
+            NetworkSelection::Supported("testnet")
+        );
+        assert_eq!(
+            selection("/meta?network=mainnet"),
+            NetworkSelection::Supported("mainnet")
+        );
+    }
+
+    #[test]
+    fn missing_network_defaults_to_mainnet() {
+        assert_eq!(selection("/meta"), NetworkSelection::Supported("mainnet"));
+        assert_eq!(
+            selection("/meta?slot=10"),
+            NetworkSelection::Supported("mainnet")
+        );
+    }
+
+    // --- Security: the percent-encoding bypass variants are decoded first. ---
+
+    #[test]
+    fn percent_encoded_value_is_decoded_before_selection() {
+        // `%74estnet` decodes to `testnet`; it must NOT fall back to mainnet.
+        assert_eq!(
+            selection("/meta?network=%74estnet"),
+            NetworkSelection::Supported("testnet")
+        );
+    }
+
+    #[test]
+    fn percent_encoded_key_is_decoded_before_selection() {
+        // `%6eetwork` decodes to `network` (the PoC payload).
+        assert_eq!(
+            selection("/meta?%6eetwork=testnet"),
+            NetworkSelection::Supported("testnet")
+        );
+    }
+
+    #[test]
+    fn fully_encoded_pair_is_decoded() {
+        assert_eq!(
+            selection("/meta?%6eetwork=%74estnet"),
+            NetworkSelection::Supported("testnet")
+        );
+    }
+
+    // --- Negative cases: malformed / duplicated / unsupported are rejected. ---
+
+    #[test]
+    fn duplicate_network_is_rejected() {
+        assert_eq!(
+            selection("/meta?network=mainnet&network=testnet"),
+            NetworkSelection::Duplicate
+        );
+        // Duplicates that hide behind percent-encoding are still caught,
+        // because detection happens on the decoded keys.
+        assert_eq!(
+            selection("/meta?network=mainnet&%6eetwork=testnet"),
+            NetworkSelection::Duplicate
+        );
+    }
+
+    #[test]
+    fn unsupported_network_is_rejected() {
+        // devnet has no whitelist snapshot, so it must not be routed to mainnet.
+        assert_eq!(
+            selection("/meta?network=devnet"),
+            NetworkSelection::Invalid("devnet".to_string())
+        );
+        assert_eq!(
+            selection("/meta?network=evil"),
+            NetworkSelection::Invalid("evil".to_string())
+        );
+    }
+
+    // --- The forwarded query is the canonical representation. ---
+
+    #[test]
+    fn forwarded_query_is_canonicalized() {
+        // Both bypass variants forward the canonical `network=testnet`, so the
+        // downstream verifier sees exactly what the router whitelisted.
+        assert_eq!(
+            canonical_query("/meta?%6eetwork=testnet"),
+            "network=testnet"
+        );
+        assert_eq!(
+            canonical_query("/meta?network=%74estnet"),
+            "network=testnet"
+        );
+    }
+
+    #[test]
+    fn canonicalization_preserves_other_params() {
+        assert_eq!(
+            canonical_query("/voter/abc?network=testnet&slot=42"),
+            "network=testnet&slot=42"
+        );
+    }
+
+    #[test]
+    fn path_is_preserved() {
+        let (path, _) = split_path_and_query("/proof/vote_account/xyz?network=mainnet");
+        assert_eq!(path, "/proof/vote_account/xyz");
     }
 
     #[test]
