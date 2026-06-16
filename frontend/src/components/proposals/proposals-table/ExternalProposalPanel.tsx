@@ -12,12 +12,13 @@ import {
 } from "@/components/ui/tooltip";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { ProposalDescription } from "../ProposalDescription";
-import { ProposalRecord, ProposalStatus, WalletRole } from "@/types";
-import { useWalletRole } from "@/hooks";
+import { ProposalRecord, ProposalStatus } from "@/types";
+import { useChainVoteAccount, useWalletRole } from "@/hooks";
 import { SupportButton } from "../SupportButton";
 import { PublicKey } from "@solana/web3.js";
 import { toast } from "sonner";
 import { getProposalDetailPagePath } from "@/helpers/proposalPage";
+import { getVoteModalNames } from "@/lib/governance/role-detection";
 
 const VOTE_STATE_LABEL: Record<ProposalRecord["status"], string> = {
   supporting: "Supporting",
@@ -111,11 +112,16 @@ function VoteActions({
 }) {
   const { openModal } = useModal();
   const { publicKey } = useWallet();
-  const { walletRole } = useWalletRole(publicKey?.toBase58());
+  const { isLoading: isLoadingWalletRole } = useWalletRole(
+    publicKey?.toBase58()
+  );
+  const { data: chainVoteAccount, isLoading: isLoadingChainVoteAccount } =
+    useChainVoteAccount(publicKey?.toBase58());
 
-  const isValidator = walletRole === WalletRole.VALIDATOR;
-  const isStaker = walletRole === WalletRole.STAKER;
-  const isBoth = walletRole === WalletRole.BOTH;
+  const isLoadingVoteIdentity =
+    isLoadingWalletRole || isLoadingChainVoteAccount;
+  const { castModalName, modifyModalName } =
+    getVoteModalNames(chainVoteAccount);
 
   const isVoting = state === "voting";
 
@@ -127,19 +133,16 @@ function VoteActions({
             variant="outline"
             text="Modify Vote"
             className="w-full justify-center border-white/15 bg-white/10 text-sm font-medium text-white/75 hover:text-white"
-            disabled={disabled || consensusResult === undefined}
+            disabled={
+              disabled || consensusResult === undefined || isLoadingVoteIdentity
+            }
             onClick={() => {
               if (consensusResult && proposalId) {
-                if (isValidator || isBoth) {
-                  openModal("modify-vote", { proposalId, consensusResult });
-                } else if (isStaker) {
-                  openModal("modify-override-vote", {
-                    proposalId,
-                    consensusResult,
-                  });
-                } else {
-                  toast.error("Couldn't obtain consensus result");
-                }
+                openModal(modifyModalName, { proposalId, consensusResult });
+              } else if (isLoadingVoteIdentity) {
+                toast.error("Loading wallet voting identity");
+              } else {
+                toast.error("Couldn't obtain consensus result");
               }
             }}
           />
@@ -147,14 +150,14 @@ function VoteActions({
             variant="gradient"
             text="Cast Vote"
             className="w-full justify-center text-sm font-semibold text-foreground"
-            disabled={disabled || consensusResult === undefined}
+            disabled={
+              disabled || consensusResult === undefined || isLoadingVoteIdentity
+            }
             onClick={() => {
               if (consensusResult && proposalId) {
-                if (isValidator || isBoth) {
-                  openModal("cast-vote", { proposalId, consensusResult });
-                } else if (isStaker) {
-                  openModal("override-vote", { proposalId, consensusResult });
-                }
+                openModal(castModalName, { proposalId, consensusResult });
+              } else if (isLoadingVoteIdentity) {
+                toast.error("Loading wallet voting identity");
               } else {
                 toast.error("Couldn't obtain consensus result");
               }

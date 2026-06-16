@@ -7,12 +7,13 @@ import { AppButton } from "@/components/ui/AppButton";
 import LifecycleIndicator from "@/components/ui/LifecycleIndicator";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { useRouter } from "next/navigation";
-import { ModalType, useModal } from "@/contexts/ModalContext";
+import { useModal } from "@/contexts/ModalContext";
 import { motion } from "framer-motion";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useWalletRole } from "@/hooks";
+import { useChainVoteAccount, useWalletRole } from "@/hooks";
 import { toast } from "sonner";
 import { getProposalDetailPagePath } from "@/helpers/proposalPage";
+import { getVoteModalNames } from "@/lib/governance/role-detection";
 
 type ProposalStatus = ProposalRecord["status"];
 interface VotingDetailItem {
@@ -168,7 +169,11 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
   const { openModal } = useModal();
 
   const { publicKey: walletPubKey, connected } = useWallet();
-  const { walletRole } = useWalletRole(walletPubKey?.toBase58());
+  const { walletRole, isLoading: isLoadingWalletRole } = useWalletRole(
+    walletPubKey?.toBase58()
+  );
+  const { data: chainVoteAccount, isLoading: isLoadingChainVoteAccount } =
+    useChainVoteAccount(walletPubKey?.toBase58());
 
   const {
     status,
@@ -190,14 +195,10 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
     { label: "Voting Ends", value: votingStatusValue },
   ];
 
-  const isStaker = walletRole === WalletRole.STAKER;
-
-  let castModalName: ModalType = "cast-vote";
-  let modifyModalName: ModalType = "modify-vote";
-  if (isStaker) {
-    castModalName = "override-vote";
-    modifyModalName = "modify-override-vote";
-  }
+  const isLoadingVoteIdentity =
+    isLoadingWalletRole || isLoadingChainVoteAccount;
+  const { castModalName, modifyModalName } =
+    getVoteModalNames(chainVoteAccount);
 
   const handleCardClick = () => {
     router.push(getProposalDetailPagePath(publicKey));
@@ -211,6 +212,10 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
       toast.error(
         "Wallet not connected, please connect your wallet to be able to perform these actions",
       );
+      return;
+    }
+    if (isLoadingVoteIdentity) {
+      toast.error("Loading wallet voting identity");
       return;
     }
 
@@ -238,16 +243,20 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
 
   const disabledActionButtons =
     !connected ||
+    isLoadingVoteIdentity ||
     (walletRole === WalletRole.STAKER && proposal.status === "supporting");
 
   let disabledErrorMessage = "";
-  if (walletRole === WalletRole.STAKER && proposal.status === "supporting") {
-    disabledErrorMessage = "Only validators are allowed to support";
-  }
-
   if (!connected) {
     disabledErrorMessage =
       "Wallet not connected, please connect your wallet to be able to perform these actions";
+  } else if (isLoadingVoteIdentity) {
+    disabledErrorMessage = "Loading wallet voting identity";
+  } else if (
+    walletRole === WalletRole.STAKER &&
+    proposal.status === "supporting"
+  ) {
+    disabledErrorMessage = "Only validators are allowed to support";
   }
 
   return (

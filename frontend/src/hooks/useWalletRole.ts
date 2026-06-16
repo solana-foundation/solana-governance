@@ -22,9 +22,13 @@ export function useWalletRole(
     "staker"
   );
 
-  const { data, isLoading } = useVoterWalletSummary(userPubKey);
+  const { data, isLoading: isLoadingWalletSummary } =
+    useVoterWalletSummary(userPubKey);
 
-  const { data: chainVoteAccount } = useChainVoteAccount(userPubKey);
+  const { data: chainVoteAccount, isLoading: isLoadingChainVoteAccount } =
+    useChainVoteAccount(userPubKey);
+
+  const isLoading = isLoadingWalletSummary || isLoadingChainVoteAccount;
 
   useEffect(() => {
     if (isLoading || data === undefined) return;
@@ -32,7 +36,7 @@ export function useWalletRole(
     const role = determineWalletRole(
       data.stake_accounts,
       data.vote_accounts,
-      chainVoteAccount || undefined
+      chainVoteAccount
     );
 
     setWalletRole(role);
