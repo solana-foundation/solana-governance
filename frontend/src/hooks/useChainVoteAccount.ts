@@ -6,11 +6,16 @@ import { useChainVoteAccounts } from "./useChainVoteAccounts";
 export const useChainVoteAccount = (userPubKey: string | undefined) => {
   const { endpointUrl: endpoint } = useEndpoint();
 
-  const { data: chainVoteAccounts = [] } = useChainVoteAccounts();
+  const {
+    data: chainVoteAccounts = [],
+    isLoading: isLoadingChainVoteAccounts,
+    isPending: isPendingChainVoteAccounts,
+  } = useChainVoteAccounts();
 
-  const enabled = !!userPubKey && chainVoteAccounts.length > 0;
+  const enabled =
+    !!userPubKey && !isLoadingChainVoteAccounts && !isPendingChainVoteAccounts;
 
-  return useQuery({
+  const query = useQuery({
     staleTime: 1000 * 120, // 2 minutes
     enabled,
     queryKey: [
@@ -27,4 +32,13 @@ export const useChainVoteAccount = (userPubKey: string | undefined) => {
       return chainVoteAccount || null;
     },
   });
+
+  const isWaitingForChainVoteAccounts =
+    !!userPubKey && (isLoadingChainVoteAccounts || isPendingChainVoteAccounts);
+
+  return {
+    ...query,
+    isLoading: isWaitingForChainVoteAccounts || query.isLoading,
+    isPending: isWaitingForChainVoteAccounts || query.isPending,
+  };
 };

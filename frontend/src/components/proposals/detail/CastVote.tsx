@@ -1,7 +1,7 @@
 "use client";
 
 import { AppButton } from "@/components/ui/AppButton";
-import { ModalType, useModal } from "@/contexts/ModalContext";
+import { useModal } from "@/contexts/ModalContext";
 import { PublicKey } from "@solana/web3.js";
 import { Ban, ThumbsDown, ThumbsUp } from "lucide-react";
 
@@ -11,9 +11,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ProposalRecord, WalletRole } from "@/types";
-import { useHasUserVoted, useWalletRole } from "@/hooks";
+import { ProposalRecord } from "@/types";
+import { useChainVoteAccount, useHasUserVoted, useWalletRole } from "@/hooks";
 import { toast } from "sonner";
+import { getVoteModalNames } from "@/lib/governance/role-detection";
 
 interface CastVoteProps {
   proposalPublicKey: PublicKey | undefined;
@@ -50,24 +51,27 @@ function CastVote({
 }: CastVoteProps) {
   const { openModal } = useModal();
   const { publicKey } = useWallet();
-  const { walletRole } = useWalletRole(publicKey?.toBase58());
-
-  const isStaker = walletRole === WalletRole.STAKER;
-
-  let modalName: ModalType = "cast-vote";
-  if (isStaker) {
-    modalName = "override-vote";
-  }
+  const { isLoading: isLoadingWalletRole } = useWalletRole(
+    publicKey?.toBase58()
+  );
+  const { data: chainVoteAccount, isLoading: isLoadingChainVoteAccount } =
+    useChainVoteAccount(publicKey?.toBase58());
+  const { castModalName } = getVoteModalNames(chainVoteAccount);
 
   const { data: hasUserVoted = false, isLoading: isLoadingHasUserVoted } =
     useHasUserVoted(proposalPublicKey?.toBase58());
 
   const disabledButtons =
-    disabled || !proposalPublicKey || isLoadingHasUserVoted || hasUserVoted;
+    disabled ||
+    !proposalPublicKey ||
+    isLoadingWalletRole ||
+    isLoadingChainVoteAccount ||
+    isLoadingHasUserVoted ||
+    hasUserVoted;
 
   const handleVoteFor = () => {
     if (proposalPublicKey && consensusResult) {
-      openModal(modalName, {
+      openModal(castModalName, {
         consensusResult,
         proposalId: proposalPublicKey.toBase58(),
         initialVoteDist: { for: 100, abstain: 0, against: 0 },
@@ -76,7 +80,7 @@ function CastVote({
   };
   const handleVoteAgainst = () => {
     if (proposalPublicKey && consensusResult) {
-      openModal(modalName, {
+      openModal(castModalName, {
         consensusResult,
         proposalId: proposalPublicKey.toBase58(),
         initialVoteDist: { against: 100, for: 0, abstain: 0 },
@@ -85,7 +89,7 @@ function CastVote({
   };
   const handleVoteAbstain = () => {
     if (proposalPublicKey && consensusResult) {
-      openModal(modalName, {
+      openModal(castModalName, {
         consensusResult,
         proposalId: proposalPublicKey.toBase58(),
         initialVoteDist: { abstain: 100, for: 0, against: 0 },

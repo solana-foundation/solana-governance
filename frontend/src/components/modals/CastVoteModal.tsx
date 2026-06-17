@@ -208,7 +208,7 @@ export function CastVoteModal({
               />
 
               {/* Voting Info */}
-              <div className="rounded-lg bg-white/5 p-4">
+              <div className="space-y-4 rounded-lg bg-white/5 p-4">
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-xs text-foreground sm:text-sm">
                     {formatAddress(wallet?.publicKey?.toBase58() || "", 6)}
@@ -226,6 +226,12 @@ export function CastVoteModal({
                       </p>
                     )}
                   </div>
+                </div>
+                <div className="border-t border-white/10 pt-4">
+                  <p className="text-xs text-white/60">Vote path</p>
+                  <p className="text-sm font-semibold text-foreground">
+                    Validator vote
+                  </p>
                 </div>
               </div>
               <VoteDistributionControls

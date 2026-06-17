@@ -13,6 +13,7 @@ import ErrorMessage from "./shared/ErrorMessage";
 import { VoteDistributionControls } from "./shared/VoteDistributionControls";
 import {
   useCastVoteOverride,
+  useChainVoteAccount,
   useWalletStakeAccounts,
   useVoteDistribution,
   useWalletRole,
@@ -28,6 +29,8 @@ import { PublicKey } from "@solana/web3.js";
 import { VotingProposalsDropdown } from "../VotingProposalsDropdown";
 import { StakeAccountsDropdown } from "../StakeAccountsDropdown";
 import { captureException } from "@sentry/nextjs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { hasOnChainValidatorIdentity } from "@/lib/governance/role-detection";
 
 export type OverrideVoteModalDataProps =
   | {
@@ -89,6 +92,10 @@ export function OverrideVoteModal({
   >(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  const [
+    hasConfirmedValidatorOverride,
+    setHasConfirmedValidatorOverride,
+  ] = useState(false);
   const {
     distribution,
     totalPercentage,
@@ -103,6 +110,8 @@ export function OverrideVoteModal({
   const { data: stakeAccounts } = useWalletStakeAccounts(
     wallet?.publicKey?.toBase58()
   );
+  const { data: chainVoteAccount, isLoading: isLoadingChainVoteAccount } =
+    useChainVoteAccount(wallet?.publicKey?.toBase58());
   const voteOverrideFilters = buildVoteOverrideFilters(
     selectedProposal.id,
     wallet?.publicKey ?? null
@@ -116,11 +125,14 @@ export function OverrideVoteModal({
   const { mutate: castVoteOverride } = useCastVoteOverride();
 
   const isValidStakeAccount = selectedStakeAccount !== undefined;
+  const hasValidatorIdentity = hasOnChainValidatorIdentity(chainVoteAccount);
+  const requiresValidatorOverrideConfirmation = hasValidatorIdentity;
 
   useEffect(() => {
     if (isOpen) {
       setSelectedProposal({ id: initialProposalId, consensusResult });
       setSelectedStakeAccount(undefined);
+      setHasConfirmedValidatorOverride(false);
       resetDistribution();
       setError(undefined);
     }
@@ -163,6 +175,19 @@ export function OverrideVoteModal({
       setIsLoading(false);
       return;
     }
+    if (isLoadingChainVoteAccount) {
+      toast.error("Loading wallet voting identity");
+      setIsLoading(false);
+      return;
+    }
+    if (
+      requiresValidatorOverrideConfirmation &&
+      !hasConfirmedValidatorOverride
+    ) {
+      toast.error("Confirm the stake override vote path before signing");
+      setIsLoading(false);
+      return;
+    }
 
     if (
       walletRole === WalletRole.NONE ||
@@ -170,6 +195,7 @@ export function OverrideVoteModal({
       walletRole === WalletRole.BOTH
     ) {
       toast.error("You are not authorized to override vote");
+      setIsLoading(false);
     } else if (walletRole === WalletRole.STAKER) {
       if (stakeAccounts === undefined) {
         toast.error("No stake accounts found");
@@ -237,6 +263,7 @@ export function OverrideVoteModal({
   const handleClose = () => {
     setSelectedProposal({ id: undefined, consensusResult: undefined });
     setSelectedStakeAccount("");
+    setHasConfirmedValidatorOverride(false);
     resetDistribution();
     setError(undefined);
     onClose();
@@ -268,6 +295,13 @@ export function OverrideVoteModal({
                 onValueChange={handleProposalChange}
                 disabled={!!initialProposalId}
               />
+
+              <div className="rounded-lg bg-white/5 p-4">
+                <p className="text-xs text-white/60">Vote path</p>
+                <p className="text-sm font-semibold text-foreground">
+                  Stake override
+                </p>
+              </div>
 
               {/* Stake Account Selection */}
               <div className="space-y-3">
@@ -302,6 +336,34 @@ export function OverrideVoteModal({
                 className="space-y-3"
               />
 
+              {hasValidatorIdentity && (
+                <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 p-4">
+                  <label
+                    htmlFor="validator-override-confirmation"
+                    className="flex items-start gap-3"
+                  >
+                    <Checkbox
+                      id="validator-override-confirmation"
+                      className="mt-0.5"
+                      checked={hasConfirmedValidatorOverride}
+                      onCheckedChange={(checked) =>
+                        setHasConfirmedValidatorOverride(checked === true)
+                      }
+                    />
+                    <span className="block space-y-1">
+                      <span className="block text-sm font-semibold text-foreground">
+                        Submit stake override instead of validator vote
+                      </span>
+                      <span className="block text-xs leading-5 text-white/70">
+                        This wallet has an on-chain validator vote account. This
+                        transaction uses only the override weight for the
+                        selected stake account.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              )}
+
               {/* Error Message */}
               {error && <ErrorMessage error={error} />}
             </form>
@@ -323,6 +385,9 @@ export function OverrideVoteModal({
               !selectedProposal.id ||
               !isValidDistribution ||
               !isValidStakeAccount ||
+              isLoadingChainVoteAccount ||
+              (requiresValidatorOverrideConfirmation &&
+                !hasConfirmedValidatorOverride) ||
               isLoading
             }
             onClick={handleSubmit}
