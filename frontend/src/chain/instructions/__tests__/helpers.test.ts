@@ -44,8 +44,9 @@ describe("computeProofCloseTimestamp", () => {
     const ts = await computeProofCloseTimestamp(connection, 102);
 
     // epochStartSlot = 400_000; targetSlot = 400_000 + 2 * 432_000 = 1_264_000
-    // slotDelta = 1_264_000 - 500_000 = 764_000; 764_000 * 400 / 1000 = 305_600
-    expect(ts).toBe(1_700_305_600);
+    // slotDelta = 1_264_000 - 500_000 = 764_000; projected = 764_000 * 400 / 1000 = 305_600
+    // buffer = max(305_600 * 20 / 100, 3600) = 61_120; result = 305_600 + 61_120 = 366_720
+    expect(ts).toBe(1_700_366_720);
 
     // Security regression guard: the shipped frontend used to hard-code 1, which made the proof
     // permissionlessly closable immediately. The fix must produce the real vote-expiry instant.
@@ -69,7 +70,8 @@ describe("computeProofCloseTimestamp", () => {
     expect(getBlockTime).toHaveBeenNthCalledWith(1, 500_000);
     expect(getBlockTime).toHaveBeenNthCalledWith(2, 499_999);
     // refSlot = 499_999; slotDelta = 1_264_000 - 499_999 = 764_001; *400/1000 = 305_600.4 -> 305_600
-    expect(ts).toBe(1_700_305_600);
+    // buffer = max(305_600 * 20 / 100, 3600) = 61_120; result = 305_600 + 61_120 = 366_720
+    expect(ts).toBe(1_700_366_720);
   });
 
   it("returns a past timestamp once voting has already ended (allows immediate permissionless close)", async () => {
@@ -87,6 +89,7 @@ describe("computeProofCloseTimestamp", () => {
 
     // epochStartSlot = 950_000; targetSlot = 950_000 - 432_000 = 518_000
     // slotDelta = 518_000 - 1_000_000 = -482_000; -482_000 * 400 / 1000 = -192_800
+    // projected <= 0, so no buffer is added and the result stays in the past (immediately closable)
     expect(ts).toBe(1_699_807_200);
     expect(ts).toBeLessThan(1_700_000_000);
   });

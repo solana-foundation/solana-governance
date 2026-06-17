@@ -219,6 +219,10 @@ export function getMetaMerkleProofPda(
 // Milliseconds per slot (matches solana_sdk::clock::DEFAULT_MS_PER_SLOT and the svmgov CLI's
 // compute_vote_expiry_timestamp).
 const MS_PER_SLOT = 400;
+// Buffer added to forward-looking estimates so a slower-than-400ms network can't make the proof
+// closable before voting truly ends. Matches the svmgov CLI's compute_vote_expiry_timestamp.
+const BUFFER_PCT = 20; // tolerate an average of ~480ms/slot over the projection
+const MIN_BUFFER_SECONDS = 3600; // floor for proposals ending near an epoch boundary
 
 /**
  * Estimate the Unix timestamp (in seconds) at which voting expires for a proposal — i.e. the
@@ -232,6 +236,13 @@ const MS_PER_SLOT = 400;
  * it: anchor to a recent confirmed block time and project forward to the start of `endEpoch` at
  * ~400ms/slot. If voting has already ended the result is in the past, which correctly allows
  * immediate permissionless close.
+ *
+ * The 400ms/slot projection assumes default slot times. When slots run slower the chain reaches
+ * `endEpoch` later than estimated, so a bare estimate can land before voting ends and let the
+ * proof be closed too soon. To stay safe we add a buffer to forward-looking estimates — a
+ * percentage of the projected window (the error grows with distance to `endEpoch`) with a fixed
+ * floor — but never to already-expired proposals, which keep a past timestamp and stay
+ * immediately closable.
  */
 export async function computeProofCloseTimestamp(
   connection: Connection,
@@ -254,7 +265,16 @@ export async function computeProofCloseTimestamp(
 
   // Math.trunc (toward zero) matches Rust's i64 integer division in the CLI helper, so an
   // already-expired proposal yields the same past timestamp in both code paths.
-  return refTime + Math.trunc((slotDelta * MS_PER_SLOT) / 1000);
+  const projectedSecs = Math.trunc((slotDelta * MS_PER_SLOT) / 1000);
+  const buffer =
+    projectedSecs > 0
+      ? Math.max(
+          Math.trunc((projectedSecs * BUFFER_PCT) / 100),
+          MIN_BUFFER_SECONDS
+        )
+      : 0;
+
+  return refTime + projectedSecs + buffer;
 }
 
 /**
