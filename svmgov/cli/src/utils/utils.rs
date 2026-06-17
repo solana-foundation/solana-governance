@@ -448,11 +448,22 @@ pub async fn fetch_global_config(program: &Program<Arc<Keypair>>) -> Result<Glob
 /// estimates it: anchor to a recent confirmed block time and project forward to the start of
 /// `end_epoch` at ~400ms/slot. If voting has already ended the result is in the past, which
 /// correctly allows immediate permissionless close.
+///
+/// The 400ms/slot projection assumes the network runs at the default slot time. When slots are
+/// slower the chain reaches `end_epoch` later in wall-clock time than estimated, so a bare
+/// estimate can land before voting truly ends and let the proof be closed too soon. To stay on
+/// the safe side we add a buffer to forward-looking estimates: a percentage of the projected
+/// window (the error grows with distance to `end_epoch`) with a fixed floor (so proposals
+/// ending near an epoch boundary still get a meaningful grace window). The buffer is only added
+/// when projecting into the future — already-expired proposals keep a past timestamp and stay
+/// immediately closable.
 pub async fn compute_vote_expiry_timestamp(
     program: &Program<Arc<Keypair>>,
     end_epoch: u64,
 ) -> Result<i64> {
     const MS_PER_SLOT: i64 = 400; // solana_sdk::clock::DEFAULT_MS_PER_SLOT
+    const BUFFER_PCT: i64 = 20; // tolerate an average of ~480ms/slot over the projection
+    const MIN_BUFFER_SECONDS: i64 = 3600; // floor for proposals ending near an epoch boundary
 
     let rpc = program.rpc();
 
@@ -473,7 +484,14 @@ pub async fn compute_vote_expiry_timestamp(
     let (ref_slot, ref_time) = block_time_at_or_before(&rpc, info.absolute_slot).await?;
     let slot_delta = target_slot - ref_slot as i64;
 
-    Ok(ref_time + slot_delta * MS_PER_SLOT / 1000)
+    let projected_secs = slot_delta * MS_PER_SLOT / 1000;
+    let buffer = if projected_secs > 0 {
+        std::cmp::max(projected_secs * BUFFER_PCT / 100, MIN_BUFFER_SECONDS)
+    } else {
+        0
+    };
+
+    Ok(ref_time + projected_secs + buffer)
 }
 
 /// Fetch a block time at or before `slot`, walking backwards over skipped slots (which have no
@@ -483,8 +501,10 @@ async fn block_time_at_or_before(rpc: &RpcClient, slot: u64) -> Result<(u64, i64
     const MAX_ATTEMPTS: u32 = 8;
 
     let mut slot = slot;
+    let mut last_tried = slot;
     let mut last_err = None;
     for _ in 0..MAX_ATTEMPTS {
+        last_tried = slot;
         match rpc.get_block_time(slot).await {
             Ok(time) => return Ok((slot, time)),
             Err(e) => {
@@ -497,7 +517,7 @@ async fn block_time_at_or_before(rpc: &RpcClient, slot: u64) -> Result<(u64, i64
     Err(anyhow!(
         "Failed to fetch a recent block time (tried {} slots ending at {}): {}",
         MAX_ATTEMPTS,
-        slot,
+        last_tried,
         last_err.unwrap_or_else(|| "unknown error".to_string())
     ))
 }
