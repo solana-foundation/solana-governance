@@ -149,6 +149,16 @@ async fn index_snapshot_data(
     // Begin transaction for atomic indexing
     let mut tx = pool.begin().await?;
 
+    // Treat a same-slot reupload as a full replacement, not a merge. Clear any
+    // rows left by a previous upload of this `(network, slot)` before
+    // repopulating, so accounts that are omitted from the new snapshot cannot
+    // survive. Without this, an upsert-only path leaves stale rows behind while
+    // `snapshot_meta` advertises the new `snapshot_hash`, yielding a hybrid
+    // snapshot where `/meta` and `/proof`/`/voter` disagree. The deletes and
+    // inserts share one transaction, so readers never observe a partial state.
+    VoteAccountRecord::delete_by_slot(&mut *tx, network, snapshot.slot).await?;
+    StakeAccountRecord::delete_by_slot(&mut *tx, network, snapshot.slot).await?;
+
     // Index vote accounts and stake accounts
     for (bundle_idx, bundle) in snapshot.leaf_bundles.iter().enumerate() {
         if bundle_idx % 100 == 0 {

@@ -37,6 +37,24 @@ impl VoteAccountRecord {
         Ok(())
     }
 
+    /// Delete every vote account row for a given `(network, slot)`.
+    ///
+    /// Used to fully replace a slot's rows when it is reindexed, so accounts
+    /// that are omitted from a same-slot reupload cannot survive and produce a
+    /// hybrid snapshot.
+    pub async fn delete_by_slot<'e, E>(exec: E, network: &str, snapshot_slot: u64) -> Result<()>
+    where
+        E: Executor<'e, Database = Sqlite>,
+    {
+        sqlx::query("DELETE FROM vote_accounts WHERE network = ? AND snapshot_slot = ?")
+            .bind(network)
+            .bind(i64::try_from(snapshot_slot)?)
+            .execute(exec)
+            .await?;
+
+        Ok(())
+    }
+
     /// Get vote account summaries filtered by voting wallet
     pub async fn get_summary_by_voting_wallet(
         pool: &SqlitePool,
@@ -126,6 +144,24 @@ impl StakeAccountRecord {
         .bind(serde_json::to_string(&self.stake_merkle_proof)?)
         .execute(exec)
         .await?;
+
+        Ok(())
+    }
+
+    /// Delete every stake account row for a given `(network, slot)`.
+    ///
+    /// Used to fully replace a slot's rows when it is reindexed, so accounts
+    /// that are omitted from a same-slot reupload cannot survive and produce a
+    /// hybrid snapshot.
+    pub async fn delete_by_slot<'e, E>(exec: E, network: &str, snapshot_slot: u64) -> Result<()>
+    where
+        E: Executor<'e, Database = Sqlite>,
+    {
+        sqlx::query("DELETE FROM stake_accounts WHERE network = ? AND snapshot_slot = ?")
+            .bind(network)
+            .bind(i64::try_from(snapshot_slot)?)
+            .execute(exec)
+            .await?;
 
         Ok(())
     }
