@@ -206,10 +206,9 @@ fn handle_request(state: Arc<RouterState>, request: tiny_http::Request) {
 
     let chosen = ok_verifiers.choose(&mut rng).unwrap();
 
-    let mut target = chosen.domain.clone();
-    if !target.ends_with('/') {
-        target.push('/');
-    }
+    // Build the upstream base from the same canonical form used for de-duplication,
+    // so the routing identity is consistent end to end.
+    let mut target = canonical_domain(&chosen.domain);
 
     let relative_path = path.trim_start_matches('/');
     target.push_str(relative_path);
@@ -315,17 +314,31 @@ fn split_path_and_query(url: &str) -> (&str, Vec<(String, String)>) {
     (path, pairs)
 }
 
+/// Canonical routing identity for a verifier origin. The router redirects to
+/// `domain` after ensuring a trailing slash, so `http://x` and `http://x/`
+/// resolve to the same upstream. Using this as the de-dup key (and to build the
+/// redirect target) keeps the routing identity consistent and prevents slash
+/// variants from surviving as separate tickets that collapse to one upstream.
+fn canonical_domain(domain: &str) -> String {
+    if domain.ends_with('/') {
+        domain.to_string()
+    } else {
+        format!("{}/", domain)
+    }
+}
+
 /// Select the verifiers eligible for routing: `status == "ok"`, de-duplicated by
-/// `domain`. The whitelist is sampled uniformly, so a single origin appearing in
-/// multiple rows would otherwise be sampled as extra routing tickets. Keeping one
-/// row per domain enforces "one ticket per origin" at the sampling site,
-/// independent of how the whitelist file was produced.
+/// canonical domain. The whitelist is sampled uniformly, so a single origin
+/// appearing in multiple rows would otherwise be sampled as extra routing
+/// tickets. Keeping one row per canonical origin enforces "one ticket per
+/// origin" at the sampling site, independent of how the whitelist file was
+/// produced and regardless of trailing-slash variants.
 fn select_routable_verifiers(verifiers: &[WhitelistVerifier]) -> Vec<&WhitelistVerifier> {
-    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     verifiers
         .iter()
         .filter(|v| v.status == "ok")
-        .filter(|v| seen.insert(v.domain.as_str()))
+        .filter(|v| seen.insert(canonical_domain(&v.domain)))
         .collect()
 }
 
@@ -576,5 +589,25 @@ mod tests {
         let routable = select_routable_verifiers(&verifiers);
         assert_eq!(routable.len(), 1);
         assert_eq!(routable[0].domain, "http://a");
+    }
+
+    #[test]
+    fn routable_verifiers_dedupe_trailing_slash_variants() {
+        // `http://evil` and `http://evil/` redirect to the same upstream, so they
+        // must not survive as two separate routing tickets.
+        let verifiers = vec![
+            verifier("evil", "http://evil", "ok"),
+            verifier("evil-slash", "http://evil/", "ok"),
+            verifier("honest", "http://good/", "ok"),
+        ];
+        let routable = select_routable_verifiers(&verifiers);
+        assert_eq!(routable.len(), 2);
+        assert_eq!(
+            routable
+                .iter()
+                .filter(|v| canonical_domain(&v.domain) == "http://evil/")
+                .count(),
+            1
+        );
     }
 }
