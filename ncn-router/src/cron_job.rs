@@ -371,24 +371,41 @@ fn compare_with_chain(
     Ok(())
 }
 
-/// Keep one canonical whitelist record per verifier origin (`domain`).
+/// Canonical routing identity for a verifier origin. `ncn-router` redirects to
+/// `domain` after ensuring a trailing slash, so `http://x` and `http://x/`
+/// resolve to the same upstream. De-duplicating on this canonical form (rather
+/// than the raw string) prevents slash variants from surviving as separate
+/// whitelist rows that the router would later collapse to one upstream — i.e.
+/// extra routing tickets for a single origin. Matches `canonical_domain` in
+/// `ncn-router`'s `router.rs`.
+fn canonical_domain(domain: &str) -> String {
+    if domain.ends_with('/') {
+        domain.to_string()
+    } else {
+        format!("{}/", domain)
+    }
+}
+
+/// Keep one canonical whitelist record per verifier origin (canonical `domain`).
 ///
-/// When a domain appears more than once (e.g. it is listed twice in the config),
-/// an `ok` record is preferred over a non-`ok` one so a transient failure on one
-/// poll cannot shadow a successful poll for the same origin. Among records of the
-/// same rank the first occurrence wins, which keeps the output deterministic in
-/// config order. This still collapses each origin to a single row, so a verifier
-/// can never hold extra routing tickets — it just avoids demoting an origin that
-/// did verify successfully. Mirrors the `status == "ok"`-first selection in
-/// `ncn-router`'s `select_routable_verifiers`.
+/// When a domain appears more than once (e.g. it is listed twice in the config,
+/// possibly with trailing-slash variants), an `ok` record is preferred over a
+/// non-`ok` one so a transient failure on one poll cannot shadow a successful
+/// poll for the same origin. Among records of the same rank the first occurrence
+/// wins, which keeps the output deterministic in config order. This still
+/// collapses each origin to a single row, so a verifier can never hold extra
+/// routing tickets — it just avoids demoting an origin that did verify
+/// successfully. Mirrors the `status == "ok"`-first selection in `ncn-router`'s
+/// `select_routable_verifiers`.
 fn dedupe_verifiers_by_domain(verifiers: Vec<WhitelistVerifier>) -> Vec<WhitelistVerifier> {
     let mut index_by_domain: std::collections::HashMap<String, usize> =
         std::collections::HashMap::new();
     let mut deduped: Vec<WhitelistVerifier> = Vec::new();
     for verifier in verifiers {
-        match index_by_domain.get(&verifier.domain) {
+        let key = canonical_domain(&verifier.domain);
+        match index_by_domain.get(&key) {
             None => {
-                index_by_domain.insert(verifier.domain.clone(), deduped.len());
+                index_by_domain.insert(key, deduped.len());
                 deduped.push(verifier);
             }
             Some(&idx) => {
@@ -686,5 +703,26 @@ mod tests {
         assert_eq!(dup.status, "ok");
         assert_eq!(dup.name, "succeeded");
         assert_eq!(deduped[0].domain, "http://dup");
+    }
+
+    #[test]
+    fn dedupe_collapses_trailing_slash_domain_variants() {
+        // `http://evil` and `http://evil/` resolve to the same upstream in the
+        // router, so they must collapse to a single whitelist row even though the
+        // raw strings differ.
+        let verifiers = vec![
+            verifier("evil", "http://evil", "ok"),
+            verifier("evil-slash", "http://evil/", "ok"),
+            verifier("other", "http://other", "ok"),
+        ];
+        let deduped = dedupe_verifiers_by_domain(verifiers);
+        assert_eq!(deduped.len(), 2);
+        assert_eq!(
+            deduped
+                .iter()
+                .filter(|v| canonical_domain(&v.domain) == "http://evil/")
+                .count(),
+            1
+        );
     }
 }
