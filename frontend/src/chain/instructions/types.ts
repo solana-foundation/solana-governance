@@ -54,7 +54,6 @@ export interface CastVoteOverrideParams {
   abstainVotesBp: number;
   stakeAccount: string;
   wallet: AnchorWallet | undefined;
-  voteAccount: string;
   consensusResult: PublicKey;
 }
 
@@ -65,7 +64,6 @@ export interface ModifyVoteOverrideParams {
   abstainVotesBp: number;
   stakeAccount: string;
   wallet: AnchorWallet | undefined;
-  voteAccount: string;
   consensusResult: PublicKey;
 }
 
@@ -123,6 +121,13 @@ export interface StakeAccountProofResponse {
   stake_merkle_proof: string[];
   network: string;
   snapshot_slot: number;
+  /**
+   * The validator vote account this stake was delegated to AT SNAPSHOT TIME. This is the
+   * authoritative vote account for an override vote: pairing the stake proof with the live
+   * on-chain delegation instead breaks for redelegated stake. Sourced from the meta leaf at
+   * snapshot upload time by the verifier service.
+   */
+  vote_account: string;
 }
 
 export interface ChainVoteAccountData {

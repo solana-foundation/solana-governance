@@ -205,20 +205,15 @@ export function OverrideVoteModal({
 
       const stakeAccount = selectedStakeAccount;
 
-      const voteAccount = stakeAccounts.find(
-        (sa) => sa.stakeAccount === stakeAccount
-      )?.voteAccount;
-
       if (stakeAccount === undefined) {
         toast.error("Not able to determine stake account");
         setIsLoading(false);
         return;
       }
-      if (voteAccount === undefined) {
-        toast.error("Not able to determine vote account");
-        return;
-      }
 
+      // The validator vote account is derived server-side from the stake proof's snapshot
+      // delegation inside castVoteOverride, not from the live on-chain delegation, so a
+      // redelegated stake account can still override using its snapshot-time validator.
       castVoteOverride(
         {
           wallet,
@@ -227,7 +222,6 @@ export function OverrideVoteModal({
           againstVotesBp: voteDistribution.against * 100,
           abstainVotesBp: voteDistribution.abstain * 100,
           stakeAccount,
-          voteAccount,
           consensusResult: selectedProposal.consensusResult,
         },
         {
