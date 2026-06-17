@@ -331,9 +331,9 @@ Permissionless. Marks a proposal as finalized after its voting period ends.
 
 ### `flush_merkle_root`
 
-Resets the `consensus_result` on a proposal by recalculating the snapshot slot and creating a new `BallotBox`. Used when the snapshot needs to be refreshed.
+Admin-only recovery instruction. Re-anchors a supported proposal's snapshot/voting window forward off the current epoch (`current_epoch + snapshot_epoch_extension`), recomputing the `snapshot_slot` and `consensus_result` and creating a new `BallotBox`. Used when an NCN snapshot fails to reach consensus and the proposal must be rescheduled to allow a fresh snapshot. Only callable before voting starts (`clock.epoch < start_epoch`); gating it to the admin prevents an individual proposer from postponing their own vote.
 
-**Signer:** proposal author only
+**Signer:** program admin only (`global_config.admin`)
 
 ---
 
@@ -365,7 +365,7 @@ Resets the `consensus_result` on a proposal by recalculating the snapshot slot a
 | `InvalidStakeState` | Stake account in unexpected state |
 | `InvalidStakeAccountSize` | Stake account has unexpected size |
 | `InvalidSnapshotProgram` | Provided program ID is not the ncn-snapshot program |
-| `UnauthorizedMerkleRootUpdate` | Only the proposal author can flush Merkle root |
+| `UnauthorizedAdmin` | Only the program admin (`global_config.admin`) can call `flush_merkle_root` |
 | `MerkleRootAlreadySet` | Cannot set Merkle root that is already set |
 | `InvalidMerkleRoot` | Merkle root cannot be all zeros |
 | `InvalidSnapshotSlot` | Snapshot slot must be past or current |

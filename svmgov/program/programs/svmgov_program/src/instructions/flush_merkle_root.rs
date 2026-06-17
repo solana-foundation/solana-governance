@@ -1,26 +1,29 @@
 use anchor_lang::{prelude::*, solana_program::vote};
 
 use crate::{
-    error::GovernanceError, events::MerkleRootFlushed, state::{GlobalConfig, Proposal},
+    error::GovernanceError,
+    events::MerkleRootFlushed,
+    state::{GlobalConfig, Proposal},
     utils::compute_future_snapshot_slot,
 };
 
 #[derive(Accounts)]
 pub struct FlushMerkleRoot<'info> {
-    #[account(mut)]
-    pub signer: Signer<'info>, // Proposal author
     #[account(
         mut,
-        constraint = proposal.author == signer.key() @ GovernanceError::Unauthorized,
+        constraint = signer.key() == global_config.admin @ GovernanceError::UnauthorizedAdmin,
+    )]
+    pub signer: Signer<'info>, // must equal global_config.admin (NCN-operator multisig)
+    #[account(
+        mut,
         constraint = !proposal.finalized @ GovernanceError::ProposalFinalized,
     )]
     pub proposal: Account<'info, Proposal>,
-    /// CHECK: Owner == vote program is enforced here. Signer-to-vote-account
-    /// binding is transitive: signer must equal proposal.author (constrained above),
-    /// and the author already proved node_pubkey ownership of
-    /// proposal.vote_account_pubkey at create_proposal time. If the caller passes
-    /// a different spl_vote_account, the init_ballot_box CPI's PDA seed check
-    /// rejects it.
+    /// CHECK: Owner == vote program is enforced here. The spl_vote_account is bound
+    /// to the proposal by the init_ballot_box CPI's PDA seed check, which re-derives
+    /// [b"proposal", proposal_seed, spl_vote_account] against the signing proposal
+    /// PDA. A mismatched vote account is therefore rejected regardless of who signs
+    /// this instruction (the signer is the admin, not necessarily the author).
     #[account(
         constraint = spl_vote_account.owner == &vote::program::ID @ ProgramError::InvalidAccountOwner,
     )]
@@ -68,9 +71,15 @@ impl<'info> FlushMerkleRoot<'info> {
             GovernanceError::ConsensusResultNotSet
         );
 
-        // Recalculate snapshot_slot based on current epoch
-        // Using the same logic as in support_proposal
-        let target_epoch = clock.epoch + self.global_config.snapshot_epoch_extension;
+        // This is an admin-only recovery path: the signer is constrained to
+        // global_config.admin (the NCN-operator multisig). Re-anchor the
+        // snapshot/voting window forward off the *current* epoch so a proposal whose
+        // NCN snapshot failed to reach consensus can be rescheduled far enough ahead
+        // for operators to re-snapshot and re-run consensus.
+        let target_epoch = clock
+            .epoch
+            .checked_add(self.global_config.snapshot_epoch_extension)
+            .ok_or(GovernanceError::ArithmeticOverflow)?;
         // SECURITY: enforce the future-slot invariant *before* mutating any proposal
         // state. `init_ballot_box` below is skipped whenever `ballot_box` already
         // exists, so this is the only place the `snapshot_slot > clock.slot` guard is
@@ -104,8 +113,13 @@ impl<'info> FlushMerkleRoot<'info> {
         // All validation passed; commit the recomputed lineage.
         self.proposal.snapshot_slot = snapshot_slot;
         // start voting 1 epoch after snapshot
-        self.proposal.start_epoch = target_epoch + 1;
-        self.proposal.end_epoch = target_epoch + 1 + self.global_config.voting_epochs;
+        let start_epoch = target_epoch
+            .checked_add(1)
+            .ok_or(GovernanceError::ArithmeticOverflow)?;
+        self.proposal.start_epoch = start_epoch;
+        self.proposal.end_epoch = start_epoch
+            .checked_add(self.global_config.voting_epochs)
+            .ok_or(GovernanceError::ArithmeticOverflow)?;
         self.proposal.consensus_result = Some(consensus_result_pda);
 
         // Initialize ballot box if it doesn't exist

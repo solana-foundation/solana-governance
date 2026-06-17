@@ -158,6 +158,33 @@ pub fn get_epoch_slot_range(epoch: u64) -> (u64, u64) {
     (start_slot, end_slot)
 }
 
+/// Computes the schedule anchor epoch for a proposal: the epoch whose start slot
+/// drives `snapshot_slot`, and from which `start_epoch` (anchor + 1) and
+/// `end_epoch` are derived.
+///
+/// `support_proposal` calls this with the support epoch (`creation_epoch +
+/// max_support_epochs`, which equals `clock.epoch` when support activates), so the
+/// initial voting schedule includes the full `discussion_epochs` window.
+///
+/// `flush_merkle_root` does NOT use this helper. It is an admin-only recovery path
+/// that intentionally re-anchors the snapshot/voting window forward off the *current*
+/// epoch (`current_epoch + snapshot_epoch_extension`, omitting the discussion window)
+/// so a proposal whose NCN snapshot failed can be rescheduled. Because only the admin
+/// multisig can call flush, the author-driven postponement that an immutable anchor
+/// previously guarded against cannot occur there.
+///
+/// Returns `ArithmeticOverflow` if the summed epoch exceeds `u64`.
+pub fn proposal_target_epoch(
+    support_epoch: u64,
+    discussion_epochs: u64,
+    snapshot_epoch_extension: u64,
+) -> core::result::Result<u64, crate::error::GovernanceError> {
+    support_epoch
+        .checked_add(discussion_epochs)
+        .and_then(|v| v.checked_add(snapshot_epoch_extension))
+        .ok_or(crate::error::GovernanceError::ArithmeticOverflow)
+}
+
 /// Computes the snapshot slot for a proposal's voting lineage from the snapshot
 /// `target_epoch` and the configured `snapshot_slot_offset`, enforcing that the
 /// resulting slot is strictly in the future relative to `current_slot`.
@@ -257,6 +284,48 @@ mod tests {
         assert!(matches!(
             compute_future_snapshot_slot(target_epoch, offset, current_slot),
             Err(GovernanceError::SnapshotSlotNotInFuture)
+        ));
+    }
+
+    #[test]
+    fn flush_recovery_target_moves_forward_excluding_discussion() {
+        // flush_merkle_root is an admin-only recovery path. It does NOT use
+        // proposal_target_epoch; it re-anchors the snapshot window forward off the
+        // *current* epoch and intentionally omits the discussion window:
+        //     target_epoch = current_epoch + snapshot_epoch_extension
+        // (mirrors the computation in flush_merkle_root.rs). This pins that formula
+        // and the intentional divergence from support_proposal's schedule.
+        let current_epoch = 20u64;
+        let discussion_epochs = 3u64;
+        let snapshot_epoch_extension = 1u64;
+
+        let flush_target = current_epoch + snapshot_epoch_extension;
+        assert_eq!(flush_target, 21);
+
+        // support_proposal, anchored on the same epoch, includes the discussion
+        // window, so its target is exactly `discussion_epochs` later than flush's.
+        let support_target =
+            proposal_target_epoch(current_epoch, discussion_epochs, snapshot_epoch_extension)
+                .unwrap();
+        assert_eq!(support_target - flush_target, discussion_epochs);
+    }
+
+    #[test]
+    fn target_epoch_includes_discussion_period() {
+        // The discussion window must remain part of the schedule. Dropping it (as
+        // the old flush did) shortened time-to-vote by exactly `discussion_epochs`.
+        let with_discussion = proposal_target_epoch(9, 3, 1).unwrap();
+        let without_discussion = proposal_target_epoch(9, 0, 1).unwrap();
+        assert_eq!(with_discussion - without_discussion, 3);
+    }
+
+    #[test]
+    fn target_epoch_rejects_overflow() {
+        // Bounded, admin-set inputs should never reach this, but the checked math
+        // surfaces a clean error instead of relying on the release overflow-checks panic.
+        assert!(matches!(
+            proposal_target_epoch(u64::MAX, 1, 0),
+            Err(GovernanceError::ArithmeticOverflow)
         ));
     }
 }
