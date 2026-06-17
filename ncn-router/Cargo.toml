@@ -24,3 +24,4 @@ borsh = { version = "1.5", features = ["derive"] }
 dotenvy = "0.15"
 rand = "0.8"
 tiny_http = "0.12"
+form_urlencoded = "1"
