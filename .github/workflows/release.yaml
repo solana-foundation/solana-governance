@@ -26,6 +26,14 @@ env:
   # Build-time program IDs for the ncn CLI (defaults from ncn/scripts/install-ncn-cli.sh).
   RESTAKING_PROGRAM_ID: RestkWeAVL8fRGgzhfeoqFhsqKRchg6aa1XrcH96z4Q
   VAULT_PROGRAM_ID: Vau1t6sLNxnzB7ZDsef8TLbPLfyZMYXH8WTNqUdm9g8
+  # Compile-time-only placeholder. The ncn CLI links jito-tip-router's `program`
+  # crate (transitively, via tip-router-operator-cli), whose
+  # `declare_id!(env!("TIP_ROUTER_PROGRAM_ID"))` requires a valid base58 pubkey
+  # at build time or the build fails. The CLI only uses operator-cli's
+  # ledger/snapshot helpers and never invokes the tip-router program, so this
+  # value is never used at runtime. 1111…1111 (the system program) is a valid
+  # pubkey and matches the default in ncn/scripts/install-*.sh, so released
+  # binaries reproduce the documented install path.
   TIP_ROUTER_PROGRAM_ID: "11111111111111111111111111111111"
 
 jobs:
