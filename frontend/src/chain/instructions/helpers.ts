@@ -216,6 +216,59 @@ export function getMetaMerkleProofPda(
   return metaMerkleProofPda;
 }
 
+/**
+ * Resolve the snapshot validator vote account from a stake proof, guarding against a verifier
+ * response that omits the field. `vote_account` is typed as `string` but comes from an
+ * unvalidated JSON response — an older backend that predates surfacing `vote_account` on the
+ * stake-proof endpoint would leave it `undefined`, and `new PublicKey(undefined)` throws an opaque
+ * "Invalid public key input" with no hint that the field is missing. This surfaces a clear,
+ * actionable error instead.
+ */
+export function resolveSnapshotVoteAccount(
+  stakeMerkleProof: StakeAccountProofResponse
+): PublicKey {
+  if (!stakeMerkleProof.vote_account) {
+    throw new Error(
+      "Stake account proof is missing the snapshot vote_account; the verifier service may be out of date"
+    );
+  }
+  return new PublicKey(stakeMerkleProof.vote_account);
+}
+
+/**
+ * Cross-check that a stake proof and a meta (vote-account) proof belong to the same snapshot
+ * lineage before they are paired in an override vote. The override builders derive the vote
+ * account from the stake proof's snapshot `vote_account` and fetch the meta proof for it, so these
+ * should always agree; this is defense-in-depth against the verifier returning inconsistent
+ * records and surfaces a clear client-side error instead of an opaque on-chain failure.
+ *
+ * The on-chain program enforces the same lineage: `meta_merkle_leaf.vote_account == spl_vote_account`
+ * and the stake leaf must verify nested inside `meta_merkle_leaf.stake_merkle_root`.
+ */
+export function assertOverrideProofLineage(
+  stakeMerkleProof: StakeAccountProofResponse,
+  metaMerkleProof: VoteAccountProofResponse
+): void {
+  if (
+    metaMerkleProof.meta_merkle_leaf.vote_account !== stakeMerkleProof.vote_account
+  ) {
+    throw new Error(
+      `Override proof mismatch: stake proof's snapshot vote account ${stakeMerkleProof.vote_account} ` +
+        `does not match meta proof vote account ${metaMerkleProof.meta_merkle_leaf.vote_account}`
+    );
+  }
+
+  if (
+    metaMerkleProof.meta_merkle_leaf.voting_wallet !==
+    stakeMerkleProof.stake_merkle_leaf.voting_wallet
+  ) {
+    throw new Error(
+      `Override proof mismatch: stake proof voting wallet ${stakeMerkleProof.stake_merkle_leaf.voting_wallet} ` +
+        `does not match meta proof voting wallet ${metaMerkleProof.meta_merkle_leaf.voting_wallet}`
+    );
+  }
+}
+
 // Milliseconds per slot (matches solana_sdk::clock::DEFAULT_MS_PER_SLOT and the svmgov CLI's
 // compute_vote_expiry_timestamp).
 const MS_PER_SLOT = 400;

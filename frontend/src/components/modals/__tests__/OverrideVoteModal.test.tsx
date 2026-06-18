@@ -130,8 +130,13 @@ describe("OverrideVoteModal", () => {
     expect(mockMutate).toHaveBeenCalledWith(
       expect.objectContaining({
         stakeAccount: "stake-account",
-        voteAccount: "vote-account",
       }),
+      expect.any(Object)
+    );
+    // The validator vote account is no longer derived from the live on-chain delegation in the
+    // modal — castVoteOverride resolves it from the stake proof's snapshot delegation instead.
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.not.objectContaining({ voteAccount: expect.anything() }),
       expect.any(Object)
     );
   });
@@ -165,8 +170,13 @@ describe("OverrideVoteModal", () => {
     expect(mockMutate).toHaveBeenCalledWith(
       expect.objectContaining({
         stakeAccount: "stake-account",
-        voteAccount: "vote-account",
       }),
+      expect.any(Object)
+    );
+    // The validator vote account is no longer derived from the live on-chain delegation in the
+    // modal — castVoteOverride resolves it from the stake proof's snapshot delegation instead.
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.not.objectContaining({ voteAccount: expect.anything() }),
       expect.any(Object)
     );
   });

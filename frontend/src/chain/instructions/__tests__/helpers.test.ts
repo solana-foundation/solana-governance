@@ -6,7 +6,17 @@ jest.mock("@/contexts/EndpointContext", () => ({
   RPC_URLS: { testnet: "http://localhost:8899" },
 }));
 
-import { computeProofCloseTimestamp } from "../helpers";
+import { PublicKey } from "@solana/web3.js";
+
+import {
+  assertOverrideProofLineage,
+  computeProofCloseTimestamp,
+  resolveSnapshotVoteAccount,
+} from "../helpers";
+import type {
+  StakeAccountProofResponse,
+  VoteAccountProofResponse,
+} from "../types";
 
 /**
  * Builds a minimal Connection stand-in exposing only the two methods
@@ -111,5 +121,111 @@ describe("computeProofCloseTimestamp", () => {
       /Failed to fetch a recent block time \(tried 8 slots ending at 499993\)/
     );
     expect(getBlockTime).toHaveBeenCalledTimes(8);
+  });
+});
+
+describe("assertOverrideProofLineage", () => {
+  // Snapshot validator the stake was delegated to at snapshot time.
+  const SNAPSHOT_VOTE_ACCOUNT = "SnapshotVoteAccount11111111111111111111111";
+  // A different validator the stake was redelegated to after the snapshot.
+  const LIVE_VOTE_ACCOUNT = "LiveVoteAccount2222222222222222222222222222";
+  const VOTING_WALLET = "VotingWallet333333333333333333333333333333";
+
+  function stakeProof(
+    overrides: Partial<StakeAccountProofResponse> = {}
+  ): StakeAccountProofResponse {
+    return {
+      network: "testnet",
+      snapshot_slot: 340_850_340,
+      stake_merkle_leaf: {
+        active_stake: 500,
+        stake_account: "StakeAccount4444444444444444444444444444444",
+        voting_wallet: VOTING_WALLET,
+      },
+      stake_merkle_proof: [],
+      vote_account: SNAPSHOT_VOTE_ACCOUNT,
+      ...overrides,
+    };
+  }
+
+  function metaProof(
+    overrides: Partial<VoteAccountProofResponse["meta_merkle_leaf"]> = {}
+  ): VoteAccountProofResponse {
+    return {
+      network: "testnet",
+      snapshot_slot: 340_850_340,
+      meta_merkle_leaf: {
+        active_stake: 500,
+        stake_merkle_root: "StakeMerkleRoot55555555555555555555555555555",
+        vote_account: SNAPSHOT_VOTE_ACCOUNT,
+        voting_wallet: VOTING_WALLET,
+        ...overrides,
+      },
+      meta_merkle_proof: [],
+    };
+  }
+
+  it("passes when the stake proof and meta proof share the snapshot vote account and voting wallet", () => {
+    expect(() =>
+      assertOverrideProofLineage(stakeProof(), metaProof())
+    ).not.toThrow();
+  });
+
+  it("throws when the meta proof is for a different (live) validator than the stake snapshot", () => {
+    // This is the redelegation case: pairing the live validator's meta proof with the snapshot
+    // stake proof must be rejected client-side rather than failing opaquely on-chain.
+    expect(() =>
+      assertOverrideProofLineage(
+        stakeProof(),
+        metaProof({ vote_account: LIVE_VOTE_ACCOUNT })
+      )
+    ).toThrow(/does not match meta proof vote account/);
+  });
+
+  it("throws when the voting wallets disagree", () => {
+    expect(() =>
+      assertOverrideProofLineage(
+        stakeProof(),
+        metaProof({ voting_wallet: "OtherWallet66666666666666666666666666666666" })
+      )
+    ).toThrow(/voting wallet/);
+  });
+});
+
+describe("resolveSnapshotVoteAccount", () => {
+  const VOTE_ACCOUNT = new PublicKey(new Uint8Array(32).fill(1)).toBase58();
+
+  function stakeProof(
+    overrides: Partial<StakeAccountProofResponse> = {}
+  ): StakeAccountProofResponse {
+    return {
+      network: "testnet",
+      snapshot_slot: 340_850_340,
+      stake_merkle_leaf: {
+        active_stake: 500,
+        stake_account: new PublicKey(new Uint8Array(32).fill(3)).toBase58(),
+        voting_wallet: new PublicKey(new Uint8Array(32).fill(4)).toBase58(),
+      },
+      stake_merkle_proof: [],
+      vote_account: VOTE_ACCOUNT,
+      ...overrides,
+    };
+  }
+
+  it("returns the snapshot vote account as a PublicKey", () => {
+    const resolved = resolveSnapshotVoteAccount(stakeProof());
+    expect(resolved.toBase58()).toBe(VOTE_ACCOUNT);
+  });
+
+  it("throws a clear error when the verifier omits vote_account", () => {
+    // An older verifier build that predates surfacing vote_account on the stake-proof endpoint
+    // leaves the field undefined at runtime; surface that explicitly rather than letting
+    // `new PublicKey(undefined)` throw an opaque "Invalid public key input".
+    const proof = stakeProof({
+      vote_account: undefined as unknown as string,
+    });
+    expect(() => resolveSnapshotVoteAccount(proof)).toThrow(
+      /missing the snapshot vote_account/
+    );
   });
 });

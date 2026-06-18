@@ -189,21 +189,15 @@ export function ModifyOverrideVoteModal({
         return;
       }
 
-      const voteAccount = stakeAccounts.find(
-        (sa) => sa.stakeAccount === selectedStakeAccount
-      )?.voteAccount;
-
       if (selectedStakeAccount === undefined) {
         toast.error("Not able to determine stake account");
         setIsLoading(false);
         return;
       }
-      if (voteAccount === undefined) {
-        toast.error("Not able to determine vote account");
-        setIsLoading(false);
-        return;
-      }
 
+      // The validator vote account is derived server-side from the stake proof's snapshot
+      // delegation inside modifyVoteOverride, not from the live on-chain delegation, so a
+      // redelegated stake account can still override using its snapshot-time validator.
       modifyVoteOverride(
         {
           wallet,
@@ -212,7 +206,6 @@ export function ModifyOverrideVoteModal({
           againstVotesBp: voteDistribution.against * 100,
           abstainVotesBp: voteDistribution.abstain * 100,
           stakeAccount: selectedStakeAccount,
-          voteAccount,
           consensusResult: selectedProposal.consensusResult,
         },
         {

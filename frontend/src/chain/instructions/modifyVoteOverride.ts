@@ -15,6 +15,8 @@ import {
   createGovV1ProgramWithWallet,
   getVoteAccountProof,
   getStakeAccountProof,
+  resolveSnapshotVoteAccount,
+  assertOverrideProofLineage,
   convertMerkleProofStrings,
   convertStakeMerkleLeafDataToIdlType,
   validateVoteBasisPoints,
@@ -41,7 +43,6 @@ export async function modifyVoteOverride(
     abstainVotesBp,
     stakeAccount,
     wallet,
-    voteAccount,
     consensusResult,
   } = params;
 
@@ -61,17 +62,29 @@ export async function modifyVoteOverride(
   validateVoteBasisPoints(forVotesBp, againstVotesBp, abstainVotesBp);
 
   const proposalPubkey = new PublicKey(proposalId);
-  const splVoteAccount = new PublicKey(voteAccount);
   const program = createProgramWithWallet(wallet, blockchainParams.endpoint);
 
   const stakeAccountPubkey = new PublicKey(stakeAccount);
 
-  // Get proofs
+  // Get proofs. Fetch the stake proof first: its `vote_account` is the validator the stake was
+  // delegated to AT SNAPSHOT TIME. We must derive everything (the meta proof, the spl_vote_account
+  // and the validator_vote / vote_override PDAs) from this snapshot validator, not the live
+  // on-chain delegation. If the delegator redelegated after the snapshot, the live vote account
+  // would pair this stake proof with the wrong validator's meta proof and the override would fail
+  // on-chain even though the delegator was eligible at snapshot time.
   const network = blockchainParams.network || "mainnet";
-  const [metaMerkleProof, stakeMerkleProof] = await Promise.all([
-    getVoteAccountProof(splVoteAccount.toBase58(), network, slot),
-    getStakeAccountProof(stakeAccount, network, slot),
-  ]);
+  const stakeMerkleProof = await getStakeAccountProof(
+    stakeAccount,
+    network,
+    slot
+  );
+  const splVoteAccount = resolveSnapshotVoteAccount(stakeMerkleProof);
+  const metaMerkleProof = await getVoteAccountProof(
+    splVoteAccount.toBase58(),
+    network,
+    slot
+  );
+  assertOverrideProofLineage(stakeMerkleProof, metaMerkleProof);
 
   const metaMerkleProofPda = getMetaMerkleProofPda(
     metaMerkleProof,
