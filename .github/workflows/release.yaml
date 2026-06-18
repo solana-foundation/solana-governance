@@ -46,10 +46,14 @@ jobs:
         include:
           - os: ubuntu-22.04
             platform: x86_64-linux
-          - os: macos-latest
+          # Pinned to macos-14 (not macos-latest) so the runner architecture
+          # stays arm64/Apple Silicon for the life of this pipeline. macos-latest
+          # is a mutable alias that could re-point to an x86_64 image, which
+          # would silently mislabel this build as aarch64-macos.
+          - os: macos-14
             platform: aarch64-macos
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
@@ -59,11 +63,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           workspaces: |
             ncn
@@ -89,7 +93,7 @@ jobs:
           cp svmgov/cli/target/release/svmgov "dist/svmgov-${{ matrix.platform }}"
           chmod +x dist/*
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: binaries-${{ matrix.platform }}
           path: dist/*
@@ -100,7 +104,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: dist
           merge-multiple: true
@@ -109,7 +113,7 @@ jobs:
         working-directory: dist
         run: sha256sum ncn-cli-* svmgov-* > SHA256SUMS
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           name: ${{ github.event.inputs.tag || github.ref_name }}
