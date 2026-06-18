@@ -1,7 +1,8 @@
 name: CI
 
-# Compile-checks both CLIs on every pull request and on pushes to main, so build
-# breakage is caught before a release tag is cut. No binaries are uploaded here.
+# Compile-checks and tests both CLIs on every pull request and on pushes to
+# main, so build breakage and test regressions are caught before a release tag
+# is cut. No binaries are uploaded here.
 on:
   pull_request:
   push:
@@ -32,7 +33,7 @@ env:
 
 jobs:
   build:
-    name: Build CLIs
+    name: Build & test CLIs
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -64,3 +65,15 @@ jobs:
       - name: Build svmgov CLI
         working-directory: svmgov/cli
         run: cargo build --locked
+
+      # Run the test suites that don't require external infrastructure. The
+      # ncn/tests Anchor integration suite is intentionally excluded: it needs a
+      # running solana-test-validator, the Anchor toolchain, and an ANCHOR_WALLET
+      # (it is run via `anchor test`, see ncn/README.md).
+      - name: Test ncn CLI and verifier-service
+        working-directory: ncn
+        run: cargo test --locked -p cli -p verifier-service
+
+      - name: Test svmgov CLI
+        working-directory: svmgov/cli
+        run: cargo test --locked
