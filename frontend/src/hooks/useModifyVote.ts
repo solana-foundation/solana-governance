@@ -1,5 +1,6 @@
 import { ModifyVoteParams } from "@/chain";
 import { useEndpoint } from "@/contexts/EndpointContext";
+import { useNcnApi } from "@/contexts/NcnApiContext";
 import { modifyVoteMutation } from "@/data";
 import { useMutation } from "@tanstack/react-query";
 import { useSnapshotMeta } from "./useSnapshotMeta";
@@ -7,6 +8,7 @@ import { track } from "@vercel/analytics";
 
 export function useModifyVote() {
   const { endpointUrl: endpoint, endpointType } = useEndpoint();
+  const { ncnApiUrl } = useNcnApi();
 
   const { data: meta } = useSnapshotMeta();
 
@@ -15,7 +17,7 @@ export function useModifyVote() {
     mutationFn: (params: ModifyVoteParams) =>
       modifyVoteMutation(
         params,
-        { endpoint, network: endpointType },
+        { endpoint, network: endpointType, ncnApiUrl },
         meta?.slot
       ),
     onMutate: (params) => {

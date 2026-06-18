@@ -76,13 +76,15 @@ export async function modifyVoteOverride(
   const stakeMerkleProof = await getStakeAccountProof(
     stakeAccount,
     network,
-    slot
+    slot,
+    blockchainParams.ncnApiUrl
   );
   const splVoteAccount = resolveSnapshotVoteAccount(stakeMerkleProof);
   const metaMerkleProof = await getVoteAccountProof(
     splVoteAccount.toBase58(),
     network,
-    slot
+    slot,
+    blockchainParams.ncnApiUrl
   );
   assertOverrideProofLineage(stakeMerkleProof, metaMerkleProof);
 

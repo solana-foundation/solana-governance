@@ -84,7 +84,8 @@ export async function modifyVote(
   const voteAccountProof = await getVoteAccountProof(
     validatorVoteAccount.votePubkey,
     blockchainParams.network,
-    slot
+    slot,
+    blockchainParams.ncnApiUrl
   );
   console.log("fetched voteAccountProof", voteAccountProof);
 

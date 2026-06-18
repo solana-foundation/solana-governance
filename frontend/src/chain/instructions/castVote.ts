@@ -90,7 +90,8 @@ export async function castVote(
   const voteAccountProof = await getVoteAccountProof(
     validatorVoteAccount.votePubkey,
     blockchainParams.network,
-    slot
+    slot,
+    blockchainParams.ncnApiUrl
   );
 
   const metaMerkleProofPda = getMetaMerkleProofPda(
