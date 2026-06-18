@@ -74,6 +74,11 @@ Example public DNS: `ec2-18-221-54-191.us-east-2.compute.amazonaws.com`
 - GLOBAL_REFILL_INTERVAL, GLOBAL_RATE_BURST: request rate limiting (defaults 10/10)
 - UPLOAD_REFILL_INTERVAL, UPLOAD_RATE_BURST: upload route rate limiting (defaults 60/2)
 - NCN_SNAPSHOT_MAX_MB: decompressed snapshot cap in MiB for CLI/readers (default 256)
+- TRUSTED_PROXY_CIDRS: peer IPs whose forwarded client-IP headers are trusted for rate-limit keying.
+  Unset or `cloudflare` → fetch Cloudflare's ranges at startup; a comma/newline CIDR/IP list → use
+  verbatim; `none`/empty → disable (key on peer IP). See section 7.
+- TRUSTED_PROXY_CACHE_PATH: cache file for the fetched Cloudflare list (default in DB_PATH's directory)
+- CLOUDFLARE_IPS_V4_URL, CLOUDFLARE_IPS_V6_URL: override the fetch endpoints (advanced/testing)
 
 ### 7) Cloudflare
 
@@ -81,6 +86,15 @@ Example public DNS: `ec2-18-221-54-191.us-east-2.compute.amazonaws.com`
 - Configure Cloudflare rate limiting rules for your paths (e.g., /upload, /proof/\*)
 - Optional: restrict EC2 Security Group 80/443 to Cloudflare IP ranges to block direct-to-origin
 - Decide TLS mode (Full Strict recommended) and set up origin TLS (Nginx/ALB) if using HTTPS
+
+**In-app rate-limit keying.** The verifier keys its rate-limit buckets on the real client IP
+(`CF-Connecting-IP` / `X-Forwarded-For`), but only honors those headers when the connecting peer is
+in `TRUSTED_PROXY_CIDRS`; otherwise it keys on the peer IP so a direct-to-origin client cannot forge
+headers to evade limits. By default (`TRUSTED_PROXY_CIDRS` unset) the service fetches Cloudflare's
+published ranges at startup and caches them; if the fetch fails it falls back to the cache, and if
+neither is available it refuses to start (fail-closed) rather than silently collapse all clients into
+one shared bucket. Keep `TRUSTED_PROXY_CIDRS` aligned with whatever proxy actually fronts the origin,
+and restricting the Security Group to Cloudflare IPs (above) is recommended defense-in-depth.
 
 The following steps are intended for a deployment of the verifier service when
 there are no existing domains or Cloudflare setup using HTTP connection.
