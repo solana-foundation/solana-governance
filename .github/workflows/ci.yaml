@@ -46,6 +46,11 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
         with:
           toolchain: ${{ env.RUST_VERSION }}
+          # This action defaults RUSTFLAGS to "-D warnings", which turns upstream
+          # deprecations from anchor's #[program] macro (e.g. AccountInfo::realloc)
+          # into hard errors. The install scripts build without -D warnings, so
+          # clear it here to match the shipped build.
+          rustflags: ""
 
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
