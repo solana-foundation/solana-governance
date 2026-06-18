@@ -15,6 +15,7 @@ import {
   createGovV1ProgramWithWallet,
   getVoteAccountProof,
   getStakeAccountProof,
+  resolveSnapshotVoteAccount,
   assertOverrideProofLineage,
   convertMerkleProofStrings,
   convertStakeMerkleLeafDataToIdlType,
@@ -77,7 +78,7 @@ export async function castVoteOverride(
     network,
     slot
   );
-  const splVoteAccount = new PublicKey(stakeMerkleProof.vote_account);
+  const splVoteAccount = resolveSnapshotVoteAccount(stakeMerkleProof);
   const metaMerkleProof = await getVoteAccountProof(
     splVoteAccount.toBase58(),
     network,

@@ -6,9 +6,12 @@ jest.mock("@/contexts/EndpointContext", () => ({
   RPC_URLS: { testnet: "http://localhost:8899" },
 }));
 
+import { PublicKey } from "@solana/web3.js";
+
 import {
   assertOverrideProofLineage,
   computeProofCloseTimestamp,
+  resolveSnapshotVoteAccount,
 } from "../helpers";
 import type {
   StakeAccountProofResponse,
@@ -186,5 +189,43 @@ describe("assertOverrideProofLineage", () => {
         metaProof({ voting_wallet: "OtherWallet66666666666666666666666666666666" })
       )
     ).toThrow(/voting wallet/);
+  });
+});
+
+describe("resolveSnapshotVoteAccount", () => {
+  const VOTE_ACCOUNT = new PublicKey(new Uint8Array(32).fill(1)).toBase58();
+
+  function stakeProof(
+    overrides: Partial<StakeAccountProofResponse> = {}
+  ): StakeAccountProofResponse {
+    return {
+      network: "testnet",
+      snapshot_slot: 340_850_340,
+      stake_merkle_leaf: {
+        active_stake: 500,
+        stake_account: new PublicKey(new Uint8Array(32).fill(3)).toBase58(),
+        voting_wallet: new PublicKey(new Uint8Array(32).fill(4)).toBase58(),
+      },
+      stake_merkle_proof: [],
+      vote_account: VOTE_ACCOUNT,
+      ...overrides,
+    };
+  }
+
+  it("returns the snapshot vote account as a PublicKey", () => {
+    const resolved = resolveSnapshotVoteAccount(stakeProof());
+    expect(resolved.toBase58()).toBe(VOTE_ACCOUNT);
+  });
+
+  it("throws a clear error when the verifier omits vote_account", () => {
+    // An older verifier build that predates surfacing vote_account on the stake-proof endpoint
+    // leaves the field undefined at runtime; surface that explicitly rather than letting
+    // `new PublicKey(undefined)` throw an opaque "Invalid public key input".
+    const proof = stakeProof({
+      vote_account: undefined as unknown as string,
+    });
+    expect(() => resolveSnapshotVoteAccount(proof)).toThrow(
+      /missing the snapshot vote_account/
+    );
   });
 });

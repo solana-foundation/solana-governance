@@ -217,6 +217,25 @@ export function getMetaMerkleProofPda(
 }
 
 /**
+ * Resolve the snapshot validator vote account from a stake proof, guarding against a verifier
+ * response that omits the field. `vote_account` is typed as `string` but comes from an
+ * unvalidated JSON response — an older backend that predates surfacing `vote_account` on the
+ * stake-proof endpoint would leave it `undefined`, and `new PublicKey(undefined)` throws an opaque
+ * "Invalid public key input" with no hint that the field is missing. This surfaces a clear,
+ * actionable error instead.
+ */
+export function resolveSnapshotVoteAccount(
+  stakeMerkleProof: StakeAccountProofResponse
+): PublicKey {
+  if (!stakeMerkleProof.vote_account) {
+    throw new Error(
+      "Stake account proof is missing the snapshot vote_account; the verifier service may be out of date"
+    );
+  }
+  return new PublicKey(stakeMerkleProof.vote_account);
+}
+
+/**
  * Cross-check that a stake proof and a meta (vote-account) proof belong to the same snapshot
  * lineage before they are paired in an override vote. The override builders derive the vote
  * account from the stake proof's snapshot `vote_account` and fetch the meta proof for it, so these
