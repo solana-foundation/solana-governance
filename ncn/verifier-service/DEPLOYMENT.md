@@ -96,6 +96,11 @@ neither is available it refuses to start (fail-closed) rather than silently coll
 one shared bucket. Keep `TRUSTED_PROXY_CIDRS` aligned with whatever proxy actually fronts the origin,
 and restricting the Security Group to Cloudflare IPs (above) is recommended defense-in-depth.
 
+If you front the origin with a **non-Cloudflare** proxy via `TRUSTED_PROXY_CIDRS`, it must set
+`CF-Connecting-IP`/`X-Real-IP` or **append** the connecting client to `X-Forwarded-For` (the service
+trusts only the rightmost XFF entry, since leftmost entries are client-spoofable). This assumes a
+single trusted proxy hop in front of the service.
+
 The following steps are intended for a deployment of the verifier service when
 there are no existing domains or Cloudflare setup using HTTP connection.
 

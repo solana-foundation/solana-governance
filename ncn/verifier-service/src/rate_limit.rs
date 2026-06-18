@@ -47,8 +47,14 @@ pub fn parse_cidr_list(raw: &str) -> Vec<IpNet> {
         .collect()
 }
 
-/// Resolve the client IP from forwarded headers: `CF-Connecting-IP` > first `X-Forwarded-For` >
-/// `X-Real-IP`. Returns `None` if none are present or parseable.
+/// Resolve the client IP from forwarded headers: `CF-Connecting-IP` > rightmost `X-Forwarded-For`
+/// > `X-Real-IP`. Returns `None` if none are present or parseable.
+///
+/// For `X-Forwarded-For` we take the **rightmost** entry — the address the immediately connected
+/// (trusted) proxy observed and appended. Leftmost entries are client-controlled and must not be
+/// trusted: a client can prepend an arbitrary value to claim any IP. This assumes a single trusted
+/// proxy hop in front of the service (Cloudflare, or one reverse proxy in `TRUSTED_PROXY_CIDRS`),
+/// and that the proxy appends rather than passes the client's header through unchanged.
 fn client_ip_from_headers(headers: &HeaderMap) -> Option<IpAddr> {
     if let Some(ip) = headers
         .get("cf-connecting-ip")
@@ -60,7 +66,7 @@ fn client_ip_from_headers(headers: &HeaderMap) -> Option<IpAddr> {
     if let Some(ip) = headers
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(',').next())
+        .and_then(|s| s.rsplit(',').next())
         .and_then(|s| s.trim().parse::<IpAddr>().ok())
     {
         return Some(ip);
@@ -69,6 +75,19 @@ fn client_ip_from_headers(headers: &HeaderMap) -> Option<IpAddr> {
         .get("x-real-ip")
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.trim().parse::<IpAddr>().ok())
+}
+
+/// Collapse an IPv4-mapped IPv6 address (`::ffff:a.b.c.d`) to its IPv4 form. Without this, a
+/// dual-stack listener (`[::]`) would deliver Cloudflare peers as mapped IPv6 addresses that never
+/// match the IPv4 trusted-proxy CIDRs, silently treating every proxy as untrusted.
+fn normalize_ip(ip: IpAddr) -> IpAddr {
+    match ip {
+        IpAddr::V6(v6) => v6
+            .to_ipv4_mapped()
+            .map(IpAddr::V4)
+            .unwrap_or(IpAddr::V6(v6)),
+        v4 => v4,
+    }
 }
 
 /// Where the fetched Cloudflare list is cached. Override with `TRUSTED_PROXY_CACHE_PATH`; defaults
@@ -179,7 +198,7 @@ pub async fn load_trusted_proxy_cidrs() -> anyhow::Result<Vec<IpNet>> {
 
     anyhow::ensure!(
         !nets.is_empty(),
-        "Could not obtain Cloudflare IP ranges (fetch failed and no usable cache at {}). \
+        "Could not obtain any Cloudflare IP ranges (the fetch returned no parseable CIDRs, and no usable cache at {}). \
          Set TRUSTED_PROXY_CIDRS to your proxy's CIDR ranges, or 'none' to disable forwarded-header trust.",
         cache_path.display()
     );
@@ -212,12 +231,12 @@ impl KeyExtractor for TrustedProxyKeyExtractor {
         match req
             .extensions()
             .get::<ConnectInfo<SocketAddr>>()
-            .map(|ci| ci.0.ip())
+            .map(|ci| normalize_ip(ci.0.ip()))
         {
             Some(peer_ip) => {
                 if self.is_trusted(peer_ip) {
                     if let Some(client_ip) = client_ip_from_headers(req.headers()) {
-                        return Ok(client_ip);
+                        return Ok(normalize_ip(client_ip));
                     }
                 }
                 Ok(peer_ip)
@@ -243,8 +262,9 @@ mod tests {
             builder = builder.header("cf-connecting-ip", v);
         }
         let mut req = builder.body(()).unwrap();
-        let sa: SocketAddr = format!("{peer}:1234").parse().unwrap();
-        req.extensions_mut().insert(ConnectInfo(sa));
+        let peer_ip: IpAddr = peer.parse().unwrap();
+        req.extensions_mut()
+            .insert(ConnectInfo(SocketAddr::new(peer_ip, 1234)));
         req
     }
 
@@ -289,6 +309,24 @@ mod tests {
     }
 
     #[test]
+    fn ipv4_mapped_peer_is_normalized_for_trust_check() {
+        let ex = TrustedProxyKeyExtractor::new(parse_cidr_list("10.0.0.0/8"));
+        // A dual-stack listener can deliver the peer as an IPv4-mapped IPv6 address. The normalized
+        // peer 10.0.0.5 is in 10.0.0.0/8, so the forwarded client IP must be honored.
+        let req = req_with("::ffff:10.0.0.5", Some("203.0.113.7"), None);
+        assert_eq!(ex.extract(&req).unwrap(), ip("203.0.113.7"));
+    }
+
+    #[test]
+    fn xff_uses_rightmost_entry() {
+        // The leftmost XFF entry is client-controlled; the rightmost is what the trusted proxy
+        // appended. Keying on the rightmost prevents a client from forging its bucket key.
+        let ex = TrustedProxyKeyExtractor::new(parse_cidr_list("127.0.0.1/32"));
+        let req = req_with("127.0.0.1", Some("1.2.3.4, 70.41.3.18"), None);
+        assert_eq!(ex.extract(&req).unwrap(), ip("70.41.3.18"));
+    }
+
+    #[test]
     fn parse_cidr_list_handles_mixed_input() {
         let nets =
             parse_cidr_list("173.245.48.0/20, 1.1.1.1\n# a comment\n2400:cb00::/32\n\ngarbage");
@@ -305,7 +343,8 @@ mod tests {
             "x-forwarded-for",
             "203.0.113.1, 70.41.3.18".parse().unwrap(),
         );
-        assert_eq!(client_ip_from_headers(&h), Some(ip("203.0.113.1")));
+        // Rightmost (proxy-appended) entry, not the client-controlled leftmost one.
+        assert_eq!(client_ip_from_headers(&h), Some(ip("70.41.3.18")));
         // CF-Connecting-IP wins over X-Forwarded-For.
         h.insert("cf-connecting-ip", "198.51.100.2".parse().unwrap());
         assert_eq!(client_ip_from_headers(&h), Some(ip("198.51.100.2")));
