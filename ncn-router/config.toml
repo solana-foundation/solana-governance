@@ -38,4 +38,4 @@ verification_domain = "https://verifier.promptlogic.systems"
 
 [[verifiers]]
 name = "Exo Tech"
-verification_domain = "http://ncn-verifier.exotechnologies.xyz:3000"
+verification_domain = "https://ncn-verifier.exotechnologies.xyz:3000"
