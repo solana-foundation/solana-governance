@@ -15100,6 +15100,7 @@ dependencies = [
  "cli",
  "env_logger 0.10.2",
  "flate2",
+ "ipnet",
  "log",
  "meta-merkle-tree",
  "ncn-snapshot",

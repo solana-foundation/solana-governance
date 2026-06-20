@@ -1,13 +1,13 @@
 mod database;
 mod metrics;
-mod middleware;
+mod rate_limit;
 mod types;
 mod upload;
 mod utils;
 
 use axum::{
     extract::{DefaultBodyLimit, Path, Query, State},
-    http::{HeaderMap, StatusCode, Method},
+    http::{HeaderMap, Method, StatusCode},
     response::Json,
     routing::{get, post},
     Router,
@@ -18,14 +18,14 @@ use sqlx::sqlite::SqlitePool;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
+use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
-use tower_http::cors::{CorsLayer, Any};
 use tracing::{debug, info, Level};
 use types::{NetworkQuery, VoterQuery};
 use upload::handle_upload;
 
 use crate::{
-    middleware::inject_client_ip,
+    rate_limit::TrustedProxyKeyExtractor,
     utils::{env_parse, validate_network},
 };
 
@@ -70,17 +70,19 @@ async fn main() -> anyhow::Result<()> {
     let pool = init_pool(&db_path).await?;
     info!("Database initialized successfully");
 
+    // Resolve which proxy IPs we trust for forwarded client-IP headers. Defaults to fetching
+    // Cloudflare's published ranges; see rate_limit::load_trusted_proxy_cidrs for the full policy.
+    let key_extractor =
+        TrustedProxyKeyExtractor::new(rate_limit::load_trusted_proxy_cidrs().await?);
+
     // Build application with routes
     let app = {
-        // Helper for rate limiter configs
+        // Helper for rate limiter configs. Keys buckets on the real client IP behind a trusted
+        // proxy (and on the peer IP otherwise) via the custom key extractor.
         let rl = |per_second: u64, burst_size: u32| {
-            Arc::new(
-                GovernorConfigBuilder::default()
-                    .per_second(per_second)
-                    .burst_size(burst_size)
-                    .finish()
-                    .expect("valid rate limiter config"),
-            )
+            let mut builder = GovernorConfigBuilder::default().key_extractor(key_extractor.clone());
+            builder.per_second(per_second).burst_size(burst_size);
+            Arc::new(builder.finish().expect("valid rate limiter config"))
         };
 
         // Rate limits configurable via environment variables with sane defaults
@@ -102,7 +104,6 @@ async fn main() -> anyhow::Result<()> {
         let upload_router = Router::new()
             .route("/", post(handle_upload))
             .layer(DefaultBodyLimit::max(body_limit))
-            .layer(axum::middleware::from_fn(inject_client_ip))
             .layer(GovernorLayer { config: upload_rl });
 
         let public_router = Router::new()
@@ -118,7 +119,6 @@ async fn main() -> anyhow::Result<()> {
             .merge(public_router)
             .nest("/upload", upload_router)
             .route("/admin/stats", get(admin_stats))
-            .layer(axum::middleware::from_fn(inject_client_ip))
             .layer(
                 TraceLayer::new_for_http()
                     .make_span_with(DefaultMakeSpan::new().level(Level::INFO))

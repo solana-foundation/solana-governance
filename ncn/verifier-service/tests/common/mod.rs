@@ -69,6 +69,16 @@ impl Drop for ChildGuard {
 }
 
 pub async fn setup_server(keypair: &Keypair) -> anyhow::Result<(String, ChildGuard)> {
+    setup_server_with_env(keypair, &[]).await
+}
+
+/// Like [`setup_server`], but applies `extra_env` on top of the base test environment (later
+/// entries override earlier ones, including the defaults below). Use this to control rate-limit and
+/// trusted-proxy configuration per test.
+pub async fn setup_server_with_env(
+    keypair: &Keypair,
+    extra_env: &[(&str, &str)],
+) -> anyhow::Result<(String, ChildGuard)> {
     // Resolve binary path from Cargo or fallbacks
     let bin = resolve_binary_path();
     let bin_path = Path::new(&bin);
@@ -82,17 +92,25 @@ pub async fn setup_server(keypair: &Keypair) -> anyhow::Result<(String, ChildGua
     let operator_pubkey = keypair.pubkey().to_string();
 
     // Start the binary
-    let child = Command::new(&bin)
-        .env("OPERATOR_PUBKEY", &operator_pubkey)
+    let mut cmd = Command::new(&bin);
+    cmd.env("OPERATOR_PUBKEY", &operator_pubkey)
         .env("METRICS_AUTH_TOKEN", "test-token")
         .env("DB_PATH", ":memory:")
         .env("PORT", port.to_string())
         .env("RUST_LOG", "info")
         .env("UPLOAD_RATE_BURST", "10")
         .env("UPLOAD_BODY_LIMIT", (512 * 1024 * 1024).to_string())
+        // Keep tests hermetic: provide an explicit trusted-proxy set so startup never fetches
+        // Cloudflare's ranges. Trusting loopback means a request's X-Forwarded-For is honored.
+        .env("TRUSTED_PROXY_CIDRS", "127.0.0.1/32")
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()?;
+        .stderr(Stdio::piped());
+
+    for (k, v) in extra_env {
+        cmd.env(k, v);
+    }
+
+    let child = cmd.spawn()?;
 
     // Ensure we always try to kill the child on exit
     let guard = ChildGuard(child);

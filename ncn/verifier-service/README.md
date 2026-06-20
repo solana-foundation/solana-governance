@@ -111,9 +111,16 @@ Environment variables:
 - PORT (optional, defaults to 3000)
 - SQLITE_MAX_CONNECTIONS (optional; default 4 for file DB, 1 for in-memory)
 - UPLOAD_BODY_LIMIT (optional, bytes; default 104857600 = 100MB)
-- GLOBAL_RATE_PER_SECOND, GLOBAL_RATE_BURST (optional; default 10/10)
-- UPLOAD_RATE_PER_SECOND, UPLOAD_RATE_BURST (optional; default 60/2)
+- GLOBAL_REFILL_INTERVAL, GLOBAL_RATE_BURST (optional; default 10/10)
+- UPLOAD_REFILL_INTERVAL, UPLOAD_RATE_BURST (optional; default 60/2)
 - NCN_SNAPSHOT_MAX_MB (optional; decompressed snapshot cap in MiB; default 256)
+- TRUSTED_PROXY_CIDRS (optional; which peer IPs may set the client-IP headers used for rate-limit
+  keying). Unset or `cloudflare` → fetch Cloudflare's published ranges at startup. A comma/newline
+  list of CIDRs or bare IPs (e.g. `10.0.0.0/8,192.0.2.7`) → use it verbatim (for a non-Cloudflare
+  proxy or for tests). `none` or empty → disable forwarded-header trust (key on the peer IP).
+- TRUSTED_PROXY_CACHE_PATH (optional; file the fetched Cloudflare list is cached to; defaults to
+  `cloudflare-ips.cache` in DB_PATH's directory)
+- CLOUDFLARE_IPS_V4_URL, CLOUDFLARE_IPS_V6_URL (optional; override the fetch endpoints — advanced/testing)
 
 <!-- TODO: Add docker-compose for dev convenience -->
 <!-- TODO: Add Docker HEALTHCHECK using /healthz -->
