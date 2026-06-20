@@ -1,0 +1,127 @@
+name: Release CLIs
+
+# Builds the ncn and svmgov CLIs for each supported platform and publishes them
+# to a single GitHub Release. Triggered by pushing a `v*` tag, or manually via the
+# Actions tab (supply the tag to build and release).
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build and publish (e.g. v0.2.0). The tag must already exist."
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+env:
+  RUST_VERSION: "1.93.1"
+  # Build-time program IDs for the ncn CLI (defaults from ncn/scripts/install-ncn-cli.sh).
+  RESTAKING_PROGRAM_ID: RestkWeAVL8fRGgzhfeoqFhsqKRchg6aa1XrcH96z4Q
+  VAULT_PROGRAM_ID: Vau1t6sLNxnzB7ZDsef8TLbPLfyZMYXH8WTNqUdm9g8
+  # Compile-time-only placeholder. The ncn CLI links jito-tip-router's `program`
+  # crate (transitively, via tip-router-operator-cli), whose
+  # `declare_id!(env!("TIP_ROUTER_PROGRAM_ID"))` requires a valid base58 pubkey
+  # at build time or the build fails. The CLI only uses operator-cli's
+  # ledger/snapshot helpers and never invokes the tip-router program, so this
+  # value is never used at runtime. 1111…1111 (the system program) is a valid
+  # pubkey and matches the default in ncn/scripts/install-*.sh, so released
+  # binaries reproduce the documented install path.
+  TIP_ROUTER_PROGRAM_ID: "11111111111111111111111111111111"
+
+jobs:
+  build:
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: x86_64-linux
+          # Pinned to macos-14 (not macos-latest) so the runner architecture
+          # stays arm64/Apple Silicon for the life of this pipeline. macos-latest
+          # is a mutable alias that could re-point to an x86_64 image, which
+          # would silently mislabel this build as aarch64-macos.
+          - os: macos-14
+            platform: aarch64-macos
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev
+
+      - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          # This action defaults RUSTFLAGS to "-D warnings", which turns upstream
+          # deprecations from anchor's #[program] macro (e.g. AccountInfo::realloc)
+          # into hard errors. The install scripts build without -D warnings, so
+          # clear it here to match the shipped build.
+          rustflags: ""
+
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: |
+            ncn
+            svmgov/cli
+
+      # The ncn CLI depends on a vendored jito-tip-router checkout that is not
+      # committed; this clones it at the commit pinned in networks.toml.
+      - name: Bootstrap jito-tip-router
+        run: bash scripts/setup-jito-tip-router.sh
+
+      - name: Build ncn CLI
+        working-directory: ncn
+        run: cargo build --locked --release -p cli
+
+      - name: Build svmgov CLI
+        working-directory: svmgov/cli
+        run: cargo build --locked --release
+
+      - name: Stage binaries
+        run: |
+          mkdir -p dist
+          cp ncn/target/release/cli "dist/ncn-cli-${{ matrix.platform }}"
+          cp svmgov/cli/target/release/svmgov "dist/svmgov-${{ matrix.platform }}"
+          chmod +x dist/*
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: binaries-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate SHA256SUMS
+        working-directory: dist
+        run: sha256sum ncn-cli-* svmgov-* > SHA256SUMS
+
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: ${{ github.event.inputs.tag || github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: dist/*

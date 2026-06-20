@@ -1,0 +1,84 @@
+name: CI
+
+# Compile-checks and tests both CLIs on every pull request and on pushes to
+# main, so build breakage and test regressions are caught before a release tag
+# is cut. No binaries are uploaded here.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RUST_VERSION: "1.93.1"
+  # Build-time program IDs for the ncn CLI (defaults from ncn/scripts/install-ncn-cli.sh).
+  RESTAKING_PROGRAM_ID: RestkWeAVL8fRGgzhfeoqFhsqKRchg6aa1XrcH96z4Q
+  VAULT_PROGRAM_ID: Vau1t6sLNxnzB7ZDsef8TLbPLfyZMYXH8WTNqUdm9g8
+  # Compile-time-only placeholder. The ncn CLI links jito-tip-router's `program`
+  # crate (transitively, via tip-router-operator-cli), whose
+  # `declare_id!(env!("TIP_ROUTER_PROGRAM_ID"))` requires a valid base58 pubkey
+  # at build time or the build fails. The CLI only uses operator-cli's
+  # ledger/snapshot helpers and never invokes the tip-router program, so this
+  # value is never used at runtime. 1111…1111 (the system program) is a valid
+  # pubkey and matches the default in ncn/scripts/install-*.sh, so CI binaries
+  # reproduce the documented install path.
+  TIP_ROUTER_PROGRAM_ID: "11111111111111111111111111111111"
+
+jobs:
+  build:
+    name: Build & test CLIs
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev
+
+      - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          # This action defaults RUSTFLAGS to "-D warnings", which turns upstream
+          # deprecations from anchor's #[program] macro (e.g. AccountInfo::realloc)
+          # into hard errors. The install scripts build without -D warnings, so
+          # clear it here to match the shipped build.
+          rustflags: ""
+
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: |
+            ncn
+            svmgov/cli
+
+      # The ncn CLI depends on a vendored jito-tip-router checkout that is not
+      # committed; this clones it at the commit pinned in networks.toml.
+      - name: Bootstrap jito-tip-router
+        run: bash scripts/setup-jito-tip-router.sh
+
+      - name: Build ncn CLI
+        working-directory: ncn
+        run: cargo build --locked -p cli
+
+      - name: Build svmgov CLI
+        working-directory: svmgov/cli
+        run: cargo build --locked
+
+      # Run the test suites that don't require external infrastructure. The
+      # ncn/tests Anchor integration suite is intentionally excluded: it needs a
+      # running solana-test-validator, the Anchor toolchain, and an ANCHOR_WALLET
+      # (it is run via `anchor test`, see ncn/README.md).
+      - name: Test ncn CLI and verifier-service
+        working-directory: ncn
+        run: cargo test --locked -p cli -p verifier-service
+
+      - name: Test svmgov CLI
+        working-directory: svmgov/cli
+        run: cargo test --locked
