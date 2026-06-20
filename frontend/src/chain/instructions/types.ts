@@ -16,6 +16,7 @@ export interface TransactionResult {
 export interface BlockchainParams {
   network: RPCEndpoint;
   endpoint: string;
+  ncnApiUrl?: string;
 }
 
 // Instruction parameter types
