@@ -6,14 +6,21 @@ runbooks:
     description: Deploy programs
     location: runbooks/deployment
 environments:
-  localnet:
+  local-squads:
       network_id: localnet
       rpc_api_url: http://127.0.0.1:8899
       squad_multisig_public_key: AYqpqhQxY5m3JT5J214jmvvpAuGSn5K7XeyXzpcGHDDh
-      proposer_keypair_json: ./proposer.json
-  mainnet:
+      proposer_keypair_json: ~/.config/solana/id.json
+  local-keypair:
+      network_id: localnet
+      rpc_api_url: http://127.0.0.1:8899
+  mainnet-squads:
       network_id: mainnet
       rpc_api_url: <RPC_URL>
       squad_multisig_public_key: <>
       payer_keypair_json: <>
       proposer_keypair_json: <>
+  mainnet-web-wallet:
+      network_id: mainnet
+      rpc_api_url: https://api.mainnet-beta.solana.com
+      deployer_public_key: BeCsfda1PV2NoJ6mdds3eu7b6bDm7X7giK1QPWqzLDAU
