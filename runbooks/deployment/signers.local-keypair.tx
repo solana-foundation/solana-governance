@@ -1,0 +1,9 @@
+signer "payer" "svm::secret_key" {
+    description = "Keypair that will pay for the deployment"
+    keypair_json = "~/.config/solana/id.json"
+}
+
+signer "authority" "svm::secret_key" {
+    description = "Keypair that will have authority over the deployed programs"
+    keypair_json = "~/.config/solana/id.json"
+}

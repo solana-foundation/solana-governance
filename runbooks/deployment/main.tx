@@ -15,8 +15,8 @@ action "deploy_ncn_program" "svm::deploy_program" {
         "ncn/target/idl/ncn_snapshot.json",
         "ncn/target/deploy/ncn_snapshot.so"
     ) 
-    authority = signer.squads
-    payer = signer.proposer
+    authority = signer.authority
+    payer = signer.payer
 }
 
 
@@ -28,6 +28,6 @@ action "deploy_svmgov_program" "svm::deploy_program" {
         "svmgov/program/target/idl/svmgov_program.json",
         "svmgov/program/target/deploy/svmgov_program.so"
     ) 
-    authority = signer.squads
-    payer = signer.proposer
+    authority = signer.authority
+    payer = signer.payer
 }
