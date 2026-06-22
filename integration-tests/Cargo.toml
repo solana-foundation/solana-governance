@@ -1,0 +1,60 @@
+[package]
+name = "governance-integration-tests"
+version = "0.1.0-40000"
+description = "Cross-program integration tests: deploys svmgov + ncn-snapshot to an ephemeral surfnet and exercises the full proposal creation/support flow."
+edition = "2021"
+publish = false
+
+# Standalone workspace so this crate's dependency graph is resolved in isolation.
+[workspace]
+
+[dev-dependencies]
+# Embeds an in-process Surfpool ephemeral network and re-exports a regular
+# solana RPC client (`surfpool_sdk::RpcClient`) for interacting with it.
+surfpool-sdk = { path = "../../surfpool/crates/sdk" } # "1.3.1"
+
+# NOTE: we deliberately do NOT depend on the on-chain program crates. svmgov_program
+# pulls solana-vote-interface 6.0 (needs solana-instruction ^3.3), which conflicts
+# with surfpool's litesvm (pins solana-instruction =3.2.0). So instructions are
+# encoded raw (anchor discriminator + borsh) and accounts decoded with borsh mirror
+# structs — keeping a single solana (3.x) version with no bridging.
+
+# Transaction-building against surfpool's solana stack. Versions match the
+# surfpool workspace so Cargo unifies to a single copy of each crate.
+# (Pubkey/Keypair/Signer/RpcClient come from surfpool-sdk re-exports.)
+# Enable find_program_address (curve25519+sha2) and Borsh on the re-exported
+# Pubkey (so it can appear in our borsh arg/account structs).
+solana-pubkey = { version = "3.0", features = ["std", "curve25519", "sha2", "borsh"] }
+solana-instruction = { version = "3.2", default-features = false, features = ["std"] }
+solana-transaction = { version = "3.1", default-features = false, features = ["bincode"] }
+solana-message = { version = "3.1", default-features = false }
+solana-hash = { version = "4.2", default-features = false }
+solana-system-interface = { version = "3.0", default-features = false }
+# Raw RPC access for the `surfnet_writeProgram` cheatcode (so we can deploy with
+# our admin as the program's upgrade authority — initialize_config requires it).
+solana-rpc-client-api = { version = "4.0", default-features = false }
+
+borsh = "1.5"
+sha2 = "0.10"
+hex = "0.4"
+serde_json = "1"
+tokio = { version = "1.43", features = ["macros", "rt-multi-thread"] }
+
+# This crate is its own workspace, so the litesvm fork patch must live here (not
+# only in surfpool's Cargo.toml) to apply to the litesvm that surfpool-core pulls.
+# The fork adds settable epoch stakes so `sol_get_epoch_stake` reflects the
+# stake configured via surfpool's stake/vote cheatcodes.
+[patch.crates-io]
+litesvm = { path = "../../litesvm/crates/litesvm" }
+# Version pins to work around upstream skew in surfpool-sdk 1.3.1's transitive
+# txtx deps (Cargo.lock is gitignored, so the constraints live here):
+#   * svm 0.3.21 is the version whose solana-* stack resolves cleanly (0.3.22
+#     pins solana-instruction =3.2.0 yet pulls solana-system-interface 3.2.0,
+#     which needs solana-instruction ^3.4.0 — unresolvable).
+#   * types 0.3.19 is the last version without the `DeployToken` variant, which
+#     svm 0.3.21's deployment-transaction match does not handle (0.3.20 added it,
+#     making svm 0.3.21 non-exhaustive and breaking compilation).
+# Both satisfy surfpool-core/surfpool-types requirements. Revisit when surfpool
+# bumps surfpool-sdk past 1.3.1.
+# txtx-addon-network-svm = "=0.3.21"
+# txtx-addon-network-svm-types = "=0.3.19"

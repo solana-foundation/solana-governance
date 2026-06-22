@@ -5,4 +5,5 @@ linkedProjects = [
     "svmgov/cli/Cargo.toml",
     "ncn/Cargo.toml",
     "ncn-router/Cargo.toml",
+    "integration-tests/Cargo.toml"
 ]

@@ -1,0 +1,4 @@
+/target
+/Cargo.lock
+# Surfpool's local run artifacts (logs, etc.).
+/.surfpool
