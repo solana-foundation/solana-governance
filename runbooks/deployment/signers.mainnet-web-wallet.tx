@@ -1,0 +1,8 @@
+signer "payer" "svm::web_wallet" {
+    description = "Keypair that will pay for the deployment"
+    expected_public_key = input.deployer_public_key
+}
+signer "authority" "svm::web_wallet" {
+    description = "Keypair that will have authority over the deployed programs"
+    expected_public_key = input.deployer_public_key
+}
