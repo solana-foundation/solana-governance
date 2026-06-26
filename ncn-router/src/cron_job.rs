@@ -214,6 +214,16 @@ fn compare_with_chain(
         return Ok(());
     }
 
+    for entry in &entries {
+        if !verification_domain_is_https(&entry.domain) {
+            return Err(format!(
+                "verifier '{}' domain '{}' is not https; refusing to generate whitelist over plaintext transport",
+                entry.name, entry.domain
+            )
+            .into());
+        }
+    }
+
     let default_rpc = match network {
         "testnet" => "https://api.testnet.solana.com",
         _ => "https://api.mainnet-beta.solana.com",
@@ -505,7 +515,24 @@ fn bytes32_base58(b: &[u8; 32]) -> String {
 fn load_config(path: &str) -> Result<Config, Box<dyn std::error::Error>> {
     let s = std::fs::read_to_string(Path::new(path))?;
     let config: Config = toml::from_str(&s)?;
+    for verifier in &config.verifiers {
+        if !verification_domain_is_https(&verifier.verification_domain) {
+            return Err(format!(
+                "verifier '{}' verification_domain '{}' must use https; plaintext transport is not trusted",
+                verifier.name, verifier.verification_domain
+            )
+            .into());
+        }
+    }
     Ok(config)
+}
+
+/// Verifier trust depends on an authenticated transport, so only https origins
+/// are accepted; unparsable or non-https domains are treated as untrusted.
+fn verification_domain_is_https(domain: &str) -> bool {
+    reqwest::Url::parse(domain.trim())
+        .map(|url| url.scheme() == "https")
+        .unwrap_or(false)
 }
 
 /// Ensure base URL ends with exactly one slash for appending "meta?network=..."
