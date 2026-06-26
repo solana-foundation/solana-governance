@@ -19,5 +19,4 @@ skip-pda-check = []
 
 
 [dependencies]
-anchor-lang = { workspace = true }
-
+anchor-lang = "0.31.1"

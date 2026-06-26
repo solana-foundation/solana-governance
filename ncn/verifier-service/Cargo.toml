@@ -30,14 +30,14 @@ anyhow = "1.0"
 thiserror = "2.0.12"
 flate2 = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
-log = { workspace = true }
-env_logger = { workspace = true }
-anchor-lang = { workspace = true }
-solana-sdk = { workspace = true }
+log = "0.4.22"
+env_logger = "0.10.2"
+anchor-lang = "0.31.1"
+solana-sdk = "=4.0.1"
 ncn-snapshot = { path = "../programs/ncn-snapshot" }
 borsh = { version = "1.5.7" }
 bs58 = "0.5"
-meta-merkle-tree = { workspace = true }
+meta-merkle-tree = { path = "../../jito-tip-router/meta_merkle_tree/" }
 cli = { path = "../cli"}
 once_cell = "1"
 sysinfo = { version = "0.30", default-features = false, features = ["multithread"] }

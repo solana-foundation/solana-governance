@@ -4,9 +4,6 @@ members = [
 ]
 resolver = "2"
 
-[workspace.dependencies]
-anchor-lang = "0.31.1"
-
 [profile.release]
 overflow-checks = true
 lto = "fat"

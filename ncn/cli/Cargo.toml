@@ -4,20 +4,20 @@ version = "0.2.0-40000"
 edition = "2021"
 
 [dependencies]
-anchor-client = { workspace = true }
+anchor-client = "0.31.1"
 clap = { version = "4", features = ["derive"] }
-meta-merkle-tree = { workspace = true }
-tip-router-operator-cli = { workspace = true }
-solana-accounts-db = { workspace = true }
-solana-runtime = { workspace = true }
-solana-program = { workspace = true }
-solana-vote-program = { workspace = true }
-solana-vote = { workspace = true }
-solana-sdk = { workspace = true }
-solana-stake-interface = { workspace = true }
-anchor-lang = { workspace = true }
-log = { workspace = true }
-env_logger = { workspace = true }
+meta-merkle-tree = { path = "../../jito-tip-router/meta_merkle_tree/" }
+tip-router-operator-cli = { path = "../../jito-tip-router/tip-router-operator-cli/" }
+solana-accounts-db = { package = "solana-accounts-db", git = "https://github.com/jito-foundation/jito-solana.git", rev = "0ecd70f3bdaed01d6b2b371422d3ec874c87486f" }
+solana-runtime = { package = "solana-runtime", git = "https://github.com/jito-foundation/jito-solana.git", rev = "0ecd70f3bdaed01d6b2b371422d3ec874c87486f" }
+solana-program = { version = "4.0.0", default-features = false, features = [] }
+solana-vote-program = { package = "solana-vote-program", git = "https://github.com/jito-foundation/jito-solana.git", rev = "0ecd70f3bdaed01d6b2b371422d3ec874c87486f" }
+solana-vote = { package = "solana-vote", git = "https://github.com/jito-foundation/jito-solana.git", rev = "0ecd70f3bdaed01d6b2b371422d3ec874c87486f" }
+solana-sdk = "=4.0.1"
+solana-stake-interface = { version = "3.1.0", features = ["sysvar"] }
+anchor-lang = "0.31.1"
+log = "0.4.22"
+env_logger = "0.10.2"
 flate2 = "1.0"
 tokio = { version = "1.36.0", features = ["full"] }
 anyhow = "1.0.86"
