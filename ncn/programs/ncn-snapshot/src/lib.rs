@@ -13,6 +13,19 @@ pub use state::*;
 
 declare_id!("ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf");
 
+#[cfg(not(feature = "no-entrypoint"))]
+use solana_security_txt::security_txt;
+
+#[cfg(not(feature = "no-entrypoint"))]
+security_txt! {
+    name: "Solana Validator Governance NCN Snapshot Program",
+    project_url: "https://github.com/solana-foundation/solana-governance",
+    contacts: "link:https://github.com/solana-foundation/solana-governance/security/advisories/new",
+    policy: "https://github.com/solana-foundation/solana-governance/security/policy",
+    preferred_languages: "en",
+    source_code: "https://github.com/solana-foundation/solana-governance"
+}
+
 #[program]
 pub mod ncn_snapshot {
     use super::*;

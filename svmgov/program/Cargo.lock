@@ -827,6 +827,7 @@ name = "ncn-snapshot"
 version = "0.2.0-40000"
 dependencies = [
  "anchor-lang",
+ "solana-security-txt",
 ]
 
 [[package]]
@@ -1985,6 +1986,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "solana-security-txt"
+version = "1.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c94a02d486b28f219a4f8f5d7dd93cbfbb93c9f466cb7871c22e50cd5ae9a7a2"
+
+[[package]]
 name = "solana-serde-varint"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2277,6 +2284,7 @@ version = "0.2.0-40000"
 dependencies = [
  "anchor-lang",
  "ncn-snapshot",
+ "solana-security-txt",
  "solana-vote-interface 5.0.0",
 ]
 

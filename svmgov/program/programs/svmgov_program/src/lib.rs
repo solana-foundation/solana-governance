@@ -13,6 +13,19 @@ use ncn_snapshot::StakeMerkleLeaf;
 
 declare_id!("govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU");
 
+#[cfg(not(feature = "no-entrypoint"))]
+use solana_security_txt::security_txt;
+
+#[cfg(not(feature = "no-entrypoint"))]
+security_txt! {
+    name: "Solana Validator Governance Program",
+    project_url: "https://github.com/solana-foundation/solana-governance",
+    contacts: "link:https://github.com/solana-foundation/solana-governance/security/advisories/new",
+    policy: "https://github.com/solana-foundation/solana-governance/security/policy",
+    preferred_languages: "en",
+    source_code: "https://github.com/solana-foundation/solana-governance"
+}
+
 #[program]
 pub mod svmgov_program {
     use super::*;

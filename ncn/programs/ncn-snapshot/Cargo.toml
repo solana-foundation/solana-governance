@@ -20,3 +20,4 @@ skip-pda-check = []
 
 [dependencies]
 anchor-lang = "0.31.1"
+solana-security-txt = "1.1.1"
