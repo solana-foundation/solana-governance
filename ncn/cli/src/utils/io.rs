@@ -39,5 +39,3 @@ pub fn decompress_gzip_with_limit<R: Read>(reader: R, max_size: usize) -> io::Re
     let decoder = GzDecoder::new(reader);
     read_all_with_limit(decoder, max_size)
 }
-
-
