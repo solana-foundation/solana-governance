@@ -16,8 +16,13 @@ pub fn validate_executable_path(path: &Path) -> Result<()> {
     let canonical = fs::canonicalize(path)
         .map_err(|e| anyhow!("Failed to resolve executable path '{}': {}", path_str, e))?;
 
-    let metadata = fs::metadata(&canonical)
-        .map_err(|e| anyhow!("Failed to read metadata for '{}': {}", canonical.display(), e))?;
+    let metadata = fs::metadata(&canonical).map_err(|e| {
+        anyhow!(
+            "Failed to read metadata for '{}': {}",
+            canonical.display(),
+            e
+        )
+    })?;
 
     if !metadata.is_file() {
         return Err(anyhow!(
@@ -30,10 +35,7 @@ pub fn validate_executable_path(path: &Path) -> Result<()> {
     {
         use std::os::unix::fs::PermissionsExt;
         if metadata.permissions().mode() & 0o111 == 0 {
-            return Err(anyhow!(
-                "File is not executable: {}",
-                canonical.display()
-            ));
+            return Err(anyhow!("File is not executable: {}", canonical.display()));
         }
     }
 
@@ -54,14 +56,16 @@ pub fn validate_directory_path(path: &Path) -> Result<()> {
     let canonical = fs::canonicalize(path)
         .map_err(|e| anyhow!("Failed to resolve directory path '{}': {}", path_str, e))?;
 
-    let metadata = fs::metadata(&canonical)
-        .map_err(|e| anyhow!("Failed to read metadata for '{}': {}", canonical.display(), e))?;
+    let metadata = fs::metadata(&canonical).map_err(|e| {
+        anyhow!(
+            "Failed to read metadata for '{}': {}",
+            canonical.display(),
+            e
+        )
+    })?;
 
     if !metadata.is_dir() {
-        return Err(anyhow!(
-            "Path is not a directory: {}",
-            canonical.display()
-        ));
+        return Err(anyhow!("Path is not a directory: {}", canonical.display()));
     }
 
     Ok(())
@@ -84,7 +88,10 @@ mod tests {
     fn executable_rejects_dash_prefix() {
         let result = validate_executable_path(Path::new("-malicious"));
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("must not start with '-'"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("must not start with '-'"));
     }
 
     #[test]
@@ -98,7 +105,10 @@ mod tests {
         let dir = setup();
         let result = validate_executable_path(dir.path());
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("not a regular file"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("not a regular file"));
     }
 
     #[test]
@@ -138,7 +148,10 @@ mod tests {
     fn directory_rejects_dash_prefix() {
         let result = validate_directory_path(Path::new("-bad"));
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("must not start with '-'"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("must not start with '-'"));
     }
 
     #[test]

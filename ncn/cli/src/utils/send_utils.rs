@@ -1,19 +1,21 @@
 use anchor_client::{
     anchor_lang::system_program,
     solana_sdk::{
+        compute_budget::ComputeBudgetInstruction,
+        instruction::Instruction,
         pubkey::Pubkey,
         signature::{Keypair, Signature},
         signer::Signer,
-        instruction::Instruction,
         transaction::Transaction,
-        compute_budget::ComputeBudgetInstruction,
     },
     ClientError, Program,
 };
 use anyhow::{anyhow, Result};
 use ncn_snapshot::{accounts, instruction, Ballot, MetaMerkleLeaf, ProgramConfig, StakeMerkleLeaf};
 
-use crate::utils::squads::{effective_signer, route_via_squads, RoutedOutcome, SquadsRoutingConfig};
+use crate::utils::squads::{
+    effective_signer, route_via_squads, RoutedOutcome, SquadsRoutingConfig,
+};
 
 pub struct TxSender<'a> {
     pub program: &'a Program<&'a Keypair>,
@@ -64,9 +66,7 @@ impl<'a> TxSender<'a> {
                     slot: None,
                 })
             }
-            Some(config) => {
-                route_via_squads(self.program, ixs, self.payer, config)
-            }
+            Some(config) => route_via_squads(self.program, ixs, self.payer, config),
         }
     }
 }
@@ -121,10 +121,7 @@ pub fn send_init_program_config(
         })
         .instructions()?;
 
-    tx_sender.route(
-        ixs,
-        &[tx_sender.payer, tx_sender.authority],
-    )
+    tx_sender.route(ixs, &[tx_sender.payer, tx_sender.authority])
 }
 
 pub fn send_update_operator_whitelist(
@@ -146,10 +143,7 @@ pub fn send_update_operator_whitelist(
         })
         .instructions()?;
 
-    tx_sender.route(
-        ixs,
-        &[tx_sender.payer, tx_sender.authority],
-    )
+    tx_sender.route(ixs, &[tx_sender.payer, tx_sender.authority])
 }
 
 pub fn send_update_program_config(
@@ -179,10 +173,7 @@ pub fn send_update_program_config(
         })
         .instructions()?;
 
-    tx_sender.route(
-        ixs,
-        &[tx_sender.payer, tx_sender.authority],
-    )
+    tx_sender.route(ixs, &[tx_sender.payer, tx_sender.authority])
 }
 
 pub fn send_cast_vote(
@@ -252,7 +243,11 @@ pub fn send_init_ballot_box(
             program_config: ProgramConfig::pda().0,
             system_program: system_program::ID,
         })
-        .args(instruction::InitBallotBox { snapshot_slot, proposal_seed: 0, spl_vote_account: Pubkey::default() })
+        .args(instruction::InitBallotBox {
+            snapshot_slot,
+            proposal_seed: 0,
+            spl_vote_account: Pubkey::default(),
+        })
         .instructions()?;
 
     tx_sender.send(ixs)
@@ -313,16 +308,10 @@ pub fn send_set_tie_breaker(
         .args(instruction::SetTieBreaker { ballot })
         .instructions()?;
 
-    tx_sender.route(
-        ixs,
-        &[tx_sender.payer, tx_sender.authority],
-    )
+    tx_sender.route(ixs, &[tx_sender.payer, tx_sender.authority])
 }
 
-pub fn send_reset_ballot_box(
-    tx_sender: &TxSender,
-    ballot_box: Pubkey,
-) -> Result<RoutedOutcome> {
+pub fn send_reset_ballot_box(tx_sender: &TxSender, ballot_box: Pubkey) -> Result<RoutedOutcome> {
     let tie_breaker_admin =
         effective_signer(tx_sender.squads.as_ref(), tx_sender.authority.pubkey());
     let ixs = tx_sender
@@ -336,10 +325,7 @@ pub fn send_reset_ballot_box(
         .args(instruction::ResetBallotBox {})
         .instructions()?;
 
-    tx_sender.route(
-        ixs,
-        &[tx_sender.payer, tx_sender.authority],
-    )
+    tx_sender.route(ixs, &[tx_sender.payer, tx_sender.authority])
 }
 
 pub fn send_init_meta_merkle_proof(
@@ -422,8 +408,5 @@ pub fn send_finalize_proposed_authority(tx_sender: &TxSender) -> Result<RoutedOu
         .args(instruction::FinalizeProposedAuthority {})
         .instructions()?;
 
-    tx_sender.route(
-        ixs,
-        &[tx_sender.payer, tx_sender.authority],
-    )
+    tx_sender.route(ixs, &[tx_sender.payer, tx_sender.authority])
 }

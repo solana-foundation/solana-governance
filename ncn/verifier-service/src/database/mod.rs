@@ -2,8 +2,8 @@ pub mod constants;
 pub mod migrator;
 pub mod models;
 pub mod operations;
-pub mod sql;
 mod path;
+pub mod sql;
 
 use crate::utils::env_parse;
 use anyhow::Result;
@@ -14,8 +14,8 @@ use sqlx::ConnectOptions;
 use std::{fs, path::Path, str::FromStr};
 use tracing::info;
 
-pub use migrator::run_migrations;
 use self::path::validate_db_path;
+pub use migrator::run_migrations;
 
 /// Create a new SQLx pool and run migrations
 pub async fn init_pool(db_path: &str) -> Result<SqlitePool> {

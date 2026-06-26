@@ -8,18 +8,27 @@ fn main() {
         .args(["rev-parse", "--short=12", "HEAD"])
         .output()
         .ok()
-        .and_then(|o| if o.status.success() { Some(String::from_utf8_lossy(&o.stdout).trim().to_string()) } else { None });
+        .and_then(|o| {
+            if o.status.success() {
+                Some(String::from_utf8_lossy(&o.stdout).trim().to_string())
+            } else {
+                None
+            }
+        });
 
     if let Some(h) = git_hash {
         println!("cargo:rustc-env=VERIFIER_BUILD_GIT_HASH={}", h);
     }
 
     // Build time as unix seconds, allow override via SOURCE_DATE_EPOCH for reproducible builds
-    let now = std::env::var("SOURCE_DATE_EPOCH").ok().or_else(|| {
-        use std::time::{SystemTime, UNIX_EPOCH};
-        let ts = SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs();
-        Some(ts.to_string())
-    }).unwrap_or_else(|| "unknown".to_string());
+    let now = std::env::var("SOURCE_DATE_EPOCH")
+        .ok()
+        .or_else(|| {
+            use std::time::{SystemTime, UNIX_EPOCH};
+            let ts = SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs();
+            Some(ts.to_string())
+        })
+        .unwrap_or_else(|| "unknown".to_string());
 
     println!("cargo:rustc-env=VERIFIER_BUILD_TIME_UNIX={}", now);
 }
