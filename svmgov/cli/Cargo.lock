@@ -2799,6 +2799,7 @@ name = "ncn-snapshot"
 version = "0.2.0-40000"
 dependencies = [
  "anchor-lang",
+ "solana-security-txt",
 ]
 
 [[package]]
