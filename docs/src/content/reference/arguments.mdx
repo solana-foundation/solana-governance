@@ -6,8 +6,13 @@ Complete reference for all `svmgov` CLI command-line arguments and configuration
 
 | Option | Short | Env Var | Description |
 |---|---|---|---|
-| `--identity-keypair <PATH>` | `-i` | `SVMGOV_KEY` | Path to identity keypair JSON |
+| `--keypair <PATH>` | `-k` | `SVMGOV_KEY` | Path to signer keypair JSON |
 | `--rpc-url <URL>` | `-r` | `SVMGOV_RPC` | Solana RPC endpoint |
+| `--network <NETWORK>` | `-n` | — | Network for verifier/proof fetching; overrides config |
+| `--squads <PUBKEY>` | — | — | Route supported admin transactions through this Squads multisig |
+| `--squads-vault-index <U8>` | — | — | Squads vault index; defaults to `0` |
+| `--squads-memo <TEXT>` | — | — | Optional memo for the Squads vault transaction |
+| `--squads-program-id <PUBKEY>` | — | — | Override the canonical Squads program ID |
 
 **Resolution order:** explicit flags → env vars → config file → built-in defaults
 
@@ -61,9 +66,9 @@ When voting, `for_votes + against_votes + abstain_votes` must equal exactly **10
 
 | Argument | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `--title` | String | Yes | — | Proposal title (max ~50 chars) |
-| `--description` | String | Yes | — | GitHub URL (`https://github.com/...`, max ~250 chars) |
-| `--network` | String | Yes | — | Network for proof fetching |
+| `--title` | String | Yes | — | Proposal title; byte length must be ≤ configured `max_title_length` and ≤ 200 |
+| `--description` | String | Yes | — | GitHub URL (`https://github.com/...`); byte length must be ≤ configured `max_description_length` and ≤ 500 |
+| `--network` | String | No | Config value | Network for proof fetching |
 | `--seed` | u64 | No | Random | PDA derivation seed |
 
 ### `support-proposal`
@@ -71,7 +76,7 @@ When voting, `for_votes + against_votes + abstain_votes` must equal exactly **10
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `--proposal-id` | String | Yes | Proposal PDA (base58) |
-| `--network` | String | Yes | Network |
+| `--network` | String | No | Network override |
 
 ### `cast-vote` / `modify-vote`
 
@@ -81,7 +86,7 @@ When voting, `for_votes + against_votes + abstain_votes` must equal exactly **10
 | `--for-votes` | u64 | Yes | Basis points For (0–10,000) |
 | `--against-votes` | u64 | Yes | Basis points Against (0–10,000) |
 | `--abstain-votes` | u64 | Yes | Basis points Abstain (0–10,000) |
-| `--network` | String | Yes | Network |
+| `--network` | String | No | Network override |
 | `--close-timestamp` | i64 | No | _(`cast-vote` only)_ Unix timestamp after which the `MetaMerkleProof` PDA may be closed permissionlessly. Defaults to the proposal's vote-expiry time |
 
 ### `finalize-proposal`
@@ -116,6 +121,33 @@ When voting, `for_votes + against_votes + abstain_votes` must equal exactly **10
 | `--abstain-votes` | u64 | Yes | Basis points Abstain (0–10,000) |
 | `--stake-account` | String | Yes | Stake account pubkey (base58) |
 | `--vote-account` | String | Yes | Validator vote account pubkey (base58) |
-| `--network` | String | Yes | Network |
+| `--network` | String | No | Network override |
 | `--staker-keypair` | String | Yes | Staker keypair path |
 | `--close-timestamp` | i64 | No | _(`cast-vote-override` only)_ Unix timestamp after which the `MetaMerkleProof` PDA may be closed permissionlessly. Defaults to the proposal's vote-expiry time |
+
+## Admin Command Arguments
+
+### `init-global-config`
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `--max-title-length` | u16 | Yes | Maximum proposal title bytes |
+| `--max-description-length` | u16 | Yes | Maximum proposal description bytes |
+| `--max-support-epochs` | u64 | Yes | Maximum support phase epochs |
+| `--min-proposal-stake-lamports` | u64 | Yes | Minimum stake required to create a proposal |
+| `--cluster-support-pct-min-bps` | u64 | Yes | Support threshold in basis points |
+| `--discussion-epochs` | u64 | Yes | Discussion phase epochs |
+| `--voting-epochs` | u64 | Yes | Voting phase epochs |
+| `--snapshot-epoch-extension` | u64 | Yes | Epoch extension used when computing the snapshot slot |
+| `--snapshot-slot-offset` | i64 | Yes | Slot offset from the target epoch start slot |
+
+### `update-global-config`
+
+Same fields as `init-global-config`, but every field is optional and only supplied values are changed.
+
+### `nominate-admin` / `accept-admin`
+
+| Command | Argument | Required | Description |
+|---|---|---|---|
+| `nominate-admin` | `--new-admin <PUBKEY>` | Yes | Pending admin that must later accept |
+| `accept-admin` | — | — | Must be signed by the pending admin |

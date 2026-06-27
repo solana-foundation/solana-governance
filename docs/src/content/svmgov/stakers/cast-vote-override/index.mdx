@@ -31,7 +31,7 @@ svmgov cast-vote-override \
 | `--abstain-votes` | u64 | **Yes** | Basis points for Abstain (0–10,000) |
 | `--stake-account` | String | **Yes** | Your stake account address (base58) |
 | `--vote-account` | String | **Yes** | Your validator's vote account address (base58) |
-| `--network` | String | **Yes** | Network: `mainnet`, `testnet` |
+| `--network` | String | No | Network override: `mainnet`, `testnet` |
 | `--staker-keypair` | String | **Yes** | Path to staker keypair JSON |
 | `--close-timestamp` | i64 | No | Unix timestamp after which the `MetaMerkleProof` PDA can be closed permissionlessly. Defaults to the proposal's vote-expiry time |
 

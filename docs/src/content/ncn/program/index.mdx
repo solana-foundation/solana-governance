@@ -2,7 +2,7 @@ import { Callout, Tabs } from 'nextra/components'
 
 # ncn-snapshot Program
 
-**Program ID:** `HsiPGfvF441TrU8eCLLerQDcEMtyzYszBfKxqoSuaD9R`
+**Program ID:** `ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf`
 
 The `ncn-snapshot` Solana program is the on-chain component of NCN. It manages the operator whitelist, collects snapshot votes into `BallotBox` accounts, determines consensus, and publishes `ConsensusResult` accounts that the `svmgov` program uses for stake proof verification.
 
@@ -24,6 +24,7 @@ The global singleton configuration. Initialized once by the governance authority
 | `min_consensus_threshold_bps` | `u16` | Min fraction of operators required for consensus (basis points, 1–10,000) |
 | `tie_breaker_admin` | `Pubkey` | Can resolve deadlocks after vote expiry |
 | `vote_duration` | `i64` | Seconds a BallotBox is open for voting |
+| `svmgov_program_pubkey` | `Pubkey` | svmgov program whose Proposal PDAs are authorized to open ballot boxes |
 
 **Constant:** `MAX_OPERATOR_WHITELIST = 64`
 
@@ -115,6 +116,10 @@ Initializes the `ProgramConfig` singleton. Called once at program deployment.
 Accounts: program_config (init, PDA)
 ```
 
+| Parameter | Type | Description |
+|---|---|---|
+| `svmgov_program_pubkey` | `Pubkey` | svmgov program authorized to open ballot boxes |
+
 ---
 
 ### `update_program_config`
@@ -129,6 +134,7 @@ Updates any subset of config fields. All parameters are optional.
 | `min_consensus_threshold_bps` | `Option<u16>` | Must be `> 0` and `≤ 10,000` |
 | `tie_breaker_admin` | `Option<Pubkey>` | — |
 | `vote_duration` | `Option<i64>` | Must be `> 0` |
+| `svmgov_program_pubkey` | `Option<Pubkey>` | Retargets which svmgov program can open ballot boxes |
 
 ---
 
@@ -174,7 +180,7 @@ Creates a new `BallotBox` for a given `snapshot_slot`. Called by the `svmgov` pr
 Snapshots `whitelisted_operators` into `voter_list` at creation time.
 
 <Callout>
-  The `proposal` account must be a PDA from the `svmgov` program (`4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU`). Compile with `skip-pda-check` feature to disable this check for testing.
+  The `proposal` account must be a PDA from the `svmgov` program stored in `ProgramConfig.svmgov_program_pubkey` (`govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU` in the current release manifest). Compile with `skip-pda-check` feature to disable this check for testing.
 </Callout>
 
 ---

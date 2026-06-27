@@ -26,13 +26,13 @@ svmgov support-proposal \
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `--proposal-id` | String | **Yes** | The proposal's PDA address (base58) |
-| `--network` | String | **Yes** | Network for Merkle proof fetching: `mainnet`, `testnet` |
+| `--network` | String | No | Network override for proof fetching: `mainnet`, `testnet` |
 
 ## Global Arguments
 
 | Option | Short | Description |
 |---|---|---|
-| `--identity-keypair <PATH>` | `-i` | Path to validator identity keypair JSON |
+| `--keypair <PATH>` | `-k` | Path to validator identity keypair JSON |
 | `--rpc-url <URL>` | `-r` | Custom RPC URL |
 
 ## Requirements
@@ -53,7 +53,7 @@ svmgov support-proposal \
 svmgov support-proposal \
   --proposal-id "AbCdEf123..." \
   --network mainnet \
-  --identity-keypair ~/.config/solana/validator-identity.json \
+  --keypair ~/.config/solana/validator-identity.json \
   --rpc-url https://api.mainnet-beta.solana.com
 ```
 
@@ -62,7 +62,7 @@ svmgov support-proposal \
 When your support pushes a proposal over the threshold:
 
 1. `proposal.voting = true`
-2. `snapshot_slot` is set to 1000 slots into the `snapshot_epoch_extension` epoch
+2. `snapshot_slot` is computed from the configured target epoch and `snapshot_slot_offset`
 3. NCN `BallotBox` is initialized (operators can start voting)
 4. `start_epoch` and `end_epoch` are computed
 
