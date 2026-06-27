@@ -1,0 +1,15 @@
+{
+  "name": "Solana Validator Governance Program",
+  "description": "SVM governance program for validator proposals, support, and voting.",
+  "project_url": "https://github.com/solana-foundation/solana-governance",
+  "contacts": [
+    "mailto:disclosures@solana.org",
+    "link:https://github.com/solana-foundation/solana-governance/security/advisories/new"
+  ],
+  "policy": "https://github.com/solana-foundation/solana-governance/security/policy",
+  "preferred_languages": [
+    "en"
+  ],
+  "source_code": "https://github.com/solana-foundation/solana-governance",
+  "source_revision": "828a5c0360d5975d4ca3b62065a1d09b1394495e"
+}
