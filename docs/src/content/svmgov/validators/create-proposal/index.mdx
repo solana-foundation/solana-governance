@@ -25,14 +25,14 @@ svmgov create-proposal \
 |---|---|---|---|---|
 | `--title` | String | **Yes** | — | Proposal title. Length in bytes must be ≤ `max_title_length` (config-set, up to 200 bytes) |
 | `--description` | String | **Yes** | — | GitHub link for full proposal details. Must start with `https://github.com`; length in bytes must be ≤ `max_description_length` (config-set, up to 500 bytes) |
-| `--network` | String | **Yes** | — | Network for fetching Merkle proofs: `mainnet`, `testnet` |
+| `--network` | String | No | Config value | Network override for proof fetching: `mainnet`, `testnet` |
 | `--seed` | u64 | No | Random | Unique seed for PDA derivation |
 
 ## Global Arguments
 
 | Option | Short | Description |
 |---|---|---|
-| `--identity-keypair <PATH>` | `-i` | Path to validator identity keypair JSON |
+| `--keypair <PATH>` | `-k` | Path to validator identity keypair JSON |
 | `--rpc-url <URL>` | `-r` | Custom RPC URL |
 
 ## Requirements
@@ -63,7 +63,7 @@ svmgov create-proposal \
   --title "My Proposal" \
   --description "https://github.com/repo/issues/1" \
   --network mainnet \
-  --identity-keypair ~/.config/solana/validator-identity.json
+  --keypair ~/.config/solana/validator-identity.json
 ```
 
 ## What Happens On-Chain

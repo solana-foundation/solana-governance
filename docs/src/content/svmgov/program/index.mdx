@@ -2,7 +2,7 @@ import { Callout } from 'nextra/components'
 
 # svmgov Program Reference
 
-**Program ID:** `4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU`
+**Program ID:** `govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU`
 
 Complete reference for all on-chain accounts, instructions, and error codes in the `svmgov` Anchor program.
 
@@ -32,6 +32,7 @@ The global governance configuration singleton. Initialized by the admin once.
 | `discussion_epochs` | `u64` | Epochs reserved for discussion after voting is activated |
 | `voting_epochs` | `u64` | Number of epochs in the active voting window |
 | `snapshot_epoch_extension` | `u64` | Epochs of extension before the snapshot slot is set |
+| `snapshot_slot_offset` | `i64` | Slot offset from the target epoch start slot; may be negative if the computed slot remains in the future |
 | `bump` | `u8` | PDA bump |
 
 ---
@@ -255,7 +256,7 @@ A validator signals support for a proposal.
 
 Adds the validator's stake to `proposal.cluster_support_lamports`. When the total crosses the cluster support threshold:
 - Sets `proposal.voting = true`
-- Calculates `snapshot_slot` (1000 slots into `snapshot_epoch_extension` epoch)
+- Calculates `snapshot_slot` from the target epoch start slot plus `GlobalConfig.snapshot_slot_offset`
 - Sets `start_epoch` and `end_epoch`
 - Derives `consensus_result` PDA
 - CPIs to `ncn-snapshot::init_ballot_box`

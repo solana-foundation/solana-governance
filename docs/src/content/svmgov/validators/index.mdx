@@ -48,8 +48,9 @@ All validator commands support:
 
 | Option | Short | Env var | Description |
 |---|---|---|---|
-| `--identity-keypair <PATH>` | `-i` | `SVMGOV_KEY` | Path to validator identity keypair JSON |
+| `--keypair <PATH>` | `-k` | `SVMGOV_KEY` | Path to validator identity keypair JSON |
 | `--rpc-url <URL>` | `-r` | `SVMGOV_RPC` | Solana RPC endpoint |
+| `--network <NETWORK>` | `-n` | — | Network for verifier/proof fetching |
 
 Resolution order: **explicit flags → environment variables → config file → built-in defaults**
 
