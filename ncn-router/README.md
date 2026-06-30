@@ -10,8 +10,25 @@
 ### Configuration
 
 - **`config.toml`**: List of verifier names and `verification_domain` URLs.
-  The default config includes the shared Solana Governance router domain:
-  `https://ncn-governance.solana.com/`.
+  Each `verification_domain` should be the verifier base URL; the cron worker appends
+  `/meta?network=mainnet|testnet` when polling.
+  The public production router is `https://ncn-governance.solana.com`.
+
+### Default verifier list
+
+| Name | Verification domain |
+|---|---|
+| Ha1iad3 | `https://ncn.ha1iad3.com/` |
+| lantern | `https://gov.lantern.one/` |
+| Titan Analytics | `https://verifier.titananalytics.io` |
+| Adra finance | `https://solgov.com` |
+| Blocksize | `https://verifier.nops.blocksize.dev/` |
+| Digital Energy | `https://ncn-verifier.digital-energy.io` |
+| stakeware.xyz | `https://ncn.stakeware.xyz:3000/` |
+| Prompt Logic | `https://verifier.promptlogic.systems` |
+| Exo Tech | `http://ncn-verifier.exotechnologies.xyz:3000` |
+| Chainflow | `https://ncn-verifier.chainflow.io` |
+| Brewlabs | `https://ncn.brewlabs.so` |
 - **Env vars**:
   - `NCN_CONFIG` (optional): Path to config file (default: `config.toml`)
   - `NCN_LOG` (optional): Path to log file (default: `ncn_verifier_meta.log`)

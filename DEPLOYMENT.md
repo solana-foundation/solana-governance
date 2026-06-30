@@ -191,7 +191,7 @@ Later phases are driven by two CLIs: **`svmgov`** (governance — `init-global-c
 **ncn-router + ncn-meta-cron** (`ncn-router/`):
 
 - [ ] `config.toml` lists the production verifier `name` + `verification_domain` set
-      (currently 10 entries — confirm). The shared default router domain is
+      (currently 11 entries — confirm). The shared default router domain is
       `ncn-governance.solana.com`.
 - [ ] Required env: **`NCN_PROGRAM_ID`** (must equal deployed `ncn_snapshot_program_id`). Set
       RPCs: `SOLANA_RPC_URL_MAINNET` / `_TESTNET`.

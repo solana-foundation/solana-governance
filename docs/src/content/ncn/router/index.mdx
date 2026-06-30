@@ -1,0 +1,50 @@
+import { Callout } from 'nextra/components'
+
+# NCN Router
+
+The production NCN API router is:
+
+```text
+https://ncn-governance.solana.com
+```
+
+Validators, stakers, and frontends use this router as the default `operator_api_url` for proof and metadata requests. The router selects from verifier services that have matching on-chain NCN consensus data.
+
+<Callout type="info">
+  Verifier domains are configured as base URLs. The meta cron appends `/meta?network=mainnet|testnet`, and the router forwards proof requests to the selected verifier.
+</Callout>
+
+## Public Endpoints
+
+| Purpose | URL |
+|---|---|
+| Main NCN router | `https://ncn-governance.solana.com` |
+| Mainnet metadata | `https://ncn-governance.solana.com/meta?network=mainnet` |
+| Testnet metadata | `https://ncn-governance.solana.com/meta?network=testnet` |
+
+## Configured Verifiers
+
+| Name | Verification domain |
+|---|---|
+| Ha1iad3 | `https://ncn.ha1iad3.com/` |
+| lantern | `https://gov.lantern.one/` |
+| Titan Analytics | `https://verifier.titananalytics.io` |
+| Adra finance | `https://solgov.com` |
+| Blocksize | `https://verifier.nops.blocksize.dev/` |
+| Digital Energy | `https://ncn-verifier.digital-energy.io` |
+| stakeware.xyz | `https://ncn.stakeware.xyz:3000/` |
+| Prompt Logic | `https://verifier.promptlogic.systems` |
+| Exo Tech | `http://ncn-verifier.exotechnologies.xyz:3000` |
+| Chainflow | `https://ncn-verifier.chainflow.io` |
+| Brewlabs | `https://ncn.brewlabs.so` |
+
+## Local Router Config
+
+The source of truth for the bundled router verifier list is `ncn-router/config.toml`.
+
+When adding a verifier:
+
+1. Add its `name` and base `verification_domain` to `ncn-router/config.toml`.
+2. Confirm its health endpoint, for example `/healthz`.
+3. Confirm `/meta?network=mainnet` and `/meta?network=testnet` return snapshot metadata.
+4. Update this page so operators and clients can see the current production set.
