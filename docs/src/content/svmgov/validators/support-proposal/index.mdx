@@ -6,7 +6,7 @@ Signal your support for a governance proposal, contributing your stake toward th
 
 ## Description
 
-Each validator who calls `support_proposal` adds their active stake to the proposal's `cluster_support_lamports` total. Once the accumulated support reaches **5% of total cluster stake** (500 basis points), voting is automatically activated:
+Each validator who calls `support_proposal` adds their active stake to the proposal's `cluster_support_lamports` total. Once the accumulated support reaches **15% of total cluster stake** (1500 basis points), voting is automatically activated:
 
 - `proposal.voting` is set to `true`
 - `snapshot_slot` is calculated and set
@@ -57,7 +57,7 @@ svmgov support-proposal \
   --rpc-url https://api.mainnet-beta.solana.com
 ```
 
-## What Happens After 5% Support
+## What Happens After 15% Support
 
 When your support pushes a proposal over the threshold:
 

@@ -28,7 +28,7 @@ Solana Ledger
 
 1. **Snapshot** — Whitelisted operators each independently read the Solana ledger and build an identical Merkle tree of all validator stake. They cast their snapshot hash as a vote on-chain.
 2. **Consensus** — Once enough operators agree on the same snapshot (threshold configured in basis points), a `ConsensusResult` is published on-chain.
-3. **Governance** — Validators create proposals. Other validators support them. Once 5% cluster support is reached, voting opens. Each validator's vote is weighted by their active stake, proven via Merkle proof against the `ConsensusResult`.
+3. **Governance** — Validators create proposals. Other validators support them. Once 15% cluster support is reached, voting opens. Each validator's vote is weighted by their active stake, proven via Merkle proof against the `ConsensusResult`.
 4. **Delegator override** — Individual stakers can override their validator's vote using their stake account Merkle proof, ensuring delegator sovereignty.
 
 ## Two Core Components

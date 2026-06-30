@@ -84,7 +84,7 @@ Emitted when a validator supports a proposal.
 - `proposal_id: Pubkey` - The proposal being supported
 - `supporter: Pubkey` - The validator providing support
 - `cluster_support_lamports: u64` - Total lamports of cluster support after this action
-- `voting_activated: bool` - Whether this support activated voting (5% threshold reached)
+- `voting_activated: bool` - Whether this support activated voting (15% threshold reached)
 
 </details>
 
