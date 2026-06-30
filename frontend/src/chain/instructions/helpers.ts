@@ -12,6 +12,7 @@ import {
 import { AnchorWallet } from "@solana/wallet-adapter-react";
 import { SvmgovProgram, GovV1 } from "../types";
 import { RPC_URLS } from "@/contexts/EndpointContext";
+import { DEFAULT_NCN_API_URL } from "@/lib/constants";
 
 // PDA derivation functions (based on test implementation)
 export function deriveProposalPda(
@@ -157,8 +158,6 @@ export function createProgramWitDummyWallet(endpoint?: string) {
 
   return program;
 }
-// TODO: fix dupped ncn api urls
-const DEFAULT_NCN_API_URL = "https://ncn-governance.solana.com";
 
 // API helpers using the solgov.online service
 export async function getVoteAccountProof(

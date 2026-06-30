@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode } from "react";
+import { DEFAULT_NCN_API_URL } from "@/lib/constants";
 
 interface NcnApiContextType {
   ncnApiUrl: string;
@@ -10,8 +11,6 @@ interface NcnApiContextType {
 
 const NcnApiContext = createContext<NcnApiContextType | undefined>(undefined);
 
-// TODO: fix dupped ncn api urls
-const DEFAULT_NCN_API_URL = "https://ncn-governance.solana.com";
 const STORAGE_KEY = "ncn-api-url";
 
 const normalizeUrl = (url: string): string => {
