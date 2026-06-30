@@ -1,7 +1,8 @@
 use anchor_lang::Id;
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 
-use crate::config::{Config, UserType, get_default_rpc_url};
+use crate::config::{get_default_rpc_url, Config, UserType};
+use crate::constants::DEFAULT_OPERATOR_API_URL;
 use crate::svmgov_program::program::SvmgovProgram;
 
 #[derive(clap::Subcommand, Debug, Clone)]
@@ -58,7 +59,6 @@ async fn handle_set(key: &str, value: &str) -> Result<()> {
                     );
                 }
             }
-
         }
         "rpc-url" => {
             config.rpc_url = Some(value.to_string());
@@ -115,7 +115,7 @@ async fn handle_get(key: &str) -> Result<()> {
         "rpc-url" => config.get_rpc_url(),
         "operator-api-url" => {
             if config.operator_api_url.is_empty() {
-                "not set".to_string()
+                DEFAULT_OPERATOR_API_URL.to_string()
             } else {
                 config.operator_api_url
             }
@@ -169,7 +169,7 @@ async fn handle_show() -> Result<()> {
     println!("  program-id: {} (from IDL)", SvmgovProgram::id());
 
     if config.operator_api_url.is_empty() {
-        println!("  operator-api-url: not set (required)");
+        println!("  operator-api-url: {}", DEFAULT_OPERATOR_API_URL);
     } else {
         println!("  operator-api-url: {}", config.operator_api_url);
     }

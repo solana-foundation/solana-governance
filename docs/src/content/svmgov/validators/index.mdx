@@ -14,7 +14,7 @@ The `svmgov` CLI provides validators with commands to create and manage governan
 - Minimum **100,000 SOL** staked to create a proposal
 - Any active stake to support a proposal or vote
 - Access to a Solana RPC endpoint
-- Operator API URL configured (for fetching Merkle proofs)
+- Operator API URL for fetching Merkle proofs. The CLI defaults to `https://ncn-governance.solana.com`.
 
 ## Quick Setup
 
@@ -25,7 +25,7 @@ cd svmgov/cli && ./install.sh
 # Run interactive setup
 svmgov init
 
-# Set operator API URL (required for proof fetching)
+# Optional: override the default operator API URL
 svmgov config set operator-api-url https://your-operator-api.example.com
 ```
 
@@ -63,9 +63,9 @@ user_type = "Validator"
 identity_keypair_path = "/path/to/validator.json"
 network = "mainnet"
 rpc_url = "https://api.mainnet-beta.solana.com"
-operator_api_url = "https://operator.example.com"
+operator_api_url = "https://ncn-governance.solana.com"
 ```
 
 <Callout type="warning">
-  The `operator_api_url` is required for any command that needs to fetch Merkle proofs (support-proposal, cast-vote, modify-vote). Set it with `svmgov config set operator-api-url <URL>`.
+  The `operator_api_url` defaults to `https://ncn-governance.solana.com` for commands that fetch Merkle proofs (support-proposal, cast-vote, modify-vote). Override it with `svmgov config set operator-api-url <URL>` only if you need a different verifier/router.
 </Callout>

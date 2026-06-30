@@ -1,11 +1,10 @@
 use std::str::FromStr;
 
 use anchor_lang::prelude::Pubkey;
-use anyhow::{Result, anyhow};
-use ncn_snapshot::{MetaMerkleLeaf, MetaMerkleProof, StakeMerkleLeaf};
+use anyhow::{anyhow, Result};
 use log::info;
+use ncn_snapshot::{MetaMerkleLeaf, MetaMerkleProof, StakeMerkleLeaf};
 use serde::{Deserialize, Serialize};
-
 
 /// Vote account summary in voter response
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -118,9 +117,7 @@ fn get_api_base_url() -> anyhow::Result<String> {
     let config = crate::config::Config::load()?;
 
     if config.operator_api_url.is_empty() {
-        anyhow::bail!(
-            "operator-api-url is not set. Please run: svmgov config set operator-api-url <URL>"
-        );
+        return Ok(crate::constants::DEFAULT_OPERATOR_API_URL.to_string());
     }
 
     info!("API base URL (from config): {}", config.operator_api_url);
@@ -254,4 +251,3 @@ pub fn generate_meta_merkle_proof_pda(
     let (pda, _bump) = MetaMerkleProof::pda(consensus_result_pda, vote_account);
     Ok(pda)
 }
-

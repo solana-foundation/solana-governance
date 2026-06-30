@@ -40,7 +40,7 @@ The Merkle proof system ensures that:
 - A stake account with active delegation to a validator
 - The staker keypair (withdraw authority or signing key for the stake account)
 - The validator's vote account address
-- Access to operator API for Merkle proofs
+- Access to operator API for Merkle proofs. The CLI defaults to `https://ncn-governance.solana.com`.
 
 ## Quick Setup
 
@@ -52,7 +52,7 @@ cd svmgov/cli && ./install.sh
 svmgov init
 # > Select: Staker
 
-# Set operator API URL
+# Optional: override the default operator API URL
 svmgov config set operator-api-url https://your-operator-api.example.com
 ```
 
@@ -70,5 +70,5 @@ svmgov config set operator-api-url https://your-operator-api.example.com
 | `--rpc-url <URL>` | `-r` | Custom RPC URL |
 
 <Callout type="info">
-  The `operator-api-url` config key must be set before using override commands — the CLI fetches both the MetaMerkle proof (validator level) and StakeMerkle proof (stake account level) from the operator API.
+  The `operator-api-url` config key defaults to `https://ncn-governance.solana.com` for override commands. Override it only if you need a different verifier/router.
 </Callout>

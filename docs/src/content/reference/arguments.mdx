@@ -25,7 +25,7 @@ user_type = "Validator"               # or "Staker"
 identity_keypair_path = "/path/to/validator.json"
 network = "mainnet"
 rpc_url = "https://api.mainnet-beta.solana.com"
-operator_api_url = "https://operator.example.com"
+operator_api_url = "https://ncn-governance.solana.com"
 ```
 
 ### Config Commands
@@ -42,7 +42,7 @@ svmgov config set <key> <value>                 # Set one value
 |---|---|
 | `network` | Default network (`mainnet`, `testnet`, `devnet`) |
 | `rpc-url` | Default Solana RPC URL |
-| `operator-api-url` | Verifier service URL (required for proof fetching) |
+| `operator-api-url` | Verifier service URL for proof fetching. Defaults to `https://ncn-governance.solana.com`; override only if you run a different verifier/router. |
 | `identity-keypair` | Validator identity keypair path |
 | `staker-keypair` | Staker keypair path |
 

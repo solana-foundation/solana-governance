@@ -1,8 +1,8 @@
 # NCN verifiers: name and verification domain
 
 [[verifiers]]
-name = "BrewlabsHQ"
-verification_domain = "https://ncn.brewlabs.so/"
+name = "Solana Governance"
+verification_domain = "https://ncn-governance.solana.com/"
 
 [[verifiers]]
 name = "Ha1iad3"

@@ -5,7 +5,7 @@ pub const DEFAULT_WSS_URL: &str = "wss://api.mainnet-beta.solana.com";
 // Network-specific default RPC URLs
 pub const DEFAULT_MAINNET_RPC_URL: &str = "https://api.mainnet-beta.solana.com";
 pub const DEFAULT_TESTNET_RPC_URL: &str = "https://api.testnet.solana.com";
-
+pub const DEFAULT_OPERATOR_API_URL: &str = "https://ncn-governance.solana.com";
 
 // Voting constants
 pub const BASIS_POINTS_TOTAL: u64 = 10_000;
