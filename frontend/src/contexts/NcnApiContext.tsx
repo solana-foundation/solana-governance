@@ -11,7 +11,7 @@ interface NcnApiContextType {
 const NcnApiContext = createContext<NcnApiContextType | undefined>(undefined);
 
 // TODO: fix dupped ncn api urls
-const DEFAULT_NCN_API_URL = "https://ncn.brewlabs.so";
+const DEFAULT_NCN_API_URL = "https://ncn-governance.solana.com";
 const STORAGE_KEY = "ncn-api-url";
 
 const normalizeUrl = (url: string): string => {

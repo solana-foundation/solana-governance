@@ -158,7 +158,7 @@ export function createProgramWitDummyWallet(endpoint?: string) {
   return program;
 }
 // TODO: fix dupped ncn api urls
-const DEFAULT_NCN_API_URL = "https://ncn.brewlabs.so";
+const DEFAULT_NCN_API_URL = "https://ncn-governance.solana.com";
 
 // API helpers using the solgov.online service
 export async function getVoteAccountProof(

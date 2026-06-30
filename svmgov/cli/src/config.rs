@@ -1,11 +1,13 @@
 use std::fs;
 use std::path::PathBuf;
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use dirs::home_dir;
 use serde::{Deserialize, Serialize};
 
-use crate::constants::{DEFAULT_MAINNET_RPC_URL, DEFAULT_TESTNET_RPC_URL};
+use crate::constants::{
+    DEFAULT_MAINNET_RPC_URL, DEFAULT_OPERATOR_API_URL, DEFAULT_TESTNET_RPC_URL,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum UserType {
@@ -40,7 +42,7 @@ impl Default for Config {
             staker_keypair_path: Some(default_staker_keypair_path()),
             network: "mainnet".to_string(),
             rpc_url: None,
-            operator_api_url: String::new(),
+            operator_api_url: DEFAULT_OPERATOR_API_URL.to_string(),
         }
     }
 }
@@ -144,4 +146,3 @@ pub fn get_default_rpc_url(network: &str) -> String {
         _ => DEFAULT_MAINNET_RPC_URL.to_string(),
     }
 }
-

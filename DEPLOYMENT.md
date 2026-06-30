@@ -191,7 +191,8 @@ Later phases are driven by two CLIs: **`svmgov`** (governance — `init-global-c
 **ncn-router + ncn-meta-cron** (`ncn-router/`):
 
 - [ ] `config.toml` lists the production verifier `name` + `verification_domain` set
-      (currently 10 entries — confirm).
+      (currently 10 entries — confirm). The shared default router domain is
+      `ncn-governance.solana.com`.
 - [ ] Required env: **`NCN_PROGRAM_ID`** (must equal deployed `ncn_snapshot_program_id`). Set
       RPCs: `SOLANA_RPC_URL_MAINNET` / `_TESTNET`.
 - [ ] Optional: `NCN_CONFIG`, `NCN_LOG`, `NCN_WHITELIST_MAINNET_PATH`/`_TESTNET_PATH`,
@@ -206,6 +207,7 @@ Later phases are driven by two CLIs: **`svmgov`** (governance — `init-global-c
 
 - [ ] Set `NEXT_PUBLIC_SOLANA_RPC_MAINNET` (+ testnet/devnet) to production RPCs;
       `NEXT_PUBLIC_SENTRY_DSN` / `SENTRY_AUTH_TOKEN` if using Sentry.
+- [ ] Frontend NCN API defaults to `https://ncn-governance.solana.com`.
 - [ ] Confirm IDL in `frontend/src/chain/idl/` is the freshly-built one (Phase 1) and program
       IDs match.
 - [ ] `pnpm build` → deploy (Vercel default; `/api/governance/config` caches on-chain

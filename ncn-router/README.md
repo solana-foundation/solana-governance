@@ -10,6 +10,8 @@
 ### Configuration
 
 - **`config.toml`**: List of verifier names and `verification_domain` URLs.
+  The default config includes the shared Solana Governance router domain:
+  `https://ncn-governance.solana.com/`.
 - **Env vars**:
   - `NCN_CONFIG` (optional): Path to config file (default: `config.toml`)
   - `NCN_LOG` (optional): Path to log file (default: `ncn_verifier_meta.log`)
