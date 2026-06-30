@@ -148,7 +148,7 @@ fn test_program_config(
     )
     .unwrap();
     // Finalize proposed authority.
-    send_finalize_proposed_authority(tx_sender)?;
+    send_finalize_proposed_authority(tx_sender).unwrap();
 
     // Verify values in ProgramConfig
     let program_config: ProgramConfig = program.account(context.program_config_pda)?;
@@ -534,9 +534,14 @@ fn test_tie_breaker(
         meta_merkle_root: [222; 32],
         snapshot_hash: [222; 32],
     };
-    let tx = send_set_tie_breaker(tx_sender_admin, ballot_box_pda, winning_ballot.clone())
+    let tx = match send_set_tie_breaker(tx_sender_admin, ballot_box_pda, winning_ballot.clone())
         .unwrap()
-        .signature();
+    {
+        cli::utils::squads::RoutedOutcome::Direct { signature, .. } => signature,
+        cli::utils::squads::RoutedOutcome::Squads { .. } => {
+            panic!("test expected direct transaction routing")
+        }
+    };
     let (consensus_slot, _tx_block_time) = fetch_tx_block_details(program, tx);
 
     // Casting vote after expiry should fail.
