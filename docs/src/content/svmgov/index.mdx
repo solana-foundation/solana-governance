@@ -15,7 +15,7 @@ import { Cards, Callout, Steps } from 'nextra/components'
 `svmgov` enables the Solana validator community to:
 
 - **Propose** — Any validator with ≥ 100,000 SOL staked can create a governance proposal with a GitHub link for full details
-- **Signal support** — Other validators signal support; once 5% of cluster stake supports it, voting opens
+- **Signal support** — Other validators signal support; once 15% of cluster stake supports it, voting opens
 - **Vote with stake weight** — Each validator's vote is weighted by their active stake, proven via Merkle proof
 - **Override as a delegator** — Individual stakers can override their validator's vote, asserting their own preference with their specific stake account
 
@@ -24,7 +24,7 @@ import { Cards, Callout, Steps } from 'nextra/components'
 ```
 CREATED ──► SUPPORT PHASE ──► VOTING PHASE ──► FINALIZED
               │                    │
-              │ 5% cluster stake   │ end_epoch reached
+              │ 15% cluster stake  │ end_epoch reached
               │ threshold met      │ (permissionless)
               ▼                    ▼
          voting=true          finalized=true
@@ -40,7 +40,7 @@ A validator with enough stake to satisfy `min_proposal_stake_lamports` calls `cr
 
 ### Support Phase
 
-Other validators call `support_proposal`. Each supporter's stake is added to `cluster_support_lamports`. Once the total crosses `cluster_support_pct_min_bps` (default: 500 bps = 5%) of total cluster stake:
+Other validators call `support_proposal`. Each supporter's stake is added to `cluster_support_lamports`. Once the total crosses `cluster_support_pct_min_bps` (default: 1500 bps = 15%) of total cluster stake:
 - `proposal.voting = true`
 - `snapshot_slot` is computed from the target epoch's start slot plus the configured `snapshot_slot_offset`
 - `consensus_result` PDA is derived
