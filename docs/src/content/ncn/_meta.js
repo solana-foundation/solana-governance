@@ -8,6 +8,9 @@ export default {
   cli: {
     title: 'NCN CLI',
   },
+  router: {
+    title: 'NCN Router',
+  },
   snapshot: {
     title: 'Snapshots',
   },

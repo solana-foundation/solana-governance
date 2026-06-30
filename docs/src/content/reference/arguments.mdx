@@ -28,6 +28,8 @@ rpc_url = "https://api.mainnet-beta.solana.com"
 operator_api_url = "https://ncn-governance.solana.com"
 ```
 
+The default `operator_api_url` is the <a href="/ncn/router">main NCN router</a>.
+
 ### Config Commands
 
 ```bash
@@ -42,7 +44,7 @@ svmgov config set <key> <value>                 # Set one value
 |---|---|
 | `network` | Default network (`mainnet`, `testnet`, `devnet`) |
 | `rpc-url` | Default Solana RPC URL |
-| `operator-api-url` | Verifier service URL for proof fetching. Defaults to `https://ncn-governance.solana.com`; override only if you run a different verifier/router. |
+| `operator-api-url` | Verifier service or router URL for proof fetching. Defaults to the main NCN router, `https://ncn-governance.solana.com`; override only if you run a different verifier/router. |
 | `identity-keypair` | Validator identity keypair path |
 | `staker-keypair` | Staker keypair path |
 

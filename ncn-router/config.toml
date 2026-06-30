@@ -1,10 +1,6 @@
 # NCN verifiers: name and verification domain
 
 [[verifiers]]
-name = "Solana Governance"
-verification_domain = "https://ncn-governance.solana.com/"
-
-[[verifiers]]
 name = "Ha1iad3"
 verification_domain = "https://ncn.ha1iad3.com/"
 
@@ -39,3 +35,11 @@ verification_domain = "https://verifier.promptlogic.systems"
 [[verifiers]]
 name = "Exo Tech"
 verification_domain = "http://ncn-verifier.exotechnologies.xyz:3000"
+
+[[verifiers]]
+name = "Chainflow"
+verification_domain = "https://ncn-verifier.chainflow.io"
+
+[[verifiers]]
+name = "Brewlabs"
+verification_domain = "https://ncn.brewlabs.so"
