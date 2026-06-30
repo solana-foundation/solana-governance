@@ -824,7 +824,7 @@ dependencies = [
 
 [[package]]
 name = "ncn-snapshot"
-version = "0.2.0-40000"
+version = "0.3.0-40000"
 dependencies = [
  "anchor-lang",
 ]
@@ -2273,7 +2273,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "svmgov_program"
-version = "0.2.0-40000"
+version = "0.3.0-40000"
 dependencies = [
  "anchor-lang",
  "ncn-snapshot",
