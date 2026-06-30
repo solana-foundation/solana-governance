@@ -1,8 +1,6 @@
 import { VoterSummaryResponse } from "@/chain";
+import { DEFAULT_NCN_API_URL } from "@/lib/defaultNcnApiUrl";
 import { RPCEndpoint } from "@/types";
-
-// TODO: fix dupped ncn api urls
-const DEFAULT_NCN_API_URL = "https://ncn.brewlabs.so";
 
 export const getVoterWalletSummary = async (
   network: RPCEndpoint,
