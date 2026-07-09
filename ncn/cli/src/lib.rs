@@ -1,5 +1,7 @@
 pub mod consts;
+pub mod ledger;
 pub mod merkle;
+pub mod merkle_tree;
 pub mod utils;
 
 use crate::consts::{MARINADE_OPS_VOTING_WALLET, MARINADE_WITHDRAW_AUTHORITY};
@@ -9,17 +11,16 @@ pub use merkle::*;
 use anchor_lang::prelude::Pubkey as AnchorPubkey;
 use anyhow::Error;
 use borsh_stake::BorshDeserialize;
-use itertools::Itertools;
-use meta_merkle_tree::{
-    generated_merkle_tree::Delegation, merkle_tree::MerkleTree, utils::get_proof,
-};
+use crate::merkle_tree::{get_proof, Delegation, MerkleTree};
 use ncn_snapshot::{MetaMerkleLeaf, StakeMerkleLeaf};
 use solana_program::pubkey::Pubkey;
-use solana_runtime::{bank::Bank, stakes::StakeAccount};
+use solana_runtime::bank::Bank;
 use solana_sdk::account::from_account;
 use solana_sdk::account::AccountSharedData;
 use solana_sdk::account::ReadableAccount;
+use solana_sdk::clock::Epoch;
 use solana_stake_interface::stake_history::StakeHistory;
+use solana_stake_interface::state::StakeStateV2;
 use solana_stake_interface::sysvar::stake_history;
 use spl_stake_pool::find_withdraw_authority_program_address;
 use spl_stake_pool::state::AccountType;
@@ -57,47 +58,48 @@ fn get_validator_identity(
     Some(*vote_state.node_pubkey())
 }
 
-/// Given an [EpochStakes] object, return delegations grouped by voter_pubkey (validator delegated to).
-/// Delegations store the active stake of the delegator.
-fn group_delegations_by_voter_pubkey_active_stake(
-    delegations: &im::HashMap<Pubkey, StakeAccount>,
-    bank: &Bank,
-) -> im::HashMap<Pubkey, Vec<Delegation>> {
-    let stake_history =
-        from_account::<StakeHistory, _>(&bank.get_account(&stake_history::id()).unwrap()).unwrap();
-    let grouped = delegations
-        .iter()
-        .filter_map(|(stake_pubkey, stake_account)| {
-            let active_stake = stake_account.delegation().stake(
-                bank.epoch(),
-                &stake_history,
-                bank.new_warmup_cooldown_rate_epoch(),
-            );
-            if active_stake == 0 {
-                return None;
-            }
-
-            Some((
-                stake_account.delegation().voter_pubkey,
-                Delegation {
-                    stake_account_pubkey: *stake_pubkey,
-                    staker_pubkey: stake_account
-                        .stake_state()
-                        .authorized()
-                        .map(|a| a.staker)
-                        .unwrap_or_default(),
-                    withdrawer_pubkey: stake_account
-                        .stake_state()
-                        .authorized()
-                        .map(|a| a.withdrawer)
-                        .unwrap_or_default(),
-                    lamports_delegated: active_stake,
-                },
-            ))
-        })
-        .into_group_map();
-
-    im::HashMap::from_iter(grouped)
+/// If `account` is an active stake-program account, decode its delegation and
+/// append it (grouped by the voter/validator pubkey it delegates to) to `map`.
+///
+/// Upstream agave 4.1.0 makes `Stakes::stake_delegations()` and the
+/// `StakeAccount` accessors `pub(crate)`, so we can no longer read the stakes
+/// cache from outside the runtime crate. Instead we rebuild the delegation set
+/// by scanning stake-program accounts. Active stake is computed exactly as the
+/// stakes cache does (`Delegation::stake` with the current epoch, stake history,
+/// and warmup/cooldown rate epoch), and zero-active delegations are dropped —
+/// matching the previous `group_delegations_by_voter_pubkey_active_stake`.
+fn collect_stake_delegation(
+    map: &mut std::collections::HashMap<Pubkey, Vec<Delegation>>,
+    account: &AccountSharedData,
+    stake_account_pubkey: &Pubkey,
+    epoch: Epoch,
+    stake_history: &StakeHistory,
+    new_rate_epoch: Option<Epoch>,
+) {
+    if account.owner() != &solana_stake_interface::program::id() {
+        return;
+    }
+    // `from_account` is sysvar-only upstream, so decode the on-chain stake state
+    // directly via bincode (the canonical `StakeStateV2` wire format).
+    let Ok(StakeStateV2::Stake(meta, stake, _flags)) =
+        bincode::deserialize::<StakeStateV2>(account.data())
+    else {
+        return;
+    };
+    let active_stake = stake
+        .delegation
+        .stake(epoch, stake_history, new_rate_epoch);
+    if active_stake == 0 {
+        return;
+    }
+    map.entry(stake.delegation.voter_pubkey)
+        .or_default()
+        .push(Delegation {
+            stake_account_pubkey: *stake_account_pubkey,
+            staker_pubkey: meta.authorized.staker,
+            withdrawer_pubkey: meta.authorized.withdrawer,
+            lamports_delegated: active_stake,
+        });
 }
 
 /// Updates given map with new entry mapping withdraw authority to manager authority
@@ -143,23 +145,35 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
     // Maps Marinade LST stake pool withdraw authority to its ops wallet.
     stake_pool_voter_map.insert(MARINADE_WITHDRAW_AUTHORITY, MARINADE_OPS_VOTING_WALLET);
 
-    // Scan all accounts owned by the stake pool program
-    bank.scan_all_accounts(
-        |item| {
-            if let Some((_pubkey, account, _slot)) = item {
-                update_stake_pool_voter_map(&mut stake_pool_voter_map, &account, &_pubkey);
-            }
-        },
-        false,
-    )?;
-    println!("Stake Pools Count: {}", stake_pool_voter_map.len());
+    // Epoch/stake-history context needed to compute each delegation's active
+    // stake during the single account scan below.
+    let stake_history =
+        from_account::<StakeHistory, _>(&bank.get_account(&stake_history::id()).unwrap()).unwrap();
+    let epoch = bank.epoch();
+    let new_rate_epoch = bank.new_warmup_cooldown_rate_epoch();
 
-    let l_stakes = bank.get_top_epoch_stakes();
-    let delegations = l_stakes.stake_delegations();
-    let voter_pubkey_to_delegations =
-        group_delegations_by_voter_pubkey_active_stake(delegations, bank)
-            .into_iter()
-            .collect::<HashMap<_, _>>();
+    // Delegations grouped by voter (validator) pubkey, rebuilt from stake-program
+    // accounts during the same scan that discovers stake pools (see
+    // `collect_stake_delegation`).
+    let mut voter_pubkey_to_delegations: std::collections::HashMap<Pubkey, Vec<Delegation>> =
+        std::collections::HashMap::new();
+
+    // Single pass over every account: (1) map stake-pool withdraw authorities to
+    // their voting wallet, (2) collect active stake-account delegations.
+    bank.scan_all_accounts(|item| {
+        if let Some((pubkey, account, _slot)) = item {
+            update_stake_pool_voter_map(&mut stake_pool_voter_map, &account, &pubkey);
+            collect_stake_delegation(
+                &mut voter_pubkey_to_delegations,
+                &account,
+                &pubkey,
+                epoch,
+                &stake_history,
+                new_rate_epoch,
+            );
+        }
+    })?;
+    println!("Stake Pools Count: {}", stake_pool_voter_map.len());
 
     let mut vote_accounts_count = 0;
     let mut stake_account_count = 0;

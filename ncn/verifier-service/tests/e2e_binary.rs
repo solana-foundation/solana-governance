@@ -2,7 +2,7 @@ mod common;
 use common::setup_server;
 
 use anchor_lang::solana_program::hash::Hash;
-use meta_merkle_tree::{merkle_tree::MerkleTree, utils::get_proof};
+use cli::merkle_tree::{get_proof, MerkleTree};
 use ncn_snapshot::merkle_helper::verify_helper;
 use reqwest::{
     multipart::{Form, Part},

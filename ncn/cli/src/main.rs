@@ -11,9 +11,9 @@ use ncn_snapshot::{Ballot, BallotBox, ConsensusResult, MetaMerkleProof, ProgramC
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::{collections::HashMap, fs, process::Command, thread, time::Duration};
-use tip_router_operator_cli::{
-    cli::SnapshotPaths,
+use cli::ledger::{
     ledger_utils::{get_bank_from_ledger, get_bank_from_snapshot_at_slot},
+    SnapshotPaths,
 };
 use tokio::runtime::Builder;
 
