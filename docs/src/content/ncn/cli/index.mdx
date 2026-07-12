@@ -184,7 +184,7 @@ Initializes the on-chain `ProgramConfig` singleton. Must be run once per deploym
 ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   init-program-config \
   --svmgov-program-id <PUBKEY>
 ```
@@ -203,7 +203,7 @@ Updates mutable fields on the on-chain `ProgramConfig`. All arguments are option
 ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   update-program-config \
   --min-consensus-threshold-bps 6667 \
   --vote-duration 86400 \
@@ -253,7 +253,7 @@ ncn-cli \
 ncn-cli \
   --payer-path <PATH_TO_PAYER_KEYPAIR> \
   --authority-path <PATH_TO_AUTHORITY_KEYPAIR> \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   update-operator-whitelist \
   -r PUBKEY_OLD
 
@@ -261,7 +261,7 @@ ncn-cli \
 ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   update-operator-whitelist \
   -a PUBKEY_NEW \
   -r PUBKEY_OLD
@@ -284,7 +284,7 @@ Casts an operator vote on a ballot box using an explicit Merkle root and snapsho
 ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   cast-vote \
   --snapshot-slot 300000000 \
   --root <BASE58_ROOT> \
@@ -307,7 +307,7 @@ Casts an operator vote using a local `MetaMerkleSnapshot` file. Reads the root a
 ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   cast-vote-from-snapshot \
   --snapshot-slot 300000000 \
   --read-path ./meta_merkle-300000000.zip \
@@ -330,7 +330,7 @@ Removes the caller's vote from a `BallotBox`. Only permitted before consensus is
 ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   remove-vote --snapshot-slot <SLOT>
 ```
 
@@ -350,7 +350,7 @@ Resolves a stalled ballot by writing an explicit winning ballot. The provided `-
 ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   set-tie-breaker --snapshot-slot <SLOT> \
   --root <MERKLE_ROOT> --hash <SNAPSHOT_HASH>
 ```
@@ -371,7 +371,7 @@ Resets a bricked `BallotBox`. Permitted only when the ballot box's vote window h
 ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   reset-ballot-box --snapshot-slot <SLOT>
 ```
 
@@ -388,7 +388,7 @@ Finalizes the winning ballot for a snapshot slot. Closes voting for `--snapshot-
 ```bash
 ncn-cli \
   --payer-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   finalize-ballot --snapshot-slot <SLOT>
 ```
 
@@ -413,22 +413,22 @@ Dumps the raw `Debug` representation of an on-chain account. Selects the account
 ```bash
 # View ProgramConfig
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com log \
+  --rpc-url <RPC_URL> log \
   --ty program-config
 
 # View a BallotBox
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com log \
+  --rpc-url <RPC_URL> log \
   --ty ballot-box --snapshot-slot <SLOT>
 
 # View a ConsensusResult
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com log \
+  --rpc-url <RPC_URL> log \
   --ty consensus-result --snapshot-slot <SLOT>
 
 # View a MetaMerkleProof
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com log \
+  --rpc-url <RPC_URL> log \
   --ty proof \
   --snapshot-slot <SLOT> \
   --vote-account <VOTE_ACCOUNT_PUBKEY>
@@ -450,7 +450,7 @@ Prints the on-chain `ProgramConfig` singleton.
 
 ```bash
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   get-program-config
 ```
 
@@ -462,7 +462,7 @@ Prints the operator whitelist from `ProgramConfig`.
 
 ```bash
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   get-operator-whitelist
 ```
 
@@ -474,7 +474,7 @@ Prints the on-chain `BallotBox` for a snapshot slot, including tallies and opera
 
 ```bash
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   get-ballot \
   --snapshot-slot <SLOT>
 ```
@@ -491,7 +491,7 @@ Prints a single operator's vote within a ballot box.
 
 ```bash
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   get-operator-vote \
   --snapshot-slot <SLOT> \
   --operator <OPERATOR_PUBKEY>
@@ -510,7 +510,7 @@ Prints the `ConsensusResult` PDA for a snapshot slot.
 
 ```bash
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   get-consensus-result \
   --snapshot-slot <SLOT>
 ```
@@ -527,7 +527,7 @@ Prints the `MetaMerkleProof` PDA for a vote account.
 
 ```bash
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   get-proof \
   --snapshot-slot <SLOT> \
   --vote-account <VOTE_ACCOUNT_PUBKEY>
@@ -546,7 +546,7 @@ Checks whether a `BallotBox` exists for a snapshot slot.
 
 ```bash
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   ballot-exists \
   --snapshot-slot <SLOT>
 ```
@@ -563,7 +563,7 @@ Prints a combined status report: program config, ballot box, and consensus resul
 
 ```bash
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   --cluster mainnet \
   status \
   --snapshot-slot <SLOT>
