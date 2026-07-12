@@ -209,11 +209,13 @@ journalctl -u ncn-verifier -f
 
 # If running manually
 ./ncn-verifier 2>&1 | tee -a /var/log/ncn-verifier.log
+```
 
-Process Management
+### Process Management
 
 For production deployments, run the verifier service as a systemd unit:
 
+```ini
 [Unit]
 Description=NCN Verifier Service
 After=network.target
@@ -227,10 +229,12 @@ LimitNOFILE=65535
 
 [Install]
 WantedBy=multi-user.target
+```
 
 Enable and start:
 
+```bash
 sudo systemctl enable ncn-verifier
 sudo systemctl start ncn-verifier
-
+```
 
