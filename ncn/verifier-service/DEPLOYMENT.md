@@ -21,7 +21,7 @@ While this guide uses AWS as the reference deployment, the verifier service runs
 
 - **SSL/TLS:** If not using Cloudflare or AWS ALB, configure a reverse proxy (nginx or caddy) with [Let's Encrypt](https://letsencrypt.org/) for HTTPS termination
 - **DNS:** Point your verifier domain to your server's public IP via an A record
-- **Firewall:** Open ports 443 (HTTPS) and any custom ports for the verifier API. Restrict SSH (port 22) to known IPs
+- **Firewall:** Open ports 80 (HTTP, required for Let's Encrypt HTTP-01 challenge and HTTP→HTTPS redirects) and 443 (HTTPS) and any custom ports for the verifier API. Restrict SSH (port 22) to known IPs
 - **Process management:** Run the service as a systemd unit with `Restart=on-failure` so it recovers automatically after crashes or reboots
 - **Bare metal / VPS providers:** Tested on Leaseweb. Any provider with the above specs will work
 
