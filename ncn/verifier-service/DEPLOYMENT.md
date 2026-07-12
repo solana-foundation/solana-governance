@@ -179,41 +179,41 @@ Notes:
 
 ## Monitoring & Alerting
 
-### Health Checks
+### What the service exposes
 
-The verifier service includes a metrics module ([`src/metrics.rs`](./src/metrics.rs)) for monitoring. Key indicators to track:
+The verifier service provides these monitoring surfaces:
 
-- **Service uptime** — Is the verifier process running?
-- **Snapshot processing** — Are new epoch snapshots being processed successfully?
-- **Merkle proof uploads** — Are proofs being uploaded to the on-chain program?
-- **RPC connectivity** — Can the service reach its configured RPC endpoint?
-- **Disk usage** — Is snapshot storage filling up?
+- `GET /healthz` — liveness check (no auth)
+- `GET /version` — crate version and git hash
+- `GET /meta` — metadata for the most recent snapshot, including its slot
+- `GET /metrics` — requires the `x-metrics-token` header; returns `upload_total` (by outcome), `proofs_not_found_total` (by proof kind), and `free_storage_mb` (absolute free space in MB at the data path, from [`src/metrics.rs`](./src/metrics.rs))
 
 ### Recommended Alerts
 
-| Alert | Condition | Severity |
-|-------|-----------|----------|
-| Service down | Process not running for >5 min | Critical |
-| Snapshot stalled | No new snapshot processed in >2 epochs | Warning |
-| Upload failures | Consecutive upload errors >3 | Warning |
-| RPC unreachable | Connection timeouts >5 min | Critical |
-| Disk space | Snapshot storage >80% full | Warning |
+All conditions below are derivable from the endpoints above plus container status:
+
+| Alert | Source | Condition | Severity |
+|-------|--------|-----------|----------|
+| Service down | `docker ps` / `/healthz` | Container not running or `/healthz` failing for >5 min | Critical |
+| Snapshot stale | `/meta` | Most recent snapshot slot older than ~2 epochs behind cluster tip | Warning |
+| Upload errors | `/metrics` `upload_total` | Error-outcome count increases across consecutive scrape intervals | Warning |
+| Low disk | `/metrics` `free_storage_mb` | Free space below a fixed floor (e.g., < 20480 MB) | Warning |
+
+Note: `free_storage_mb` is an absolute value, not a percentage — set the threshold against your provisioned volume size. Upload errors are cumulative counters; alert on the delta between scrapes rather than a "consecutive failures" count, which the service does not track.
 
 ### Logging
 
-The verifier service logs to stdout. In production, capture logs with systemd journal or redirect to a file:
+Under the recommended Docker deployment (`setup.sh`), logs go to the container:
 
 ```bash
-# If running as a systemd service
-journalctl -u ncn-verifier -f
-
-# If running manually
-./ncn-verifier 2>&1 | tee -a /var/log/ncn-verifier.log
+sudo docker logs --tail=200 -f verifier
 ```
 
 ### Process Management
 
-For production deployments, run the verifier service as a systemd unit:
+`setup.sh` already starts the container with `--restart unless-stopped`, so Docker handles crash and reboot recovery — no additional process manager is needed for the standard deployment.
+
+If you instead run the binary natively (outside Docker), use a systemd unit, and note that the environment variables from section 6 (e.g., `OPERATOR_PUBKEY`) must be supplied via an `EnvironmentFile`:
 
 ```ini
 [Unit]
@@ -222,6 +222,7 @@ After=network.target
 
 [Service]
 User=sol
+EnvironmentFile=/etc/ncn-verifier/env
 ExecStart=/path/to/ncn-verifier
 Restart=on-failure
 RestartSec=10
@@ -231,10 +232,7 @@ LimitNOFILE=65535
 WantedBy=multi-user.target
 ```
 
-Enable and start:
-
 ```bash
-sudo systemctl enable ncn-verifier
-sudo systemctl start ncn-verifier
+sudo systemctl enable --now ncn-verifier
+journalctl -u ncn-verifier -f
 ```
-
