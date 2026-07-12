@@ -13,9 +13,11 @@ While this guide uses AWS as the reference deployment, the verifier service runs
 |-------------|---------|-------------|
 | CPU | 2 cores | 4+ cores |
 | RAM | 4 GB | 8 GB |
-| Storage | 100 GB SSD | 200 GB NVMe |
+| Storage | 40 GB SSD | 100+ GB NVMe |
 | Network | 100 Mbps | 1 Gbps |
 | OS | Ubuntu 22.04+ | Ubuntu 24.04 LTS |
+
+The 40 GB minimum matches the AWS gp3 sizing in step 1; provision more headroom on providers without elastic volume expansion.
 
 ### Non-AWS Deployment Notes
 
