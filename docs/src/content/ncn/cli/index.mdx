@@ -27,6 +27,14 @@ These values are the baseline used for NCN operator testing:
 | Incremental snapshots retention | `30` |
 | Incremental snapshots interval | `2500` |
 | Open files limit | `LimitNOFILE=2000000` |
+| Locked memory limit | `LimitMEMLOCK=2000000000` |
+
+<Callout type="warning">
+  Snapshot loading uses io_uring with registered (fixed) buffers, which requires locking up to
+  ~2GB via `RLIMIT_MEMLOCK`. If `LimitMEMLOCK` isn't set this high wherever `ncn/cli` runs (a
+  systemd unit, or the login session if run interactively), the tool falls back to unregistered
+  buffers automatically. This matches the recommended validator's own limits.
+</Callout>
 
 <Callout type="info">
   For verifier deployment and API checks, use <a href="/ncn/verifier-service">Verifier Service</a>. This page focuses on CLI commands and operator snapshot flow.

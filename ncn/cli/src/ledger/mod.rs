@@ -10,6 +10,7 @@ use std::path::PathBuf;
 pub mod arg_matches;
 pub mod ledger_utils;
 pub mod load_and_process_ledger;
+pub mod resource_limits;
 
 /// Filesystem locations the operator CLI uses to reconstruct a bank and
 /// (optionally) write a backup snapshot. Copied verbatim from

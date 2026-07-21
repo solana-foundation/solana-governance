@@ -11,8 +11,9 @@ use {
     crossbeam_channel::unbounded,
     crossbeam_channel::{Receiver, Sender},
     log::*,
-    solana_accounts_db::utils::{
-        create_all_accounts_run_and_snapshot_dirs, move_and_async_delete_path_contents,
+    solana_accounts_db::{
+        accounts_db::TOTAL_IO_URING_BUFFERS_SIZE_LIMIT,
+        utils::{create_all_accounts_run_and_snapshot_dirs, move_and_async_delete_path_contents},
     },
     solana_genesis_config::GenesisConfig,
     solana_genesis_utils::open_genesis_config,
@@ -234,6 +235,9 @@ pub fn load_and_process_ledger(
                 full_snapshot_archives_dir: selected_full_snapshot_archives_dir,
                 incremental_snapshot_archives_dir: selected_incremental_snapshot_archives_dir,
                 bank_snapshots_dir: bank_snapshots_dir.clone(),
+                use_registered_io_uring_buffers: super::resource_limits::check_memlock_limit_for_disk_io(
+                    TOTAL_IO_URING_BUFFERS_SIZE_LIMIT,
+                ),
                 ..SnapshotConfig::new_load_only()
             },
             starting_slot,

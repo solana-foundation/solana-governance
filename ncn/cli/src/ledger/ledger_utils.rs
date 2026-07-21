@@ -25,11 +25,12 @@ use solana_ledger::{
     blockstore_processor::ProcessOptions,
 };
 use solana_metrics::{datapoint_error, datapoint_info};
+use solana_accounts_db::accounts_db::TOTAL_IO_URING_BUFFERS_SIZE_LIMIT;
 use solana_runtime::{bank::Bank, snapshot_bank_utils};
 use solana_sdk::clock::Slot;
 use thiserror::Error;
 
-use super::{arg_matches, load_and_process_ledger};
+use super::{arg_matches, load_and_process_ledger, resource_limits};
 
 #[derive(Error, Debug)]
 pub enum LedgerUtilsError {
@@ -248,6 +249,9 @@ pub fn get_bank_from_ledger(
         full_snapshot_archives_dir: full_snapshots_path.clone(),
         incremental_snapshot_archives_dir: incremental_snapshots_path.clone(),
         bank_snapshots_dir: full_snapshots_path.clone(),
+        use_registered_io_uring_buffers: resource_limits::check_memlock_limit_for_disk_io(
+            TOTAL_IO_URING_BUFFERS_SIZE_LIMIT,
+        ),
         ..SnapshotConfig::new_load_only()
     };
 
@@ -472,6 +476,9 @@ pub fn get_bank_from_snapshot_at_slot(
         full_snapshot_archives_dir: full_snapshots_path.clone(),
         incremental_snapshot_archives_dir: full_snapshots_path.clone(),
         bank_snapshots_dir: bank_snapshots_dir.clone(),
+        use_registered_io_uring_buffers: resource_limits::check_memlock_limit_for_disk_io(
+            TOTAL_IO_URING_BUFFERS_SIZE_LIMIT,
+        ),
         ..SnapshotConfig::new_load_only()
     };
 
