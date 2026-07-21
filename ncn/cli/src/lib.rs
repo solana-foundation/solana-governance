@@ -4,7 +4,7 @@ pub mod merkle;
 pub mod merkle_tree;
 pub mod utils;
 
-use crate::consts::{MARINADE_OPS_VOTING_WALLET, MARINADE_WITHDRAW_AUTHORITY};
+use crate::consts::{MARINADE_OPS_VOTING_WALLET, MARINADE_WITHDRAW_AUTHORITY, STAKE_POOL_PROGRAM_ID};
 use im::HashMap;
 pub use merkle::*;
 
@@ -13,6 +13,7 @@ use anyhow::Error;
 use borsh_stake::BorshDeserialize;
 use crate::merkle_tree::{get_proof, Delegation, MerkleTree};
 use ncn_snapshot::{MetaMerkleLeaf, StakeMerkleLeaf};
+use solana_accounts_db::accounts_index::IndexKey;
 use solana_program::pubkey::Pubkey;
 use solana_runtime::bank::Bank;
 use solana_sdk::account::from_account;
@@ -153,27 +154,37 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
     let new_rate_epoch = bank.new_warmup_cooldown_rate_epoch();
 
     // Delegations grouped by voter (validator) pubkey, rebuilt from stake-program
-    // accounts during the same scan that discovers stake pools (see
-    // `collect_stake_delegation`).
+    // accounts (see `collect_stake_delegation`).
     let mut voter_pubkey_to_delegations: std::collections::HashMap<Pubkey, Vec<Delegation>> =
         std::collections::HashMap::new();
 
-    // Single pass over every account: (1) map stake-pool withdraw authorities to
-    // their voting wallet, (2) collect active stake-account delegations.
-    bank.scan_all_accounts(|item| {
-        if let Some((pubkey, account, _slot)) = item {
-            update_stake_pool_voter_map(&mut stake_pool_voter_map, &account, &pubkey);
-            collect_stake_delegation(
-                &mut voter_pubkey_to_delegations,
-                &account,
-                &pubkey,
-                epoch,
-                &stake_history,
-                new_rate_epoch,
-            );
-        }
-    })?;
+    // Scan the indexed stake pool program accounts
+    let stake_pool_accounts = bank.get_filtered_indexed_accounts(
+        &IndexKey::ProgramId(STAKE_POOL_PROGRAM_ID),
+        |_| true,
+        None,
+    )?;
+    for (pubkey, account) in &stake_pool_accounts {
+        update_stake_pool_voter_map(&mut stake_pool_voter_map, account, pubkey);
+    }
     println!("Stake Pools Count: {}", stake_pool_voter_map.len());
+
+    // Scan the stake program accounts
+    let stake_accounts = bank.get_filtered_indexed_accounts(
+        &IndexKey::ProgramId(solana_stake_interface::program::id()),
+        |_| true,
+        None,
+    )?;
+    for (pubkey, account) in &stake_accounts {
+        collect_stake_delegation(
+            &mut voter_pubkey_to_delegations,
+            account,
+            pubkey,
+            epoch,
+            &stake_history,
+            new_rate_epoch,
+        );
+    }
 
     let mut vote_accounts_count = 0;
     let mut stake_account_count = 0;

@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -25,7 +26,10 @@ use solana_ledger::{
     blockstore_processor::ProcessOptions,
 };
 use solana_metrics::{datapoint_error, datapoint_info};
-use solana_accounts_db::accounts_db::TOTAL_IO_URING_BUFFERS_SIZE_LIMIT;
+use solana_accounts_db::{
+    accounts_db::{AccountsDbConfig, TOTAL_IO_URING_BUFFERS_SIZE_LIMIT},
+    accounts_index::{AccountIndex, AccountSecondaryIndexes, AccountSecondaryIndexesIncludeExclude},
+};
 use solana_runtime::{bank::Bank, snapshot_bank_utils};
 use solana_sdk::clock::Slot;
 use thiserror::Error;
@@ -442,8 +446,20 @@ pub fn get_bank_from_ledger(
     Ok(working_bank)
 }
 
-// NOTE: the upstream `#[cfg(test)]` module was intentionally dropped — it
-// depends on `./tests/fixtures/test-ledger`, which is not vendored.
+/// Builds the accounts-db secondary index scoped to the stake and stake-pool programs.
+fn stake_program_secondary_indexes() -> AccountSecondaryIndexes {
+    AccountSecondaryIndexes {
+        keys: Some(AccountSecondaryIndexesIncludeExclude {
+            exclude: false,
+            keys: HashSet::from([
+                solana_stake_interface::program::id(),
+                crate::consts::STAKE_POOL_PROGRAM_ID,
+            ]),
+        }),
+        indexes: HashSet::from([AccountIndex::ProgramId]),
+    }
+}
+
 
 /// Loads the bank from the snapshot at the exact slot. If the snapshot doesn't exist, result is
 /// an error.
@@ -464,6 +480,10 @@ pub fn get_bank_from_snapshot_at_slot(
     let full_snapshot_archive_info = full_snapshot_archives.first().expect("unreachable");
     let process_options = ProcessOptions {
         halt_at_slot: Some(snapshot_slot.to_owned()),
+        accounts_db_config: AccountsDbConfig {
+            account_indexes: Some(stake_program_secondary_indexes()),
+            ..AccountsDbConfig::default()
+        },
         ..Default::default()
     };
     let genesis_config = open_genesis_config(ledger_path, MAX_GENESIS_ARCHIVE_UNPACKED_SIZE)?;
