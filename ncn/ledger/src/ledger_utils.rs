@@ -453,7 +453,7 @@ fn stake_program_secondary_indexes() -> AccountSecondaryIndexes {
             exclude: false,
             keys: HashSet::from([
                 solana_stake_interface::program::id(),
-                crate::consts::STAKE_POOL_PROGRAM_ID,
+                crate::STAKE_POOL_PROGRAM_ID,
             ]),
         }),
         indexes: HashSet::from([AccountIndex::ProgramId]),

@@ -1,6 +1,8 @@
 [workspace]
 members = [
     "cli",
+    "ledger",
+    "merkle-tree",
     "tests",
     "verifier-service"
 ]

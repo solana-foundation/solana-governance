@@ -38,6 +38,7 @@ ncn-snapshot = { path = "../programs/ncn-snapshot" }
 borsh = { version = "1.5.7" }
 bs58 = "0.5"
 cli = { path = "../cli"}
+ncn-merkle-tree = { path = "../merkle-tree" }
 once_cell = "1"
 sysinfo = { version = "0.30", default-features = false, features = ["multithread"] }
 

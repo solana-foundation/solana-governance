@@ -1,0 +1,12 @@
+[package]
+name = "ncn-merkle-tree"
+version = "0.3.0-40000"
+edition = "2021"
+
+[dependencies]
+fast-math = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+solana-program = { version = "4.0.0", default-features = false, features = [] }
+
+[dev-dependencies]
+hex = "0.4"

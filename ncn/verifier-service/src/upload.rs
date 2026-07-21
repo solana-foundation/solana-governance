@@ -9,7 +9,7 @@ use axum::{
     response::Json,
 };
 use cli::{upload_signature_message, MetaMerkleSnapshot};
-use cli::merkle_tree::{get_proof, MerkleTree};
+use ncn_merkle_tree::{get_proof, MerkleTree};
 use serde_json::{json, Value};
 use solana_sdk::{pubkey::Pubkey, signature::Signature};
 use sqlx::sqlite::SqlitePool;

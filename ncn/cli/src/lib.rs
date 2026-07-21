@@ -1,12 +1,14 @@
 pub mod consts;
-pub mod ledger;
 pub mod merkle;
-pub mod merkle_tree;
 pub mod utils;
 
-use crate::consts::{MARINADE_OPS_VOTING_WALLET, MARINADE_WITHDRAW_AUTHORITY, STAKE_POOL_PROGRAM_ID};
+pub use ncn_ledger as ledger;
+pub use ncn_merkle_tree as merkle_tree;
+
+use crate::consts::{MARINADE_OPS_VOTING_WALLET, MARINADE_WITHDRAW_AUTHORITY};
 use im::HashMap;
 pub use merkle::*;
+use ncn_ledger::STAKE_POOL_PROGRAM_ID;
 
 use anchor_lang::prelude::Pubkey as AnchorPubkey;
 use anyhow::Error;
