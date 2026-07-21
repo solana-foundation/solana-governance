@@ -10,10 +10,10 @@ use im::HashMap;
 pub use merkle::*;
 use ncn_ledger::STAKE_POOL_PROGRAM_ID;
 
+use crate::merkle_tree::{get_proof, Delegation, MerkleTree};
 use anchor_lang::prelude::Pubkey as AnchorPubkey;
 use anyhow::Error;
 use borsh_stake::BorshDeserialize;
-use crate::merkle_tree::{get_proof, Delegation, MerkleTree};
 use ncn_snapshot::{MetaMerkleLeaf, StakeMerkleLeaf};
 use solana_accounts_db::accounts_index::IndexKey;
 use solana_program::pubkey::Pubkey;
@@ -89,9 +89,7 @@ fn collect_stake_delegation(
     else {
         return;
     };
-    let active_stake = stake
-        .delegation
-        .stake(epoch, stake_history, new_rate_epoch);
+    let active_stake = stake.delegation.stake(epoch, stake_history, new_rate_epoch);
     if active_stake == 0 {
         return;
     }

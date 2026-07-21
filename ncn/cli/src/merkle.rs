@@ -1,7 +1,7 @@
+use crate::merkle_tree::{get_proof, MerkleTree};
 use crate::utils::{decompress_gzip_with_limit, max_snapshot_bytes, read_all_with_limit};
 use borsh::{BorshDeserialize, BorshSerialize};
 use flate2::{write::GzEncoder, Compression};
-use crate::merkle_tree::{get_proof, MerkleTree};
 use ncn_snapshot::{MetaMerkleLeaf, StakeMerkleLeaf};
 use solana_sdk::hash::{hash, Hash};
 use std::fs::File;

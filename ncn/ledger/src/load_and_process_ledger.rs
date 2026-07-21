@@ -235,9 +235,10 @@ pub fn load_and_process_ledger(
                 full_snapshot_archives_dir: selected_full_snapshot_archives_dir,
                 incremental_snapshot_archives_dir: selected_incremental_snapshot_archives_dir,
                 bank_snapshots_dir: bank_snapshots_dir.clone(),
-                use_registered_io_uring_buffers: super::resource_limits::check_memlock_limit_for_disk_io(
-                    TOTAL_IO_URING_BUFFERS_SIZE_LIMIT,
-                ),
+                use_registered_io_uring_buffers:
+                    super::resource_limits::check_memlock_limit_for_disk_io(
+                        TOTAL_IO_URING_BUFFERS_SIZE_LIMIT,
+                    ),
                 ..SnapshotConfig::new_load_only()
             },
             starting_slot,

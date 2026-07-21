@@ -17,6 +17,12 @@ use agave_snapshots::{
 };
 use clap_old::ArgMatches;
 use log::{info, warn};
+use solana_accounts_db::{
+    accounts_db::{AccountsDbConfig, TOTAL_IO_URING_BUFFERS_SIZE_LIMIT},
+    accounts_index::{
+        AccountIndex, AccountSecondaryIndexes, AccountSecondaryIndexesIncludeExclude,
+    },
+};
 use solana_genesis_utils::{
     open_genesis_config, OpenGenesisConfigError, MAX_GENESIS_ARCHIVE_UNPACKED_SIZE,
 };
@@ -26,10 +32,6 @@ use solana_ledger::{
     blockstore_processor::ProcessOptions,
 };
 use solana_metrics::{datapoint_error, datapoint_info};
-use solana_accounts_db::{
-    accounts_db::{AccountsDbConfig, TOTAL_IO_URING_BUFFERS_SIZE_LIMIT},
-    accounts_index::{AccountIndex, AccountSecondaryIndexes, AccountSecondaryIndexesIncludeExclude},
-};
 use solana_runtime::{bank::Bank, snapshot_bank_utils};
 use solana_sdk::clock::Slot;
 use thiserror::Error;
@@ -169,62 +171,63 @@ pub fn get_bank_from_ledger(
 
     let access_type = AccessType::ReadOnly;
     // Error handling is a modified copy pasta from ledger utils
-    let blockstore = match open_blockstore_creating_missing_columns(ledger_path, access_type.clone()) {
-        Ok(blockstore) => blockstore,
-        Err(BlockstoreError::RocksDb(err)) => {
-            // Missing essential file, indicative of blockstore not existing
-            let missing_blockstore = err
-                .to_string()
-                .starts_with("IO error: No such file or directory:");
-            // Missing column in blockstore that is expected by software
-            let missing_column = err
-                .to_string()
-                .starts_with("Invalid argument: Column family not found:");
-            // The blockstore settings with Primary access can resolve the
-            // above issues automatically, so only emit the help messages
-            // if access type is Secondary
-            let is_secondary = access_type == AccessType::ReadOnly;
+    let blockstore =
+        match open_blockstore_creating_missing_columns(ledger_path, access_type.clone()) {
+            Ok(blockstore) => blockstore,
+            Err(BlockstoreError::RocksDb(err)) => {
+                // Missing essential file, indicative of blockstore not existing
+                let missing_blockstore = err
+                    .to_string()
+                    .starts_with("IO error: No such file or directory:");
+                // Missing column in blockstore that is expected by software
+                let missing_column = err
+                    .to_string()
+                    .starts_with("Invalid argument: Column family not found:");
+                // The blockstore settings with Primary access can resolve the
+                // above issues automatically, so only emit the help messages
+                // if access type is Secondary
+                let is_secondary = access_type == AccessType::ReadOnly;
 
-            let error_str = if missing_blockstore && is_secondary {
-                format!(
-                    "Failed to open blockstore at {ledger_path:?}, it is missing at least one \
+                let error_str = if missing_blockstore && is_secondary {
+                    format!(
+                        "Failed to open blockstore at {ledger_path:?}, it is missing at least one \
                      critical file: {err:?}"
-                )
-            } else if missing_column && is_secondary {
-                format!(
+                    )
+                } else if missing_column && is_secondary {
+                    format!(
                     "Failed to open blockstore at {ledger_path:?}, it does not have all necessary \
                      columns: {err:?}"
                 )
-            } else {
-                format!("Failed to open blockstore at {ledger_path:?}: {err:?}")
-            };
-            datapoint_error!(
-                "tip_router_cli.get_bank",
-                ("operator", operator_address, String),
-                ("status", "error", String),
-                ("state", "load_blockstore", String),
-                ("step", 2, i64),
-                ("error", error_str, String),
-                ("duration_ms", start_time.elapsed().as_millis() as i64, i64),
-                "cluster" => cluster,
-            );
-            return Err(LedgerUtilsError::BlockstoreOpenError(error_str));
-        }
-        Err(err) => {
-            let error_str = format!("Failed to open blockstore at {ledger_path:?}: {err:?}");
-            datapoint_error!(
-                "tip_router_cli.get_bank",
-                ("operator", operator_address, String),
-                ("status", "error", String),
-                ("state", "load_blockstore", String),
-                ("step", 2, i64),
-                ("error", error_str, String),
-                ("duration_ms", start_time.elapsed().as_millis() as i64, i64),
-                "cluster" => cluster,
-            );
-            return Err(LedgerUtilsError::BlockstoreOpenError(error_str));
-        }
-    };
+                } else {
+                    format!("Failed to open blockstore at {ledger_path:?}: {err:?}")
+                };
+                datapoint_error!(
+                    "tip_router_cli.get_bank",
+                    ("operator", operator_address, String),
+                    ("status", "error", String),
+                    ("state", "load_blockstore", String),
+                    ("step", 2, i64),
+                    ("error", error_str, String),
+                    ("duration_ms", start_time.elapsed().as_millis() as i64, i64),
+                    "cluster" => cluster,
+                );
+                return Err(LedgerUtilsError::BlockstoreOpenError(error_str));
+            }
+            Err(err) => {
+                let error_str = format!("Failed to open blockstore at {ledger_path:?}: {err:?}");
+                datapoint_error!(
+                    "tip_router_cli.get_bank",
+                    ("operator", operator_address, String),
+                    ("status", "error", String),
+                    ("state", "load_blockstore", String),
+                    ("step", 2, i64),
+                    ("error", error_str, String),
+                    ("duration_ms", start_time.elapsed().as_millis() as i64, i64),
+                    "cluster" => cluster,
+                );
+                return Err(LedgerUtilsError::BlockstoreOpenError(error_str));
+            }
+        };
 
     let desired_slot_in_blockstore = match blockstore.meta(*desired_slot) {
         Ok(meta) => meta.is_some(),
@@ -460,7 +463,6 @@ fn stake_program_secondary_indexes() -> AccountSecondaryIndexes {
     }
 }
 
-
 /// Loads the bank from the snapshot at the exact slot. If the snapshot doesn't exist, result is
 /// an error.
 pub fn get_bank_from_snapshot_at_slot(
@@ -522,4 +524,3 @@ pub fn get_bank_from_snapshot_at_slot(
     exit.store(true, Ordering::Relaxed);
     Ok(bank)
 }
-
