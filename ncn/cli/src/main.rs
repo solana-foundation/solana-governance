@@ -1199,7 +1199,7 @@ fn main() -> Result<()> {
                 backup_snapshots_dir,
             } = cli.get_snapshot_paths();
 
-            get_bank_from_ledger(
+            let _ = get_bank_from_ledger(
                 cli.operator_address,
                 &ledger_path,
                 account_paths,
@@ -1420,7 +1420,7 @@ fn main() -> Result<()> {
                         );
                         let save_snapshot = true;
                         let account_paths = vec![backup_ledger_dir.clone()];
-                        get_bank_from_ledger(
+                        let _ = get_bank_from_ledger(
                             cli.operator_address,
                             &backup_ledger_dir,
                             account_paths,
