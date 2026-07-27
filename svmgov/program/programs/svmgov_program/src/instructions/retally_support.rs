@@ -76,15 +76,19 @@ impl<'info> RetallySupport<'info> {
         // threshold config it could activate voting on a proposal nobody
         // supported, so refuse it outright.
         require!(
-            !self.proposal.supporters.is_empty(),
+            self.proposal.num_supporters > 0,
             GovernanceError::NoSupporters
         );
 
         // Rebuild the tally from every supporter's stake at the CURRENT epoch;
-        // nothing from earlier epochs' readings is retained.
-        let total = tally_supporter_stakes(&self.proposal.supporters, |pk| {
-            get_epoch_stake_for_vote_account(pk)
-        })?;
+        // nothing from earlier epochs' readings is retained. The supporter
+        // list is read zero-copy from the account data.
+        let proposal_info = self.proposal.to_account_info();
+        let total = {
+            let proposal_data = proposal_info.try_borrow_data()?;
+            let supporters = self.proposal.supporters(&proposal_data)?;
+            tally_supporter_stakes(supporters, |pk| get_epoch_stake_for_vote_account(pk))?
+        };
         self.proposal.cluster_support_lamports = total;
 
         let cluster_min_stake = min_stake_threshold(

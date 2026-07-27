@@ -33,17 +33,55 @@ pub struct Proposal {
     // Seeds for CPI
     pub proposal_seed: u64,
     pub vote_account_pubkey: Pubkey,
-    /// Vote-account pubkeys of every supporter, appended by `support_proposal`.
-    /// Kept so the tally can be rebuilt from current-epoch stake on every
-    /// support/retally (stake readings from earlier epochs are never reused).
+    /// Number of supporter entries stored in the account data at the fixed
+    /// offset [`Proposal::SUPPORTERS_OFFSET`].
     ///
-    /// MUST remain the LAST field: Borsh serializes a Vec as
-    /// [u32 len][item][item]..., so the account can grow by exactly one entry
-    /// per support via realloc only if nothing is serialized after it.
-    /// `max_len(0)` keeps INIT_SPACE at the empty-list size (just the 4-byte
-    /// length prefix); growth is paid per-entry by each supporter.
-    #[max_len(0)]
-    pub supporters: Vec<Pubkey>,
+    /// The supporter vote-account pubkeys are intentionally NOT a field of
+    /// this struct: they live past the struct's Borsh capacity boundary
+    /// (`discriminator + INIT_SPACE`), so Anchor only (de)serializes this
+    /// 4-byte count. The entries are read zero-copy via
+    /// [`Proposal::supporters`] and written by [`Proposal::append_supporter`].
+    pub num_supporters: u32,
+}
+
+/// The zero-copy supporter accessors reinterpret raw account bytes as
+/// `[Pubkey]`; that is only sound for this exact layout.
+const _: () = assert!(
+    core::mem::size_of::<Pubkey>() == 32 && core::mem::align_of::<Pubkey>() == 1
+);
+
+impl Proposal {
+    /// Byte offset of the first supporter entry in the account data. Ignores the
+    /// actual serialization size of the `Proposal` for simplicity (`Option` and 
+    /// `String` have variable length when serialized).
+    pub const SUPPORTERS_OFFSET: usize = ANCHOR_DISCRIMINATOR + Self::INIT_SPACE;
+
+    /// Zero-copy view of the supporter vote-account pubkeys. `data` must be
+    /// this proposal's full account data (discriminator included).
+    pub fn supporters<'d>(&self, data: &'d [u8]) -> Result<&'d [Pubkey]> {
+        let len = self.num_supporters as usize;
+        let bytes = data
+            .get(Self::SUPPORTERS_OFFSET..Self::SUPPORTERS_OFFSET + len * core::mem::size_of::<Pubkey>())
+            .ok_or(ProgramError::AccountDataTooSmall)?;
+        // SAFETY: Pubkey is repr(transparent) over [u8; 32] with size 32 and
+        // align 1 (compile-time-asserted above), so any correctly sized byte
+        // region reinterprets as a [Pubkey] with no alignment or validity
+        // requirements to violate; the lifetime stays tied to `data`.
+        Ok(unsafe { core::slice::from_raw_parts(bytes.as_ptr().cast::<Pubkey>(), len) })
+    }
+
+    /// Writes one supporter entry after the existing ones and bumps
+    /// `num_supporters`. The account must already have been realloc'd to hold
+    /// the extra 32 bytes (see the constraint in `support_proposal`).
+    pub fn append_supporter(&mut self, data: &mut [u8], vote_account: Pubkey) -> Result<()> {
+        let entry_size = core::mem::size_of::<Pubkey>();
+        let offset = Self::SUPPORTERS_OFFSET + self.num_supporters as usize * entry_size;
+        data.get_mut(offset..offset + entry_size)
+            .ok_or(ProgramError::AccountDataTooSmall)?
+            .copy_from_slice(vote_account.as_ref());
+        self.num_supporters += 1;
+        Ok(())
+    }
 }
 
 impl Default for Proposal {
@@ -70,7 +108,7 @@ impl Default for Proposal {
             consensus_result: None,
             proposal_seed: 0,
             vote_account_pubkey: Pubkey::default(),
-            supporters: Vec::new(),
+            num_supporters: 0,
         }
     }
 }

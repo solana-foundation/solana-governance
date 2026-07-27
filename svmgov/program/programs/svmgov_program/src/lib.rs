@@ -11,6 +11,7 @@ use instructions::*;
 
 pub use constants::BASIS_POINTS_MAX;
 pub use error::GovernanceError;
+pub use state::Proposal;
 pub use utils::get_epoch_slot_range;
 
 use ncn_snapshot::StakeMerkleLeaf;

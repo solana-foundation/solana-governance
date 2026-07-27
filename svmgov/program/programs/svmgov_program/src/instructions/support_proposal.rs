@@ -26,11 +26,11 @@ pub struct SupportProposal<'info> {
         mut,
         // Grow the proposal by exactly one supporter entry (32 bytes). The
         // supporter pays the rent delta for their own slice. INIT_SPACE
-        // already includes the Vec's 4-byte length prefix (max_len(0)), so
-        // total size is disc + fixed fields + 32 per supporter.
+        // already includes the 4-byte `num_supporters` count, so total size
+        // is disc + fixed fields + 32 per supporter.
         realloc = ANCHOR_DISCRIMINATOR
             + Proposal::INIT_SPACE
-            + (proposal.supporters.len() + 1) * core::mem::size_of::<Pubkey>(),
+            + (proposal.num_supporters as usize + 1) * core::mem::size_of::<Pubkey>(),
         realloc::payer = signer,
         realloc::zero = false,
     )]
@@ -103,7 +103,7 @@ impl<'info> SupportProposal<'info> {
         // exceed Solana's heap/compute limits and brick the proposal. Checked
         // before the new entry is recorded so the list never exceeds the cap.
         require!(
-            (self.proposal.supporters.len() as u64) < self.global_config.max_supporters as u64,
+            (self.proposal.num_supporters as u64) < self.global_config.max_supporters as u64,
             GovernanceError::SupporterLimitReached
         );
 
@@ -131,9 +131,13 @@ impl<'info> SupportProposal<'info> {
         // every prior supporter's stake at the *current* epoch (via the
         // sol_get_epoch_stake syscall — needs only the pubkey, not the
         // account), then add the new supporter measured at the same epoch.
-        let prior_stake = tally_supporter_stakes(&self.proposal.supporters, |pk| {
-            get_epoch_stake_for_vote_account(pk)
-        })?;
+        // The supporter list is read zero-copy from the account data.
+        let proposal_info = self.proposal.to_account_info();
+        let prior_stake = {
+            let proposal_data = proposal_info.try_borrow_data()?;
+            let supporters = self.proposal.supporters(&proposal_data)?;
+            tally_supporter_stakes(supporters, |pk| get_epoch_stake_for_vote_account(pk))?
+        };
         let supporter_stake = get_epoch_stake_for_vote_account(self.spl_vote_account.key);
         // A supporter must clear the same stake floor as a proposal author.
         // This blocks a zero-/dust-stake spam attack that would otherwise let
@@ -151,8 +155,12 @@ impl<'info> SupportProposal<'info> {
         proposal_account.cluster_support_lamports = new_support_stake;
         // Record the supporter's vote account so future support/retally calls
         // can re-measure them. The realloc constraint above already grew the
-        // account by exactly this entry.
-        proposal_account.supporters.push(self.spl_vote_account.key());
+        // account by exactly this entry; the pubkey is written straight into
+        // the account data (only `num_supporters` goes through Anchor).
+        {
+            let mut proposal_data = proposal_info.try_borrow_mut_data()?;
+            proposal_account.append_supporter(&mut proposal_data, self.spl_vote_account.key())?;
+        }
 
         // Initialize the support account
         self.support.set_inner(Support {
