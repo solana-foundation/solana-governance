@@ -142,6 +142,20 @@ enum Commands {
     },
 
     #[command(
+        about = "Re-tally a proposal's support at the current epoch",
+        long_about = "This command re-measures every recorded supporter's stake at the current epoch and, \
+                      if the cluster support threshold is now met, activates voting on the proposal. \
+                      It is permissionless: any funded keypair may call it. Useful when stake drift alone \
+                      pushed a proposal over the threshold and no new supporter arrives to trigger a re-measure.\n\n\
+                      Example:\n\
+                      $ svmgov -k /path/to/key.json --rpc-url https://api.mainnet-beta.solana.com retally-support --proposal-id \"123\""
+    )]
+    RetallySupport {
+        #[arg(long, help = "Proposal ID")]
+        proposal_id: String,
+    },
+
+    #[command(
         about = "Cast a vote on a proposal",
         long_about = "This command casts a vote on a live governance proposal. \
                       Voters specify how to allocate their stake weight across 'For', 'Against', and 'Abstain' using basis points, which must sum to 10,000 (representing 100% of their stake). \
@@ -590,6 +604,10 @@ fn squads_refusal_for(command: &Commands) -> Option<String> {
             "finalize-proposal",
             "no particular signer because it is permissionless, so a multisig adds friction without benefit",
         ),
+        Commands::RetallySupport { .. } => (
+            "retally-support",
+            "no particular signer because it is permissionless, so a multisig adds friction without benefit",
+        ),
         Commands::CastVoteOverride { .. }
         | Commands::ModifyVoteOverride { .. }
         | Commands::InitGlobalConfig { .. }
@@ -661,6 +679,15 @@ async fn handle_command(cli: Cli) -> Result<()> {
             proposal_id,
         } => {
             instructions::support_proposal(
+                proposal_id.to_string(),
+                cli.keypair,
+                cli.rpc_url,
+                network.clone(),
+            )
+            .await?;
+        }
+        Commands::RetallySupport { proposal_id } => {
+            instructions::retally_support(
                 proposal_id.to_string(),
                 cli.keypair,
                 cli.rpc_url,

@@ -2206,21 +2206,18 @@
             "type": "pubkey"
           },
           {
-            "name": "supporters",
+            "name": "num_supporters",
             "docs": [
-              "Vote-account pubkeys of every supporter, appended by `support_proposal`.",
-              "Kept so the tally can be rebuilt from current-epoch stake on every",
-              "support/retally (stake readings from earlier epochs are never reused).",
+              "Number of supporter entries stored in the account data at the fixed",
+              "offset [`Proposal::SUPPORTERS_OFFSET`].",
               "",
-              "MUST remain the LAST field: Borsh serializes a Vec as",
-              "[u32 len][item][item]..., so the account can grow by exactly one entry",
-              "per support via realloc only if nothing is serialized after it.",
-              "`max_len(0)` keeps INIT_SPACE at the empty-list size (just the 4-byte",
-              "length prefix); growth is paid per-entry by each supporter."
+              "The supporter vote-account pubkeys are intentionally NOT a field of",
+              "this struct: they live past the struct's Borsh capacity boundary",
+              "(`discriminator + INIT_SPACE`), so Anchor only (de)serializes this",
+              "4-byte count. The entries are read zero-copy via",
+              "[`Proposal::supporters`] and written by [`Proposal::append_supporter`]."
             ],
-            "type": {
-              "vec": "pubkey"
-            }
+            "type": "u32"
           }
         ]
       }

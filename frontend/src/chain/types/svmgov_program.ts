@@ -8,11 +8,61 @@ export type SvmgovProgram = {
   "address": "govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU",
   "metadata": {
     "name": "svmgovProgram",
-    "version": "0.1.0",
+    "version": "0.2.0-40000",
     "spec": "0.1.0",
     "description": "Created with Anchor"
   },
   "instructions": [
+    {
+      "name": "acceptAdmin",
+      "docs": [
+        "Step 2 of the two-step admin transfer: the nominated admin accepts and becomes",
+        "the active admin."
+      ],
+      "discriminator": [
+        112,
+        42,
+        45,
+        90,
+        116,
+        181,
+        13,
+        170
+      ],
+      "accounts": [
+        {
+          "name": "newAdmin",
+          "signer": true
+        },
+        {
+          "name": "globalConfig",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
     {
       "name": "castVote",
       "discriminator": [
@@ -61,7 +111,12 @@ export type SvmgovProgram = {
           }
         },
         {
-          "name": "splVoteAccount"
+          "name": "splVoteAccount",
+          "docs": [
+            "enforced here. The signer-to-vote-account binding is proved in the handler",
+            "via the meta merkle proof: voting_wallet == signer AND vote_account ==",
+            "spl_vote_account, both anchored to proposal.consensus_result."
+          ]
         },
         {
           "name": "voteOverrideCache",
@@ -180,7 +235,13 @@ export type SvmgovProgram = {
           }
         },
         {
-          "name": "splVoteAccount"
+          "name": "splVoteAccount",
+          "docs": [
+            "enforced here. The signer here is the delegator (not the validator); the",
+            "handler proves stake_merkle_leaf.voting_wallet == signer and binds the",
+            "stake leaf to this vote account via the two-tier merkle proof",
+            "(stake_merkle_root nested inside meta_merkle_leaf)."
+          ]
         },
         {
           "name": "voteOverride",
@@ -377,7 +438,11 @@ export type SvmgovProgram = {
           }
         },
         {
-          "name": "splVoteAccount"
+          "name": "splVoteAccount",
+          "docs": [
+            "enforced here; the handler then deserializes VoteStateVersions and requires",
+            "node_pubkey == signer, proving the signer operates this vote account."
+          ]
         },
         {
           "name": "globalConfig",
@@ -471,7 +536,13 @@ export type SvmgovProgram = {
           "writable": true
         },
         {
-          "name": "splVoteAccount"
+          "name": "splVoteAccount",
+          "docs": [
+            "to the proposal by the init_ballot_box CPI's PDA seed check, which re-derives",
+            "[b\"proposal\", proposal_seed, spl_vote_account] against the signing proposal",
+            "PDA. A mismatched vote account is therefore rejected regardless of who signs",
+            "this instruction (the signer is the admin, not necessarily the author)."
+          ]
         },
         {
           "name": "ballotBox"
@@ -587,6 +658,13 @@ export type SvmgovProgram = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "program",
+          "address": "govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU"
+        },
+        {
+          "name": "programData"
         }
       ],
       "args": [
@@ -722,7 +800,12 @@ export type SvmgovProgram = {
           }
         },
         {
-          "name": "splVoteAccount"
+          "name": "splVoteAccount",
+          "docs": [
+            "enforced here. The signer-to-vote-account binding is proved in the handler",
+            "via the meta merkle proof: voting_wallet == signer AND vote_account ==",
+            "spl_vote_account, both anchored to proposal.consensus_result."
+          ]
         },
         {
           "name": "snapshotProgram"
@@ -800,7 +883,13 @@ export type SvmgovProgram = {
           }
         },
         {
-          "name": "splVoteAccount"
+          "name": "splVoteAccount",
+          "docs": [
+            "enforced here. The signer here is the delegator (not the validator); the",
+            "handler proves stake_merkle_leaf.voting_wallet == signer and binds the",
+            "stake leaf to this vote account via the two-tier merkle proof",
+            "(stake_merkle_root nested inside meta_merkle_leaf)."
+          ]
         },
         {
           "name": "voteOverride",
@@ -932,6 +1021,159 @@ export type SvmgovProgram = {
       ]
     },
     {
+      "name": "nominateAdmin",
+      "docs": [
+        "Step 1 of the two-step admin transfer: the current admin nominates a new admin.",
+        "The transfer only completes once the nominee calls `accept_admin`."
+      ],
+      "discriminator": [
+        134,
+        11,
+        31,
+        244,
+        20,
+        77,
+        138,
+        121
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true
+        },
+        {
+          "name": "globalConfig",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "proposedAdmin",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "retallySupport",
+      "docs": [
+        "Permissionless re-tally of a proposal's support at the current epoch.",
+        "Activates voting if the re-measured support now meets the threshold."
+      ],
+      "discriminator": [
+        132,
+        55,
+        145,
+        255,
+        12,
+        163,
+        151,
+        141
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "docs": [
+            "Any caller. Pays only the tx fee — plus the ballot-box rent iff this",
+            "retally activates voting and the ballot box does not exist yet."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "proposal",
+          "writable": true
+        },
+        {
+          "name": "ballotBox",
+          "writable": true
+        },
+        {
+          "name": "ballotProgram"
+        },
+        {
+          "name": "programConfig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  80,
+                  114,
+                  111,
+                  103,
+                  114,
+                  97,
+                  109,
+                  67,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "ballotProgram"
+            }
+          }
+        },
+        {
+          "name": "globalConfig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "supportProposal",
       "discriminator": [
         95,
@@ -982,7 +1224,12 @@ export type SvmgovProgram = {
           }
         },
         {
-          "name": "splVoteAccount"
+          "name": "splVoteAccount",
+          "docs": [
+            "enforced here; the handler then deserializes VoteStateVersions and requires",
+            "node_pubkey == signer, so a supporter can only pledge stake from a vote",
+            "account they operate."
+          ]
         },
         {
           "name": "ballotBox",
@@ -1067,6 +1314,7 @@ export type SvmgovProgram = {
       "accounts": [
         {
           "name": "admin",
+          "writable": true,
           "signer": true
         },
         {
@@ -1094,6 +1342,10 @@ export type SvmgovProgram = {
               }
             ]
           }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -1255,6 +1507,32 @@ export type SvmgovProgram = {
   ],
   "events": [
     {
+      "name": "adminNominated",
+      "discriminator": [
+        22,
+        247,
+        53,
+        33,
+        59,
+        59,
+        68,
+        112
+      ]
+    },
+    {
+      "name": "adminTransferred",
+      "discriminator": [
+        255,
+        147,
+        182,
+        5,
+        199,
+        217,
+        38,
+        179
+      ]
+    },
+    {
       "name": "merkleRootFlushed",
       "discriminator": [
         120,
@@ -1291,6 +1569,19 @@ export type SvmgovProgram = {
         209,
         61,
         51
+      ]
+    },
+    {
+      "name": "proposalRetallied",
+      "discriminator": [
+        50,
+        227,
+        187,
+        86,
+        132,
+        93,
+        57,
+        3
       ]
     },
     {
@@ -1373,7 +1664,7 @@ export type SvmgovProgram = {
     {
       "code": 6002,
       "name": "titleTooLong",
-      "msg": "The title of the proposal is too long, max 50 char"
+      "msg": "The title of the proposal is too long, max 200 bytes"
     },
     {
       "code": 6003,
@@ -1383,7 +1674,7 @@ export type SvmgovProgram = {
     {
       "code": 6004,
       "name": "descriptionTooLong",
-      "msg": "The description of the proposal is too long, max 250 char"
+      "msg": "The description of the proposal is too long, max 500 bytes"
     },
     {
       "code": 6005,
@@ -1589,9 +1880,101 @@ export type SvmgovProgram = {
       "code": 6045,
       "name": "unauthorizedAdmin",
       "msg": "Unauthorized: only the admin can perform this action"
+    },
+    {
+      "code": 6046,
+      "name": "invalidProgram",
+      "msg": "Invalid program"
+    },
+    {
+      "code": 6047,
+      "name": "invalidClusterSupportPctMin",
+      "msg": "Invalid cluster support percentage minimum in basis points (must be between 0 and 10,000)"
+    },
+    {
+      "code": 6048,
+      "name": "invalidMaxTitleLength",
+      "msg": "Invalid max title length (must be greater than 0 and less than or equal to 200)"
+    },
+    {
+      "code": 6049,
+      "name": "invalidMaxDescriptionLength",
+      "msg": "Invalid max description length (must be greater than 0 and less than or equal to 500)"
+    },
+    {
+      "code": 6050,
+      "name": "invalidAdmin",
+      "msg": "Admin cannot be the default (all-zero) pubkey"
+    },
+    {
+      "code": 6051,
+      "name": "noPendingAdmin",
+      "msg": "No pending admin nomination exists to accept"
+    },
+    {
+      "code": 6052,
+      "name": "notPendingAdmin",
+      "msg": "Signer is not the pending admin nominee"
+    },
+    {
+      "code": 6053,
+      "name": "invalidBallotBox",
+      "msg": "Invalid ballot box: provided account does not match the expected BallotBox PDA for the snapshot slot"
+    },
+    {
+      "code": 6054,
+      "name": "snapshotSlotNotInFuture",
+      "msg": "Snapshot slot must be in the future (greater than the current slot)"
+    },
+    {
+      "code": 6055,
+      "name": "noSupporters",
+      "msg": "Proposal has no supporters to retally"
+    },
+    {
+      "code": 6056,
+      "name": "supporterLimitReached",
+      "msg": "Proposal has reached the maximum number of supporters"
+    },
+    {
+      "code": 6057,
+      "name": "invalidMaxSupporters",
+      "msg": "Invalid max supporters (must be greater than 0 and less than or equal to the supporter limit)"
     }
   ],
   "types": [
+    {
+      "name": "adminNominated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "currentAdmin",
+            "type": "pubkey"
+          },
+          {
+            "name": "pendingAdmin",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "adminTransferred",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "previousAdmin",
+            "type": "pubkey"
+          },
+          {
+            "name": "newAdmin",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
     {
       "name": "globalConfig",
       "type": {
@@ -1603,6 +1986,16 @@ export type SvmgovProgram = {
               "The admin pubkey who can update this config"
             ],
             "type": "pubkey"
+          },
+          {
+            "name": "pendingAdmin",
+            "docs": [
+              "A pending admin nominated by the current admin. The transfer only completes",
+              "once this key signs `accept_admin`. `None` when no transfer is in progress."
+            ],
+            "type": {
+              "option": "pubkey"
+            }
           },
           {
             "name": "maxTitleLength",
@@ -1669,22 +2062,21 @@ export type SvmgovProgram = {
             "type": "i64"
           },
           {
-            "name": "maxSupporters",
-            "docs": [
-              "Maximum number of validators that may support a single proposal. Bounds",
-              "the per-transaction cost of re-tallying the `supporters` list (which is",
-              "deserialized and re-measured in full on every support/retally) so a",
-              "proposal can always be processed within Solana's heap/compute limits.",
-              "Must be in `1..=MAX_SUPPORTERS_LIMIT`."
-            ],
-            "type": "u32"
-          },
-          {
             "name": "bump",
             "docs": [
               "PDA bump seed"
             ],
             "type": "u8"
+          },
+          {
+            "name": "maxSupporters",
+            "docs": [
+              "Maximum number of validators that may support a single proposal. Bounds",
+              "the per-transaction cost of re-tallying the `supporters` list so a",
+              "proposal can always be processed within Solana's heap/compute limits.",
+              "Must be in `1..=MAX_SUPPORTERS_LIMIT`."
+            ],
+            "type": "u32"
           }
         ]
       }
@@ -1818,6 +2210,20 @@ export type SvmgovProgram = {
           {
             "name": "voteAccountPubkey",
             "type": "pubkey"
+          },
+          {
+            "name": "numSupporters",
+            "docs": [
+              "Number of supporter entries stored in the account data at the fixed",
+              "offset [`Proposal::SUPPORTERS_OFFSET`].",
+              "",
+              "The supporter vote-account pubkeys are intentionally NOT a field of",
+              "this struct: they live past the struct's Borsh capacity boundary",
+              "(`discriminator + INIT_SPACE`), so Anchor only (de)serializes this",
+              "4-byte count. The entries are read zero-copy via",
+              "[`Proposal::supporters`] and written by [`Proposal::append_supporter`]."
+            ],
+            "type": "u32"
           }
         ]
       }
@@ -1898,6 +2304,34 @@ export type SvmgovProgram = {
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "proposalRetallied",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "proposalId",
+            "type": "pubkey"
+          },
+          {
+            "name": "caller",
+            "type": "pubkey"
+          },
+          {
+            "name": "clusterSupportLamports",
+            "type": "u64"
+          },
+          {
+            "name": "votingActivated",
+            "type": "bool"
+          },
+          {
+            "name": "snapshotSlot",
+            "type": "u64"
           }
         ]
       }

@@ -6,6 +6,7 @@ pub mod global_config;
 pub mod init_index;
 pub mod modify_vote;
 pub mod modify_vote_override;
+pub mod retally_support;
 pub mod support_proposal;
 
 pub use cast_vote::cast_vote;
@@ -19,4 +20,5 @@ pub use global_config::{
 pub use init_index::initialize_index;
 pub use modify_vote::modify_vote;
 pub use modify_vote_override::modify_vote_override;
+pub use retally_support::retally_support;
 pub use support_proposal::support_proposal;

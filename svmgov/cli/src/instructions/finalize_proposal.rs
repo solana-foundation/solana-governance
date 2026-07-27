@@ -5,7 +5,7 @@ use anyhow::{anyhow, Result};
 
 use crate::{
     svmgov_program::client::{accounts, args},
-    utils::utils::{create_spinner, setup_all},
+    utils::utils::{create_spinner, setup_signer_and_program},
 };
 
 pub async fn finalize_proposal(
@@ -16,7 +16,7 @@ pub async fn finalize_proposal(
     let proposal_pubkey = Pubkey::from_str(&proposal_id)
         .map_err(|_| anyhow!("Invalid proposal ID: {}", proposal_id))?;
 
-    let (payer, _vote_account, program, _merkle_proof_program) = setup_all(identity_keypair, rpc_url).await?;
+    let (payer, program, _client) = setup_signer_and_program(identity_keypair, rpc_url)?;
 
     let spinner = create_spinner("Finalizing proposal...");
 

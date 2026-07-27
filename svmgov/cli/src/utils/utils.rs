@@ -36,6 +36,32 @@ pub fn create_spinner(message: &str) -> ProgressBar {
     spinner
 }
 
+/// Partial setup shared by every signing command: loads the signer keypair,
+/// resolves the cluster from the RPC url, and builds the Anchor client and
+/// svmgov program. Enough for permissionless instructions (retally-support,
+/// finalize-proposal, ...) where any funded keypair may sign; `setup_all`
+/// builds on it for commands that also need the merkle-proof program and the
+/// signer's vote account.
+pub fn setup_signer_and_program(
+    keypair_path: Option<String>,
+    rpc_url: Option<String>,
+) -> Result<(Arc<Keypair>, Program<Arc<Keypair>>, Client<Arc<Keypair>>)> {
+    let identity_keypair = load_identity_keypair(keypair_path)?;
+    let identity_keypair_arc = Arc::new(identity_keypair);
+
+    let cluster = set_cluster(rpc_url);
+
+    let client = Client::new(cluster, identity_keypair_arc.clone());
+    let program = client.program(SvmgovProgram::id())?;
+
+    log::debug!(
+        "setup_signer_and_program completed successfully: payer_pubkey={}",
+        identity_keypair_arc.pubkey()
+    );
+
+    Ok((identity_keypair_arc, program, client))
+}
+
 pub async fn setup_all(
     keypair_path: Option<String>,
     rpc_url: Option<String>,
@@ -45,31 +71,25 @@ pub async fn setup_all(
     Program<Arc<Keypair>>,
     Program<Arc<Keypair>>,
 )> {
-    // Step 1: Load the identity keypair
-    let identity_keypair = load_identity_keypair(keypair_path)?;
-    let identity_keypair_arc = Arc::new(identity_keypair);
+    // Step 1: Signer, cluster and svmgov program
+    let (identity_keypair_arc, program, client) =
+        setup_signer_and_program(keypair_path, rpc_url)?;
 
-    // Step 2: Set the cluster
-    let cluster = set_cluster(rpc_url);
-
-    // Step 3: Create the Anchor client and program
-    let client = Client::new(cluster.clone(), identity_keypair_arc.clone());
-    let program = client.program(SvmgovProgram::id())?;
-
+    // Step 2: The merkle-proof (ncn-snapshot) program
     let merkle_proof_program = client.program(ncn_snapshot::id())?;
-    // Step 4: Find the vote account using the program's RpcClient
+
+    // Step 3: Find the vote account using the program's RpcClient
     let rpc_client = program.rpc();
     let validator_identity = identity_keypair_arc.pubkey();
     let vote_account = find_spl_vote_account(&validator_identity, &rpc_client).await?;
 
-    // Step 5: Log the setup completion
+    // Step 4: Log the setup completion
     log::debug!(
         "setup_all completed successfully: payer_pubkey={}, vote_account={}",
         identity_keypair_arc.pubkey(),
         vote_account
     );
 
-    // Return all variables
     Ok((
         identity_keypair_arc,
         vote_account,
@@ -228,9 +248,7 @@ pub fn setup_admin(
     keypair_path: Option<String>,
     rpc_url: Option<String>,
 ) -> Result<(Arc<Keypair>, Program<Arc<Keypair>>)> {
-    let identity_keypair = load_identity_keypair(keypair_path)?;
-    let payer = Arc::new(identity_keypair);
-    let program = anchor_client_setup(rpc_url, payer.clone())?;
+    let (payer, program, _client) = setup_signer_and_program(keypair_path, rpc_url)?;
     Ok((payer, program))
 }
 

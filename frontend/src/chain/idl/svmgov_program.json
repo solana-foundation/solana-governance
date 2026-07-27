@@ -1070,6 +1070,104 @@
       ]
     },
     {
+      "name": "retally_support",
+      "docs": [
+        "Permissionless re-tally of a proposal's support at the current epoch.",
+        "Activates voting if the re-measured support now meets the threshold."
+      ],
+      "discriminator": [
+        132,
+        55,
+        145,
+        255,
+        12,
+        163,
+        151,
+        141
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "docs": [
+            "Any caller. Pays only the tx fee — plus the ballot-box rent iff this",
+            "retally activates voting and the ballot box does not exist yet."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "proposal",
+          "writable": true
+        },
+        {
+          "name": "ballot_box",
+          "writable": true
+        },
+        {
+          "name": "ballot_program"
+        },
+        {
+          "name": "program_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  80,
+                  114,
+                  111,
+                  103,
+                  114,
+                  97,
+                  109,
+                  67,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "ballot_program"
+            }
+          }
+        },
+        {
+          "name": "global_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "support_proposal",
       "discriminator": [
         95,
@@ -1210,6 +1308,7 @@
       "accounts": [
         {
           "name": "admin",
+          "writable": true,
           "signer": true
         },
         {
@@ -1237,6 +1336,10 @@
               }
             ]
           }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -1460,6 +1563,19 @@
         209,
         61,
         51
+      ]
+    },
+    {
+      "name": "ProposalRetallied",
+      "discriminator": [
+        50,
+        227,
+        187,
+        86,
+        132,
+        93,
+        57,
+        3
       ]
     },
     {
@@ -1940,22 +2056,21 @@
             "type": "i64"
           },
           {
-            "name": "max_supporters",
-            "docs": [
-              "Maximum number of validators that may support a single proposal. Bounds",
-              "the per-transaction cost of re-tallying the `supporters` list (which is",
-              "deserialized and re-measured in full on every support/retally) so a",
-              "proposal can always be processed within Solana's heap/compute limits.",
-              "Must be in `1..=MAX_SUPPORTERS_LIMIT`."
-            ],
-            "type": "u32"
-          },
-          {
             "name": "bump",
             "docs": [
               "PDA bump seed"
             ],
             "type": "u8"
+          },
+          {
+            "name": "max_supporters",
+            "docs": [
+              "Maximum number of validators that may support a single proposal. Bounds",
+              "the per-transaction cost of re-tallying the `supporters` list so a",
+              "proposal can always be processed within Solana's heap/compute limits.",
+              "Must be in `1..=MAX_SUPPORTERS_LIMIT`."
+            ],
+            "type": "u32"
           }
         ]
       }
@@ -2089,6 +2204,20 @@
           {
             "name": "vote_account_pubkey",
             "type": "pubkey"
+          },
+          {
+            "name": "num_supporters",
+            "docs": [
+              "Number of supporter entries stored in the account data at the fixed",
+              "offset [`Proposal::SUPPORTERS_OFFSET`].",
+              "",
+              "The supporter vote-account pubkeys are intentionally NOT a field of",
+              "this struct: they live past the struct's Borsh capacity boundary",
+              "(`discriminator + INIT_SPACE`), so Anchor only (de)serializes this",
+              "4-byte count. The entries are read zero-copy via",
+              "[`Proposal::supporters`] and written by [`Proposal::append_supporter`]."
+            ],
+            "type": "u32"
           }
         ]
       }
@@ -2169,6 +2298,34 @@
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProposalRetallied",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "proposal_id",
+            "type": "pubkey"
+          },
+          {
+            "name": "caller",
+            "type": "pubkey"
+          },
+          {
+            "name": "cluster_support_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "voting_activated",
+            "type": "bool"
+          },
+          {
+            "name": "snapshot_slot",
+            "type": "u64"
           }
         ]
       }
