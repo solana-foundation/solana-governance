@@ -2,7 +2,6 @@ mod common;
 use common::setup_server;
 
 use anchor_lang::solana_program::hash::Hash;
-use cli::merkle_tree::{get_proof, MerkleTree};
 use ncn_snapshot::merkle_helper::verify_helper;
 use reqwest::{
     multipart::{Form, Part},
@@ -414,38 +413,24 @@ async fn e2e_same_slot_reupload_fully_replaces_rows() -> anyhow::Result<()> {
     // Keep (and modify) the first bundle; omit the second on the reupload.
     let mut modified_bundle = full_snapshot.leaf_bundles[0].clone();
     let omitted_bundle = full_snapshot.leaf_bundles[1].clone();
-    modified_bundle.meta_merkle_leaf.active_stake = modified_bundle
-        .meta_merkle_leaf
-        .active_stake
-        .saturating_add(1);
-    modified_bundle.stake_merkle_leaves[0].active_stake = modified_bundle
-        .stake_merkle_leaves[0]
+    modified_bundle.stake_merkle_leaves[0].active_stake = modified_bundle.stake_merkle_leaves[0]
         .active_stake
         .saturating_add(1);
 
-    // Recompute the stake merkle root over the modified stake leaves so the
-    // bundle stays internally coherent, mirroring how the CLI builds it.
-    let stake_hashed_nodes: Vec<[u8; 32]> = modified_bundle
-        .stake_merkle_leaves
-        .iter()
-        .map(|n| n.hash().to_bytes())
-        .collect();
-    let stake_merkle = MerkleTree::new(&stake_hashed_nodes[..], true);
-    modified_bundle.meta_merkle_leaf.stake_merkle_root = stake_merkle
-        .get_root()
-        .expect("stake merkle root")
-        .to_bytes();
-
-    // Re-derive the meta-merkle root and proof over the replacement leaf set
-    // (a single bundle here), mirroring how the CLI builds a snapshot. A real
-    // operator computes a fresh root for the bundles they actually upload;
-    // reusing the original full-tree root would leave merkle_root and the
-    // stored meta_merkle_proof cryptographically stale for the new data.
-    let meta_hashed_nodes = vec![modified_bundle.meta_merkle_leaf.hash().to_bytes()];
-    let meta_merkle = MerkleTree::new(&meta_hashed_nodes[..], true);
-    let modified_root = meta_merkle.get_root().expect("meta merkle root").to_bytes();
-    modified_bundle.proof = Some(get_proof(&meta_merkle, 0));
-    let modified_merkle_root = bs58::encode(modified_root).into_string();
+    // Build the replacement snapshot (a single bundle here) and re-derive all
+    // of its merkle data — stake root, meta leaf stake, meta root, proofs —
+    // mirroring how the CLI builds a fresh snapshot. A real operator computes
+    // a fresh root for the bundles they actually upload; reusing the original
+    // full-tree root would leave merkle_root and the stored meta_merkle_proof
+    // cryptographically stale for the new data.
+    let mut modified_snapshot = cli::MetaMerkleSnapshot {
+        root: [0; 32],
+        leaf_bundles: vec![modified_bundle],
+        slot,
+    };
+    modified_snapshot.remerklize()?;
+    let modified_bundle = &modified_snapshot.leaf_bundles[0];
+    let modified_merkle_root = bs58::encode(modified_snapshot.root).into_string();
 
     // The omitted account is queryable after the full upload.
     let omitted_vote_account = omitted_bundle.meta_merkle_leaf.vote_account.to_string();
@@ -465,11 +450,6 @@ async fn e2e_same_slot_reupload_fully_replaces_rows() -> anyhow::Result<()> {
     // Second upload: same (network, slot), only the modified bundle, committed
     // to by its own freshly-derived root. Signed with its own snapshot hash so
     // it passes the byte-binding check.
-    let modified_snapshot = cli::MetaMerkleSnapshot {
-        root: modified_root,
-        leaf_bundles: vec![modified_bundle.clone()],
-        slot,
-    };
     let modified_bytes = modified_snapshot.to_compressed_bytes()?;
     let (_, modified_hash) =
         cli::MetaMerkleSnapshot::read_from_bytes_with_hash(modified_bytes.clone(), true)?;

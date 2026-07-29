@@ -205,23 +205,27 @@ impl<'info> ModifyVoteOverride<'info> {
         self.vote_override.abstain_votes_lamports = abstain_votes_lamports;
         self.vote_override.vote_override_timestamp = clock.unix_timestamp;
 
-        if self.validator_vote.owner == &crate::ID
-            && self.validator_vote.data_len() == (ANCHOR_DISCRIMINATOR + Vote::INIT_SPACE)
-        {
-            // Subtract old delegator's vote from proposal totals
-            self.proposal.sub_vote_lamports(
-                old_for_votes_lamports,
-                old_against_votes_lamports,
-                old_abstain_votes_lamports,
-            )?;
+        // The delegator's lamports are always part of the proposal totals —
+        // they were added when the override was cast, regardless of whether the
+        // validator has voted — so a modification always swaps old for new in
+        // the tallies.
+        self.proposal.sub_vote_lamports(
+            old_for_votes_lamports,
+            old_against_votes_lamports,
+            old_abstain_votes_lamports,
+        )?;
+        self.proposal.add_vote_lamports(
+            for_votes_lamports,
+            against_votes_lamports,
+            abstain_votes_lamports,
+        )?;
 
-            // Add new delegator's vote to proposal totals
-            self.proposal.add_vote_lamports(
-                for_votes_lamports,
-                against_votes_lamports,
-                abstain_votes_lamports,
-            )?;
-        } else {
+        // While the validator has not voted, keep the cache's snapshot of the
+        // pending override lamports in sync (its `total_stake` later reduces
+        // the validator's own voting weight in `cast_vote`).
+        if !(self.validator_vote.owner == &crate::ID
+            && self.validator_vote.data_len() == (ANCHOR_DISCRIMINATOR + Vote::INIT_SPACE))
+        {
             require!(
                 self.vote_override_cache.owner == &crate::ID,
                 GovernanceError::InvalidVoteAccount

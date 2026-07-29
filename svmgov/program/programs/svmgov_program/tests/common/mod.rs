@@ -8,8 +8,11 @@
 #![allow(dead_code)]
 
 use {
+    anchor_lang::{prelude::Pubkey as AnchorPubkey, AnchorSerialize, Discriminator},
     borsh::{BorshDeserialize, BorshSerialize},
     litesvm::LiteSVM,
+    ncn_merkle_tree::{get_proof, MerkleTree},
+    ncn_snapshot::{Ballot, ConsensusResult, MetaMerkleLeaf, MetaMerkleProof, StakeMerkleLeaf},
     sha2::{Digest, Sha256},
     solana_account::Account,
     solana_address::Address,
@@ -20,7 +23,7 @@ use {
     solana_keypair::Keypair,
     solana_message::Message,
     solana_native_token::LAMPORTS_PER_SOL,
-    solana_sdk_ids::{native_loader, system_program, vote},
+    solana_sdk_ids::{system_program, vote},
     solana_signer::Signer,
     solana_transaction::Transaction,
     solana_vote_interface_host::state::{VoteInit, VoteStateV3, VoteStateVersions},
@@ -51,6 +54,12 @@ pub fn pk_bytes(a: &Address) -> [u8; 32] {
     a.to_bytes()
 }
 
+/// Converts the test-side `Address` (solana-address) into the anchor-side
+/// `Pubkey` used by the ncn-snapshot types. Same 32 bytes, different crates.
+pub fn to_pubkey(a: &Address) -> AnchorPubkey {
+    AnchorPubkey::new_from_array(a.to_bytes())
+}
+
 pub fn anchor_discriminator(namespace: &str, name: &str) -> [u8; 8] {
     let preimage = format!("{namespace}:{name}");
     let hash = Sha256::digest(preimage.as_bytes());
@@ -66,6 +75,21 @@ pub fn read_program() -> Vec<u8> {
     std::fs::read(&path).unwrap_or_else(|e| {
         panic!(
             "failed to read {}: {e}. Build with: cargo-build-sbf -p svmgov_program",
+            path.display()
+        )
+    })
+}
+
+pub fn read_ncn_program() -> Vec<u8> {
+    // CARGO_MANIFEST_DIR = svmgov/program/programs/svmgov_program; the ncn
+    // program builds through the repo-root workspace, so its artifact lives
+    // in the root target dir.
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("../../../../target/deploy/ncn_snapshot.so");
+    std::fs::read(&path).unwrap_or_else(|e| {
+        panic!(
+            "failed to read {}: {e}. Build it from the repo root with: \
+             cargo-build-sbf -- --locked -p ncn-snapshot",
             path.display()
         )
     })
@@ -161,15 +185,7 @@ pub fn make_vote_account_data(node: &Address) -> Vec<u8> {
     data
 }
 
-pub fn write_anchor_account<T: BorshSerialize>(
-    svm: &mut LiteSVM,
-    address: Address,
-    owner: Address,
-    discriminator: [u8; 8],
-    data: &T,
-) {
-    let mut bytes = discriminator.to_vec();
-    bytes.extend(borsh::to_vec(data).expect("borsh serialize"));
+pub fn write_account_bytes(svm: &mut LiteSVM, address: Address, owner: Address, bytes: Vec<u8>) {
     let lamports = svm.minimum_balance_for_rent_exemption(bytes.len());
     svm.set_account(
         address,
@@ -182,6 +198,32 @@ pub fn write_anchor_account<T: BorshSerialize>(
         },
     )
     .unwrap();
+}
+
+pub fn write_anchor_account<T: BorshSerialize>(
+    svm: &mut LiteSVM,
+    address: Address,
+    owner: Address,
+    discriminator: &[u8],
+    data: &T,
+) {
+    let mut bytes = discriminator.to_vec();
+    bytes.extend(borsh::to_vec(data).expect("borsh serialize"));
+    write_account_bytes(svm, address, owner, bytes);
+}
+
+/// Writes an ncn-snapshot account. The ncn types serialize through anchor's
+/// own borsh re-export (0.10), a different crate instance from the harness's
+/// borsh 1.x dev-dependency, so they need their own writer.
+pub fn write_ncn_account<T: AnchorSerialize>(
+    svm: &mut LiteSVM,
+    address: Address,
+    discriminator: &[u8],
+    data: &T,
+) {
+    let mut bytes = discriminator.to_vec();
+    bytes.extend(data.try_to_vec().expect("anchor serialize"));
+    write_account_bytes(svm, address, NCN_SNAPSHOT_PROGRAM_ID, bytes);
 }
 
 pub fn try_send_ix(
@@ -378,7 +420,7 @@ pub fn setup_harness(
         &mut svm,
         global_config,
         SVMGOV_PROGRAM_ID,
-        anchor_discriminator("account", "GlobalConfig"),
+        &anchor_discriminator("account", "GlobalConfig"),
         &GlobalConfigAccount {
             admin: pk_bytes(&Address::new_unique()),
             pending_admin: None,
@@ -399,25 +441,18 @@ pub fn setup_harness(
         &mut svm,
         proposal_index,
         SVMGOV_PROGRAM_ID,
-        anchor_discriminator("account", "ProposalIndex"),
+        &anchor_discriminator("account", "ProposalIndex"),
         &ProposalIndexAccount {
             current_index: 0,
             bump: index_bump,
         },
     );
 
-    // Stand-ins so constraints pass; non-empty ballot box skips ncn_snapshot CPI.
-    svm.set_account(
-        NCN_SNAPSHOT_PROGRAM_ID,
-        Account {
-            lamports: 1,
-            data: vec![0],
-            owner: native_loader::ID,
-            executable: true,
-            rent_epoch: 0,
-        },
-    )
-    .unwrap();
+    // Load the real ncn-snapshot program: the voting suites CPI into its
+    // verify_merkle_proof instruction. The support suites never invoke it (a
+    // pre-seeded non-empty ballot box skips the init_ballot_box CPI).
+    svm.add_program(NCN_SNAPSHOT_PROGRAM_ID, &read_ncn_program())
+        .unwrap();
     svm.set_account(
         program_config,
         Account {
@@ -561,6 +596,642 @@ pub fn retally_one(h: &mut Harness, proposal: Address, caller_idx: usize, ballot
     try_retally_one(h, proposal, caller_idx, ballot_box).unwrap_or_else(|e| {
         panic!("retally failed: {:#?}\nlogs: {:#?}", e.err, e.meta.logs);
     });
+}
+
+// ---------------------------------------------------------------------------
+// Voting scaffolding: merkle snapshot fabrication + vote instruction builders.
+//
+// The voting suites need a ConsensusResult and per-validator MetaMerkleProof
+// accounts that the real ncn-snapshot program will accept. Leaf hashing and
+// account layouts come straight from the `ncn_snapshot` crate (already a
+// dependency of the program), and the trees are built with the production
+// `ncn-merkle-tree` builder — the same one the ncn CLI uses to generate
+// snapshots.
+// ---------------------------------------------------------------------------
+
+/// Builds the merkle tree over pre-hashed leaf contents with the production
+/// builder and returns `(root, proof-per-leaf)`. Each proof is additionally
+/// cross-checked against the on-chain `ncn_snapshot::merkle_helper`, so a
+/// builder/verifier disagreement fails here rather than deep inside a CPI.
+pub fn build_merkle(leaf_contents: &[[u8; 32]]) -> ([u8; 32], Vec<Vec<[u8; 32]>>) {
+    let tree = MerkleTree::new(leaf_contents, true);
+    let root = tree.get_root().expect("merkle root").to_bytes();
+    let proofs: Vec<Vec<[u8; 32]>> = (0..leaf_contents.len())
+        .map(|index| get_proof(&tree, index))
+        .collect();
+    for (content, proof) in leaf_contents.iter().zip(&proofs) {
+        ncn_snapshot::merkle_helper::verify_helper(content, proof, root.into())
+            .expect("built merkle proof must verify with the on-chain helper");
+    }
+    (root, proofs)
+}
+
+// Borsh mirrors of the svmgov accounts the voting suites assert on.
+
+#[derive(Debug, BorshDeserialize)]
+pub struct VoteAccountState {
+    pub validator: [u8; 32],
+    pub proposal: [u8; 32],
+    pub for_votes_bp: u64,
+    pub against_votes_bp: u64,
+    pub abstain_votes_bp: u64,
+    pub for_votes_lamports: u64,
+    pub against_votes_lamports: u64,
+    pub abstain_votes_lamports: u64,
+    pub stake: u64,
+    pub override_lamports: u64,
+    pub vote_timestamp: i64,
+    pub bump: u8,
+}
+
+#[derive(Debug, BorshDeserialize)]
+pub struct VoteOverrideCacheState {
+    pub validator: [u8; 32],
+    pub proposal: [u8; 32],
+    pub vote_account_validator: [u8; 32],
+    pub for_votes_bp: u64,
+    pub against_votes_bp: u64,
+    pub abstain_votes_bp: u64,
+    pub for_votes_lamports: u64,
+    pub against_votes_lamports: u64,
+    pub abstain_votes_lamports: u64,
+    pub total_stake: u64,
+    pub bump: u8,
+}
+
+pub fn vote_pda(proposal: &Address, spl_vote_account: &Address) -> Address {
+    Address::find_program_address(
+        &[b"vote", proposal.as_ref(), spl_vote_account.as_ref()],
+        &SVMGOV_PROGRAM_ID,
+    )
+    .0
+}
+
+pub fn vote_override_cache_pda(proposal: &Address, validator_vote: &Address) -> Address {
+    Address::find_program_address(
+        &[
+            b"vote_override_cache",
+            proposal.as_ref(),
+            validator_vote.as_ref(),
+        ],
+        &SVMGOV_PROGRAM_ID,
+    )
+    .0
+}
+
+pub fn vote_override_pda(
+    proposal: &Address,
+    stake_account: &Address,
+    validator_vote: &Address,
+) -> Address {
+    Address::find_program_address(
+        &[
+            b"vote_override",
+            proposal.as_ref(),
+            stake_account.as_ref(),
+            validator_vote.as_ref(),
+        ],
+        &SVMGOV_PROGRAM_ID,
+    )
+    .0
+}
+
+pub fn consensus_result_pda(snapshot_slot: u64) -> Address {
+    Address::find_program_address(
+        &[b"ConsensusResult", &snapshot_slot.to_le_bytes()],
+        &NCN_SNAPSHOT_PROGRAM_ID,
+    )
+    .0
+}
+
+pub fn meta_merkle_proof_pda(consensus_result: &Address, vote_account: &Address) -> Address {
+    Address::find_program_address(
+        &[
+            b"MetaMerkleProof",
+            consensus_result.as_ref(),
+            vote_account.as_ref(),
+        ],
+        &NCN_SNAPSHOT_PROGRAM_ID,
+    )
+    .0
+}
+
+/// One delegator (stake account) under a snapshot validator.
+pub struct DelegatorCtx {
+    pub wallet: Keypair,
+    pub stake_account: Address,
+    pub stake: u64,
+    pub stake_proof: Vec<[u8; 32]>,
+}
+
+/// One validator present in the fabricated snapshot.
+pub struct SnapshotValidator {
+    /// Index into `h.validators`.
+    pub idx: usize,
+    pub active_stake: u64,
+    pub delegators: Vec<DelegatorCtx>,
+    pub meta_merkle_proof_account: Address,
+}
+
+/// A proposal that reached the voting phase, bound to a fabricated snapshot.
+pub struct VotingScenario {
+    pub proposal: Address,
+    pub snapshot_slot: u64,
+    pub start_epoch: u64,
+    pub end_epoch: u64,
+    pub consensus_result: Address,
+    pub voters: Vec<SnapshotValidator>,
+}
+
+/// Drives a fresh proposal through support to activation, fabricates a
+/// two-tier merkle snapshot for `specs` (`(validator_idx, active_stake,
+/// delegator_stakes)`), writes the ConsensusResult + MetaMerkleProof accounts
+/// the ncn-snapshot program expects, and advances the clock into the voting
+/// window.
+pub fn setup_voting_scenario(
+    h: &mut Harness,
+    seed: u64,
+    title: &str,
+    specs: &[(usize, u64, &[u64])],
+) -> VotingScenario {
+    let creation_epoch = h.svm.get_sysvar::<Clock>().epoch;
+    let proposal = create_proposal(h, seed, title);
+    let ballot_box = seed_ballot_box(&mut h.svm, expected_snapshot_slot(creation_epoch));
+    for i in 0..h.supporter_count {
+        support_one(h, proposal, i, ballot_box);
+    }
+    let state = fetch_proposal(&h.svm, &proposal);
+    assert!(state.voting, "proposal must reach the voting phase");
+    let snapshot_slot = state.snapshot_slot;
+    let consensus_result = consensus_result_pda(snapshot_slot);
+    assert_eq!(
+        state.consensus_result,
+        Some(consensus_result.to_bytes()),
+        "proposal must bind the ConsensusResult PDA the harness fabricates"
+    );
+
+    // Build each validator's stake tree, then the meta tree over all leaves.
+    let mut voters = Vec::with_capacity(specs.len());
+    let mut meta_contents = Vec::with_capacity(specs.len());
+    for (idx, active_stake, delegator_stakes) in specs {
+        let delegators: Vec<DelegatorCtx> = delegator_stakes
+            .iter()
+            .map(|stake| {
+                let wallet = Keypair::new();
+                h.svm
+                    .airdrop(&wallet.pubkey(), 10 * LAMPORTS_PER_SOL)
+                    .unwrap();
+                let stake_account = Address::new_unique();
+                let data = vec![0u8; 8];
+                let lamports = h.svm.minimum_balance_for_rent_exemption(data.len());
+                h.svm
+                    .set_account(
+                        stake_account,
+                        Account {
+                            lamports,
+                            data,
+                            owner: solana_sdk_ids::stake::ID,
+                            executable: false,
+                            rent_epoch: 0,
+                        },
+                    )
+                    .unwrap();
+                DelegatorCtx {
+                    wallet,
+                    stake_account,
+                    stake: *stake,
+                    stake_proof: Vec::new(),
+                }
+            })
+            .collect();
+
+        let stake_contents: Vec<[u8; 32]> = delegators
+            .iter()
+            .map(|d| {
+                StakeMerkleLeaf {
+                    voting_wallet: to_pubkey(&d.wallet.pubkey()),
+                    stake_account: to_pubkey(&d.stake_account),
+                    active_stake: d.stake,
+                }
+                .hash()
+                .to_bytes()
+            })
+            .collect();
+        let (stake_root, stake_proofs) = build_merkle(&stake_contents);
+
+        let mut delegators = delegators;
+        for (d, proof) in delegators.iter_mut().zip(stake_proofs) {
+            d.stake_proof = proof;
+        }
+
+        let meta_leaf = MetaMerkleLeaf {
+            voting_wallet: to_pubkey(&h.validators[*idx].identity.pubkey()),
+            vote_account: to_pubkey(&h.validators[*idx].vote.pubkey()),
+            stake_merkle_root: stake_root,
+            active_stake: *active_stake,
+        };
+        meta_contents.push(meta_leaf.hash().to_bytes());
+        voters.push((idx, active_stake, delegators, meta_leaf));
+    }
+    let (meta_root, meta_proofs) = build_merkle(&meta_contents);
+
+    write_ncn_account(
+        &mut h.svm,
+        consensus_result,
+        ConsensusResult::DISCRIMINATOR,
+        &ConsensusResult {
+            snapshot_slot,
+            ballot: Ballot {
+                meta_merkle_root: meta_root,
+                snapshot_hash: [0; 32],
+            },
+            tie_breaker_consensus: false,
+        },
+    );
+
+    let voters = voters
+        .into_iter()
+        .zip(meta_proofs)
+        .map(|((idx, active_stake, delegators, meta_leaf), meta_proof)| {
+            let identity = h.validators[*idx].identity.pubkey();
+            let vote_account = h.validators[*idx].vote.pubkey();
+            let proof_account = meta_merkle_proof_pda(&consensus_result, &vote_account);
+            write_ncn_account(
+                &mut h.svm,
+                proof_account,
+                MetaMerkleProof::DISCRIMINATOR,
+                &MetaMerkleProof {
+                    payer: to_pubkey(&identity),
+                    consensus_result: to_pubkey(&consensus_result),
+                    meta_merkle_leaf: meta_leaf,
+                    meta_merkle_proof: meta_proof,
+                    close_timestamp: 0,
+                },
+            );
+            SnapshotValidator {
+                idx: *idx,
+                active_stake: *active_stake,
+                delegators,
+                meta_merkle_proof_account: proof_account,
+            }
+        })
+        .collect();
+
+    set_clock(&mut h.svm, state.start_epoch);
+    VotingScenario {
+        proposal,
+        snapshot_slot,
+        start_epoch: state.start_epoch,
+        end_epoch: state.end_epoch,
+        consensus_result,
+        voters,
+    }
+}
+
+pub fn cast_vote_ix(
+    signer: &Address,
+    proposal: Address,
+    spl_vote_account: Address,
+    consensus_result: Address,
+    meta_merkle_proof: Address,
+    for_bp: u64,
+    against_bp: u64,
+    abstain_bp: u64,
+) -> Instruction {
+    let vote = vote_pda(&proposal, &spl_vote_account);
+    let mut data = anchor_discriminator("global", "cast_vote").to_vec();
+    data.extend(for_bp.to_le_bytes());
+    data.extend(against_bp.to_le_bytes());
+    data.extend(abstain_bp.to_le_bytes());
+    Instruction {
+        program_id: SVMGOV_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new(*signer, true),
+            AccountMeta::new(proposal, false),
+            AccountMeta::new(vote, false),
+            AccountMeta::new_readonly(spl_vote_account, false),
+            AccountMeta::new(vote_override_cache_pda(&proposal, &vote), false),
+            AccountMeta::new_readonly(NCN_SNAPSHOT_PROGRAM_ID, false),
+            AccountMeta::new_readonly(consensus_result, false),
+            AccountMeta::new_readonly(meta_merkle_proof, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+        data,
+    }
+}
+
+/// `cast_vote_override` and `modify_vote_override` share the same account
+/// list and argument encoding; only the instruction discriminator differs.
+#[allow(clippy::too_many_arguments)]
+fn vote_override_ix(
+    ix_name: &str,
+    signer: &Address,
+    proposal: Address,
+    spl_vote_account: Address,
+    spl_stake_account: Address,
+    consensus_result: Address,
+    meta_merkle_proof: Address,
+    stake_merkle_proof: &[[u8; 32]],
+    stake_leaf_stake: u64,
+    for_bp: u64,
+    against_bp: u64,
+    abstain_bp: u64,
+) -> Instruction {
+    let validator_vote = vote_pda(&proposal, &spl_vote_account);
+    let mut data = anchor_discriminator("global", ix_name).to_vec();
+    data.extend(for_bp.to_le_bytes());
+    data.extend(against_bp.to_le_bytes());
+    data.extend(abstain_bp.to_le_bytes());
+    data.extend((stake_merkle_proof.len() as u32).to_le_bytes());
+    for node in stake_merkle_proof {
+        data.extend(node);
+    }
+    let stake_leaf = StakeMerkleLeaf {
+        voting_wallet: to_pubkey(signer),
+        stake_account: to_pubkey(&spl_stake_account),
+        active_stake: stake_leaf_stake,
+    };
+    data.extend(stake_leaf.try_to_vec().expect("serialize StakeMerkleLeaf"));
+    Instruction {
+        program_id: SVMGOV_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new(*signer, true),
+            AccountMeta::new(proposal, false),
+            AccountMeta::new(validator_vote, false),
+            AccountMeta::new_readonly(spl_vote_account, false),
+            AccountMeta::new(
+                vote_override_pda(&proposal, &spl_stake_account, &validator_vote),
+                false,
+            ),
+            AccountMeta::new(vote_override_cache_pda(&proposal, &validator_vote), false),
+            AccountMeta::new_readonly(spl_stake_account, false),
+            AccountMeta::new_readonly(NCN_SNAPSHOT_PROGRAM_ID, false),
+            AccountMeta::new_readonly(consensus_result, false),
+            AccountMeta::new_readonly(meta_merkle_proof, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+        data,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn cast_vote_override_ix(
+    signer: &Address,
+    proposal: Address,
+    spl_vote_account: Address,
+    spl_stake_account: Address,
+    consensus_result: Address,
+    meta_merkle_proof: Address,
+    stake_merkle_proof: &[[u8; 32]],
+    stake_leaf_stake: u64,
+    for_bp: u64,
+    against_bp: u64,
+    abstain_bp: u64,
+) -> Instruction {
+    vote_override_ix(
+        "cast_vote_override",
+        signer,
+        proposal,
+        spl_vote_account,
+        spl_stake_account,
+        consensus_result,
+        meta_merkle_proof,
+        stake_merkle_proof,
+        stake_leaf_stake,
+        for_bp,
+        against_bp,
+        abstain_bp,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn modify_vote_override_ix(
+    signer: &Address,
+    proposal: Address,
+    spl_vote_account: Address,
+    spl_stake_account: Address,
+    consensus_result: Address,
+    meta_merkle_proof: Address,
+    stake_merkle_proof: &[[u8; 32]],
+    stake_leaf_stake: u64,
+    for_bp: u64,
+    against_bp: u64,
+    abstain_bp: u64,
+) -> Instruction {
+    vote_override_ix(
+        "modify_vote_override",
+        signer,
+        proposal,
+        spl_vote_account,
+        spl_stake_account,
+        consensus_result,
+        meta_merkle_proof,
+        stake_merkle_proof,
+        stake_leaf_stake,
+        for_bp,
+        against_bp,
+        abstain_bp,
+    )
+}
+
+pub fn modify_vote_ix(
+    signer: &Address,
+    proposal: Address,
+    spl_vote_account: Address,
+    consensus_result: Address,
+    meta_merkle_proof: Address,
+    for_bp: u64,
+    against_bp: u64,
+    abstain_bp: u64,
+) -> Instruction {
+    let vote = vote_pda(&proposal, &spl_vote_account);
+    let mut data = anchor_discriminator("global", "modify_vote").to_vec();
+    data.extend(for_bp.to_le_bytes());
+    data.extend(against_bp.to_le_bytes());
+    data.extend(abstain_bp.to_le_bytes());
+    Instruction {
+        program_id: SVMGOV_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new_readonly(*signer, true),
+            AccountMeta::new(proposal, false),
+            AccountMeta::new(vote, false),
+            AccountMeta::new_readonly(spl_vote_account, false),
+            AccountMeta::new_readonly(NCN_SNAPSHOT_PROGRAM_ID, false),
+            AccountMeta::new_readonly(consensus_result, false),
+            AccountMeta::new_readonly(meta_merkle_proof, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+        data,
+    }
+}
+
+pub fn finalize_proposal_ix(signer: &Address, proposal: Address) -> Instruction {
+    Instruction {
+        program_id: SVMGOV_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new_readonly(*signer, true),
+            AccountMeta::new(proposal, false),
+        ],
+        data: anchor_discriminator("global", "finalize_proposal").to_vec(),
+    }
+}
+
+/// Casts the scenario validator's own vote.
+pub fn cast_validator_vote(
+    h: &mut Harness,
+    s: &VotingScenario,
+    voter: usize,
+    for_bp: u64,
+    against_bp: u64,
+    abstain_bp: u64,
+) {
+    let identity = h.validators[s.voters[voter].idx].identity.insecure_clone();
+    let vote_account = h.validators[s.voters[voter].idx].vote.pubkey();
+    send_ix(
+        &mut h.svm,
+        &identity,
+        &[cast_vote_ix(
+            &identity.pubkey(),
+            s.proposal,
+            vote_account,
+            s.consensus_result,
+            s.voters[voter].meta_merkle_proof_account,
+            for_bp,
+            against_bp,
+            abstain_bp,
+        )],
+    );
+}
+
+/// Casts a delegator override against the scenario validator's vote account.
+pub fn cast_delegator_override(
+    h: &mut Harness,
+    s: &VotingScenario,
+    voter: usize,
+    delegator: usize,
+    for_bp: u64,
+    against_bp: u64,
+    abstain_bp: u64,
+) {
+    let vote_account = h.validators[s.voters[voter].idx].vote.pubkey();
+    let d = &s.voters[voter].delegators[delegator];
+    let wallet = d.wallet.insecure_clone();
+    let ix = cast_vote_override_ix(
+        &wallet.pubkey(),
+        s.proposal,
+        vote_account,
+        d.stake_account,
+        s.consensus_result,
+        s.voters[voter].meta_merkle_proof_account,
+        &d.stake_proof,
+        d.stake,
+        for_bp,
+        against_bp,
+        abstain_bp,
+    );
+    send_ix(&mut h.svm, &wallet, &[ix]);
+}
+
+/// Modifies the scenario validator's existing vote distribution.
+pub fn modify_validator_vote(
+    h: &mut Harness,
+    s: &VotingScenario,
+    voter: usize,
+    for_bp: u64,
+    against_bp: u64,
+    abstain_bp: u64,
+) {
+    let identity = h.validators[s.voters[voter].idx].identity.insecure_clone();
+    let vote_account = h.validators[s.voters[voter].idx].vote.pubkey();
+    send_ix(
+        &mut h.svm,
+        &identity,
+        &[modify_vote_ix(
+            &identity.pubkey(),
+            s.proposal,
+            vote_account,
+            s.consensus_result,
+            s.voters[voter].meta_merkle_proof_account,
+            for_bp,
+            against_bp,
+            abstain_bp,
+        )],
+    );
+}
+
+/// Modifies a delegator's existing override distribution.
+pub fn modify_delegator_override(
+    h: &mut Harness,
+    s: &VotingScenario,
+    voter: usize,
+    delegator: usize,
+    for_bp: u64,
+    against_bp: u64,
+    abstain_bp: u64,
+) {
+    let vote_account = h.validators[s.voters[voter].idx].vote.pubkey();
+    let d = &s.voters[voter].delegators[delegator];
+    let wallet = d.wallet.insecure_clone();
+    let ix = modify_vote_override_ix(
+        &wallet.pubkey(),
+        s.proposal,
+        vote_account,
+        d.stake_account,
+        s.consensus_result,
+        s.voters[voter].meta_merkle_proof_account,
+        &d.stake_proof,
+        d.stake,
+        for_bp,
+        against_bp,
+        abstain_bp,
+    );
+    send_ix(&mut h.svm, &wallet, &[ix]);
+}
+
+/// Advances past the voting window and finalizes the proposal.
+pub fn finalize_proposal(h: &mut Harness, s: &VotingScenario) -> ProposalAccount {
+    set_clock(&mut h.svm, s.end_epoch);
+    let signer = h.validators[0].identity.insecure_clone();
+    send_ix(
+        &mut h.svm,
+        &signer,
+        &[finalize_proposal_ix(&signer.pubkey(), s.proposal)],
+    );
+    let state = fetch_proposal(&h.svm, &s.proposal);
+    assert!(state.finalized, "proposal must be finalized");
+    state
+}
+
+pub fn fetch_vote(h: &Harness, s: &VotingScenario, voter: usize) -> Option<VoteAccountState> {
+    let vote = vote_pda(
+        &s.proposal,
+        &h.validators[s.voters[voter].idx].vote.pubkey(),
+    );
+    let account = h.svm.get_account(&vote)?;
+    if account.data.len() <= 8 {
+        return None;
+    }
+    Some(VoteAccountState::deserialize(&mut &account.data[8..]).expect("deserialize Vote"))
+}
+
+pub fn fetch_override_cache(
+    h: &Harness,
+    s: &VotingScenario,
+    voter: usize,
+) -> Option<VoteOverrideCacheState> {
+    let vote = vote_pda(
+        &s.proposal,
+        &h.validators[s.voters[voter].idx].vote.pubkey(),
+    );
+    let cache = vote_override_cache_pda(&s.proposal, &vote);
+    let account = h.svm.get_account(&cache)?;
+    if account.data.len() <= 8 {
+        return None;
+    }
+    Some(
+        VoteOverrideCacheState::deserialize(&mut &account.data[8..])
+            .expect("deserialize VoteOverrideCache"),
+    )
 }
 
 /// Asserts the proposal crossed the threshold with exactly

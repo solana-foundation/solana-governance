@@ -24,6 +24,7 @@ solana-vote-interface = { version = "=5.0.0", default-features = false, features
 # Keep versions aligned with litesvm 0.15 (sol_get_epoch_stake configuration).
 bincode = "1.3"
 borsh = "1.5"
+ncn-merkle-tree = { path = "../../../../ncn/merkle-tree" }
 # Force five8 → five8_core 1.x so DecodeError implements core::error::Error
 # (five8 1.0 accepts 0.1, which breaks solana-keypair against solana-signature 3.4).
 five8_core = "1.0"

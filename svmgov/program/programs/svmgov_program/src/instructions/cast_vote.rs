@@ -163,8 +163,11 @@ impl<'info> CastVote<'info> {
         let against_votes_lamports = calculate_vote_lamports!(voter_stake, against_votes_bp)?;
         let abstain_votes_lamports = calculate_vote_lamports!(voter_stake, abstain_votes_bp)?;
 
-        // Check if override cache PDA exists and has been initialized
-        // If it does, apply cached delegator votes
+        // Check if override cache PDA exists and has been initialized.
+        // If it does, delegators overrode before this validator vote. Their
+        // lamports were already added to the proposal totals when each override
+        // was cast, so the cache is used ONLY to reduce the validator's own
+        // voting weight — re-adding the cached lamports here would double-count.
         if self.vote_override_cache.data_len() > 0 && self.vote_override_cache.owner == &crate::ID {
             let override_cache: VoteOverrideCache =
                 match anchor_lang::AccountDeserialize::try_deserialize(
@@ -176,13 +179,6 @@ impl<'info> CastVote<'info> {
                         return Err(GovernanceError::InvalidVoteOverrideCache.into());
                     }
                 };
-
-            // Add cached votes
-            self.proposal.add_vote_lamports(
-                override_cache.for_votes_lamports,
-                override_cache.against_votes_lamports,
-                override_cache.abstain_votes_lamports,
-            )?;
 
             let new_validator_stake = voter_stake
                 .checked_sub(override_cache.total_stake)

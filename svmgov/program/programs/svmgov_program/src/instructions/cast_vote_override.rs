@@ -347,9 +347,20 @@ impl<'info> CastVoteOverride<'info> {
                     .ok_or(GovernanceError::ArithmeticOverflow)?;
             }
         } else {
-            // validator has no vote yet, so just store delegator's vote in override PDA
+            // Validator has no vote yet.
             // Path 2a: nobody -> delegator (first delegator to override)
             // Path 2b: delegator -> delegator (multiple delegators override same validator)
+            //
+            // The delegator's vote counts toward the proposal totals immediately —
+            // it must not depend on the validator ever voting. The cache records
+            // the overridden stake so that a later validator `cast_vote` reduces
+            // its own weight by `cache.total_stake` WITHOUT re-adding these
+            // lamports (they are already tallied here).
+            self.proposal.add_vote_lamports(
+                for_votes_lamports,
+                against_votes_lamports,
+                abstain_votes_lamports,
+            )?;
 
             // With Anchor's init_if_needed, the account is automatically created if it doesn't exist
             // or reused if it already exists. We just need to check if we're updating an existing cache.

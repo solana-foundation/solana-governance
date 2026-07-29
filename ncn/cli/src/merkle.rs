@@ -81,6 +81,48 @@ impl MetaMerkleSnapshot {
 
         Ok(hash(&buf))
     }
+
+    /// Recompute every derived field from the stake leaves: each bundle's
+    /// stake merkle root and active-stake sum, then the meta merkle root and
+    /// per-bundle proofs — the same derivation used when a snapshot is first
+    /// generated. Call after mutating stake leaves or reducing the bundle set
+    /// so the snapshot is internally coherent again (the verifier service
+    /// rejects uploads whose nested roots or stake sums do not line up).
+    pub fn remerklize(&mut self) -> io::Result<()> {
+        for bundle in self.leaf_bundles.iter_mut() {
+            let stake_nodes: Vec<[u8; 32]> = bundle
+                .stake_merkle_leaves
+                .iter()
+                .map(|leaf| leaf.hash().to_bytes())
+                .collect();
+            bundle.meta_merkle_leaf.stake_merkle_root = MerkleTree::new(&stake_nodes[..], true)
+                .get_root()
+                .ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "bundle has no stake leaves")
+                })?
+                .to_bytes();
+            bundle.meta_merkle_leaf.active_stake = bundle
+                .stake_merkle_leaves
+                .iter()
+                .map(|leaf| leaf.active_stake)
+                .sum();
+        }
+
+        let meta_nodes: Vec<[u8; 32]> = self
+            .leaf_bundles
+            .iter()
+            .map(|bundle| bundle.meta_merkle_leaf.hash().to_bytes())
+            .collect();
+        let meta_tree = MerkleTree::new(&meta_nodes[..], true);
+        self.root = meta_tree
+            .get_root()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "snapshot has no bundles"))?
+            .to_bytes();
+        for (index, bundle) in self.leaf_bundles.iter_mut().enumerate() {
+            bundle.proof = Some(get_proof(&meta_tree, index));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]

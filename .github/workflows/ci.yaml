@@ -113,8 +113,9 @@ jobs:
         working-directory: svmgov/program
         run: cargo-build-sbf -- --locked -p svmgov_program
 
-      # The LiteSVM integration suites load the target/deploy/svmgov_program.so
-      # built above; keep this step after the SBF build.
+      - name: Build ncn-snapshot program
+        run: cargo-build-sbf -- --locked -p ncn-snapshot
+
       - name: Test svmgov program (LiteSVM)
         working-directory: svmgov/program
         run: cargo test --locked
