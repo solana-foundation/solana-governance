@@ -14,6 +14,11 @@
 //! 4. overrides both before AND after the same validator's vote
 //! 5. vote modifications: `modify_vote` on an overridden validator, and
 //!    `modify_vote_override` both before and after the validator's vote
+//! 6. both delegators override before the validator votes (multi-entry
+//!    cache drain at `cast_vote`)
+//! 7. `modify_vote_override` then finalize with no validator vote
+//! 8. overrides alone can produce a for-majority that survives finalize
+//!    (validators never cast a vote)
 mod common;
 
 use common::*;
@@ -249,6 +254,41 @@ fn only_overrides_major_yes() {
     assert_totals(&state, 1_500_000_000, 0, 0);
 }
 
+/// Overrides alone can carry a for-majority: every delegator votes for, no
+/// validator ever casts a `Vote`, and the finalized tallies still show
+/// `for > against + abstain`.
+///
+/// Note: this is the voting-phase tally outcome only. The earlier support
+/// phase that flips `proposal.voting` has no override path — only validators
+/// can `support_proposal`.
+#[test]
+fn only_overrides_can_carry_for_majority() {
+    let (mut h, s) = voting_fixture();
+
+    // All six delegators override for; validators stay silent.
+    for voter in 0..3 {
+        cast_delegator_override(&mut h, &s, voter, 0, 10_000, 0, 0);
+        cast_delegator_override(&mut h, &s, voter, 1, 10_000, 0, 0);
+        assert!(
+            fetch_vote(&h, &s, voter).is_none(),
+            "validator {voter} must not have voted"
+        );
+    }
+
+    let state = finalize_proposal(&mut h, &s);
+    assert_totals(&state, 3 * (D0 + D1), 0, 0);
+    assert_eq!(state.vote_count, 6);
+    assert!(
+        state.for_votes_lamports > state.against_votes_lamports + state.abstain_votes_lamports,
+        "override-only for-votes must constitute a majority"
+    );
+    // Validator remainder stake never enters the tally.
+    assert_eq!(
+        state.for_votes_lamports + state.against_votes_lamports + state.abstain_votes_lamports,
+        3 * (D0 + D1)
+    );
+}
+
 #[test]
 fn only_overrides_mixed() {
     let state = only_overrides_case((5_000, 5_000, 0), (0, 5_000, 5_000));
@@ -392,4 +432,100 @@ fn modify_override_after_validator_vote() {
     let state = finalize_proposal(&mut h, &s);
     assert_totals(&state, V_ACTIVE - D0, 0, D0);
     assert_eq!(state.vote_count, 2);
+}
+
+// ---------------------------------------------------------------------------
+// 6. Both delegators override before the validator votes.
+//
+// Drains a multi-entry cache at `cast_vote` (`total_stake = D0 + D1`). Group 3
+// never has the validator vote after a multi-delegator cache; group 4 only
+// drains a single pre-vote override.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn both_overrides_before_validator_vote() {
+    let (mut h, s) = voting_fixture();
+
+    // d0 against, d1 abstain — both before the validator votes for.
+    cast_delegator_override(&mut h, &s, 0, 0, 0, 10_000, 0);
+    cast_delegator_override(&mut h, &s, 0, 1, 0, 0, 10_000);
+
+    let cache = fetch_override_cache(&h, &s, 0).expect("override cache");
+    assert_eq!(cache.total_stake, D0 + D1);
+    assert_eq!(
+        (
+            cache.for_votes_lamports,
+            cache.against_votes_lamports,
+            cache.abstain_votes_lamports,
+        ),
+        (0, D0, D1),
+    );
+    assert_totals(&fetch_proposal(&h.svm, &s.proposal), 0, D0, D1);
+
+    cast_validator_vote(&mut h, &s, 0, 10_000, 0, 0);
+
+    let vote = fetch_vote(&h, &s, 0).expect("validator vote");
+    assert_eq!(vote.override_lamports, D0 + D1);
+    assert_eq!(
+        (
+            vote.for_votes_lamports,
+            vote.against_votes_lamports,
+            vote.abstain_votes_lamports,
+        ),
+        (V_REMAINDER, 0, 0),
+        "validator must vote with only non-overridden remainder"
+    );
+
+    let state = finalize_proposal(&mut h, &s);
+    assert_totals(&state, V_REMAINDER, D0, D1);
+    assert_eq!(state.vote_count, 3);
+    assert_eq!(
+        state.for_votes_lamports + state.against_votes_lamports + state.abstain_votes_lamports,
+        V_ACTIVE,
+        "multi-entry cache drain must neither drop nor double-count"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 7. Modify override, then finalize with no validator vote.
+//
+// Complements `modify_override_before_validator_vote`, which always has the
+// validator vote after the modification. The rewrite must keep the modified
+// override in the proposal totals even when that later vote never arrives.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn modify_override_then_finalize_without_validator_vote() {
+    let (mut h, s) = voting_fixture();
+
+    cast_delegator_override(&mut h, &s, 0, 0, 10_000, 0, 0);
+    assert_totals(&fetch_proposal(&h.svm, &s.proposal), D0, 0, 0);
+
+    modify_delegator_override(&mut h, &s, 0, 0, 0, 10_000, 0);
+    assert_totals(&fetch_proposal(&h.svm, &s.proposal), 0, D0, 0);
+
+    let cache = fetch_override_cache(&h, &s, 0).expect("override cache");
+    assert_eq!(cache.total_stake, D0);
+    assert_eq!(
+        (
+            cache.for_votes_lamports,
+            cache.against_votes_lamports,
+            cache.abstain_votes_lamports,
+        ),
+        (0, D0, 0),
+        "cache must mirror the modified pending override"
+    );
+    assert!(
+        fetch_vote(&h, &s, 0).is_none(),
+        "validator must not have voted"
+    );
+
+    let state = finalize_proposal(&mut h, &s);
+    assert_totals(&state, 0, D0, 0);
+    assert_eq!(state.vote_count, 1);
+    assert_eq!(
+        state.for_votes_lamports + state.against_votes_lamports + state.abstain_votes_lamports,
+        D0,
+        "modified override must survive finalization without a validator vote"
+    );
 }
