@@ -99,7 +99,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
-          workspaces: svmgov/program
+          workspaces: .
 
       # cargo-build-sbf ships with the Agave release and downloads its own
       # pinned platform-tools (SBF rustc) on first use, independent of the
@@ -109,13 +109,13 @@ jobs:
           sh -c "$(curl -sSfL https://release.anza.xyz/v${AGAVE_VERSION}/install)"
           echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
 
+      # Both programs live in the repo-root workspace; artifacts land in
+      # target/deploy/ at the repo root, where the LiteSVM suites load them.
       - name: Build svmgov program
-        working-directory: svmgov/program
         run: cargo-build-sbf -- --locked -p svmgov_program
 
       - name: Build ncn-snapshot program
         run: cargo-build-sbf -- --locked -p ncn-snapshot
 
       - name: Test svmgov program (LiteSVM)
-        working-directory: svmgov/program
-        run: cargo test --locked
+        run: cargo test --locked -p svmgov_program

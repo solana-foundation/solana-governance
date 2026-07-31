@@ -69,12 +69,15 @@ pub fn anchor_discriminator(namespace: &str, name: &str) -> [u8; 8] {
 }
 
 pub fn read_program() -> Vec<u8> {
-    // CARGO_MANIFEST_DIR = programs/svmgov_program
+    // CARGO_MANIFEST_DIR = svmgov/program/programs/svmgov_program; the
+    // program builds through the repo-root workspace, so its artifact lives
+    // in the root target dir.
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.push("../../target/deploy/svmgov_program.so");
+    path.push("../../../../target/deploy/svmgov_program.so");
     std::fs::read(&path).unwrap_or_else(|e| {
         panic!(
-            "failed to read {}: {e}. Build with: cargo-build-sbf -p svmgov_program",
+            "failed to read {}: {e}. Build it from the repo root with: \
+             cargo-build-sbf -- --locked -p svmgov_program",
             path.display()
         )
     })

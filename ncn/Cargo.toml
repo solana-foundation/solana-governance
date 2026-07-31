@@ -2,11 +2,15 @@
 members = [
     "cli",
     "ledger",
-    "merkle-tree",
     "tests",
     "verifier-service"
 ]
+# merkle-tree and the program belong to the repo-root workspace: they are
+# (dev-)dependencies of the on-chain programs, and verified builds run the
+# root workspace under older cargo versions that reject path dependencies
+# claimed by a different workspace.
 exclude = [
+    "merkle-tree",
     "programs/ncn-snapshot"
 ]
 

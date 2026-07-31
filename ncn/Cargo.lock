@@ -4811,7 +4811,6 @@ name = "ncn-merkle-tree"
 version = "0.4.0-40100"
 dependencies = [
  "fast-math",
- "hex",
  "serde",
  "solana-program 4.0.0",
 ]
