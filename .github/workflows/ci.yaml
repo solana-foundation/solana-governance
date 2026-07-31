@@ -111,11 +111,11 @@ jobs:
 
       # Both programs live in the repo-root workspace; artifacts land in
       # target/deploy/ at the repo root, where the LiteSVM suites load them.
-      - name: Build svmgov program
-        run: cargo-build-sbf -- --locked -p svmgov_program
-
       - name: Build ncn-snapshot program
-        run: cargo-build-sbf -- --locked -p ncn-snapshot
+        run: cargo-build-sbf --manifest-path ncn/programs/ncn-snapshot/Cargo.toml -- --locked
+
+      - name: Build svmgov program
+        run: cargo-build-sbf --manifest-path svmgov/program/programs/svmgov_program/Cargo.toml -- --locked
 
       - name: Test svmgov program (LiteSVM)
         run: cargo test --locked -p svmgov_program

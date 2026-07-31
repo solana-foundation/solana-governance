@@ -77,7 +77,8 @@ pub fn read_program() -> Vec<u8> {
     std::fs::read(&path).unwrap_or_else(|e| {
         panic!(
             "failed to read {}: {e}. Build it from the repo root with: \
-             cargo-build-sbf -- --locked -p svmgov_program",
+             cargo-build-sbf --manifest-path \
+             svmgov/program/programs/svmgov_program/Cargo.toml -- --locked",
             path.display()
         )
     })
@@ -92,7 +93,8 @@ pub fn read_ncn_program() -> Vec<u8> {
     std::fs::read(&path).unwrap_or_else(|e| {
         panic!(
             "failed to read {}: {e}. Build it from the repo root with: \
-             cargo-build-sbf -- --locked -p ncn-snapshot",
+             cargo-build-sbf --manifest-path \
+             ncn/programs/ncn-snapshot/Cargo.toml -- --locked",
             path.display()
         )
     })
