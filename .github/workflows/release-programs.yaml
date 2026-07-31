@@ -40,6 +40,10 @@ env:
   RUST_VERSION: "1.93.1"
   # Agave release providing the solana CLI used by the deploy actions.
   AGAVE_VERSION: "3.1.10"
+  # Pinned so verified builds stay reproducible: the executable hash depends
+  # on the builder, and this is the version validated against this repo
+  # (0.4.x fails to locate artifacts in this workspace layout).
+  SOLANA_VERIFY_VERSION: "0.5.1"
   REPO_URL: https://github.com/solana-foundation/solana-governance
 
 jobs:
@@ -116,7 +120,7 @@ jobs:
           echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
 
       - name: Install solana-verify
-        run: cargo install solana-verify --locked
+        run: cargo install solana-verify --version "$SOLANA_VERIFY_VERSION" --locked
 
       - name: Materialize deployer keypair
         run: |
