@@ -149,6 +149,7 @@ describe("castVoteOverride", () => {
   const blockchainParams = {
     network: "testnet" as RPCEndpoint,
     endpoint: "http://localhost:8899",
+    ncnApiUrl: "http://localhost:9000",
   };
   const slot = 340_850_340;
 
@@ -157,11 +158,12 @@ describe("castVoteOverride", () => {
 
     expect(result).toEqual({ signature: "test-signature", success: true });
 
-    // The stake proof is fetched by stake account.
+    // The stake proof is fetched by stake account, from the configured ncn API.
     expect(mockGetStakeAccountProof).toHaveBeenCalledWith(
       STAKE_ACCOUNT,
       "testnet",
-      slot
+      slot,
+      blockchainParams.ncnApiUrl
     );
 
     // The meta proof is fetched for the SNAPSHOT validator (A) carried by the stake proof —
@@ -169,10 +171,12 @@ describe("castVoteOverride", () => {
     expect(mockGetVoteAccountProof).toHaveBeenCalledWith(
       SNAPSHOT_VOTE_ACCOUNT,
       "testnet",
-      slot
+      slot,
+      blockchainParams.ncnApiUrl
     );
     expect(mockGetVoteAccountProof).not.toHaveBeenCalledWith(
       LIVE_VOTE_ACCOUNT,
+      expect.anything(),
       expect.anything(),
       expect.anything()
     );
