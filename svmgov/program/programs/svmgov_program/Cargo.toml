@@ -1,6 +1,6 @@
 [package]
 name = "svmgov_program"
-version = "0.4.0-40000"
+version = "0.4.0-40100"
 description = "Created with Anchor"
 edition = "2021"
 
