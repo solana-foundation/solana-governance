@@ -101,13 +101,20 @@ rustc --version // verify version
 
 ## Testing
 
-Anchor tests can be executed directly from the root directory with:
+The ncn-snapshot program's integration suite is LiteSVM-based and lives with
+the svmgov program tests (`svmgov/program/programs/svmgov_program/tests/ncn_flow.rs`).
+It runs against the production program build — ballot boxes are created
+through the real svmgov `support_proposal` CPI — and needs no validator or
+Anchor toolchain. From the repo root:
 
 ```bash
-anchor test -- --features skip-pda-check
+cargo-build-sbf --manifest-path ncn/programs/ncn-snapshot/Cargo.toml -- --locked
+cargo-build-sbf --manifest-path svmgov/program/programs/svmgov_program/Cargo.toml -- --locked
+cargo test -p svmgov_program
 ```
 
-Note that setup of environment variables is required (see [Dependencies](#dependencies)). For details about building the program with the `skip-pda-check` feature for local testing, see the [Program README](programs/ncn-snapshot/README.md#7-cross-program-invocation-cpi-and-testing).
+The CLI and verifier-service suites run from this directory with
+`cargo test -p cli -p verifier-service`.
 
 ---
 

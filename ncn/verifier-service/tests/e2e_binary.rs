@@ -43,9 +43,7 @@ async fn e2e_binary_endpoints() -> anyhow::Result<()> {
 
     // Load and parse the snapshot that will be uploaded
     let snapshot_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .join("tests/src/fixtures/meta_merkle-477641713.zip");
+        .join("tests/fixtures/meta_merkle-477641713.zip");
     let bytes = tokio::fs::read(&snapshot_path).await?;
     let (snapshot, snapshot_hash) =
         cli::MetaMerkleSnapshot::read_from_bytes_with_hash(bytes.clone(), true)?;
@@ -238,9 +236,7 @@ async fn e2e_rejects_replayed_signature_and_incoherent_stake_root() -> anyhow::R
     let (base_url, _guard) = setup_server(&keypair).await?;
 
     let snapshot_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .join("tests/src/fixtures/meta_merkle-477641713.zip");
+        .join("tests/fixtures/meta_merkle-477641713.zip");
     let honest_bytes = tokio::fs::read(&snapshot_path).await?;
     let (honest_snapshot, honest_snapshot_hash) =
         cli::MetaMerkleSnapshot::read_from_bytes_with_hash(honest_bytes.clone(), true)?;
@@ -371,9 +367,7 @@ async fn e2e_same_slot_reupload_fully_replaces_rows() -> anyhow::Result<()> {
     let client = reqwest::Client::new();
 
     let snapshot_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .join("tests/src/fixtures/meta_merkle-477641713.zip");
+        .join("tests/fixtures/meta_merkle-477641713.zip");
     let full_bytes = tokio::fs::read(&snapshot_path).await?;
     let (full_snapshot, full_hash) =
         cli::MetaMerkleSnapshot::read_from_bytes_with_hash(full_bytes.clone(), true)?;
@@ -586,9 +580,7 @@ async fn e2e_serves_derived_proof_when_upload_proof_bytes_are_poisoned() -> anyh
     let client = reqwest::Client::new();
 
     let snapshot_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .join("tests/src/fixtures/meta_merkle-477641713.zip");
+        .join("tests/fixtures/meta_merkle-477641713.zip");
     let honest_bytes = tokio::fs::read(&snapshot_path).await?;
     let (mut snapshot, _) =
         cli::MetaMerkleSnapshot::read_from_bytes_with_hash(honest_bytes.clone(), true)?;
@@ -691,9 +683,7 @@ async fn e2e_rejects_leaves_that_do_not_reproduce_signed_root() -> anyhow::Resul
     let client = reqwest::Client::new();
 
     let snapshot_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .join("tests/src/fixtures/meta_merkle-477641713.zip");
+        .join("tests/fixtures/meta_merkle-477641713.zip");
     let honest_bytes = tokio::fs::read(&snapshot_path).await?;
     let (mut snapshot, _) =
         cli::MetaMerkleSnapshot::read_from_bytes_with_hash(honest_bytes.clone(), true)?;

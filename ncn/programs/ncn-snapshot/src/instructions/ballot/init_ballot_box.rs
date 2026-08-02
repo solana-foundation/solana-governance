@@ -7,7 +7,7 @@ use crate::{error::ErrorCode, BallotBox, ProgramConfig};
 pub struct InitBallotBox<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
-    #[cfg_attr(not(feature = "skip-pda-check"), account(
+    #[account(
         seeds = [
             b"proposal",
             &proposal_seed.to_le_bytes(),
@@ -15,10 +15,10 @@ pub struct InitBallotBox<'info> {
         ],
         bump,
         seeds::program = program_config.svmgov_program_pubkey
-    ))]
+    )]
     /// Verifies the signer is a Proposal PDA from the svmgov program recorded in
-    /// `ProgramConfig.svmgov_program_pubkey`. When the `skip-pda-check` feature is
-    /// enabled, this check is disabled to allow local testing without CPI.
+    /// `ProgramConfig.svmgov_program_pubkey` — only that program (via CPI with
+    /// the proposal's seeds) can open a ballot box.
     pub proposal: Signer<'info>,
     #[account(
         init,

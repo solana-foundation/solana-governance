@@ -1,6 +1,3 @@
-[toolchain]
-package_manager = "yarn"
-
 [features]
 resolution = true
 skip-lint = false
@@ -24,8 +21,7 @@ url = "https://api.apr.dev"
 cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
+# The test suites are LiteSVM-based and need no validator; run them from the
+# repo root. See programs/svmgov_program/tests/.
 [scripts]
-test = "cargo test"
-
-[test.validator]
-slot_per_epoc = "32"
+test = "cargo test -p svmgov_program"

@@ -1260,3 +1260,326 @@ pub fn assert_threshold_reached(h: &Harness, proposal: &ProposalAccount, crossin
         expected_snapshot_slot(crossing_epoch)
     );
 }
+
+// ---------------------------------------------------------------------------
+// NCN program-flow scaffolding: direct ncn-snapshot instruction builders used
+// by the `ncn_flow` suite (the LiteSVM port of the old `ncn/tests` anchor
+// suite). Argument encodings are borsh, matching anchor's instruction
+// serialization; account orders mirror the program's `#[derive(Accounts)]`
+// structs.
+// ---------------------------------------------------------------------------
+
+pub fn ncn_program_config_pda() -> Address {
+    Address::find_program_address(&[b"ProgramConfig"], &NCN_SNAPSHOT_PROGRAM_ID).0
+}
+
+pub fn ballot_box_pda(snapshot_slot: u64) -> Address {
+    Address::find_program_address(
+        &[b"BallotBox", &snapshot_slot.to_le_bytes()],
+        &NCN_SNAPSHOT_PROGRAM_ID,
+    )
+    .0
+}
+
+/// Replaces whatever the harness seeded at `address` with a non-existent
+/// account, so a real `init` instruction can create it.
+pub fn clear_account(svm: &mut LiteSVM, address: Address) {
+    svm.set_account(
+        address,
+        Account {
+            lamports: 0,
+            data: vec![],
+            owner: system_program::ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
+}
+
+/// Moves only the clock's unix timestamp (epoch/slot untouched), for
+/// vote-expiry scenarios.
+pub fn set_clock_timestamp(svm: &mut LiteSVM, unix_timestamp: i64) {
+    let mut clock = svm.get_sysvar::<Clock>();
+    clock.unix_timestamp = unix_timestamp;
+    svm.set_sysvar(&clock);
+}
+
+/// Deserializes an anchor account of the ncn-snapshot program (discriminator
+/// checked by `AccountDeserialize`).
+pub fn fetch_ncn_account<T: anchor_lang::AccountDeserialize>(
+    svm: &LiteSVM,
+    address: &Address,
+) -> T {
+    let account = svm.get_account(address).expect("ncn account must exist");
+    T::try_deserialize(&mut account.data.as_slice()).expect("deserialize ncn account")
+}
+
+pub fn ncn_custom_error(err: ncn_snapshot::error::ErrorCode) -> InstructionError {
+    InstructionError::Custom(ANCHOR_ERROR_CODE_OFFSET + err as u32)
+}
+
+fn encode_opt_pubkey(data: &mut Vec<u8>, value: Option<&Address>) {
+    match value {
+        None => data.push(0),
+        Some(a) => {
+            data.push(1);
+            data.extend(a.to_bytes());
+        }
+    }
+}
+
+fn encode_opt_pubkey_vec(data: &mut Vec<u8>, value: Option<&[Address]>) {
+    match value {
+        None => data.push(0),
+        Some(keys) => {
+            data.push(1);
+            data.extend((keys.len() as u32).to_le_bytes());
+            for key in keys {
+                data.extend(key.to_bytes());
+            }
+        }
+    }
+}
+
+pub fn init_ncn_program_config_ix(
+    payer: &Address,
+    authority: &Address,
+    svmgov_program: &Address,
+) -> Instruction {
+    let mut data = anchor_discriminator("global", "init_program_config").to_vec();
+    data.extend(svmgov_program.to_bytes());
+    Instruction {
+        program_id: NCN_SNAPSHOT_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new(*payer, true),
+            AccountMeta::new_readonly(*authority, true),
+            AccountMeta::new(ncn_program_config_pda(), false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+        data,
+    }
+}
+
+pub fn update_operator_whitelist_ix(
+    authority: &Address,
+    operators_to_add: Option<&[Address]>,
+    operators_to_remove: Option<&[Address]>,
+) -> Instruction {
+    let mut data = anchor_discriminator("global", "update_operator_whitelist").to_vec();
+    encode_opt_pubkey_vec(&mut data, operators_to_add);
+    encode_opt_pubkey_vec(&mut data, operators_to_remove);
+    Instruction {
+        program_id: NCN_SNAPSHOT_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new_readonly(*authority, true),
+            AccountMeta::new(ncn_program_config_pda(), false),
+        ],
+        data,
+    }
+}
+
+pub fn update_ncn_program_config_ix(
+    authority: &Address,
+    proposed_authority: Option<&Address>,
+    min_consensus_threshold_bps: Option<u16>,
+    tie_breaker_admin: Option<&Address>,
+    vote_duration: Option<i64>,
+    svmgov_program: Option<&Address>,
+) -> Instruction {
+    let mut data = anchor_discriminator("global", "update_program_config").to_vec();
+    encode_opt_pubkey(&mut data, proposed_authority);
+    match min_consensus_threshold_bps {
+        None => data.push(0),
+        Some(bps) => {
+            data.push(1);
+            data.extend(bps.to_le_bytes());
+        }
+    }
+    encode_opt_pubkey(&mut data, tie_breaker_admin);
+    match vote_duration {
+        None => data.push(0),
+        Some(duration) => {
+            data.push(1);
+            data.extend(duration.to_le_bytes());
+        }
+    }
+    encode_opt_pubkey(&mut data, svmgov_program);
+    Instruction {
+        program_id: NCN_SNAPSHOT_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new_readonly(*authority, true),
+            AccountMeta::new(ncn_program_config_pda(), false),
+        ],
+        data,
+    }
+}
+
+pub fn finalize_proposed_authority_ix(authority: &Address) -> Instruction {
+    Instruction {
+        program_id: NCN_SNAPSHOT_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new_readonly(*authority, true),
+            AccountMeta::new(ncn_program_config_pda(), false),
+        ],
+        data: anchor_discriminator("global", "finalize_proposed_authority").to_vec(),
+    }
+}
+
+pub fn ncn_cast_vote_ix(operator: &Address, ballot_box: Address, ballot: &Ballot) -> Instruction {
+    let mut data = anchor_discriminator("global", "cast_vote").to_vec();
+    data.extend(ballot.try_to_vec().expect("serialize Ballot"));
+    Instruction {
+        program_id: NCN_SNAPSHOT_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new_readonly(*operator, true),
+            AccountMeta::new(ballot_box, false),
+        ],
+        data,
+    }
+}
+
+pub fn ncn_remove_vote_ix(operator: &Address, ballot_box: Address) -> Instruction {
+    Instruction {
+        program_id: NCN_SNAPSHOT_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new_readonly(*operator, true),
+            AccountMeta::new(ballot_box, false),
+        ],
+        data: anchor_discriminator("global", "remove_vote").to_vec(),
+    }
+}
+
+pub fn set_tie_breaker_ix(admin: &Address, ballot_box: Address, ballot: &Ballot) -> Instruction {
+    let mut data = anchor_discriminator("global", "set_tie_breaker").to_vec();
+    data.extend(ballot.try_to_vec().expect("serialize Ballot"));
+    Instruction {
+        program_id: NCN_SNAPSHOT_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new_readonly(*admin, true),
+            AccountMeta::new(ballot_box, false),
+            AccountMeta::new_readonly(ncn_program_config_pda(), false),
+        ],
+        data,
+    }
+}
+
+pub fn reset_ballot_box_ix(admin: &Address, ballot_box: Address) -> Instruction {
+    Instruction {
+        program_id: NCN_SNAPSHOT_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new_readonly(*admin, true),
+            AccountMeta::new(ballot_box, false),
+            AccountMeta::new_readonly(ncn_program_config_pda(), false),
+        ],
+        data: anchor_discriminator("global", "reset_ballot_box").to_vec(),
+    }
+}
+
+pub fn finalize_ballot_ix(
+    payer: &Address,
+    ballot_box: Address,
+    consensus_result: Address,
+) -> Instruction {
+    Instruction {
+        program_id: NCN_SNAPSHOT_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new(*payer, true),
+            AccountMeta::new_readonly(ballot_box, false),
+            AccountMeta::new(consensus_result, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+        data: anchor_discriminator("global", "finalize_ballot").to_vec(),
+    }
+}
+
+pub fn init_meta_merkle_proof_ix(
+    payer: &Address,
+    consensus_result: Address,
+    meta_merkle_leaf: &MetaMerkleLeaf,
+    meta_merkle_proof: &[[u8; 32]],
+    close_timestamp: i64,
+) -> Instruction {
+    let merkle_proof_account = meta_merkle_proof_pda(
+        &consensus_result,
+        &Address::new_from_array(meta_merkle_leaf.vote_account.to_bytes()),
+    );
+    let mut data = anchor_discriminator("global", "init_meta_merkle_proof").to_vec();
+    data.extend(
+        meta_merkle_leaf
+            .try_to_vec()
+            .expect("serialize MetaMerkleLeaf"),
+    );
+    data.extend((meta_merkle_proof.len() as u32).to_le_bytes());
+    for node in meta_merkle_proof {
+        data.extend(node);
+    }
+    data.extend(close_timestamp.to_le_bytes());
+    Instruction {
+        program_id: NCN_SNAPSHOT_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new(*payer, true),
+            AccountMeta::new(merkle_proof_account, false),
+            AccountMeta::new_readonly(consensus_result, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+        data,
+    }
+}
+
+pub fn ncn_verify_merkle_proof_ix(
+    meta_merkle_proof_account: Address,
+    consensus_result: Address,
+    stake_merkle_proof: Option<&[[u8; 32]]>,
+    stake_merkle_leaf: Option<&StakeMerkleLeaf>,
+) -> Instruction {
+    let mut data = anchor_discriminator("global", "verify_merkle_proof").to_vec();
+    match stake_merkle_proof {
+        None => data.push(0),
+        Some(proof) => {
+            data.push(1);
+            data.extend((proof.len() as u32).to_le_bytes());
+            for node in proof {
+                data.extend(node);
+            }
+        }
+    }
+    match stake_merkle_leaf {
+        None => data.push(0),
+        Some(leaf) => {
+            data.push(1);
+            data.extend(leaf.try_to_vec().expect("serialize StakeMerkleLeaf"));
+        }
+    }
+    Instruction {
+        program_id: NCN_SNAPSHOT_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new_readonly(meta_merkle_proof_account, false),
+            AccountMeta::new_readonly(consensus_result, false),
+        ],
+        data,
+    }
+}
+
+/// `payer` receives the reclaimed rent and must match the recorded payer;
+/// `payer_signs` selects the signed (immediate) vs unsigned
+/// (post-close-timestamp) close path.
+pub fn close_meta_merkle_proof_ix(
+    payer: &Address,
+    payer_signs: bool,
+    meta_merkle_proof_account: Address,
+) -> Instruction {
+    Instruction {
+        program_id: NCN_SNAPSHOT_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta {
+                pubkey: *payer,
+                is_signer: payer_signs,
+                is_writable: true,
+            },
+            AccountMeta::new(meta_merkle_proof_account, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+        data: anchor_discriminator("global", "close_meta_merkle_proof").to_vec(),
+    }
+}

@@ -2,7 +2,6 @@
 members = [
     "cli",
     "ledger",
-    "tests",
     "verifier-service"
 ]
 # merkle-tree and the program belong to the repo-root workspace: they are

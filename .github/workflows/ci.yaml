@@ -1,8 +1,10 @@
 name: CI
 
-# Compile-checks and tests both CLIs and the svmgov program on every pull
-# request and on pushes to main, so build breakage and test regressions are
-# caught before a release tag is cut. No binaries are uploaded here.
+# Compile-checks and tests every suite in the repo — the CLIs, the on-chain
+# programs (LiteSVM), the standalone client crates (squads-client, ncn-router),
+# and the frontend — on every pull request and on pushes to main, so build
+# breakage and test regressions are caught before a release tag is cut. No
+# binaries are uploaded here.
 on:
   pull_request:
   push:
@@ -73,10 +75,8 @@ jobs:
         working-directory: svmgov/cli
         run: cargo build --locked
 
-      # Run the test suites that don't require external infrastructure. The
-      # ncn/tests Anchor integration suite is intentionally excluded: it needs a
-      # running solana-test-validator, the Anchor toolchain, and an ANCHOR_WALLET
-      # (it is run via `anchor test`, see ncn/README.md).
+      # The ncn program's integration coverage lives in the LiteSVM ncn_flow
+      # suite, which the program job runs via `-p svmgov_program`.
       - name: Test ncn CLI and verifier-service
         working-directory: ncn
         run: cargo test --locked -p cli -p verifier-service
@@ -117,5 +117,71 @@ jobs:
       - name: Build svmgov program
         run: cargo-build-sbf --manifest-path svmgov/program/programs/svmgov_program/Cargo.toml -- --locked
 
-      - name: Test svmgov program (LiteSVM)
-        run: cargo test --locked -p svmgov_program
+      # ncn-merkle-tree is a root-workspace member both programs' proof
+      # verification depends on, so its unit tests ride along here.
+      - name: Test svmgov program (LiteSVM) and merkle tree
+        run: cargo test --locked -p svmgov_program -p ncn-merkle-tree
+
+  clients:
+    name: Build & test client crates
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev libclang-dev
+
+      - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          # See the note on rustflags in the build job above.
+          rustflags: ""
+
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: |
+            squads-client
+            ncn-router
+
+      # The integration test target is deliberately excluded: it boots a
+      # Surfnet with mainnet remote-fetch (api.mainnet-beta.solana.com), so it
+      # is network-dependent and only meant for local runs. The regression
+      # target pins the wire-format bytes (discriminators, PDAs) that live
+      # Squads transactions depend on.
+      - name: Test squads-client (unit + wire-format regression)
+        working-directory: squads-client
+        run: cargo test --locked --lib --test regression
+
+      - name: Test ncn-router
+        working-directory: ncn-router
+        run: cargo test --locked
+
+  frontend:
+    name: Test frontend
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      # Installs the pnpm version pinned by frontend/package.json's
+      # packageManager field.
+      - uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        with:
+          package_json_file: frontend/package.json
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          # Next 16 requires Node >= 20.9; no .nvmrc/engines pin exists in the
+          # repo, so pin the current LTS line here.
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Test frontend (jest)
+        working-directory: frontend
+        run: pnpm run test:ci
