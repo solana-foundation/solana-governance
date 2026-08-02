@@ -19,9 +19,11 @@
 //! 7. `modify_vote_override` then finalize with no validator vote
 //! 8. overrides alone can produce a for-majority that survives finalize
 //!    (validators never cast a vote)
+//! 9. prefunded Vote / VoteOverride / VoteOverrideCache PDAs (dust-transfer
+//!    DoS from the previous TS test suite) must not block voting
 mod common;
 
-use common::*;
+use {common::*, solana_signer::Signer};
 
 /// Meta-leaf active stake per snapshot validator (1 SOL).
 const V_ACTIVE: u64 = 1_000_000_000;
@@ -528,4 +530,40 @@ fn modify_override_then_finalize_without_validator_vote() {
         D0,
         "modified override must survive finalization without a validator vote"
     );
+}
+
+// ---------------------------------------------------------------------------
+// 9. Prefunded PDAs must not block voting.
+//
+// The Vote, VoteOverride, and VoteOverrideCache addresses are deterministic,
+// so anyone can transfer dust to them before they exist. Account creation
+// must tolerate the pre-existing lamports (anchor's transfer/allocate/assign
+// path on `init`, `init_if_needed` on the cache) or the dust would
+// permanently lock the validator/delegator out of the proposal.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn prefunded_pdas_do_not_block_voting() {
+    let (mut h, s) = voting_fixture();
+
+    let vote_account = h.validators[s.voters[0].idx].vote.pubkey();
+    let vote = vote_pda(&s.proposal, &vote_account);
+    let cache = vote_override_cache_pda(&s.proposal, &vote);
+    let override_account =
+        vote_override_pda(&s.proposal, &s.voters[0].delegators[0].stake_account, &vote);
+    for pda in [vote, cache, override_account] {
+        h.svm.airdrop(&pda, 1_000_000).unwrap();
+    }
+
+    // Override first, so creation of the prefunded cache + override accounts
+    // is exercised, then the validator vote, which creates the prefunded vote
+    // account and drains the cache.
+    cast_delegator_override(&mut h, &s, 0, 0, 0, 10_000, 0);
+    cast_validator_vote(&mut h, &s, 0, 10_000, 0, 0);
+
+    let vote_state = fetch_vote(&h, &s, 0).expect("vote account");
+    assert_eq!(vote_state.override_lamports, D0);
+
+    let state = finalize_proposal(&mut h, &s);
+    assert_totals(&state, V_ACTIVE - D0, D0, 0);
 }
