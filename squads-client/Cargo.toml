@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["solana-governance contributors"]
 license = "MIT OR Apache-2.0"
 description = "Minimal, dependency-light Rust client for the Squads V4 multisig program. Provides PDA helpers, account deserializers, instruction builders, and TransactionMessage compilation without depending on anchor-lang."
-repository = "https://github.com/anza-xyz/solana-governance"
+repository = "https://github.com/solana-foundation/solana-governance"
 keywords = ["solana", "squads", "multisig"]
 categories = ["cryptography::cryptocurrencies", "api-bindings"]
 

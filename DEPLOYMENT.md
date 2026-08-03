@@ -93,7 +93,7 @@ Later phases are driven by two CLIs: **`svmgov`** (governance — `init-global-c
 **ncn CLI** → installs the `ncn-cli` binary:
 
 - [ ] `make install-ncn-cli` — ensures `jito-tip-router` is present (re-runs `make bootstrap`
-      as needed), builds `cargo build --locked --release -p cli` from `ncn/` with
+      as needed), builds `cargo build --locked --release -p ncn-cli` from `ncn/` with
       `RUSTFLAGS=-C target-cpu=native` and the required compile-time program-ID env vars
       (`RESTAKING_PROGRAM_ID`, `VAULT_PROGRAM_ID`, `TIP_ROUTER_PROGRAM_ID` — mainnet defaults
       baked in; export your own first to override), then installs the binary as `ncn-cli`. Also
@@ -103,8 +103,8 @@ Later phases are driven by two CLIs: **`svmgov`** (governance — `init-global-c
 
 **No-install build** (locked-down hosts — skip global install, `sudo`, and shell-rc edits): run
 `cargo build --release` in `svmgov/cli` (binary → `svmgov/cli/target/release/svmgov`), and
-`cargo build --locked --release -p cli` in `ncn/` after `make bootstrap` (binary →
-`ncn/target/release/cli`), exporting the three `*_PROGRAM_ID` vars first (see
+`cargo build --locked --release -p ncn-cli` in `ncn/` after `make bootstrap` (binary →
+`ncn/target/release/ncn-cli`), exporting the three `*_PROGRAM_ID` vars first (see
 `ncn/scripts/install-ncn-cli.sh` for defaults). Invoke by full path, or `cargo run --release
 --bin cli --` for ncn.
 

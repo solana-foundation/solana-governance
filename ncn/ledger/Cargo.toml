@@ -2,6 +2,9 @@
 name = "ncn-ledger"
 version = "0.4.0-40100"
 edition = "2021"
+description = "Ledger replay and snapshot loading helpers for the Solana governance NCN"
+license = "Apache-2.0"
+repository = "https://github.com/solana-foundation/solana-governance"
 
 [dependencies]
 agave-snapshots               = { version = "4.1.2", features = ["agave-unstable-api"] }

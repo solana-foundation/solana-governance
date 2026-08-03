@@ -69,7 +69,7 @@ jobs:
 
       - name: Build ncn CLI
         working-directory: ncn
-        run: cargo build --locked -p cli
+        run: cargo build --locked -p ncn-cli
 
       - name: Build svmgov CLI
         working-directory: svmgov/cli
@@ -79,7 +79,7 @@ jobs:
       # suite, which the program job runs via `-p svmgov_program`.
       - name: Test ncn CLI and verifier-service
         working-directory: ncn
-        run: cargo test --locked -p cli -p verifier-service
+        run: cargo test --locked -p ncn-cli -p verifier-service
 
       - name: Test svmgov CLI
         working-directory: svmgov/cli

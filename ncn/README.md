@@ -114,7 +114,7 @@ cargo test -p svmgov_program
 ```
 
 The CLI and verifier-service suites run from this directory with
-`cargo test -p cli -p verifier-service`.
+`cargo test -p ncn-cli -p verifier-service`.
 
 ---
 
