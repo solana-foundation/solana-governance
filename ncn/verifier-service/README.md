@@ -134,7 +134,7 @@ To test the upload endpoint with a snapshot (replace fields with actual values):
 Generate the signature with the same verifier network namespace used in the upload form:
 
 ```bash
-cargo run -p cli -- \
+cargo run -p ncn-cli -- \
   --authority-path ./operator-keypair.json \
   log-meta-merkle-hash \
   --read-path ./meta_merkle-340850340.zip \
