@@ -8,13 +8,13 @@ anchor-client = "0.31.1"
 clap = { version = "4", features = ["derive", "env"] }
 ncn-ledger = { path = "../ledger" }
 ncn-merkle-tree = { path = "../merkle-tree" }
-solana-accounts-db            = { version = "4.1.2", features = ["agave-unstable-api"] }
-solana-runtime                = { version = "4.1.2", features = ["agave-unstable-api"] }
-solana-vote                   = { version = "4.1.2", features = ["agave-unstable-api"] }
-solana-vote-program           = { version = "4.1.2", default-features = false, features = ["agave-unstable-api"] }
+solana-accounts-db            = { version = "=4.2.0-rc.1", features = ["agave-unstable-api"] }
+solana-runtime                = { version = "=4.2.0-rc.1", features = ["agave-unstable-api"] }
+solana-vote                   = { version = "=4.2.0-rc.1", features = ["agave-unstable-api"] }
+solana-vote-program           = { version = "=4.2.0-rc.1", default-features = false, features = ["agave-unstable-api"] }
 solana-program = { version = "4.0.0", default-features = false, features = [] }
 solana-sdk = "=4.0.1"
-solana-stake-interface = { version = "3.1.0", features = ["sysvar", "serde"] }
+solana-stake-interface = { version = "=4.3.0", features = ["sysvar", "serde"] }
 bincode = "1.3"
 anchor-lang = "0.31.1"
 log = "0.4.22"

@@ -18,12 +18,11 @@ use ncn_snapshot::{MetaMerkleLeaf, StakeMerkleLeaf};
 use solana_accounts_db::accounts_index::IndexKey;
 use solana_program::pubkey::Pubkey;
 use solana_runtime::bank::Bank;
-use solana_sdk::account::from_account;
 use solana_sdk::account::AccountSharedData;
 use solana_sdk::account::ReadableAccount;
 use solana_sdk::clock::Epoch;
 use solana_stake_interface::stake_history::StakeHistory;
-use solana_stake_interface::state::StakeStateV2;
+use solana_stake_interface::state::{Delegation as StakeDelegation, StakeStateV2};
 use solana_stake_interface::sysvar::stake_history;
 use spl_stake_pool::find_withdraw_authority_program_address;
 use spl_stake_pool::state::AccountType;
@@ -78,6 +77,7 @@ fn collect_stake_delegation(
     epoch: Epoch,
     stake_history: &StakeHistory,
     new_rate_epoch: Option<Epoch>,
+    use_fixed_point_stake_math: bool,
 ) {
     if account.owner() != &solana_stake_interface::program::id() {
         return;
@@ -89,7 +89,13 @@ fn collect_stake_delegation(
     else {
         return;
     };
-    let active_stake = stake.delegation.stake(epoch, stake_history, new_rate_epoch);
+    let active_stake = effective_delegated_stake(
+        &stake.delegation,
+        epoch,
+        stake_history,
+        new_rate_epoch,
+        use_fixed_point_stake_math,
+    );
     if active_stake == 0 {
         return;
     }
@@ -101,6 +107,21 @@ fn collect_stake_delegation(
             withdrawer_pubkey: meta.authorized.withdrawer,
             lamports_delegated: active_stake,
         });
+}
+
+fn effective_delegated_stake(
+    delegation: &StakeDelegation,
+    epoch: Epoch,
+    stake_history: &StakeHistory,
+    new_rate_epoch: Option<Epoch>,
+    use_fixed_point_stake_math: bool,
+) -> u64 {
+    if use_fixed_point_stake_math {
+        delegation.stake_v2(epoch, stake_history, new_rate_epoch)
+    } else {
+        #[allow(deprecated)]
+        delegation.stake(epoch, stake_history, new_rate_epoch)
+    }
 }
 
 /// Updates given map with new entry mapping withdraw authority to manager authority
@@ -148,10 +169,14 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
 
     // Epoch/stake-history context needed to compute each delegation's active
     // stake during the single account scan below.
-    let stake_history =
-        from_account::<StakeHistory, _>(&bank.get_account(&stake_history::id()).unwrap()).unwrap();
+    let stake_history: StakeHistory =
+        bincode::deserialize(bank.get_account(&stake_history::id()).unwrap().data()).unwrap();
     let epoch = bank.epoch();
     let new_rate_epoch = bank.new_warmup_cooldown_rate_epoch();
+    let use_fixed_point_stake_math = bank
+        .feature_set
+        .snapshot()
+        .upgrade_bpf_stake_program_to_v5_1;
 
     // Delegations grouped by voter (validator) pubkey, rebuilt from stake-program
     // accounts (see `collect_stake_delegation`).
@@ -183,6 +208,7 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
             epoch,
             &stake_history,
             new_rate_epoch,
+            use_fixed_point_stake_math,
         );
     }
 
@@ -288,4 +314,34 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
         leaf_bundles: meta_merkle_bundles,
         slot: bank.slot(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solana_stake_interface::stake_history::StakeHistoryEntry;
+
+    #[test]
+    fn effective_stake_tracks_the_bank_fixed_point_feature() {
+        let delegation = StakeDelegation {
+            stake: 342_898_401_157_885_026,
+            activation_epoch: 9,
+            ..StakeDelegation::default()
+        };
+        let mut stake_history = StakeHistory::default();
+        stake_history.add(
+            9,
+            StakeHistoryEntry {
+                effective: 708_104_488_956_562_499,
+                activating: 2_426_138_261_763_124_479,
+                deactivating: 0,
+            },
+        );
+
+        let legacy = effective_delegated_stake(&delegation, 10, &stake_history, Some(0), false);
+        let fixed_point = effective_delegated_stake(&delegation, 10, &stake_history, Some(0), true);
+
+        assert_eq!(legacy, 9_007_199_253_579_466);
+        assert_eq!(fixed_point, 9_007_199_253_579_461);
+    }
 }
