@@ -11,8 +11,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 NCN_DIR="$REPO_ROOT/ncn"
 
-CLI_PKG="cli"
-CLI_BIN_SRC="cli"
+CLI_PKG="ncn-cli"
+CLI_BIN_SRC="ncn-cli"
 CLI_BIN_DEST="ncn-cli"
 
 echo "Installing $CLI_BIN_DEST (global)..."

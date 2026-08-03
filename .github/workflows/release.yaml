@@ -68,7 +68,7 @@ jobs:
 
       - name: Build ncn CLI
         working-directory: ncn
-        run: cargo build --locked --release -p cli
+        run: cargo build --locked --release -p ncn-cli
 
       - name: Build svmgov CLI
         working-directory: svmgov/cli
@@ -77,7 +77,7 @@ jobs:
       - name: Stage binaries
         run: |
           mkdir -p dist
-          cp ncn/target/release/cli "dist/ncn-cli-${{ matrix.platform }}"
+          cp ncn/target/release/ncn-cli "dist/ncn-cli-${{ matrix.platform }}"
           cp svmgov/cli/target/release/svmgov "dist/svmgov-${{ matrix.platform }}"
           chmod +x dist/*
 

@@ -1,0 +1,197 @@
+name: Publish Crates
+
+# Publishes the ncn and svmgov CLIs — and the in-repo crates they depend on —
+# to crates.io via Trusted Publishing (GitHub OIDC, no long-lived registry
+# token). Manually triggered from the Actions tab.
+#
+# Each crate must have this repo + workflow configured as a Trusted Publisher
+# on crates.io (crate Settings -> Trusted Publishing: repository
+# solana-foundation/solana-governance, workflow publish-crates.yaml). crates.io
+# only allows configuring Trusted Publishing on existing crates, so the very
+# first version of each crate has to be published manually with an API token;
+# every version after that goes through this workflow.
+#
+# Crates are published sequentially in dependency order (leaves first, CLIs
+# last), and an explicit wait step polls the crates.io sparse index until every
+# dependency version is fetchable before the CLIs are published against it.
+# `skip-existing` makes re-runs idempotent: if a run fails midway, re-running
+# skips the versions that already made it.
+#
+# Note: publish verification builds against crates.io (path deps are stripped),
+# so a dry run (publish-to-crates = false) of a CLI only succeeds once its
+# internal dependencies are already published at the required versions.
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish-to-crates:
+        description: "Publish to crates.io (false = dry run / validation only)"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  # Required to mint the OIDC token that crates.io exchanges for a short-lived
+  # publish token (rust-lang/crates-io-auth-action inside cargo-publish).
+  id-token: write
+
+concurrency:
+  group: publish-crates
+  cancel-in-progress: false
+
+env:
+  RUST_VERSION: "1.93.1"
+
+jobs:
+  guard-allowed-branch:
+    name: Guard allowed source branch for crates publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Guard allowed source branch for crates publish
+        run: |
+          case "${{ github.ref }}" in
+            refs/heads/main|refs/heads/release/*) ;;
+            *)
+              echo "::error::Publish Crates must be run from main or a release/* branch. Current ref: ${{ github.ref }}"
+              exit 1
+              ;;
+          esac
+
+  publish:
+    name: Publish crates to crates.io
+    needs: guard-allowed-branch
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev libclang-dev
+
+      # ---- Leaf crates (no in-repo dependencies) ----------------------------
+
+      # ncn-merkle-tree and ncn-snapshot are members of the root workspace.
+      - name: Publish ncn-merkle-tree
+        id: publish_merkle_tree
+        uses: solana-foundation/github-actions/cargo-publish@4dcdecb13d956467088835b1c644b38e0ee1d5d9
+        with:
+          package: ncn-merkle-tree
+          working-directory: .
+          toolchain: ${{ env.RUST_VERSION }}
+          check-version-available: ${{ inputs.publish-to-crates }}
+          dry-run: ${{ !inputs.publish-to-crates }}
+          skip-existing: "true"
+
+      - name: Publish ncn-snapshot
+        id: publish_snapshot
+        uses: solana-foundation/github-actions/cargo-publish@4dcdecb13d956467088835b1c644b38e0ee1d5d9
+        with:
+          package: ncn-snapshot
+          working-directory: .
+          toolchain: ${{ env.RUST_VERSION }}
+          check-version-available: ${{ inputs.publish-to-crates }}
+          dry-run: ${{ !inputs.publish-to-crates }}
+          skip-existing: "true"
+
+      - name: Publish squads-client
+        id: publish_squads_client
+        uses: solana-foundation/github-actions/cargo-publish@4dcdecb13d956467088835b1c644b38e0ee1d5d9
+        with:
+          package: squads-client
+          working-directory: squads-client
+          toolchain: ${{ env.RUST_VERSION }}
+          check-version-available: ${{ inputs.publish-to-crates }}
+          dry-run: ${{ !inputs.publish-to-crates }}
+          skip-existing: "true"
+
+      - name: Publish ncn-ledger
+        id: publish_ledger
+        uses: solana-foundation/github-actions/cargo-publish@4dcdecb13d956467088835b1c644b38e0ee1d5d9
+        with:
+          package: ncn-ledger
+          working-directory: ncn
+          toolchain: ${{ env.RUST_VERSION }}
+          check-version-available: ${{ inputs.publish-to-crates }}
+          dry-run: ${{ !inputs.publish-to-crates }}
+          skip-existing: "true"
+
+      # cargo publish returning does not guarantee the version is visible in
+      # the sparse index yet, and the CLI publishes below resolve their
+      # dependencies from crates.io (path deps are stripped). Poll the index
+      # until every dependency version is actually fetchable before moving on.
+      - name: Wait for dependency crates to be indexed on crates.io
+        if: ${{ inputs.publish-to-crates }}
+        run: |
+          wait_for() {
+            local name="$1" version="$2"
+            # Sparse index path scheme for names of 4+ chars: {first2}/{next2}/{name}
+            local url="https://index.crates.io/${name:0:2}/${name:2:2}/$name"
+            for i in $(seq 1 60); do
+              if curl -sfL "$url" | grep -q "\"vers\":\"$version\""; then
+                echo "$name@$version is indexed"
+                return 0
+              fi
+              echo "Waiting for $name@$version to appear in the index... (attempt $i)"
+              sleep 5
+            done
+            echo "::error::Timed out waiting for $name@$version to be indexed on crates.io"
+            return 1
+          }
+          wait_for ncn-merkle-tree "${{ steps.publish_merkle_tree.outputs.version }}"
+          wait_for ncn-snapshot "${{ steps.publish_snapshot.outputs.version }}"
+          wait_for squads-client "${{ steps.publish_squads_client.outputs.version }}"
+          wait_for ncn-ledger "${{ steps.publish_ledger.outputs.version }}"
+
+      # ---- CLIs (depend on the crates above) ---------------------------------
+
+      - name: Publish ncn-cli
+        id: publish_ncn_cli
+        uses: solana-foundation/github-actions/cargo-publish@4dcdecb13d956467088835b1c644b38e0ee1d5d9
+        with:
+          package: ncn-cli
+          working-directory: ncn
+          toolchain: ${{ env.RUST_VERSION }}
+          check-version-available: ${{ inputs.publish-to-crates }}
+          dry-run: ${{ !inputs.publish-to-crates }}
+          skip-existing: "true"
+
+      - name: Publish svmgov
+        id: publish_svmgov
+        uses: solana-foundation/github-actions/cargo-publish@4dcdecb13d956467088835b1c644b38e0ee1d5d9
+        with:
+          package: svmgov
+          working-directory: svmgov/cli
+          toolchain: ${{ env.RUST_VERSION }}
+          check-version-available: ${{ inputs.publish-to-crates }}
+          dry-run: ${{ !inputs.publish-to-crates }}
+          skip-existing: "true"
+
+      - name: Publish summary
+        if: always()
+        run: |
+          {
+            echo "## Crates publish"
+            echo ""
+            echo "| Crate | Version | Result |"
+            echo "| --- | --- | --- |"
+            report() {
+              local name="$1" version="$2" published="$3" existing="$4"
+              local result="skipped"
+              if [ "$published" == "true" ]; then
+                result="[published](https://crates.io/crates/$name/$version)"
+              elif [ "$existing" == "true" ]; then
+                result="already on crates.io"
+              elif [ "${{ inputs.publish-to-crates }}" == "false" ]; then
+                result="dry run"
+              fi
+              echo "| $name | \`$version\` | $result |"
+            }
+            report ncn-merkle-tree "${{ steps.publish_merkle_tree.outputs.version }}" "${{ steps.publish_merkle_tree.outputs.published }}" "${{ steps.publish_merkle_tree.outputs.already-published }}"
+            report ncn-snapshot "${{ steps.publish_snapshot.outputs.version }}" "${{ steps.publish_snapshot.outputs.published }}" "${{ steps.publish_snapshot.outputs.already-published }}"
+            report squads-client "${{ steps.publish_squads_client.outputs.version }}" "${{ steps.publish_squads_client.outputs.published }}" "${{ steps.publish_squads_client.outputs.already-published }}"
+            report ncn-ledger "${{ steps.publish_ledger.outputs.version }}" "${{ steps.publish_ledger.outputs.published }}" "${{ steps.publish_ledger.outputs.already-published }}"
+            report ncn-cli "${{ steps.publish_ncn_cli.outputs.version }}" "${{ steps.publish_ncn_cli.outputs.published }}" "${{ steps.publish_ncn_cli.outputs.already-published }}"
+            report svmgov "${{ steps.publish_svmgov.outputs.version }}" "${{ steps.publish_svmgov.outputs.published }}" "${{ steps.publish_svmgov.outputs.already-published }}"
+          } >> "$GITHUB_STEP_SUMMARY"

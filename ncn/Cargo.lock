@@ -1835,37 +1835,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
-name = "cli"
-version = "0.4.0-40100"
-dependencies = [
- "anchor-client",
- "anchor-lang",
- "anyhow",
- "bincode",
- "borsh 0.10.4",
- "borsh 1.8.0",
- "clap 4.6.0",
- "env_logger 0.10.2",
- "flate2",
- "im",
- "log",
- "ncn-ledger",
- "ncn-merkle-tree",
- "ncn-snapshot",
- "solana-accounts-db",
- "solana-program 4.0.0",
- "solana-runtime",
- "solana-sdk 4.0.1",
- "solana-stake-interface 4.3.0",
- "solana-vote",
- "solana-vote-program",
- "spl-stake-pool",
- "squads-client",
- "tempfile",
- "tokio",
-]
-
-[[package]]
 name = "cmov"
 version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4787,6 +4756,37 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "tempfile",
+]
+
+[[package]]
+name = "ncn-cli"
+version = "0.4.0-40100"
+dependencies = [
+ "anchor-client",
+ "anchor-lang",
+ "anyhow",
+ "bincode",
+ "borsh 0.10.4",
+ "borsh 1.8.0",
+ "clap 4.6.0",
+ "env_logger 0.10.2",
+ "flate2",
+ "im",
+ "log",
+ "ncn-ledger",
+ "ncn-merkle-tree",
+ "ncn-snapshot",
+ "solana-accounts-db",
+ "solana-program 4.0.0",
+ "solana-runtime",
+ "solana-sdk 4.0.1",
+ "solana-stake-interface 4.3.0",
+ "solana-vote",
+ "solana-vote-program",
+ "spl-stake-pool",
+ "squads-client",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]
@@ -14273,11 +14273,11 @@ dependencies = [
  "borsh 1.8.0",
  "bs58",
  "chrono",
- "cli",
  "env_logger 0.10.2",
  "flate2",
  "ipnet",
  "log",
+ "ncn-cli",
  "ncn-merkle-tree",
  "ncn-snapshot",
  "once_cell",

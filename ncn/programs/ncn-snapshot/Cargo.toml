@@ -3,6 +3,8 @@ name = "ncn-snapshot"
 version = "0.4.0-40100"
 description = "Governance NCN Voting Program"
 edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/solana-foundation/solana-governance"
 
 [lib]
 crate-type = ["cdylib", "lib"]

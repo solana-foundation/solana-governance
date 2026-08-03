@@ -1,7 +1,23 @@
 [package]
-name = "cli"
+# Published as `ncn-cli` (the bare `cli` name is taken on crates.io); the
+# installed binary keeps the `ncn-cli` name users already get from
+# scripts/install-ncn-cli.sh.
+name = "ncn-cli"
 version = "0.4.0-40100"
 edition = "2021"
+description = "CLI for the Solana governance NCN: ledger replay, stake snapshots, merkle tree generation and vote verification"
+license = "Apache-2.0"
+repository = "https://github.com/solana-foundation/solana-governance"
+
+# The library target keeps the historical `cli` name so in-repo consumers
+# (main.rs, verifier-service) don't need `use ncn_cli::` churn.
+[lib]
+name = "cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ncn-cli"
+path = "src/main.rs"
 
 [dependencies]
 anchor-client = "0.31.1"
@@ -24,8 +40,8 @@ tokio = { version = "1.36.0", features = ["full"] }
 anyhow = "1.0.86"
 im = "15.1"
 borsh = { version = "0.10.3" }
-ncn-snapshot = { path = "../programs/ncn-snapshot" }
-squads-client = { path = "../../squads-client" }
+ncn-snapshot = { path = "../programs/ncn-snapshot", version = "0.4.0-40100" }
+squads-client = { path = "../../squads-client", version = "0.1.0" }
 spl-stake-pool = { version = "2.0.0", default-features = false, features = ["no-entrypoint"] }
 borsh_stake = { package = "borsh", version = "1.5", default-features = false }
 

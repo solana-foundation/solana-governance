@@ -90,7 +90,7 @@ Later phases are driven by two CLIs: **`svmgov`** (governance — `init-global-c
 
 **ncn CLI** → installs the `ncn-cli` binary:
 
-- [ ] `make install-ncn-cli` — builds `cargo build --locked --release -p cli` from `ncn/`
+- [ ] `make install-ncn-cli` — builds `cargo build --locked --release -p ncn-cli` from `ncn/`
       with `RUSTFLAGS=-C target-cpu=native`, then installs the binary as `ncn-cli`. It also
       appends a shell wrapper defaulting `RAYON_NUM_THREADS` / `ZSTD_NBTHREADS` / `RUST_LOG`
       for snapshot performance.
@@ -98,7 +98,7 @@ Later phases are driven by two CLIs: **`svmgov`** (governance — `init-global-c
 
 **No-install build** (locked-down hosts — skip global install, `sudo`, and shell-rc edits): run
 `cargo build --release` in `svmgov/cli` (binary → `svmgov/cli/target/release/svmgov`), and
-`cargo build --locked --release -p cli` in `ncn/` (binary → `ncn/target/release/cli`). Invoke
+`cargo build --locked --release -p ncn-cli` in `ncn/` (binary → `ncn/target/release/cli`). Invoke
 by full path, or `cargo run --release --bin cli --` for ncn.
 
 ## Phase 3 — Deploy the programs
