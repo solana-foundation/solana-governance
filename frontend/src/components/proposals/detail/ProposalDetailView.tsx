@@ -6,6 +6,7 @@ import ProposalDetailHeader from "./ProposalDetailHeader";
 import VoteBreakdown from "./VoteBreakdown";
 import PhaseTimeline from "./phase-timeline";
 import TopVotersTable from "./TopVotersTable";
+import TopSupportersTable from "./TopSupportersTable";
 import CastVoteWrapper from "./CastVote";
 import SupportProposalSection from "./SupportProposalSection";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -107,7 +108,13 @@ export default function ProposalDetailView({
         </>
       )}
       <PhaseTimeline proposal={proposal} isLoading={isLoading} />
-      <TopVotersTable proposal={proposal} />
+      {/* Before voting activates the proposal has no votes, only support
+          pledges — show the supporters instead of an empty voters table. */}
+      {isSupportPhaseView ? (
+        <TopSupportersTable proposal={proposal} />
+      ) : (
+        <TopVotersTable proposal={proposal} />
+      )}
     </div>
   );
 }

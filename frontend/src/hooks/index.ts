@@ -23,6 +23,7 @@ export * from "./useGetValidators";
 export * from "./useValidatorsTotalStakedLamports";
 export * from "./useVoteAccountsWithValidators";
 export * from "./useProposalVotes";
+export * from "./useProposalSupporters";
 
 export * from "./useChainVoteAccounts";
 export * from "./useChainVoteAccount";
