@@ -3,9 +3,6 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-# shellcheck source=scripts/setup-jito-tip-router.sh
-source "$REPO_ROOT/scripts/setup-jito-tip-router.sh"
-
 build_svmgov() {
   echo "Building svmgov program..."
   cd "$REPO_ROOT/svmgov/program"
@@ -25,7 +22,6 @@ build_svmgov() {
 }
 
 build_ncn() {
-  ensure_jito_tip_router
   echo "Building ncn program..."
   cd "$REPO_ROOT/ncn"
   anchor build

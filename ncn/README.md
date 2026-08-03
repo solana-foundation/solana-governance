@@ -78,14 +78,7 @@ If a vote account delegated to is missing (closed by the manager), the system wi
 
 ## Dependencies
 
-1. Clone `jito-tip-router` from the **brewlabshq** fork to parent directory:
-
-   ```bash
-   git clone https://github.com/brewlabshq/jito-tip-router.git ../jito-tip-router
-   cd ../jito-tip-router
-   ```
-
-2. Ensure system is using Rust Version `1.89.0`, otherwise install with:
+1. Ensure system is using Rust Version `1.89.0`, otherwise install with:
 
 ```bash
 rustup toolchain install 1.89.0 // install
@@ -93,9 +86,9 @@ rustup default 1.89.0 // set as default
 rustc --version // verify version
 ```
 
-3. (Optional - when using Anchor CLI) Install Solana CLI version 3.0 or higher. The bundled rustc in older Solana CLI versions may not be compatible with some dependencies.
+2. (Optional - when using Anchor CLI) Install Solana CLI version 3.0 or higher. The bundled rustc in older Solana CLI versions may not be compatible with some dependencies.
 
-4. Build repo with `cargo build`
+3. Build repo with `cargo build`
 
 ---
 
@@ -129,10 +122,6 @@ All commands assume:
 - Replace `key1,key2,key3...` with actual base58-encode pubkeys
 
 Use `RUST_LOG=info` to enable logs.
-
-**Note:** Environment variables (`RESTAKING_PROGRAM_ID`, `VAULT_PROGRAM_ID`, `TIP_ROUTER_PROGRAM_ID`) are configured in `.cargo/config.toml` and will be automatically loaded by Cargo during builds. No manual export is required.
-
----
 
 ### Program Setup and Configuration
 
@@ -323,24 +312,6 @@ RUST_LOG=info cargo run --bin cli -- \
 
 ## Troubleshooting
 
-### Dependency Version Conflicts When Upgrading jito-tip-router
-
-When upgrading the `jito-tip-router` dependency to a newer version, you may encounter dependency version conflicts. If you see compilation errors related to version mismatches, run these commands:
-
-- **Update Cargo.lock to force `solana-sysvar` version 3.0.0**: Some dependencies may pull in `solana-sysvar` version 3.1.1, which can cause compilation errors due to missing serde trait implementations. To force the use of version 3.0.0, run:
-
-  ```bash
-  cargo update -p solana-sysvar:3.1.1 --precise 3.0.0
-  ```
-
-- **Update Cargo.lock to force `solana-epoch-rewards-hasher` version 3.0.0**: Some dependencies may pull in `solana-epoch-rewards-hasher` version 3.1.0, which requires `solana-hash` version 4.0.1. However, jito-solana dependencies use `solana-hash` version 3.0.0, causing type mismatch errors. To force the use of version 3.0.0, run:
-
-  ```bash
-  cargo update -p solana-epoch-rewards-hasher:3.1.0 --precise 3.0.0
-  ```
-
-Note: Do not manually edit `Cargo.lock` - always use `cargo update` to modify dependency versions.
-
 ### Missing Incrementatal Snapshot
 
 If you encounter an error similar to:
@@ -350,26 +321,6 @@ Failed to open snapshot archive '/mnt/ledger/snapshots/incremental-snapshot-3685
 ```
 
 **Solution:** Increase retention period of incremental snapshots or use an empty `backup-snapshots-dir` so full snapshot replay is enforced, or copy incremental snapshots to a new directory.
-
-### Snapshot Bank Verification Error
-
-If you encounter an error similar to:
-
-```
-Snapshot bank for slot 340850340 failed to verify
-```
-
-**Solution:** Comment out the line causing the `panic` invocation in the `jito-solana` dependency crate. Snapshot verification failure does not impede generation of a merkle tree snapshot from the source file.
-
-### Genesis Creation Time Mismatch
-
-If you encounter an error such as:
-
-```
-Bank snapshot genesis creation time does not match genesis.bin creation time
-```
-
-**Solution:** Comment out the `assert_eq` statement in the `jito-solana` dependency crate. Genesis mismatch could occur when the snapshot is retrieved from a different RPC, but does not impede merkle generation.
 
 ---
 

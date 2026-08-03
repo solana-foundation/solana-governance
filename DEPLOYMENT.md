@@ -40,10 +40,9 @@ decide, and the **contract initialization** order.
       `svmgov/program/Anchor.toml`).
 - [ ] Decide the target network and confirm `networks.toml`:
   - [ ] ⚠️ `networks.toml` currently uses **public RPCs** (`api.mainnet-beta.solana.com`) and
-        the **same program IDs + same jito commit for every network**. Replace mainnet
+        the **same program IDs for every network**. Replace mainnet
         `rpc_url` with a real provider (Helius/Triton/etc.) before prod, and confirm program
         IDs are the ones you actually control.
-  - [ ] `jito_tip_router_commit` = `d60e3eb…` is the intended release commit.
 - [ ] Deploy/upgrade authority keypairs secured (program upgrade authority — decide multisig
       vs single key, ideally **squads/multisig** for mainnet). Note: the svmgov **upgrade
       authority is also the bootstrap admin** — whoever signs `init-global-config` must be the
@@ -58,7 +57,6 @@ decide, and the **contract initialization** order.
 
 ## Phase 1 — Build & sync program IDs
 
-- [ ] `make bootstrap` — clones/pins `jito-tip-router` to the commit in `networks.toml`.
 - [ ] `make sync-dry-run NETWORK=mainnet` — review every program-ID / RPC rewrite.
 - [ ] `make sync NETWORK=mainnet` — rewrites IDs + RPCs across programs, both CLIs, frontend,
       ncn-router (`scripts/sync-program-ids.sh`).
@@ -92,21 +90,16 @@ Later phases are driven by two CLIs: **`svmgov`** (governance — `init-global-c
 
 **ncn CLI** → installs the `ncn-cli` binary:
 
-- [ ] `make install-ncn-cli` — ensures `jito-tip-router` is present (re-runs `make bootstrap`
-      as needed), builds `cargo build --locked --release -p cli` from `ncn/` with
-      `RUSTFLAGS=-C target-cpu=native` and the required compile-time program-ID env vars
-      (`RESTAKING_PROGRAM_ID`, `VAULT_PROGRAM_ID`, `TIP_ROUTER_PROGRAM_ID` — mainnet defaults
-      baked in; export your own first to override), then installs the binary as `ncn-cli`. Also
-      appends a shell wrapper defaulting `RAYON_NUM_THREADS` / `ZSTD_NBTHREADS` / `RUST_LOG` for
-      snapshot performance.
+- [ ] `make install-ncn-cli` — builds `cargo build --locked --release -p cli` from `ncn/`
+      with `RUSTFLAGS=-C target-cpu=native`, then installs the binary as `ncn-cli`. It also
+      appends a shell wrapper defaulting `RAYON_NUM_THREADS` / `ZSTD_NBTHREADS` / `RUST_LOG`
+      for snapshot performance.
 - [ ] Open a new shell (to load the wrapper) and run `ncn-cli --version` to confirm.
 
 **No-install build** (locked-down hosts — skip global install, `sudo`, and shell-rc edits): run
 `cargo build --release` in `svmgov/cli` (binary → `svmgov/cli/target/release/svmgov`), and
-`cargo build --locked --release -p cli` in `ncn/` after `make bootstrap` (binary →
-`ncn/target/release/cli`), exporting the three `*_PROGRAM_ID` vars first (see
-`ncn/scripts/install-ncn-cli.sh` for defaults). Invoke by full path, or `cargo run --release
---bin cli --` for ncn.
+`cargo build --locked --release -p cli` in `ncn/` (binary → `ncn/target/release/cli`). Invoke
+by full path, or `cargo run --release --bin cli --` for ncn.
 
 ## Phase 3 — Deploy the programs
 
