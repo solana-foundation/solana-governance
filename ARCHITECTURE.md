@@ -35,6 +35,7 @@ graph TB
     VS -->|"serve proofs to voters and UIs"| FE
     ROUTER -->|"automated ballot management"| NCN
     FE -->|"read proposals, votes, quorum"| RPC
+    FE -->|"submit vote / support / override transactions"| SVMGOV
     RPC -->|"on-chain state"| SVMGOV
     RPC -->|"on-chain state"| NCN
 ```
