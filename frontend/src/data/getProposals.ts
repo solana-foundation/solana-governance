@@ -44,10 +44,9 @@ export const getProposals = async (
 
   const currentEpoch = epochInfo.epoch;
 
-  let data = proposalAccs.map((acc, index) =>
+  let data = proposalAccs.map((acc) =>
     mapProposalDto(
       acc,
-      index,
       currentEpoch,
       totalStakedLamports,
       epochConstants,
@@ -73,7 +72,6 @@ export const getProposals = async (
 
 export function mapProposalDto(
   rawAccount: RawProposalAccount,
-  index: number,
   currentEpoch: number,
   totalStakedLamports: number,
   epochConstants: EpochConstants,
@@ -102,10 +100,12 @@ export function mapProposalDto(
   });
 
   const simd = getSimd(raw.description);
+  const publicKey = rawAccount.publicKey;
 
   return {
-    publicKey: rawAccount.publicKey,
-    id: index.toString(),
+    publicKey,
+    // Stable across refetches/reorders — never use array index.
+    id: publicKey.toBase58(),
     simd,
     title: raw.title,
     description: raw.description,

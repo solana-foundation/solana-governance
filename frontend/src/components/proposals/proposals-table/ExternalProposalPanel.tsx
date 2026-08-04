@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { AppButton } from "@/components/ui/AppButton";
 import { GitHubIcon } from "@/components/icons/SvgIcons";
-import { Spade } from "lucide-react";
+import { Circle, Loader, X } from "lucide-react";
 import { useModal } from "@/contexts/ModalContext";
 import {
   Tooltip,
@@ -19,6 +19,12 @@ import { PublicKey } from "@solana/web3.js";
 import { toast } from "sonner";
 import { getProposalDetailPagePath } from "@/helpers/proposalPage";
 import { getVoteModalNames } from "@/lib/governance/role-detection";
+import { useGovernanceConfigContext } from "@/contexts/GovernanceConfigContext";
+import {
+  supportPhaseRequirementCopy,
+  supportThresholdPercentFromConfig,
+} from "@/lib/proposals";
+import { FAILED_PHASE_DETAIL } from "../detail/phase-timeline/constants";
 
 const VOTE_STATE_LABEL: Record<ProposalRecord["status"], string> = {
   supporting: "Supporting",
@@ -26,6 +32,30 @@ const VOTE_STATE_LABEL: Record<ProposalRecord["status"], string> = {
   voting: "In Progress",
   finalized: "Finished",
   failed: "Failed",
+};
+
+const STAGE_ORDER: ProposalStatus[] = [
+  "supporting",
+  "discussion",
+  "voting",
+  "finalized",
+];
+
+const STAGE_LABEL: Record<(typeof STAGE_ORDER)[number], string> = {
+  supporting: "Supporting",
+  discussion: "Discussion",
+  voting: "Voting",
+  finalized: "Finished",
+};
+
+const STAGE_DESCRIPTION: Record<(typeof STAGE_ORDER)[number], string> = {
+  supporting: "",
+  discussion:
+    "The discussion phase covers the 4-5 epoch period while the NCN is created. Voting begins only after this process completes.",
+  voting:
+    "Validators vote on active governance proposals. Delegators can override their validator's vote using stake account verification.",
+  finalized:
+    "Voting period has ended and all votes have been counted. The proposal is finalized and ready for on-chain execution.",
 };
 
 const getVoteStateLabel = (proposal: ProposalRecord): string => {
@@ -77,23 +107,68 @@ function ProposalInfo({ proposal }: { proposal: ProposalRecord }) {
 }
 
 function LifecycleStageBar({ stage }: { stage: ProposalStatus }) {
-  const stages: ProposalStatus[] = [
-    "supporting",
-    "discussion",
-    "voting",
-    "finalized",
-  ];
-  const activeIndex = stages.indexOf(stage);
+  const isFailed = stage === "failed";
+  const activeIndex = isFailed ? 0 : Math.max(STAGE_ORDER.indexOf(stage), 0);
+  const governanceConfigQuery = useGovernanceConfigContext();
+  const thresholdPercent = supportThresholdPercentFromConfig(
+    governanceConfigQuery.data,
+  );
+
+  const getDescription = (value: (typeof STAGE_ORDER)[number]) => {
+    if (isFailed && value === "supporting") {
+      return FAILED_PHASE_DETAIL.body;
+    }
+    if (value === "supporting") {
+      return `${supportPhaseRequirementCopy(thresholdPercent)}.`;
+    }
+    return STAGE_DESCRIPTION[value];
+  };
+
+  // Match LifecycleIndicator: Loader for in-progress stages, Circle for
+  // finalized, X for failed support.
+  const getStageIcon = (value: (typeof STAGE_ORDER)[number]) => {
+    if (isFailed && value === "supporting") {
+      return <X className="size-4 text-white" strokeWidth={2.5} />;
+    }
+    if (value === "finalized") {
+      return <Circle className="size-3 fill-white text-white" />;
+    }
+    return <Loader className="size-4 animate-spin text-white" />;
+  };
 
   return (
-    <div className="flex items-center gap-2">
-      {stages.map((s, index) => (
-        <div
-          key={s}
-          className={`h-1.5 flex-1 rounded-full transition-colors ${
-            index <= activeIndex ? "bg-green-600" : "bg-white/10"
-          }`}
-        />
+    <div className="flex w-full items-center gap-2">
+      {STAGE_ORDER.map((value, index) => (
+        <Tooltip key={value}>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label={`${STAGE_LABEL[value]} stage`}
+              className={`h-2 flex-1 rounded-full transition-transform duration-200 ease-out will-change-transform hover:scale-120 focus-visible:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                index <= activeIndex
+                  ? "bg-green-600 hover:bg-green-500"
+                  : "bg-white/10 hover:bg-white/30"
+              }`}
+            />
+          </TooltipTrigger>
+          <TooltipContent
+            side="top"
+            sideOffset={8}
+            className="w-[240px] rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-left shadow-xl backdrop-blur-md"
+          >
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                {getStageIcon(value)}
+                <p className="text-sm font-semibold text-white">
+                  {STAGE_LABEL[value]}
+                </p>
+              </div>
+              <p className="text-xs leading-[1.5] whitespace-pre-wrap text-white">
+                {getDescription(value)}
+              </p>
+            </div>
+          </TooltipContent>
+        </Tooltip>
       ))}
     </div>
   );
@@ -113,7 +188,7 @@ function VoteActions({
   const { openModal } = useModal();
   const { publicKey } = useWallet();
   const { isLoading: isLoadingWalletRole } = useWalletRole(
-    publicKey?.toBase58()
+    publicKey?.toBase58(),
   );
   const { data: chainVoteAccount, isLoading: isLoadingChainVoteAccount } =
     useChainVoteAccount(publicKey?.toBase58());
@@ -187,9 +262,7 @@ function DiscussionMessage({ proposalId }: { proposalId: string }) {
         variant="outline"
         className="w-full justify-center border-white/15 bg-white/10 text-sm font-medium text-white/75 hover:text-white"
       >
-        <Link href={getProposalDetailPagePath(proposalId)}>
-          View Details
-        </Link>
+        <Link href={getProposalDetailPagePath(proposalId)}>View Details</Link>
       </AppButton>
     </div>
   );
@@ -212,7 +285,7 @@ function VotingPanel({ proposal }: { proposal: ProposalRecord }) {
           <span className="text-lg font-semibold text-white">
             {getVoteStateLabel(proposal)}
           </span>
-          <div className="w-20">
+          <div className="min-w-28 max-w-36 flex-1">
             <LifecycleStageBar stage={proposal.status} />
           </div>
         </div>
@@ -251,7 +324,6 @@ function VotingPanel({ proposal }: { proposal: ProposalRecord }) {
   );
 }
 
-// Main component
 type ExternalProposalPanelProps = {
   proposal: ProposalRecord;
 };
@@ -261,9 +333,6 @@ export default function ExternalProposalPanel({
 }: ExternalProposalPanelProps) {
   return (
     <div className="flex flex-col gap-6 p-6 lg:flex-row lg:items-stretch xl:gap-8">
-      <div className="w-32 shrink-0 self-stretch flex items-center justify-center">
-        <Spade className="size-15 text-muted/70 animate-pulse" />
-      </div>
       <ProposalInfo proposal={proposal} />
       <div className="lg:ml-auto">
         <VotingPanel proposal={proposal} />
