@@ -141,14 +141,20 @@ function PhaseTable({
   }, [data]);
 
   useEffect(() => {
-    // Keep the open row across refetches; only clear if that row disappeared.
+    // Ignore transient empty results during query-key transitions / loading.
+    // Only clear expansion when we have a real non-empty dataset that no
+    // longer contains the open row.
+    if (isLoading || data.length === 0) {
+      return;
+    }
+
     setExpanded((previous) => {
       const openId = Object.entries(previous).find(([, isOpen]) => isOpen)?.[0];
       if (!openId) return previous;
       if (data.some((proposal) => proposal.id === openId)) return previous;
       return {};
     });
-  }, [data, dataIdsKey]);
+  }, [data, dataIdsKey, isLoading]);
 
   const table = useReactTable({
     data,

@@ -75,6 +75,16 @@ function RemainingTimeCell({ proposal }: { proposal: ProposalRecord }) {
   }
 
   const value = calculateVotingEndsIn(endsAt.toISOString());
+  // After startEpoch, status can stay "discussion" until consensusResult
+  // lands. Don't report the phase as ended while the proposal is still active.
+  if (value === "Ended" && proposal.status === "discussion") {
+    return (
+      <span className="text-sm font-medium text-white/60">
+        Awaiting snapshot
+      </span>
+    );
+  }
+
   return (
     <span className="text-sm font-medium text-white/60">{value || "-"}</span>
   );
