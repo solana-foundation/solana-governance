@@ -12,7 +12,7 @@ Before starting, ensure you have:
 
 1. **Operator keypair** — your Solana keypair used for voting
 2. **Whitelisted status** — your operator pubkey must be added to the program's operator whitelist by the admin
-3. **Rust 1.89.0** — required for dependency compatibility with the jito-tip-router crate chain
+3. **Rust 1.89.0** — the version pinned by the repo's dependency set
    ```bash
    rustup toolchain install 1.89.0
    rustup default 1.89.0
@@ -73,6 +73,7 @@ cargo run --release --bin cli -- \
 - `--backup-snapshots-dir` / `--backup-ledger-dir` — preserve files for manual recovery if needed
 
 **Output:** `meta_merkle-<SLOT>.zip`, written to your `--backup-snapshots-dir` — not the current directory. (The standalone `generate-meta-merkle` subcommand differs: it writes to `--save-path`, which defaults to `./`. Always set it explicitly.)
+
 ---
 
 ## Step 3: Log Merkle Root and Hash
