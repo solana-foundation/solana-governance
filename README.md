@@ -18,7 +18,8 @@ The two tracks weight votes differently. In `svmgov/`, voting power is stake-wei
 | **Vote as a validator** | [Validator Guide](./docs/src/content/svmgov/validators/index.mdx) |
 | **Vote as a staker** | [Staker Guide](./docs/src/content/svmgov/stakers/index.mdx) |
 | **Run the NCN verifier** | [Verifier Service](./ncn/verifier-service/README.md) |
-| **Use the CLI** | [CLI Reference](./docs/src/content/ncn/cli/index.mdx) |
+| **Use the NCN operator CLI** | [NCN CLI Reference](./docs/src/content/ncn/cli/index.mdx) |
+| **Use the svmgov CLI** | [svmgov CLI Reference](./docs/src/content/svmgov/index.mdx) |
 | **Read the full docs** | [Documentation](./docs/) |
 
 ## Project Structure
