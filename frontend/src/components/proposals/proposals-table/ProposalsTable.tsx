@@ -11,7 +11,6 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
-  type OnChangeFn,
 } from "@tanstack/react-table";
 import { Check, ChevronDown } from "lucide-react";
 
@@ -36,7 +35,14 @@ import { AppButton } from "@/components/ui/AppButton";
 import ExternalProposalPanel from "./ExternalProposalPanel";
 import { ProposalStatus } from "@/types";
 import { useProposals } from "@/hooks";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 const TABLE_COLUMNS = columns;
 
@@ -74,35 +80,12 @@ export default function ProposalsTable({ title }: { title: string }) {
 
   const data = useMemo(() => proposalsData || [], [proposalsData]);
 
-  const handleExpandedChange = useCallback<OnChangeFn<ExpandedState>>(
-    (updater) => {
-      setExpanded((previous) => {
-        const nextState =
-          typeof updater === "function" ? updater(previous) : updater ?? {};
-
-        const openEntries = Object.entries(nextState).filter(([, isOpen]) =>
-          Boolean(isOpen)
-        );
-
-        if (openEntries.length === 0) return {};
-
-        const newlyOpened = openEntries.find(
-          ([rowId]) => !getIsExpanded(previous, rowId)
-        );
-        const [rowId] = newlyOpened ?? openEntries[0];
-
-        return { [rowId]: true } satisfies ExpandedState;
-      });
-    },
-    []
-  );
-
+  // Rows expand independently: opening one leaves the others as they are.
   const handleRowToggle = useCallback((rowId: string) => {
-    setExpanded((previous) =>
-      getIsExpanded(previous, rowId)
-        ? {}
-        : ({ [rowId]: true } satisfies ExpandedState)
-    );
+    setExpanded((previous) => ({
+      ...(previous as Record<string, boolean>),
+      [rowId]: !getIsExpanded(previous, rowId),
+    }));
   }, []);
 
   const getDefaultExpanded = useCallback((): ExpandedState => {
@@ -110,15 +93,19 @@ export default function ProposalsTable({ title }: { title: string }) {
       return {};
     }
 
-    return { [data[0].id]: true } satisfies ExpandedState;
+    return { [data[0].publicKey.toBase58()]: true } satisfies ExpandedState;
   }, [data]);
 
+  // Expand the first row once, when the data first arrives on the client.
+  // Guarded by a ref rather than by "no rows are expanded" so that a user who
+  // closes every row doesn't have the first one pop back open.
+  const hasAppliedDefaultExpansion = useRef(false);
   useEffect(() => {
-    // Only expand first row on client side after mount
-    if (data.length > 0 && Object.keys(expanded).length === 0) {
+    if (!hasAppliedDefaultExpansion.current && data.length > 0) {
+      hasAppliedDefaultExpansion.current = true;
       setExpanded(getDefaultExpanded());
     }
-  }, [data, expanded, getDefaultExpanded]);
+  }, [data, getDefaultExpanded]);
 
   const table = useReactTable({
     data,
@@ -134,8 +121,8 @@ export default function ProposalsTable({ title }: { title: string }) {
     getSortedRowModel: getSortedRowModel(),
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
-    onExpandedChange: handleExpandedChange,
-    getRowId: (row) => row.id,
+    onExpandedChange: setExpanded,
+    getRowId: (row) => row.publicKey.toBase58(),
     initialState: {
       pagination: {
         pageSize: 5,
