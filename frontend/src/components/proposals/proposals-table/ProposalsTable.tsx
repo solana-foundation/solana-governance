@@ -36,7 +36,14 @@ import { AppButton } from "@/components/ui/AppButton";
 import ExternalProposalPanel from "./ExternalProposalPanel";
 import { ProposalStatus } from "@/types";
 import { useProposals } from "@/hooks";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 const TABLE_COLUMNS = columns;
 
@@ -60,9 +67,6 @@ const filterOptions: StatusFilter[] = [
   "failed",
 ];
 
-const getIsExpanded = (state: ExpandedState, rowId: string) =>
-  Boolean((state as Record<string, boolean>)[rowId]);
-
 export default function ProposalsTable({ title }: { title: string }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -74,35 +78,27 @@ export default function ProposalsTable({ title }: { title: string }) {
 
   const data = useMemo(() => proposalsData || [], [proposalsData]);
 
+  // Rows expand and collapse independently: apply state changes verbatim
+  // instead of collapsing them down to a single open row.
   const handleExpandedChange = useCallback<OnChangeFn<ExpandedState>>(
     (updater) => {
-      setExpanded((previous) => {
-        const nextState =
-          typeof updater === "function" ? updater(previous) : updater ?? {};
-
-        const openEntries = Object.entries(nextState).filter(([, isOpen]) =>
-          Boolean(isOpen)
-        );
-
-        if (openEntries.length === 0) return {};
-
-        const newlyOpened = openEntries.find(
-          ([rowId]) => !getIsExpanded(previous, rowId)
-        );
-        const [rowId] = newlyOpened ?? openEntries[0];
-
-        return { [rowId]: true } satisfies ExpandedState;
-      });
+      setExpanded((previous) =>
+        typeof updater === "function" ? updater(previous) : (updater ?? {}),
+      );
     },
     []
   );
 
   const handleRowToggle = useCallback((rowId: string) => {
-    setExpanded((previous) =>
-      getIsExpanded(previous, rowId)
-        ? {}
-        : ({ [rowId]: true } satisfies ExpandedState)
-    );
+    setExpanded((previous) => {
+      const next = { ...(previous as Record<string, boolean>) };
+      if (next[rowId]) {
+        delete next[rowId];
+      } else {
+        next[rowId] = true;
+      }
+      return next;
+    });
   }, []);
 
   const getDefaultExpanded = useCallback((): ExpandedState => {
@@ -113,12 +109,15 @@ export default function ProposalsTable({ title }: { title: string }) {
     return { [data[0].id]: true } satisfies ExpandedState;
   }, [data]);
 
+  // Expand the first row once, when data first arrives — never afterwards,
+  // so the user can collapse every row (including the last open one).
+  const didDefaultExpand = useRef(false);
   useEffect(() => {
-    // Only expand first row on client side after mount
-    if (data.length > 0 && Object.keys(expanded).length === 0) {
+    if (data.length > 0 && !didDefaultExpand.current) {
+      didDefaultExpand.current = true;
       setExpanded(getDefaultExpanded());
     }
-  }, [data, expanded, getDefaultExpanded]);
+  }, [data, getDefaultExpanded]);
 
   const table = useReactTable({
     data,
