@@ -7,9 +7,9 @@ A decentralized governance platform enabling Solana validators and stakers to cr
 The Solana Governance System provides two governance tracks:
 
 - **SVM Governance (`svmgov/`)** — Validator and staker proposals with stake-weighted voting, vote overrides for delegated stake, and on-chain finalization
-- **NCN Governance (`ncn/`)** — Node Consensus Network ballot voting with merkle proof verification, operator whitelisting, and a verifier service for automated snapshot processing
+- **NCN Governance (`ncn/`)** — whitelisted operators independently generate stake snapshots and vote on a canonical merkle root, with proof verification and a verifier service for serving proofs
 
-Both tracks use stake weight to determine voting power, ensuring that governance decisions reflect the economic commitments of participants.
+The two tracks weight votes differently. In `svmgov/`, voting power is stake-weighted, and delegators can override their validator's vote with their own stake. In `ncn/`, all whitelisted operators have equal voting weight — the consensus threshold is a percentage of operators, not of stake. The NCN track establishes *which* stake snapshot is canonical; `svmgov` then uses that snapshot to weight proposal votes.
 
 ## Quick Start
 
