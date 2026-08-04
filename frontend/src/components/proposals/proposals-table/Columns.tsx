@@ -22,12 +22,19 @@ function getPhaseEndEpoch(
   proposal: ProposalRecord,
   supportEndEpoch: number | undefined,
   discussionEndEpoch: number | undefined,
+  snapshotEpoch: number | undefined,
 ): number | undefined {
   switch (proposal.status) {
     case "supporting":
       return supportEndEpoch;
     case "discussion":
-      return discussionEndEpoch;
+      // Discussion lasts until voting starts. When support already succeeded,
+      // that boundary is on-chain startEpoch (includes snapshot epochs after
+      // discussionEndEpoch). Fall back to snapshot/discussion bounds otherwise.
+      if (proposal.startEpoch > 0) {
+        return proposal.startEpoch;
+      }
+      return snapshotEpoch ?? discussionEndEpoch;
     case "voting":
       return proposal.endEpoch || undefined;
     default:
@@ -50,6 +57,7 @@ function RemainingTimeCell({ proposal }: { proposal: ProposalRecord }) {
     proposal,
     phaseEpochs?.supportEndEpoch,
     phaseEpochs?.discussionEndEpoch,
+    phaseEpochs?.snapshotEpoch,
   );
 
   const { data: endsAt, isLoading } = useEpochToDate(endEpoch);

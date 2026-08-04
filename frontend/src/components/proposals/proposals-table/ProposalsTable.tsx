@@ -127,17 +127,28 @@ function PhaseTable({
     );
   }, []);
 
-  useEffect(() => {
-    hasInitializedExpand.current = false;
-    setExpanded({});
-  }, [data]);
+  const dataIdsKey = useMemo(
+    () => data.map((proposal) => proposal.id).join(","),
+    [data],
+  );
 
   useEffect(() => {
+    // Expand the first row once when this phase table first has data.
     if (!hasInitializedExpand.current && data.length > 0) {
       hasInitializedExpand.current = true;
       setExpanded({ [data[0].id]: true } satisfies ExpandedState);
     }
   }, [data]);
+
+  useEffect(() => {
+    // Keep the open row across refetches; only clear if that row disappeared.
+    setExpanded((previous) => {
+      const openId = Object.entries(previous).find(([, isOpen]) => isOpen)?.[0];
+      if (!openId) return previous;
+      if (data.some((proposal) => proposal.id === openId)) return previous;
+      return {};
+    });
+  }, [data, dataIdsKey]);
 
   const table = useReactTable({
     data,
