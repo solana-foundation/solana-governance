@@ -1199,7 +1199,7 @@ fn main() -> Result<()> {
                 backup_snapshots_dir,
             } = cli.get_snapshot_paths();
 
-            let _ = get_bank_from_ledger(
+            if let Err(e) = get_bank_from_ledger(
                 cli.operator_address,
                 &ledger_path,
                 account_paths,
@@ -1209,7 +1209,11 @@ fn main() -> Result<()> {
                 save_snapshot,
                 backup_snapshots_dir,
                 &cli.cluster,
-            );
+            ) {
+                return Err(anyhow!(
+                    "get_bank_from_ledger FAILED: {:?}", e
+                ));
+            }
         }
         Commands::GenerateMetaMerkle {
             slot,
@@ -1420,7 +1424,7 @@ fn main() -> Result<()> {
                         );
                         let save_snapshot = true;
                         let account_paths = vec![backup_ledger_dir.clone()];
-                        let _ = get_bank_from_ledger(
+                        if let Err(e) = get_bank_from_ledger(
                             cli.operator_address,
                             &backup_ledger_dir,
                             account_paths,
@@ -1430,7 +1434,11 @@ fn main() -> Result<()> {
                             save_snapshot,
                             backup_snapshots_dir.clone(),
                             &cli.cluster,
-                        );
+                        ) {
+                            return Err(anyhow!(
+                                "get_bank_from_ledger FAILED: {:?}", e
+                            ));
+                        }
 
                         if generate_meta_merkle {
                             info!("Generating MetaMerkleSnapshot for slot {}...", slot);
