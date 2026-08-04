@@ -24,7 +24,7 @@ The 40 GB minimum matches the AWS gp3 sizing in step 1; provision more headroom 
 - **SSL/TLS:** If not using Cloudflare or AWS ALB, configure a reverse proxy (nginx or caddy) with [Let's Encrypt](https://letsencrypt.org/) for HTTPS termination
 - **DNS:** Point your verifier domain to your server's public IP via an A record
 - **Firewall:** Open ports 80 (HTTP, required for Let's Encrypt HTTP-01 challenge and HTTP→HTTPS redirects) and 443 (HTTPS) and any custom ports for the verifier API. Restrict SSH (port 22) to known IPs
-- **Process management:** The recommended Docker deployment (`setup.sh`) already uses `--restart unless-stopped`, so Docker handles crash and reboot recovery. Only if you run the binary natively do you need a systemd unit — see [Process Management](#process-management) below for a working unit file
+- **Process management:** The recommended Docker deployment (`setup.sh`) already uses `--restart unless-stopped`, so Docker handles crash and reboot recovery. A systemd unit is only needed if you run the binary natively
 - **Bare metal / VPS providers:** Tested on Leaseweb. Any provider with the above specs will work
 
 ### Prerequisites
