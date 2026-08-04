@@ -18,12 +18,7 @@ Before starting, ensure you have:
    rustup default 1.89.0
    rustc --version  # verify: rustc 1.89.0
    ```
-4. **jito-tip-router dependency** — clone the exo-tech-xyz fork (required for NCN snapshot integration):
-   ```bash
-   git clone https://github.com/exo-tech-xyz/jito-tip-router.git ../jito-tip-router
-   cd ../jito-tip-router && git checkout ncn-snapshot && cd ../ncn-snapshot
-   ```
-5. **Running validator** with access to ledger data at a known path (e.g., `/mnt/ledger`)
+4. **Running validator** with access to ledger data at a known path (e.g., `/mnt/ledger`)
 
 ---
 
@@ -73,12 +68,11 @@ cargo run --release --bin cli -- \
 ```
 
 **Key flags:**
-- `--scan-interval 1` — check every second for the target slot
+- `--scan-interval 1` — minutes between directory scans, not seconds. Keep this tight: the validator rotates and purges the incremental snapshot you need, often within ~90 minutes of the slot passing.
 - `--generate-meta-merkle` — automatically generate the MetaMerkleSnapshot after the ledger snapshot is created
 - `--backup-snapshots-dir` / `--backup-ledger-dir` — preserve files for manual recovery if needed
 
-**Output:** A file named `meta_merkle-<SLOT>.zip` in your current directory.
-
+**Output:** `meta_merkle-<SLOT>.zip`, written to your `--backup-snapshots-dir` — not the current directory. (The standalone `generate-meta-merkle` subcommand differs: it writes to `--save-path`, which defaults to `./`. Always set it explicitly.)
 ---
 
 ## Step 3: Log Merkle Root and Hash
@@ -87,11 +81,13 @@ Extract the merkle root and snapshot hash from your generated snapshot:
 
 ```bash
 RUST_LOG=info cargo run --bin cli -- \
-  --authority-path ~/.config/solana/id.json \
+  --authority-path <OPERATOR_KEYPAIR> \
   log-meta-merkle-hash \
-  --read-path ./meta_merkle-<TARGET_SLOT>.zip \
+  --read-path <BACKUP_SNAPSHOTS_DIR>/meta_merkle-<TARGET_SLOT>.zip \
   --is-compressed
 ```
+
+`--authority-path` must be your **whitelisted operator keypair** — not your validator's node identity. `cast-vote` requires the signer to be present in `ballot_box.voter_list`, so the wrong key fails with `OperatorNotWhitelisted`.
 
 **Save the output** — you'll need the `root` and `hash` values for voting.
 
@@ -103,18 +99,18 @@ RUST_LOG=info cargo run --bin cli -- \
 ```bash
 RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
-  --authority-path ~/.config/solana/id.json \
+  --authority-path <OPERATOR_KEYPAIR> \
   --rpc-url <YOUR_RPC_URL> \
   cast-vote-from-snapshot \
   --snapshot-slot <TARGET_SLOT> \
-  --read-path ./meta_merkle-<TARGET_SLOT>.zip
+  --read-path <BACKUP_SNAPSHOTS_DIR>/meta_merkle-<TARGET_SLOT>.zip
 ```
 
 **Option B — Vote with root + hash directly:**
 ```bash
 RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
-  --authority-path ~/.config/solana/id.json \
+  --authority-path <OPERATOR_KEYPAIR> \
   --rpc-url <YOUR_RPC_URL> \
   cast-vote \
   --snapshot-slot <TARGET_SLOT> \
@@ -146,7 +142,7 @@ Once consensus is reached (enough operators voted for the same ballot):
 ```bash
 RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
-  --authority-path ~/.config/solana/id.json \
+  --authority-path <OPERATOR_KEYPAIR> \
   --rpc-url <YOUR_RPC_URL> \
   finalize-ballot \
   --snapshot-slot <TARGET_SLOT>
@@ -158,12 +154,14 @@ Any signer can finalize — it just creates the `ConsensusResult` account on-cha
 
 ## Removing a Vote
 
-If you need to change your vote before consensus is reached:
+Two conditions must both hold: consensus must not yet be reached, **and** the ballot box's `vote_expiry_timestamp` must not have passed. The expiry is set when the BallotBox is created, from `ProgramConfig.vote_duration`, so read it with `log --ty ballot-box` rather than assuming a fixed window.
+
+After expiry, votes can be neither cast nor removed. If consensus was never reached, the `tie_breaker_admin` may then select any ballot value to preserve liveness.
 
 ```bash
 RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
-  --authority-path ~/.config/solana/id.json \
+  --authority-path <OPERATOR_KEYPAIR> \
   --rpc-url <YOUR_RPC_URL> \
   remove-vote \
   --snapshot-slot <TARGET_SLOT>
