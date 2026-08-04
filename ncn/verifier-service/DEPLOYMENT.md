@@ -186,7 +186,15 @@ The verifier service provides these monitoring surfaces:
 - `GET /healthz` — liveness check (no auth)
 - `GET /version` — crate version and git hash
 - `GET /meta` — metadata for the most recent snapshot, including its slot
-- `GET /metrics` — requires the `x-metrics-token` header; returns `upload_total` (by outcome), `proofs_not_found_total` (by proof kind), and `free_storage_mb` (absolute free space in MB at the data path, from [`src/metrics.rs`](./src/metrics.rs))
+- `GET /admin/stats` — requires the `x-metrics-token` header, matched against the `METRICS_AUTH_TOKEN` environment variable. Returns `401` if the token is missing or wrong, and `503` if `METRICS_AUTH_TOKEN` is unset on the service. Response shape (from [`src/metrics.rs`](./src/metrics.rs)):
+
+  - `upload_total` — array of `{outcome, count}`; outcomes are `success`, `bad_request`, `unauthorized`, `internal`
+  - `proofs_not_found_total` — array of `{kind, count}`; kinds are `vote`, `stake`
+  - `storage.free_storage_mb` — free space in MB on the filesystem holding `DB_PATH`
+  - `storage.db_size_mb` — current size of the SQLite database
+  - `storage.db_path` — resolved database path
+
+  Note the storage fields are nested under `storage`, not top level.
 
 ### Recommended Alerts
 
@@ -196,10 +204,11 @@ All conditions below are derivable from the endpoints above plus container statu
 |-------|--------|-----------|----------|
 | Service down | `docker ps` / `/healthz` | Container not running or `/healthz` failing for >5 min | Critical |
 | Snapshot stale | `/meta` | Most recent snapshot slot older than ~2 epochs behind cluster tip | Warning |
-| Upload errors | `/metrics` `upload_total` | Error-outcome count increases across consecutive scrape intervals | Warning |
-| Low disk | `/metrics` `free_storage_mb` | Free space below a fixed floor (e.g., < 20480 MB) | Warning |
+| Upload errors | `/admin/stats` `upload_total` | Error-outcome count increases across consecutive scrape intervals | Warning |
+| Low disk | `/admin/stats` `storage.free_storage_mb` | Free space below a fixed floor (e.g., < 20480 MB) | Warning |
+| DB growth | `/admin/stats` `storage.db_size_mb` | Sustained growth beyond expected snapshot retention | Info |
 
-Note: `free_storage_mb` is an absolute value, not a percentage — set the threshold against your provisioned volume size. Upload errors are cumulative counters; alert on the delta between scrapes rather than a "consecutive failures" count, which the service does not track.
+Note: `storage.free_storage_mb` is an absolute value, not a percentage — set the threshold against your provisioned volume size. The counters are cumulative and held in process memory, so a container restart zeroes them: alert on the delta between scrapes rather than a "consecutive failures" count, which the service does not track, and treat a counter going backwards as a restart rather than an error.
 
 ### Logging
 
