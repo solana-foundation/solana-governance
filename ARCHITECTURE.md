@@ -31,7 +31,8 @@ graph TB
 
     SVMCLI -->|"create proposal / cast vote / finalize"| SVMGOV
     NCNCLI -->|"cast vote / verify proof"| NCN
-    VS -->|"process snapshot → upload merkle proof"| NCN
+    NCNCLI -->|"generate snapshot → sign + upload"| VS
+    VS -->|"serve proofs to voters and UIs"| FE
     ROUTER -->|"automated ballot management"| NCN
     FE -->|"read proposals, votes, quorum"| RPC
     RPC -->|"on-chain state"| SVMGOV
@@ -60,19 +61,19 @@ Governance for the Node Consensus Network — a subset of whitelisted operators.
 |-----------|----------|---------|
 | **Program** | `ncn/programs/ncn-snapshot/` | On-chain program — ballot boxes, merkle proof verification, operator whitelisting |
 | **CLI** | `ncn/cli/` | Command-line interface for casting NCN votes and verifying proofs |
-| **Verifier Service** | `ncn/verifier-service/` | Off-chain service that processes epoch snapshots and uploads merkle proofs on-chain |
+| **Verifier Service** | `ncn/verifier-service/` | Off-chain service that indexes operator-uploaded snapshots and serves merkle proofs over HTTP. It does not write on-chain |
 | **Router** | `ncn-router/` | Cron-based automation for ballot management and routing |
 
-**Flow:** Verifier service downloads epoch snapshot → generates merkle tree → uploads proof on-chain → operators vote via CLI → ballot finalized when quorum reached.
+**Flow:** Each whitelisted operator independently generates a snapshot at the target slot → casts a vote for its merkle root via CLI → when enough operators agree, `finalize_ballot` writes the `ConsensusResult` on-chain → operators upload their snapshot to a verifier service, which serves proofs against the finalized root.
 
 ## Data Flow
 
-1. **Epoch snapshot** — The verifier service fetches a snapshot of validator stake at a specific epoch
-2. **Merkle tree generation** — Snapshot data is hashed into a merkle tree, producing a root hash and per-validator proofs
-3. **On-chain upload** — The merkle root is uploaded to the NCN program as a verifiable commitment
-4. **Proof verification** — When a validator votes, their merkle proof is verified against the on-chain root to confirm their inclusion and stake weight
-5. **Vote aggregation** — Votes accumulate in a ballot box, weighted by stake
-6. **Finalization** — When quorum is reached, the proposal outcome is finalized on-chain
+1. **Independent snapshot generation** — Each whitelisted operator replays the ledger to the target slot and builds its own MetaMerkleSnapshot
+2. **Merkle tree** — Two-tier: a top-level tree over vote accounts, each leaf carrying a sub-root over that validator's stake accounts
+3. **Operator voting** — Each operator casts its merkle root and snapshot hash into the `BallotBox` via `cast_vote`. All whitelisted operators carry equal weight
+4. **Consensus** — Once `min_consensus_threshold_bps` of operators agree on the same ballot, `finalize_ballot` creates the on-chain `ConsensusResult`
+5. **Proof service** — Operators upload their snapshots to verifier services, which serve per-account proofs against the finalized root
+6. **Verification** — `verify_merkle_proof` checks a vote-account or stake-account leaf against the `ConsensusResult` root, typically via CPI from the governance program
 
 ## Glossary
 
@@ -87,9 +88,9 @@ Governance for the Node Consensus Network — a subset of whitelisted operators.
 | **NCN** | Node Consensus Network — a subset of whitelisted validators participating in merkle-proof governance |
 | **Operator Whitelist** | On-chain list of authorized NCN operators who can participate in ballot voting |
 | **Proposal** | A governance action submitted for validator/staker voting, with defined phases and quorum requirements |
-| **Quorum** | Minimum stake weight required for a proposal to pass or be finalized |
+| **Quorum** | In `svmgov`, the stake-weighted threshold a proposal must reach. In NCN, `min_consensus_threshold_bps` — the share of whitelisted operators that must agree on a ballot |
 | **Stake Weight** | A validator's voting power, determined by their active stake delegation |
 | **Support Phase** | Initial phase where validators signal support for a proposal before formal voting begins |
 | **SVM Governance** | The primary governance track using Solana's stake-weighted voting for all validators and stakers |
-| **Verifier Service** | Off-chain service that processes epoch snapshots and uploads merkle proofs to the NCN program |
+| **Verifier Service** | Off-chain service that indexes operator-uploaded snapshots and serves merkle proofs over HTTP; it does not publish on-chain |
 | **Vote Override** | Mechanism allowing stakers to override their delegated validator's vote on a proposal |
