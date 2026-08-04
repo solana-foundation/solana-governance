@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  ColumnDef,
   ColumnFiltersState,
   ExpandedState,
   SortingState,
@@ -15,7 +16,7 @@ import {
 } from "@tanstack/react-table";
 import { Check, ChevronDown } from "lucide-react";
 
-import { columns } from "./Columns";
+import { supportColumns, votingColumns } from "./Columns";
 import {
   Table,
   TableBody,
@@ -34,11 +35,16 @@ import {
 import { Pagination } from "@/components/ui/AppPagniation";
 import { AppButton } from "@/components/ui/AppButton";
 import ExternalProposalPanel from "./ExternalProposalPanel";
-import { ProposalStatus } from "@/types";
+import { ProposalRecord, ProposalStatus } from "@/types";
 import { useProposals } from "@/hooks";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-
-const TABLE_COLUMNS = columns;
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 type StatusFilter = "all" | ProposalStatus;
 
@@ -51,11 +57,11 @@ const STATUS_FILTER_LABELS: Record<StatusFilter, string> = {
   failed: "Failed",
 };
 
-const filterOptions: StatusFilter[] = [
+const SUPPORT_FILTER_OPTIONS: StatusFilter[] = ["all", "supporting"];
+const VOTING_FILTER_OPTIONS: StatusFilter[] = [
   "all",
-  "supporting",
-  "discussion",
   "voting",
+  "discussion",
   "finalized",
   "failed",
 ];
@@ -63,16 +69,32 @@ const filterOptions: StatusFilter[] = [
 const getIsExpanded = (state: ExpandedState, rowId: string) =>
   Boolean((state as Record<string, boolean>)[rowId]);
 
-export default function ProposalsTable({ title }: { title: string }) {
+type PhaseTableProps = {
+  title: string;
+  data: ProposalRecord[];
+  columns: ColumnDef<ProposalRecord>[];
+  filterOptions: StatusFilter[];
+  isLoading: boolean;
+  showEligibleOnly: boolean;
+  onShowEligibleOnlyChange: (value: boolean) => void;
+  showEligibleToggle?: boolean;
+};
+
+function PhaseTable({
+  title,
+  data,
+  columns,
+  filterOptions,
+  isLoading,
+  showEligibleOnly,
+  onShowEligibleOnlyChange,
+  showEligibleToggle = false,
+}: PhaseTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [expanded, setExpanded] = useState<ExpandedState>({});
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [showEligibleOnly, setShowEligibleOnly] = useState(false);
-
-  const { data: proposalsData, isLoading: isLoadingProposals } = useProposals();
-
-  const data = useMemo(() => proposalsData || [], [proposalsData]);
+  const hasInitializedExpand = useRef(false);
 
   const handleExpandedChange = useCallback<OnChangeFn<ExpandedState>>(
     (updater) => {
@@ -81,48 +103,45 @@ export default function ProposalsTable({ title }: { title: string }) {
           typeof updater === "function" ? updater(previous) : updater ?? {};
 
         const openEntries = Object.entries(nextState).filter(([, isOpen]) =>
-          Boolean(isOpen)
+          Boolean(isOpen),
         );
 
         if (openEntries.length === 0) return {};
 
         const newlyOpened = openEntries.find(
-          ([rowId]) => !getIsExpanded(previous, rowId)
+          ([rowId]) => !getIsExpanded(previous, rowId),
         );
         const [rowId] = newlyOpened ?? openEntries[0];
 
         return { [rowId]: true } satisfies ExpandedState;
       });
     },
-    []
+    [],
   );
 
   const handleRowToggle = useCallback((rowId: string) => {
     setExpanded((previous) =>
       getIsExpanded(previous, rowId)
         ? {}
-        : ({ [rowId]: true } satisfies ExpandedState)
+        : ({ [rowId]: true } satisfies ExpandedState),
     );
   }, []);
 
-  const getDefaultExpanded = useCallback((): ExpandedState => {
-    if (data.length === 0) {
-      return {};
-    }
-
-    return { [data[0].id]: true } satisfies ExpandedState;
+  useEffect(() => {
+    hasInitializedExpand.current = false;
+    setExpanded({});
   }, [data]);
 
   useEffect(() => {
-    // Only expand first row on client side after mount
-    if (data.length > 0 && Object.keys(expanded).length === 0) {
-      setExpanded(getDefaultExpanded());
+    if (!hasInitializedExpand.current && data.length > 0) {
+      hasInitializedExpand.current = true;
+      setExpanded({ [data[0].id]: true } satisfies ExpandedState);
     }
-  }, [data, expanded, getDefaultExpanded]);
+  }, [data]);
 
   const table = useReactTable({
     data,
-    columns: TABLE_COLUMNS,
+    columns,
     state: {
       sorting,
       columnFilters,
@@ -147,10 +166,10 @@ export default function ProposalsTable({ title }: { title: string }) {
     setSorting([]);
     setColumnFilters([]);
     setStatusFilter("all");
-    setShowEligibleOnly(false);
-    setExpanded(getDefaultExpanded());
+    onShowEligibleOnlyChange(false);
+    setExpanded({});
     table.setPageIndex(0);
-  }, [getDefaultExpanded, table]);
+  }, [onShowEligibleOnlyChange, table]);
 
   useEffect(() => {
     if (statusFilter !== "all") {
@@ -167,21 +186,23 @@ export default function ProposalsTable({ title }: { title: string }) {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-5 text-xs text-white/70">
           <h3 className="h3 font-semibold tracking-wide text-white">{title}</h3>
-          <label className="inline-flex items-center gap-2 font-medium text-sm">
-            <span className="relative flex size-4 items-center justify-center">
-              <input
-                type="checkbox"
-                checked={showEligibleOnly}
-                onChange={(e) => setShowEligibleOnly(e.target.checked)}
-                className="peer size-full appearance-none rounded border border-white/20 bg-transparent transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 checked:border-primary/80 checked:bg-primary/90"
-              />
-              <Check
-                strokeWidth={3}
-                className="pointer-events-none absolute size-3 text-black opacity-0 transition-opacity peer-checked:opacity-100"
-              />
-            </span>
-            My Eligible Proposals
-          </label>
+          {showEligibleToggle ? (
+            <label className="inline-flex items-center gap-2 font-medium text-sm">
+              <span className="relative flex size-4 items-center justify-center">
+                <input
+                  type="checkbox"
+                  checked={showEligibleOnly}
+                  onChange={(e) => onShowEligibleOnlyChange(e.target.checked)}
+                  className="peer size-full appearance-none rounded border border-white/20 bg-transparent transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 checked:border-primary/80 checked:bg-primary/90"
+                />
+                <Check
+                  strokeWidth={3}
+                  className="pointer-events-none absolute size-3 text-black opacity-0 transition-opacity peer-checked:opacity-100"
+                />
+              </span>
+              My Eligible Proposals
+            </label>
+          ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-3 text-xs text-white/70">
           <div className="hidden sm:block">
@@ -247,7 +268,7 @@ export default function ProposalsTable({ title }: { title: string }) {
                       ? null
                       : flexRender(
                           header.column.columnDef.header,
-                          header.getContext()
+                          header.getContext(),
                         )}
                   </TableHead>
                 ))}
@@ -256,7 +277,7 @@ export default function ProposalsTable({ title }: { title: string }) {
           </TableHeader>
           <TableBody>
             {(() => {
-              if (isLoadingProposals) {
+              if (isLoading) {
                 return (
                   <>
                     {[...Array(4)].map((_, i) => (
@@ -309,14 +330,14 @@ export default function ProposalsTable({ title }: { title: string }) {
                       <TableCell
                         key={cell.id}
                         className={`py-5 px-6 ${
-                          cell.column.id === "simd"
+                          cell.column.id === "proposal"
                             ? "text-left"
                             : "text-center"
                         }`}
                       >
                         {flexRender(
                           cell.column.columnDef.cell,
-                          cell.getContext()
+                          cell.getContext(),
                         )}
                       </TableCell>
                     ))}
@@ -365,6 +386,52 @@ export default function ProposalsTable({ title }: { title: string }) {
           </TableBody>
         </Table>
       </div>
+    </div>
+  );
+}
+
+export default function ProposalsTable({ title: _title }: { title: string }) {
+  const [showEligibleOnly, setShowEligibleOnly] = useState(false);
+  const { data: proposalsData, isLoading: isLoadingProposals } = useProposals();
+
+  const data = useMemo(() => proposalsData || [], [proposalsData]);
+
+  const supportData = useMemo(
+    () => data.filter((proposal) => proposal.status === "supporting"),
+    [data],
+  );
+
+  const votingData = useMemo(
+    () =>
+      data.filter((proposal) =>
+        ["voting", "discussion", "finalized", "failed"].includes(
+          proposal.status,
+        ),
+      ),
+    [data],
+  );
+
+  return (
+    <div className="space-y-12">
+      <PhaseTable
+        title="Support Phase Proposals"
+        data={supportData}
+        columns={supportColumns}
+        filterOptions={SUPPORT_FILTER_OPTIONS}
+        isLoading={isLoadingProposals}
+        showEligibleOnly={showEligibleOnly}
+        onShowEligibleOnlyChange={setShowEligibleOnly}
+        showEligibleToggle
+      />
+      <PhaseTable
+        title="Voting Phase Proposals"
+        data={votingData}
+        columns={votingColumns}
+        filterOptions={VOTING_FILTER_OPTIONS}
+        isLoading={isLoadingProposals}
+        showEligibleOnly={showEligibleOnly}
+        onShowEligibleOnlyChange={setShowEligibleOnly}
+      />
     </div>
   );
 }
