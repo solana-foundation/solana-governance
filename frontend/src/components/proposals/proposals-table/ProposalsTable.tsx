@@ -128,7 +128,7 @@ function PhaseTable({
   }, []);
 
   const dataIdsKey = useMemo(
-    () => data.map((proposal) => proposal.id).join(","),
+    () => data.map((proposal) => proposal.publicKey.toBase58()).join(","),
     [data],
   );
 
@@ -136,7 +136,9 @@ function PhaseTable({
     // Expand the first row once when this phase table first has data.
     if (!hasInitializedExpand.current && data.length > 0) {
       hasInitializedExpand.current = true;
-      setExpanded({ [data[0].id]: true } satisfies ExpandedState);
+      setExpanded({
+        [data[0].publicKey.toBase58()]: true,
+      } satisfies ExpandedState);
     }
   }, [data]);
 
@@ -151,7 +153,11 @@ function PhaseTable({
     setExpanded((previous) => {
       const openId = Object.entries(previous).find(([, isOpen]) => isOpen)?.[0];
       if (!openId) return previous;
-      if (data.some((proposal) => proposal.id === openId)) return previous;
+      if (
+        data.some((proposal) => proposal.publicKey.toBase58() === openId)
+      ) {
+        return previous;
+      }
       return {};
     });
   }, [data, dataIdsKey, isLoading]);
@@ -171,7 +177,7 @@ function PhaseTable({
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onExpandedChange: handleExpandedChange,
-    getRowId: (row) => row.id,
+    getRowId: (row) => row.publicKey.toBase58(),
     initialState: {
       pagination: {
         pageSize: 5,
