@@ -102,4 +102,53 @@ describe("computeSupportStats", () => {
     expect(stats.progressPercent).toBeCloseTo(200, 10);
     expect(stats.isThresholdMet).toBe(true);
   });
+
+  describe("thresholdCrossed (on-chain verdict)", () => {
+    it("overrides a live estimate that falls just short", () => {
+      // The program measured the crossing against the epoch-stakes total of the
+      // crossing epoch, which the RPC does not expose. Live stake has since
+      // grown, so a proposal the chain already advanced computes to ~99.9%
+      // with tens of thousands of SOL "missing".
+      const stats = computeSupportStats({
+        ...base,
+        currentSupportLamports: TOTAL * 0.1499,
+        thresholdCrossed: true,
+      });
+      expect(stats.isThresholdMet).toBe(true);
+      expect(stats.progressPercent).toBe(100);
+      expect(stats.remainingLamports).toBe(0);
+    });
+
+    it("reports met even while live stake is unknown", () => {
+      // The chain's verdict does not depend on the validator query resolving.
+      const stats = computeSupportStats({
+        ...base,
+        totalStakedLamports: 0,
+        thresholdCrossed: true,
+      });
+      expect(stats.isThresholdMet).toBe(true);
+      expect(stats.progressPercent).toBe(100);
+      expect(stats.remainingLamports).toBe(0);
+    });
+
+    it("does not cap live progress that already exceeds 100%", () => {
+      const stats = computeSupportStats({
+        ...base,
+        currentSupportLamports: TOTAL * 0.3,
+        thresholdCrossed: true,
+      });
+      expect(stats.progressPercent).toBeCloseTo(200, 10);
+    });
+
+    it("changes nothing while the proposal has not crossed", () => {
+      const stats = computeSupportStats({
+        ...base,
+        currentSupportLamports: TOTAL * 0.1499,
+        thresholdCrossed: false,
+      });
+      expect(stats.isThresholdMet).toBe(false);
+      expect(stats.progressPercent).toBeCloseTo(99.9333, 3);
+      expect(stats.remainingLamports).toBeCloseTo(TOTAL * 0.0001, 0);
+    });
+  });
 });

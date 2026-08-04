@@ -5,6 +5,14 @@ export interface SupportStatsInput {
   thresholdPercent: number;
   validatorCount: number;
   numOfValidators: number;
+  /**
+   * On-chain record that the threshold was crossed (`proposal.voting`, set by
+   * the program's `activate_voting`). The program measured against the
+   * epoch-stakes total of the crossing epoch, which the RPC does not expose,
+   * so the live-stake math below can disagree — a proposal that barely crossed
+   * renders as ~99.9% otherwise. When set, the account's verdict wins.
+   */
+  thresholdCrossed?: boolean;
 }
 
 export interface SupportStats {
@@ -32,24 +40,30 @@ export function computeSupportStats({
   thresholdPercent,
   validatorCount,
   numOfValidators,
+  thresholdCrossed = false,
 }: SupportStatsInput): SupportStats {
   const requiredThresholdLamports =
     totalStakedLamports * (thresholdPercent / 100);
 
-  const progressPercent =
+  const liveProgressPercent =
     requiredThresholdLamports > 0
       ? (currentSupportLamports / requiredThresholdLamports) * 100
       : 0;
+
+  // A crossed proposal is never shown below 100%, even when the live estimate
+  // disagrees with the frozen on-chain tally.
+  const progressPercent = thresholdCrossed
+    ? Math.max(liveProgressPercent, 100)
+    : liveProgressPercent;
 
   const supportPercentOfTotal =
     totalStakedLamports > 0
       ? (currentSupportLamports / totalStakedLamports) * 100
       : 0;
 
-  const remainingLamports = Math.max(
-    0,
-    requiredThresholdLamports - currentSupportLamports,
-  );
+  const remainingLamports = thresholdCrossed
+    ? 0
+    : Math.max(0, requiredThresholdLamports - currentSupportLamports);
 
   // Gate on total stake, not on the derived threshold: a zero threshold has two
   // very different causes. Stake not loaded yet means nothing is known, and
@@ -57,8 +71,9 @@ export function computeSupportStats({
   // program permits 0..=10000 bps) genuinely is satisfied by any support, which
   // is what the on-chain check does, so it must still report met.
   const isThresholdMet =
-    totalStakedLamports > 0 &&
-    currentSupportLamports >= requiredThresholdLamports;
+    thresholdCrossed ||
+    (totalStakedLamports > 0 &&
+      currentSupportLamports >= requiredThresholdLamports);
 
   const participationPercent =
     numOfValidators > 0 ? (validatorCount / numOfValidators) * 100 : 0;

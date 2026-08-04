@@ -83,6 +83,12 @@ export function SupportPhaseProgress({ proposal }: SupportPhaseProgressProps) {
 
   const configData = governanceConfigQuery.data;
 
+  // The on-chain record that the support threshold was crossed. The program
+  // measured it against the epoch-stakes total of the crossing epoch, which the
+  // RPC does not expose, so recomputing from live stake can disagree (a
+  // proposal that barely crossed renders as ~99.9%). The account's verdict wins.
+  const thresholdCrossed = proposal.voting || proposal.finalized;
+
   const stats = useMemo(
     () =>
       computeSupportStats({
@@ -93,12 +99,14 @@ export function SupportPhaseProgress({ proposal }: SupportPhaseProgressProps) {
         thresholdPercent: supportThresholdPercentFromConfig(configData),
         validatorCount: supportAccounts.length,
         numOfValidators,
+        thresholdCrossed,
       }),
     [
       configData,
       numOfValidators,
       proposal.clusterSupportLamports,
       supportAccounts.length,
+      thresholdCrossed,
       validatorsStake,
     ],
   );
