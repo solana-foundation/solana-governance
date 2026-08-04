@@ -1,0 +1,4 @@
+allowBuilds:
+  sharp: true
+overrides:
+  zod: 4.3.6

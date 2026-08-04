@@ -1,17 +1,14 @@
 export default {
   index: {
-    display: 'hidden',
+    title: 'Introduction',
   },
   ncn: {
     title: 'NCN',
-    type: 'page',
   },
   svmgov: {
     title: 'svmgov',
-    type: 'page',
   },
   reference: {
     title: 'Reference',
-    type: 'page',
   },
 };
