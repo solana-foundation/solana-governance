@@ -17,14 +17,14 @@ While this guide uses AWS as the reference deployment, the verifier service runs
 | Network | 100 Mbps | 1 Gbps |
 | OS | Ubuntu 22.04+ | Ubuntu 24.04 LTS |
 
-The 40 GB minimum matches the AWS gp3 sizing in step 1; provision more headroom on providers without elastic volume expansion.
+The 40 GB minimum matches the AWS gp3 sizing in step 1; provision more headroom on providers without elastic volume expansion. Storage grows with the database and retained snapshot uploads: `governance.db` reaches a few GB over months of operation, and each uploaded MetaMerkleSnapshot is up to the `UPLOAD_BODY_LIMIT` (100 MB default). Monitor `storage.free_storage_mb` via `/admin/stats`.
 
 ### Non-AWS Deployment Notes
 
 - **SSL/TLS:** If not using Cloudflare or AWS ALB, configure a reverse proxy (nginx or caddy) with [Let's Encrypt](https://letsencrypt.org/) for HTTPS termination
 - **DNS:** Point your verifier domain to your server's public IP via an A record
 - **Firewall:** Open ports 80 (HTTP, required for Let's Encrypt HTTP-01 challenge and HTTP→HTTPS redirects) and 443 (HTTPS) and any custom ports for the verifier API. Restrict SSH (port 22) to known IPs
-- **Process management:** Run the service as a systemd unit with `Restart=on-failure` so it recovers automatically after crashes or reboots
+- **Process management:** The recommended Docker deployment (`setup.sh`) already uses `--restart unless-stopped`, so Docker handles crash and reboot recovery. Only if you run the binary natively do you need a systemd unit — see [Process Management](#process-management) below for a working unit file
 - **Bare metal / VPS providers:** Tested on Leaseweb. Any provider with the above specs will work
 
 ### Prerequisites
