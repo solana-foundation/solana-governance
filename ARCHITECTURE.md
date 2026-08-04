@@ -31,7 +31,8 @@ graph TB
 
     SVMCLI -->|"create proposal / cast vote / finalize"| SVMGOV
     NCNCLI -->|"cast vote / verify proof"| NCN
-    NCNCLI -->|"generate snapshot → sign + upload"| VS
+    NCNCLI -->|"generate snapshot + sign hash"| OP["Operator"]
+    OP -->|"signed HTTP POST /upload"| VS
     VS -->|"serve proofs to voters and UIs"| FE
     ROUTER -->|"automated ballot management"| NCN
     FE -->|"read proposals, votes, quorum"| RPC
