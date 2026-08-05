@@ -95,6 +95,8 @@ impl<'info> RetallySupport<'info> {
             get_epoch_total_stake(),
             self.global_config.cluster_support_pct_min_bps,
         )?;
+        self.proposal.support_threshold = cluster_min_stake;
+        self.proposal.last_support_epoch = clock.epoch;
 
         let mut snapshot_slot = 0;
         if total >= cluster_min_stake {

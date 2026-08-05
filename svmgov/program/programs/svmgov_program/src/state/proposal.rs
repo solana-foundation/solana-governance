@@ -33,6 +33,10 @@ pub struct Proposal {
     // Seeds for CPI
     pub proposal_seed: u64,
     pub vote_account_pubkey: Pubkey,
+    // if the `cluster_support_pct_min_bps` changes throughout a support phase
+    // retally should correct the expected support_threshold
+    pub support_threshold: u64,
+    pub last_support_epoch: u64,
     /// Number of supporter entries stored in the account data at the fixed
     /// offset [`Proposal::SUPPORTERS_OFFSET`].
     ///
@@ -109,6 +113,8 @@ impl Default for Proposal {
             proposal_seed: 0,
             vote_account_pubkey: Pubkey::default(),
             num_supporters: 0,
+            last_support_epoch: 0,
+            support_threshold: 0,
         }
     }
 }
