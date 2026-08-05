@@ -52,6 +52,12 @@ The governance admin announces a target snapshot slot. This is the slot at which
 
 The `await-snapshot` command is the recommended approach — it watches for the target slot, backs up necessary files, and generates the snapshot automatically.
 
+Set the backup snapshots directory once — the commands below reference it:
+
+```bash
+export BACKUP_SNAPSHOTS_DIR=/mnt/ledger/gov-backup-snapshots
+```
+
 ```bash
 RUSTFLAGS="-C target-cpu=native" RAYON_NUM_THREADS=$(nproc) ZSTD_NBTHREADS=$(nproc) \
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
@@ -60,7 +66,7 @@ cargo run --release --bin cli -- \
   --scan-interval 1 \
   --slot <TARGET_SLOT> \
   --snapshots-dir /mnt/ledger/snapshots \
-  --backup-snapshots-dir /mnt/ledger/gov-backup-snapshots \
+  --backup-snapshots-dir "$BACKUP_SNAPSHOTS_DIR" \
   --backup-ledger-dir /mnt/ledger/gov-ledger-backup \
   --agave-ledger-tool-path /home/sol/agave/target/release/agave-ledger-tool \
   --ledger-path /mnt/ledger \
@@ -81,10 +87,10 @@ cargo run --release --bin cli -- \
 Extract the merkle root and snapshot hash from your generated snapshot:
 
 ```bash
-RUST_LOG=info cargo run --bin cli -- \
+RUST_LOG=info cargo run --release --bin cli -- \
   --authority-path <OPERATOR_KEYPAIR> \
   log-meta-merkle-hash \
-  --read-path <BACKUP_SNAPSHOTS_DIR>/meta_merkle-<TARGET_SLOT>.zip \
+  --read-path "$BACKUP_SNAPSHOTS_DIR"/meta_merkle-<TARGET_SLOT>.zip \
   --is-compressed
 ```
 
@@ -98,18 +104,18 @@ RUST_LOG=info cargo run --bin cli -- \
 
 **Option A — Vote from snapshot file (recommended):**
 ```bash
-RUST_LOG=info cargo run --bin cli -- \
+RUST_LOG=info cargo run --release --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path <OPERATOR_KEYPAIR> \
   --rpc-url <YOUR_RPC_URL> \
   cast-vote-from-snapshot \
   --snapshot-slot <TARGET_SLOT> \
-  --read-path <BACKUP_SNAPSHOTS_DIR>/meta_merkle-<TARGET_SLOT>.zip
+  --read-path "$BACKUP_SNAPSHOTS_DIR"/meta_merkle-<TARGET_SLOT>.zip
 ```
 
 **Option B — Vote with root + hash directly:**
 ```bash
-RUST_LOG=info cargo run --bin cli -- \
+RUST_LOG=info cargo run --release --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path <OPERATOR_KEYPAIR> \
   --rpc-url <YOUR_RPC_URL> \
@@ -128,7 +134,7 @@ RUST_LOG=info cargo run --bin cli -- \
 Check the BallotBox to confirm your vote was recorded:
 
 ```bash
-RUST_LOG=info cargo run --bin cli -- \
+RUST_LOG=info cargo run --release --bin cli -- \
   --rpc-url <YOUR_RPC_URL> \
   log --ty ballot-box \
   --snapshot-slot <TARGET_SLOT>
@@ -141,7 +147,7 @@ RUST_LOG=info cargo run --bin cli -- \
 Once consensus is reached (enough operators voted for the same ballot):
 
 ```bash
-RUST_LOG=info cargo run --bin cli -- \
+RUST_LOG=info cargo run --release --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path <OPERATOR_KEYPAIR> \
   --rpc-url <YOUR_RPC_URL> \
@@ -160,7 +166,7 @@ Two conditions must both hold: consensus must not yet be reached, **and** the ba
 After expiry, votes can be neither cast nor removed. If consensus was never reached, the `tie_breaker_admin` may then select any ballot value to preserve liveness.
 
 ```bash
-RUST_LOG=info cargo run --bin cli -- \
+RUST_LOG=info cargo run --release --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path <OPERATOR_KEYPAIR> \
   --rpc-url <YOUR_RPC_URL> \
