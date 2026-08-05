@@ -83,7 +83,7 @@ pub struct SupportProposal<'info> {
 impl<'info> SupportProposal<'info> {
     pub fn support_proposal(&mut self, bumps: &SupportProposalBumps) -> Result<()> {
         let clock = Clock::get()?;
-
+        let current_epoch = clock.epoch;
         // Ensure proposal is eligible for support
         require!(
             self.proposal.voting == false && self.proposal.finalized == false,
@@ -126,18 +126,28 @@ impl<'info> SupportProposal<'info> {
         );
         drop(vote_account_data);
 
-        // Support may span multiple epochs, so stake readings recorded in
-        // earlier epochs are no longer valid: rebuild the ENTIRE tally from
-        // every prior supporter's stake at the *current* epoch (via the
-        // sol_get_epoch_stake syscall — needs only the pubkey, not the
-        // account), then add the new supporter measured at the same epoch.
-        // The supporter list is read zero-copy from the account data.
         let proposal_info = self.proposal.to_account_info();
-        let prior_stake = {
-            let proposal_data = proposal_info.try_borrow_data()?;
-            let supporters = self.proposal.supporters(&proposal_data)?;
-            tally_supporter_stakes(supporters, |pk| get_epoch_stake_for_vote_account(pk))?
-        };
+
+        if current_epoch > self.proposal.last_support_epoch {
+            // update last support epoch to current epoch and epoch stake
+            self.proposal.last_support_epoch = current_epoch;
+            let cluster_min_stake = min_stake_threshold(
+                get_epoch_total_stake(),
+                self.global_config.cluster_support_pct_min_bps,
+            )?;
+            self.proposal.support_threshold = cluster_min_stake;
+
+            // retally only if current epoch != last support epoch
+            // active stake is not supposed to change during the epoch
+            let prior_stake = {
+                let proposal_data = proposal_info.try_borrow_data()?;
+                let supporters = self.proposal.supporters(&proposal_data)?;
+                tally_supporter_stakes(supporters, |pk| get_epoch_stake_for_vote_account(pk))?
+            };
+            self.proposal.cluster_support_lamports = prior_stake;
+        }
+
+
         let supporter_stake = get_epoch_stake_for_vote_account(self.spl_vote_account.key);
         // A supporter must clear the same stake floor as a proposal author.
         // This blocks a zero-/dust-stake spam attack that would otherwise let
@@ -147,7 +157,9 @@ impl<'info> SupportProposal<'info> {
             supporter_stake >= self.global_config.min_proposal_stake_lamports,
             GovernanceError::NotEnoughStake
         );
-        let new_support_stake = prior_stake
+        let new_support_stake = self
+            .proposal
+            .cluster_support_lamports
             .checked_add(supporter_stake)
             .ok_or(GovernanceError::ArithmeticOverflow)?;
 
@@ -172,13 +184,9 @@ impl<'info> SupportProposal<'info> {
         // Threshold is measured against the current epoch's total stake — the
         // same epoch every supporter above was just re-measured at, so
         // numerator and denominator can never mix epochs.
-        let cluster_min_stake = min_stake_threshold(
-            get_epoch_total_stake(),
-            self.global_config.cluster_support_pct_min_bps,
-        )?;
 
         let mut snapshot_slot = 0;
-        if new_support_stake >= cluster_min_stake {
+        if new_support_stake >= self.proposal.support_threshold {
             snapshot_slot = activate_voting(
                 &mut self.proposal,
                 &self.global_config,
@@ -234,11 +242,8 @@ pub(crate) fn activate_voting<'info>(
     // state. The init_ballot_box CPI below is skipped whenever `ballot_box`
     // already exists, so this re-check prevents a proposal from being bound
     // onto an already-finalized ConsensusResult for a past slot.
-    let snapshot_slot = compute_future_snapshot_slot(
-        target_epoch,
-        global_config.snapshot_slot_offset,
-        clock.slot,
-    )?;
+    let snapshot_slot =
+        compute_future_snapshot_slot(target_epoch, global_config.snapshot_slot_offset, clock.slot)?;
 
     // SECURITY: bind `ballot_box` to the exact PDA implied by the snapshot
     // slot so a caller cannot pass an arbitrary non-empty account to skip

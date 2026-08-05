@@ -146,6 +146,8 @@ pub struct ProposalAccount {
     pub snapshot_slot: u64,
     pub proposal_seed: u64,
     pub vote_account_pubkey: [u8; 32],
+    pub support_threshold: u64,
+    pub last_support_epoch: u64,
     pub num_supporters: u32,
     /// Not part of the Borsh payload: the entries live at the fixed offset
     /// `Proposal::SUPPORTERS_OFFSET` (= 8 + INIT_SPACE, past any slack left

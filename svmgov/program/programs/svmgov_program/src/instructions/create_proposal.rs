@@ -15,7 +15,7 @@ use crate::{
     events::ProposalCreated,
     stake_weight_bp,
     state::{GlobalConfig, Proposal, ProposalIndex},
-    utils::is_valid_github_link,
+    utils::{is_valid_github_link, min_stake_threshold},
 };
 
 #[derive(Accounts)]
@@ -107,6 +107,11 @@ impl<'info> CreateProposal<'info> {
             GovernanceError::NotEnoughStake
         );
 
+        let cluster_min_stake = min_stake_threshold(
+            cluster_stake,
+            self.global_config.cluster_support_pct_min_bps,
+        )?;
+
         // Initialize proposal account
         self.proposal.set_inner(Proposal {
             author: self.signer.key(),
@@ -121,6 +126,8 @@ impl<'info> CreateProposal<'info> {
             index: self.proposal_index.current_index + 1,
             proposal_seed: seed,
             vote_account_pubkey: self.spl_vote_account.key(),
+            support_threshold: cluster_min_stake,
+            last_support_epoch: clock.epoch,
             ..Proposal::default()
         });
         self.proposal_index.current_index += 1;
