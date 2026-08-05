@@ -1210,9 +1210,7 @@ fn main() -> Result<()> {
                 backup_snapshots_dir,
                 &cli.cluster,
             ) {
-                return Err(anyhow!(
-                    "get_bank_from_ledger FAILED: {:?}", e
-                ));
+                return Err(anyhow!("get_bank_from_ledger FAILED: {:?}", e));
             }
         }
         Commands::GenerateMetaMerkle {
@@ -1393,7 +1391,7 @@ fn main() -> Result<()> {
                             "Running agave-ledger-tool: {} blockstore --ignore-ulimit-nofile-error -l {:?} copy --starting-slot {} --ending-slot {} --target-ledger {:?}",
                             agave_ledger_tool_path.display(),
                             ledger_path,
-                            start_slot,
+                            best_end_le,
                             end_copy_slot,
                             backup_ledger_dir
                         );
@@ -1404,7 +1402,7 @@ fn main() -> Result<()> {
                             .arg(&ledger_path)
                             .arg("copy")
                             .arg("--starting-slot")
-                            .arg(start_slot.to_string())
+                            .arg(best_end_le.to_string())
                             .arg("--ending-slot")
                             .arg(end_copy_slot.to_string())
                             .arg("--target-ledger")
@@ -1423,7 +1421,10 @@ fn main() -> Result<()> {
                             slot
                         );
                         let save_snapshot = true;
-                        let account_paths = vec![backup_ledger_dir.clone()];
+                        let account_paths = cli
+                            .account_paths
+                            .clone()
+                            .unwrap_or_else(|| vec![backup_ledger_dir.clone()]);
                         if let Err(e) = get_bank_from_ledger(
                             cli.operator_address,
                             &backup_ledger_dir,
@@ -1435,9 +1436,7 @@ fn main() -> Result<()> {
                             backup_snapshots_dir.clone(),
                             &cli.cluster,
                         ) {
-                            return Err(anyhow!(
-                                "get_bank_from_ledger FAILED: {:?}", e
-                            ));
+                            return Err(anyhow!("get_bank_from_ledger FAILED: {:?}", e));
                         }
 
                         if generate_meta_merkle {
@@ -1448,7 +1447,9 @@ fn main() -> Result<()> {
                                 slot,
                                 &backup_snapshots_dir,
                                 &backup_snapshots_dir,
-                                vec![backup_ledger_dir.clone()],
+                                cli.account_paths
+                                    .clone()
+                                    .unwrap_or_else(|| vec![backup_ledger_dir.clone()]),
                                 backup_ledger_dir.as_path(),
                             )?;
                             let meta_merkle_snapshot =

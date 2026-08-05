@@ -13,7 +13,7 @@ use {
     log::*,
     solana_accounts_db::{
         accounts_db::TOTAL_IO_URING_BUFFERS_SIZE_LIMIT,
-        utils::{create_all_accounts_run_and_snapshot_dirs, move_and_async_delete_path_contents},
+        utils::create_all_accounts_run_and_snapshot_dirs,
     },
     solana_genesis_config::GenesisConfig,
     solana_genesis_utils::open_genesis_config,
@@ -30,7 +30,6 @@ use {
         leader_schedule_cache::LeaderScheduleCache,
         use_snapshot_archives_at_startup::UseSnapshotArchivesAtStartup,
     },
-    solana_measure::measure_time,
     solana_metrics::datapoint_info,
     solana_rpc::transaction_status_service::TransactionStatusService,
     solana_runtime::{
@@ -40,9 +39,10 @@ use {
         },
         bank_forks::BankForks,
         snapshot_controller::SnapshotController,
-        snapshot_utils::{self, clean_orphaned_account_snapshot_dirs},
+        snapshot_utils,
     },
     solana_sdk::{clock::Slot, pubkey::Pubkey, transaction::VersionedTransaction},
+    solana_shred_version::compute_shred_version,
     solana_unified_scheduler_pool::DefaultSchedulerPool,
     std::{
         path::{Path, PathBuf},
@@ -65,9 +65,6 @@ const _PROCESS_SLOTS_HELP_STRING: &str =
 
 #[derive(Error, Debug)]
 pub enum LoadAndProcessLedgerError {
-    #[error("failed to clean orphaned account snapshot directories: {0}")]
-    CleanOrphanedAccountSnapshotDirectories(#[source] std::io::Error),
-
     #[error("failed to create all run and snapshot directories: {0}")]
     CreateAllAccountsRunAndSnapshotDirectories(#[source] std::io::Error),
 
@@ -283,29 +280,14 @@ pub fn load_and_process_ledger(
         vec![non_primary_accounts_path]
     };
 
-    let (account_run_paths, account_snapshot_paths) =
+    let (account_run_paths, _account_snapshot_paths) =
         create_all_accounts_run_and_snapshot_dirs(&account_paths)
             .map_err(LoadAndProcessLedgerError::CreateAllAccountsRunAndSnapshotDirectories)?;
 
     // From now on, use run/ paths in the same way as the previous account_paths.
     let account_paths = account_run_paths;
 
-    let (_, measure_clean_account_paths) = measure_time!(
-        account_paths.iter().for_each(|path| {
-            if path.exists() {
-                info!("Cleaning contents of account path: {}", path.display());
-                move_and_async_delete_path_contents(path);
-            }
-        }),
-        "Cleaning account paths"
-    );
-    info!("{measure_clean_account_paths}");
-
     snapshot_utils::purge_incomplete_bank_snapshots(&bank_snapshots_dir);
-
-    info!("Cleaning contents of account snapshot paths: {account_snapshot_paths:?}");
-    clean_orphaned_account_snapshot_dirs(&bank_snapshots_dir, &account_snapshot_paths)
-        .map_err(LoadAndProcessLedgerError::CleanOrphanedAccountSnapshotDirectories)?;
 
     let geyser_plugin_active = arg_matches.is_present("geyser_plugin_config");
     let (accounts_update_notifier, transaction_notifier) = if geyser_plugin_active {
@@ -385,6 +367,7 @@ pub fn load_and_process_ledger(
         )
         .transpose()
         .unwrap_or_else(|| {
+            bank_forks_utils::discard_previous_run_state(&bank_snapshots_dir, &account_paths);
             bank_forks_utils::load_bank_forks_from_genesis(
                 genesis_config,
                 blockstore.as_ref(),
@@ -397,6 +380,18 @@ pub fn load_and_process_ledger(
             )
         })
         .map_err(LoadAndProcessLedgerError::LoadBankForks)?;
+
+    {
+        let root_bank = bank_forks.read().unwrap().root_bank();
+        let loaded_from_fastboot = bank_snapshots_dir
+            .join(root_bank.slot().to_string())
+            .is_dir();
+        if loaded_from_fastboot {
+            for storage in root_bank.get_snapshot_storages(None) {
+                storage.disable_remove_on_drop();
+            }
+        }
+    }
     let leader_schedule_cache = LeaderScheduleCache::new_from_bank(
         &bank_forks
             .read()
@@ -459,9 +454,14 @@ pub fn load_and_process_ledger(
         "cluster" => cluster,
     );
 
+    let shred_version = {
+        let hard_forks = bank_forks.read().unwrap().root_bank().hard_forks();
+        compute_shred_version(&genesis_config.hash(), Some(&hard_forks))
+    };
     let result = blockstore_processor::process_blockstore_from_root(
         blockstore.as_ref(),
         &bank_forks,
+        shred_version,
         &leader_schedule_cache,
         &process_options,
         transaction_status_sender.as_ref(),
@@ -472,17 +472,16 @@ pub fn load_and_process_ledger(
     .map_err(LoadAndProcessLedgerError::ProcessBlockstoreFromRoot);
 
     exit.store(true, Ordering::Relaxed);
-    // Non-blocking
-    tokio::spawn(async move {
-        accounts_background_service
-            .join()
-            .expect("accounts background service should join cleanly");
-        if let Some(service) = transaction_status_service {
+    accounts_background_service
+        .join()
+        .expect("accounts background service should join cleanly");
+    if let Some(service) = transaction_status_service {
+        tokio::spawn(async move {
             // NOTE: Was service.quiesce_and_join_for_tests(tss_exit);
             //  but this method is behind the "dev-context-only-utils" feature flag.
             service.join().expect("service thread should join cleanly");
-        }
-    });
+        });
+    }
     result
 }
 
