@@ -9,7 +9,11 @@ import {
 import type { ProposalStatus } from "@/types";
 import { Circle, Loader, X } from "lucide-react";
 import { FAILED_PHASE_DETAIL } from "../proposals/detail/phase-timeline/constants";
-import { SUPPORT_THRESHOLD_PERCENT } from "../proposals/detail/support-phase-progress";
+import { useGovernanceConfigContext } from "@/contexts/GovernanceConfigContext";
+import {
+  supportPhaseRequirementCopy,
+  supportThresholdPercentFromConfig,
+} from "@/lib/proposals";
 
 const STAGE_ORDER: ProposalStatus[] = [
   "supporting",
@@ -27,7 +31,9 @@ const STAGE_LABEL: Record<ProposalStatus, string> = {
 };
 
 const STAGE_DESCRIPTION: Record<ProposalStatus, string> = {
-  supporting: `The support phase requires ${SUPPORT_THRESHOLD_PERCENT}% off total validator stake expressing support for the proposal before it can move on to discussion and voting phase.`,
+  // The "supporting" description is derived from the on-chain config inside
+  // the component (see supportPhaseRequirementCopy).
+  supporting: "",
   discussion:
     "The discussion phase covers the 4-5 epoch period while the NCN is created. Voting begins only after this process completes.",
   voting:
@@ -53,8 +59,17 @@ export default function LifecycleIndicator({
 
   const activeIndex = isFailed ? 0 : Math.max(STAGE_ORDER.indexOf(status), 0);
 
+  const governanceConfigQuery = useGovernanceConfigContext();
+  const thresholdPercent = supportThresholdPercentFromConfig(
+    governanceConfigQuery.data,
+  );
+
   const label = isFailed ? FAILED_LABEL : STAGE_LABEL[status];
-  const description = isFailed ? FAILED_DESCRIPTION : STAGE_DESCRIPTION[status];
+  const description = isFailed
+    ? FAILED_DESCRIPTION
+    : status === "supporting"
+      ? `${supportPhaseRequirementCopy(thresholdPercent)}.`
+      : STAGE_DESCRIPTION[status];
 
   const indicators = (
     <div className="flex items-center justify-center gap-2">

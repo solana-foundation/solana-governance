@@ -3,6 +3,7 @@ import { useStakerVotedProposals } from "@/hooks";
 import { StakeAccountData } from "@/types/stakeAccounts";
 import { Card } from "@/components/ui/Card";
 import { CopyableAddress } from "@/components/governance/shared/CopyableAddress";
+import { ProposalHeading } from "@/components/proposals/ProposalHeading";
 import { formatLamportsDisplay } from "@/lib/governance/formatters";
 import Link from "next/link";
 import { getProposalDetailPagePath } from "@/helpers/proposalPage";
@@ -89,9 +90,11 @@ export function StakeAccountVoteProposals({
                   className="space-y-3 block"
                 >
                   <h3 className="h3 whitespace-pre-wrap text-lg font-semibold tracking-tight text-white sm:text-xl hover-gradient-text transition-all duration-200">
-                    {voteProposal.proposal.simd &&
-                      `${voteProposal.proposal.simd}: `}
-                    {voteProposal.proposal.title}
+                    <ProposalHeading
+                      url={voteProposal.proposal.description}
+                      fallback={voteProposal.proposal.proposalRef}
+                      title={voteProposal.proposal.title}
+                    />
                   </h3>
                 </Link>
                 <span

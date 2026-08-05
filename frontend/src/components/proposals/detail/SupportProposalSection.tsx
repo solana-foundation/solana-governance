@@ -1,9 +1,15 @@
+"use client";
+
 import { ProposalStatus } from "@/types";
 import { SupportButton } from "../SupportButton";
 import { AppButton } from "@/components/ui/AppButton";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { SUPPORT_THRESHOLD_PERCENT } from "./support-phase-progress";
+import { useGovernanceConfigContext } from "@/contexts/GovernanceConfigContext";
+import {
+  supportPhaseRequirementCopy,
+  supportThresholdPercentFromConfig,
+} from "@/lib/proposals";
 
 interface SupportProposalProps {
   proposalId?: string;
@@ -17,8 +23,8 @@ interface SupportProposalProps {
 const VARIANT_CONFIG = {
   support: {
     title: "Support this proposal",
-    message:
-      `The support phase requires ${SUPPORT_THRESHOLD_PERCENT}% off total validator stake expressing support for the proposal before it can move on to discussion and voting phase`,
+    // Message is derived from the on-chain config inside the component.
+    message: "",
     showSupportButton: true,
     showCheckOtherButton: false,
   },
@@ -56,6 +62,15 @@ export default function SupportProposalSection({
   const config = VARIANT_CONFIG[variant];
   const disabledButtons = disabled || isLoading;
 
+  const governanceConfigQuery = useGovernanceConfigContext();
+  const thresholdPercent = supportThresholdPercentFromConfig(
+    governanceConfigQuery.data,
+  );
+  const message =
+    variant === "support"
+      ? supportPhaseRequirementCopy(thresholdPercent)
+      : config.message;
+
   return (
     <div
       className={cn(
@@ -65,7 +80,7 @@ export default function SupportProposalSection({
     >
       <div className="flex w-full max-w-md flex-col items-center text-center">
         <h4 className="h4 font-semibold">{config.title}</h4>
-        <p className="mt-4 text-sm text-white/60">{config.message}</p>
+        <p className="mt-4 text-sm text-white/60">{message}</p>
         {config.showSupportButton && (
           <div className="mt-8 w-full">
             <SupportButton

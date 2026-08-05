@@ -6,6 +6,7 @@ import { ChevronDown } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
 import LifecycleIndicator from "@/components/ui/LifecycleIndicator";
 import { SortableHeaderButton } from "@/components/SortableHeaderButton";
+import { ProposalRefLabel } from "@/components/proposals/ProposalRefLabel";
 import { ProposalRecord } from "@/types";
 
 // function VotingEndsInCell({ votingEndsIn }: { votingEndsIn: string }) {
@@ -23,12 +24,17 @@ import { ProposalRecord } from "@/types";
 
 export const columns: ColumnDef<ProposalRecord>[] = [
   {
-    accessorKey: "simd",
-    header: "Proposal SIMD",
+    id: "proposalRef",
+    // Sorting and filtering use the synchronously-parsed value; the cell layers the
+    // network-resolved one on top for pull-request links.
+    accessorFn: (row) => row.proposalRef?.label ?? "",
+    header: "Proposal",
     cell: ({ row }) => (
-      <div className="text-sm font-medium text-white/90">
-        {row.original.simd || "-"}
-      </div>
+      <ProposalRefLabel
+        url={row.original.description}
+        fallback={row.original.proposalRef}
+        className="text-sm font-medium text-white/90"
+      />
     ),
   },
   {

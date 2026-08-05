@@ -1,4 +1,3 @@
-import { SUPPORT_THRESHOLD_PERCENT } from "@/components/proposals/detail/support-phase-progress";
 import type { GovernanceConfigDto } from "@/lib/getGovernanceConfig";
 import type { ProposalStatus } from "@/types";
 import { PublicKey } from "@solana/web3.js";
@@ -22,6 +21,27 @@ export function epochConstantsFromGovernanceConfig(
   };
 }
 
+/**
+ * Fallback support threshold while the on-chain config is loading (or failed
+ * to load). Matches the current mainnet GlobalConfig value; the real value is
+ * always preferred once fetched.
+ */
+export const DEFAULT_SUPPORT_THRESHOLD_PERCENT = 15;
+
+/** Support threshold as a percentage (e.g. 15 for 15%), from the on-chain GlobalConfig. */
+export function supportThresholdPercentFromConfig(
+  dto: GovernanceConfigDto | undefined,
+): number {
+  return dto
+    ? dto.clusterSupportPctMinBps / 100
+    : DEFAULT_SUPPORT_THRESHOLD_PERCENT;
+}
+
+/** Shared copy for the support-phase requirement. */
+export function supportPhaseRequirementCopy(thresholdPercent: number): string {
+  return `The support phase requires ${thresholdPercent}% of total validator stake expressing support for the proposal before it can move on to discussion and voting phase`;
+}
+
 export interface GetProposalStatusParams {
   creationEpoch: number;
   startEpoch: number;
@@ -29,6 +49,8 @@ export interface GetProposalStatusParams {
   currentEpoch: number;
   clusterSupportLamports: number;
   totalStakedLamports: number;
+  /** GlobalConfig.clusterSupportPctMinBps — support threshold in basis points. */
+  clusterSupportPctMinBps: number;
   consensusResult: PublicKey | undefined;
   finalized: boolean;
   voting: boolean;
@@ -44,9 +66,22 @@ export interface ProposalPhaseEpochs {
   snapshotEpoch: number;
 }
 
+/**
+ * On-chain phase anchors from the proposal account. Once support succeeds
+ * (`voting === true`) the program records the definitive voting start/end
+ * epochs, which supersede any creation-based projection: a proposal that
+ * reaches the threshold before its full support window enters discussion
+ * (and voting) earlier than the worst-case estimate.
+ */
+export interface ProposalPhaseAnchors {
+  voting: boolean;
+  startEpoch: number;
+}
+
 export function getProposalPhaseEpochs(
   creationEpoch: number,
   epochs: EpochConstants,
+  onChain?: ProposalPhaseAnchors,
 ): ProposalPhaseEpochs {
   // Support phase always uses creationEpoch
   const supportStartEpoch = creationEpoch;
@@ -56,9 +91,17 @@ export function getProposalPhaseEpochs(
   // When voting === false, calculate phases based on creationEpoch
   const phaseBaseEpoch = supportEndEpoch;
   const discussionStartEpoch = phaseBaseEpoch;
-  const discussionEndEpoch = phaseBaseEpoch + epochs.DISCUSSION_EPOCHS;
-  const snapshotEpoch =
+  let discussionEndEpoch = phaseBaseEpoch + epochs.DISCUSSION_EPOCHS;
+  let snapshotEpoch =
     phaseBaseEpoch + epochs.DISCUSSION_EPOCHS + epochs.SNAPSHOT_EPOCHS;
+
+  // Support already succeeded: the program has set the real voting start
+  // (discussion + snapshot extension counted from when the threshold was
+  // met, not from the end of the full support window). Use it.
+  if (onChain?.voting && onChain.startEpoch > 0) {
+    discussionEndEpoch = onChain.startEpoch;
+    snapshotEpoch = onChain.startEpoch;
+  }
 
   return {
     supportStartEpoch,
@@ -99,6 +142,7 @@ export const getProposalStatus = ({
   currentEpoch,
   clusterSupportLamports,
   totalStakedLamports,
+  clusterSupportPctMinBps,
   consensusResult,
   finalized,
   voting,
@@ -168,7 +212,7 @@ export const getProposalStatus = ({
   // At support end epoch (epoch 802) - check threshold directly
   if (currentEpoch === supportEndEpoch) {
     const requiredThresholdLamports =
-      totalStakedLamports * (SUPPORT_THRESHOLD_PERCENT / 100);
+      totalStakedLamports * (clusterSupportPctMinBps / 10_000);
     const isThresholdMet = clusterSupportLamports >= requiredThresholdLamports;
 
     if (!isThresholdMet) {

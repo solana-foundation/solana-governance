@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { useCreateProposal } from "@/hooks";
 import { useAnchorWallet } from "@solana/wallet-adapter-react";
 import { captureException } from "@sentry/nextjs";
+import { validateProposalUrl } from "@/lib/github";
 
 interface CreateProposalModalProps {
   isOpen: boolean;
@@ -37,9 +38,18 @@ export function CreateProposalModal({
   });
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | undefined>();
+  /** Keeps the field from turning red while the user is still typing the URL. */
+  const [descriptionTouched, setDescriptionTouched] = React.useState(false);
 
   const wallet = useAnchorWallet();
   const { mutate: createProposal } = useCreateProposal();
+
+  const descriptionValidation = React.useMemo(
+    () => validateProposalUrl(formData.description),
+    [formData.description],
+  );
+  const showDescriptionIssues =
+    descriptionTouched && formData.description.length > 0;
 
   React.useEffect(() => {
     if (!isOpen) {
@@ -48,6 +58,7 @@ export function CreateProposalModal({
         description: "",
       });
       setError(undefined);
+      setDescriptionTouched(false);
     }
   }, [isOpen]);
 
@@ -66,7 +77,8 @@ export function CreateProposalModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title || !formData.description) {
+    setDescriptionTouched(true);
+    if (!formData.title || !descriptionValidation.ok) {
       return;
     }
 
@@ -92,10 +104,11 @@ export function CreateProposalModal({
       description: "",
     });
     setError(undefined);
+    setDescriptionTouched(false);
     onClose();
   };
 
-  const isFormValid = formData.title && formData.description;
+  const isFormValid = Boolean(formData.title) && descriptionValidation.ok;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
@@ -158,13 +171,40 @@ export function CreateProposalModal({
                   onChange={(e) =>
                     setFormData({ ...formData, description: e.target.value })
                   }
-                  placeholder="https://github.com/..."
+                  onBlur={() => setDescriptionTouched(true)}
+                  aria-invalid={
+                    showDescriptionIssues && !descriptionValidation.ok
+                  }
+                  aria-describedby="proposal-description-issues"
+                  placeholder="https://github.com/org/repo/blob/<sha>/proposals/sgp-0001-title.md"
                   className={cn(
                     "input",
                     "w-full rounded-md border bg-white/5 px-3 py-1.5",
                     "placeholder:text-sm placeholder:text-white/40 mt-1",
+                    showDescriptionIssues && !descriptionValidation.ok
+                      ? "border-red-500/60"
+                      : "border-white/10",
                   )}
                 />
+
+                <div id="proposal-description-issues" className="space-y-1">
+                  {showDescriptionIssues &&
+                    descriptionValidation.errors.map((issue) => (
+                      <p
+                        key={issue.code}
+                        className="whitespace-pre-line text-xs text-red-400"
+                      >
+                        {issue.message}
+                      </p>
+                    ))}
+                  {showDescriptionIssues &&
+                    descriptionValidation.ok &&
+                    descriptionValidation.warnings.map((issue) => (
+                      <p key={issue.code} className="text-xs text-white/50">
+                        {issue.message}
+                      </p>
+                    ))}
+                </div>
               </div>
 
               {/* Error Message */}

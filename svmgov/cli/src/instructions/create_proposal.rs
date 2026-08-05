@@ -5,6 +5,7 @@ use anyhow::Result;
 
 use crate::{
     svmgov_program::client::{accounts, args},
+    utils::proposal_link::validate_description,
     utils::utils::{create_spinner, derive_global_config_pda, derive_proposal_index_pda, derive_proposal_pda, setup_all},
 };
 
@@ -15,6 +16,7 @@ pub async fn create_proposal(
     identity_keypair: Option<String>,
     rpc_url: Option<String>,
     _network: String,
+    skip_link_check: bool,
 ) -> Result<()> {
     log::debug!(
         "create_proposal: title={}, description={}, seed={:?}, identity_keypair={:?}, rpc_url={:?}",
@@ -24,6 +26,12 @@ pub async fn create_proposal(
         identity_keypair,
         rpc_url
     );
+
+    // Validated before loading a keypair, touching RPC, or starting a spinner, so a bad link
+    // fails immediately and cleanly rather than as an opaque custom program error. The
+    // normalized link is what gets submitted, so the value we checked is the value the program
+    // sees — a description with surrounding whitespace would otherwise fail on chain.
+    let proposal_description = validate_description(&proposal_description, skip_link_check).await?;
 
     let (payer, vote_account, program, _merkle_proof_program) =
         setup_all(identity_keypair, rpc_url).await?;

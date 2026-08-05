@@ -19,9 +19,13 @@ interface QuorumDonutProps {
   forLamports: number;
   againstLamports: number;
   abstainLamports: number;
-  totalLamports: number;
+  /** `undefined` when total network stake could not be loaded. */
+  totalLamports: number | undefined;
   quorumPercentage?: number;
 }
+
+/** Shown in the donut centre when total network stake could not be loaded. */
+const UNKNOWN_TOTAL = "—";
 
 export function QuorumDonutSkeleton() {
   return (
@@ -56,7 +60,10 @@ export default function QuorumDonut({
 
   // Memoize calculations to avoid re-computing on every render
   const { chartData, totalSol } = useMemo(() => {
-    const totalSol = formatSOL(totalLamports);
+    // Unknown must not render as "0.00 Total SOL" — that reads as a real
+    // figure, and would contradict the "—" the breakdown beside it shows.
+    const totalSol =
+      totalLamports === undefined ? UNKNOWN_TOTAL : formatSOL(totalLamports);
 
     const chartData = [
       { name: "For", value: forLamports },
@@ -75,11 +82,12 @@ export default function QuorumDonut({
   const strokeWidth = 7;
   const circumference = 2 * Math.PI * radius;
 
-  const forPercent = totalLamports > 0 ? chartData[0].value / totalLamports : 0;
-  const againstPercent =
-    totalLamports > 0 ? chartData[1].value / totalLamports : 0;
-  const abstainPercent =
-    totalLamports > 0 ? chartData[2].value / totalLamports : 0;
+  // No arcs when the denominator is unknown: an empty ring is the honest
+  // rendering, and it matches the "—" in the centre.
+  const hasTotal = totalLamports !== undefined && totalLamports > 0;
+  const forPercent = hasTotal ? chartData[0].value / totalLamports : 0;
+  const againstPercent = hasTotal ? chartData[1].value / totalLamports : 0;
+  const abstainPercent = hasTotal ? chartData[2].value / totalLamports : 0;
 
   // Animation spring for the percentages
   const { forP, againstP, abstainP } = useSpring({

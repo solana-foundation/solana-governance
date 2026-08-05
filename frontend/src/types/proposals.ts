@@ -1,4 +1,5 @@
 import { ProposalAccount } from "@/chain";
+import type { ProposalRef } from "@/lib/github";
 import { PublicKey } from "@solana/web3.js";
 
 export type ProposalStatus =
@@ -12,7 +13,14 @@ export type ProposalRecord = {
   publicKey: PublicKey;
   id: string; // used for table
   // Identity
-  simd: string | undefined;
+  /**
+   * Proposal number parsed synchronously from `description`.
+   *
+   * `undefined` when the description links to a pull request rather than the file itself —
+   * resolving that needs a network round-trip, so render `<ProposalRefLabel>` (or call
+   * `useProposalRef`) with this as the fallback rather than reading it directly.
+   */
+  proposalRef: ProposalRef | undefined;
   title: string;
   // summary: string; // removed, since github summary is shown only when visible, and isn't fetched for all proposals
   description: string; // GitHub URL (renamed from 'link')

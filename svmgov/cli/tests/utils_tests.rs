@@ -38,6 +38,40 @@ fn test_cli_help_contains_expected_commands() {
     );
 }
 
+// A pull request link must be rejected before the CLI touches a keypair or an RPC endpoint,
+// which is what makes this test hermetic.
+#[test]
+fn test_create_proposal_rejects_pull_request_link() {
+    let output = Command::new("cargo")
+        .args([
+            "run",
+            "--",
+            "create-proposal",
+            "--title",
+            "Test proposal",
+            "--description",
+            "https://github.com/solana-foundation/solana-governance-proposals/pull/3",
+        ])
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .output()
+        .expect("Failed to run CLI");
+
+    assert!(
+        !output.status.success(),
+        "CLI should reject a pull request link"
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("pull request"),
+        "error should name the problem, got: {stderr}"
+    );
+    assert!(
+        stderr.contains("Files changed"),
+        "error should explain how to get the right link, got: {stderr}"
+    );
+}
+
 // Test CLI error handling for missing arguments
 #[test]
 fn test_cli_error_on_invalid_command() {

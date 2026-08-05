@@ -11,6 +11,7 @@ import {
   deriveGlobalConfigPda,
 } from "./helpers";
 import { deriveProposalAccount } from "../helpers";
+import { assertValidProposalUrl } from "@/lib/github";
 
 /**
  * Creates a new governance proposal
@@ -19,10 +20,19 @@ export async function createProposal(
   params: CreateProposalParams,
   blockchainParams: BlockchainParams,
 ): Promise<TransactionResult> {
-  const { title, description, seed, wallet } = params;
+  const { title, seed, wallet } = params;
   if (!wallet || !wallet.publicKey) {
     throw new Error("Wallet not connected");
   }
+
+  // Enforced here rather than only in the modal so every caller inherits it. The on-chain
+  // check accepts anything github.com-shaped, including pull request links, which the
+  // frontend then cannot resolve to a proposal document.
+  //
+  // The normalized URL is what gets encoded below: validation trims, and the program requires
+  // a literal https://github.com/ prefix, so sending the raw input would be rejected on chain
+  // after the frontend had already accepted it.
+  const description = assertValidProposalUrl(params.description);
 
   // Generate random seed if not provided
   const seedValue = new BN(

@@ -35,15 +35,7 @@ else
   IMAGE_TAG="verifier-service:latest-mainnet"
 fi
 
-# shellcheck source=../../scripts/setup-jito-tip-router.sh
-source "$REPO_ROOT/scripts/setup-jito-tip-router.sh"
-ensure_jito_tip_router
-
 echo -e "${YELLOW}Building verifier-service binary...${NC}"
-export RESTAKING_PROGRAM_ID="${RESTAKING_PROGRAM_ID:-RestkWeAVL8fRGgzhfeoqFhsqKRchg6aa1XrcH96z4Q}"
-export VAULT_PROGRAM_ID="${VAULT_PROGRAM_ID:-Vau1t6sLNxnzB7ZDsef8TLbPLfyZMYXH8WTNqUdm9g8}"
-export TIP_ROUTER_PROGRAM_ID="${TIP_ROUTER_PROGRAM_ID:-11111111111111111111111111111111}"
-
 if ! command -v cargo >/dev/null 2>&1; then
   echo -e "${RED}Error: cargo not found in PATH.${NC}" >&2
   echo "Install Rust/Cargo and ensure it is available to your current user shell." >&2
@@ -71,4 +63,3 @@ export VERIFIER_NETWORK="$NETWORK"
 sudo VERIFIER_NETWORK="$VERIFIER_NETWORK" bash setup.sh
 
 echo -e "${GREEN}Done.${NC}"
-

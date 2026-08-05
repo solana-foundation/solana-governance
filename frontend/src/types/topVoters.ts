@@ -19,6 +19,18 @@ export interface TopVoterRecord {
   walletType: "validator" | "staker";
 }
 
+export interface TopSupporterRecord {
+  id: string;
+  validatorName: string;
+  validatorIdentity: string;
+  validatorImage?: string | null;
+  /** `undefined` when validator metadata could not be loaded. */
+  stakedLamports: number | undefined;
+  /** `undefined` when total network stake is unknown, so it can render "—". */
+  stakePercentage: number | undefined;
+  accentColor: string;
+}
+
 export const accentColors = [
   "linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)",
   "linear-gradient(135deg, #06b6d4 0%, #0ea5e9 100%)",

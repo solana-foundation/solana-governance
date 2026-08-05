@@ -2,7 +2,8 @@ import { formatNumber } from "@/helpers";
 
 type StatsCardProps = {
   label: string;
-  value: number;
+  /** `undefined` when the value could not be loaded; renders "-". */
+  value: number | undefined;
   isLoading: boolean;
 };
 
@@ -16,7 +17,7 @@ export default function StatsCard({ label, value, isLoading }: StatsCardProps) {
             {isLoading ? (
               <span className="animate-pulse h-8 w-10 bg-white/10 rounded" />
             ) : (
-              formatNumber(value)
+              (value === undefined ? "-" : formatNumber(value))
             )}
           </div>
         </div>

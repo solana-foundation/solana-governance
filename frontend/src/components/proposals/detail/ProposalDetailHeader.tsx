@@ -9,6 +9,7 @@ import LifecycleIndicator from "@/components/ui/LifecycleIndicator";
 import { formatAddress } from "@/lib/governance/formatters";
 import type { ProposalRecord } from "@/types";
 import { ProposalDescription } from "../ProposalDescription";
+import { ProposalRefLabel } from "../ProposalRefLabel";
 
 interface ProposalDetailHeaderProps {
   proposal: ProposalRecord | undefined;
@@ -56,9 +57,12 @@ export default function ProposalDetailHeader({
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:flex lg:flex-wrap items-center gap-2 sm:gap-3 lg:gap-6 border-t border-white/10 pt-3 sm:pt-4 text-sm leading-none lg:leading-normal">
         <InfoItem label="ID:" isLoading={isLoading}>
-          <span className="font-mono text-white/60 text-xs lg:text-sm">
-            #{proposal.simd}
-          </span>
+          {/* No leading "#": the label already carries its own prefix (SIMD-0022 / SGP-0001). */}
+          <ProposalRefLabel
+            url={proposal.description}
+            fallback={proposal.proposalRef}
+            className="font-mono text-white/60 text-xs lg:text-sm"
+          />
         </InfoItem>
 
         <InfoItem label="Author:" isLoading={isLoading}>

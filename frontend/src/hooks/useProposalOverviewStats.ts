@@ -5,7 +5,8 @@ import { useGetValidators } from "./useGetValidators";
 export type Stat = {
   id: string;
   label: string;
-  value: number;
+  /** `undefined` when the value is not known — rendered as "-", not as 0. */
+  value: number | undefined;
 };
 
 export interface Stats {
@@ -30,7 +31,9 @@ export const useProposalOverviewStats = (): Stats => {
     [proposals]
   );
 
-  const numOfValidators = useMemo(() => validators?.length || 0, [validators]);
+  // Undefined rather than 0 when the validator query has not resolved, so the
+  // card can show "-" instead of a count that looks real.
+  const numOfValidators = useMemo(() => validators?.length, [validators]);
 
   return {
     isLoading,

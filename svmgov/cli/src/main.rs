@@ -126,6 +126,13 @@ enum Commands {
         /// GitHub link for the proposal description.
         #[arg(long, help = "GitHub link for the proposal description")]
         description: String,
+
+        /// Skip the network check that the linked proposal file exists.
+        #[arg(
+            long,
+            help = "Skip the network check that the --description file exists"
+        )]
+        skip_link_check: bool,
     },
 
     #[command(
@@ -664,6 +671,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
             seed,
             title,
             description,
+            skip_link_check,
         } => {
             instructions::create_proposal(
                 title.to_string(),
@@ -672,6 +680,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 cli.keypair,
                 cli.rpc_url,
                 network.clone(),
+                *skip_link_check,
             )
             .await?;
         }

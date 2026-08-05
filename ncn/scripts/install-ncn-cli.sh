@@ -22,19 +22,10 @@ if ! command -v cargo >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! command -v git >/dev/null 2>&1; then
-  echo -e "${RED}Error: git is not installed.${NC}" >&2
-  exit 1
-fi
-
 if [ ! -d "$NCN_DIR" ]; then
   echo -e "${RED}Error: cannot find ncn dir at: $NCN_DIR${NC}" >&2
   exit 1
 fi
-
-# shellcheck source=../../scripts/setup-jito-tip-router.sh
-source "$REPO_ROOT/scripts/setup-jito-tip-router.sh"
-ensure_jito_tip_router
 
 # Choose install location (similar behavior to svmgov install.sh).
 if [ -f "/usr/local/bin/$CLI_BIN_DEST" ]; then
@@ -51,12 +42,6 @@ echo -e "${YELLOW}Build $CLI_PKG (release)${NC}"
 cd "$NCN_DIR"
 
 # Build only the requested package to keep it fast.
-# Some dependencies require compile-time constants from env! macros.
-# Provide defaults, but allow the user to override by exporting them beforehand.
-export RESTAKING_PROGRAM_ID="${RESTAKING_PROGRAM_ID:-RestkWeAVL8fRGgzhfeoqFhsqKRchg6aa1XrcH96z4Q}"
-export VAULT_PROGRAM_ID="${VAULT_PROGRAM_ID:-Vau1t6sLNxnzB7ZDsef8TLbPLfyZMYXH8WTNqUdm9g8}"
-export TIP_ROUTER_PROGRAM_ID="${TIP_ROUTER_PROGRAM_ID:-11111111111111111111111111111111}"
-
 RUSTFLAGS="${RUSTFLAGS:--C target-cpu=native}" cargo build --locked --release -p "$CLI_PKG"
 
 BINARY_PATH="$NCN_DIR/target/release/$CLI_BIN_SRC"

@@ -14,6 +14,7 @@ import { useChainVoteAccount, useWalletRole } from "@/hooks";
 import { toast } from "sonner";
 import { getProposalDetailPagePath } from "@/helpers/proposalPage";
 import { getVoteModalNames } from "@/lib/governance/role-detection";
+import { ProposalRefLabel } from "./ProposalRefLabel";
 
 type ProposalStatus = ProposalRecord["status"];
 interface VotingDetailItem {
@@ -28,9 +29,8 @@ interface VotingDetailsProps {
 interface ActionButtonsProps {
   layout: "mobile" | "tablet";
   showModifyButton: boolean;
-  showActionButton: boolean;
-  actionButtonText: string | null;
-  onButtonClick?: MouseEventHandler<HTMLButtonElement>;
+  actionConfig: ProposalActionConfig | null;
+  onAction: (action: ProposalAction) => void;
   disabled?: boolean;
   disabledErrorMessage?: string;
 }
@@ -54,21 +54,39 @@ const getVotingStatusValue = (
   return "Not Started Yet";
 };
 
-const getActionButtonText = (status: ProposalStatus) => {
+/**
+ * Explicit identifier for what a card button does. Dispatching on this —
+ * rather than on the button's rendered text — keeps behavior stable if
+ * labels change, and lets read-only actions skip the wallet gate.
+ */
+type ProposalAction = "cast-vote" | "modify-vote" | "support" | "view-details";
+
+interface ProposalActionConfig {
+  action: ProposalAction;
+  label: string;
+}
+
+const getProposalAction = (
+  status: ProposalStatus,
+): ProposalActionConfig | null => {
   if (status === "voting") {
-    return "Cast Vote";
+    return { action: "cast-vote", label: "Cast Vote" };
   }
 
   if (status === "supporting") {
-    return "Support";
+    return { action: "support", label: "Support" };
   }
 
   if (status === "discussion") {
-    return "View Details";
+    return { action: "view-details", label: "View Details" };
   }
 
   return null;
 };
+
+/** Do not gate navigation actions on the wallet status */
+const actionRequiresWallet = (action: ProposalAction) =>
+  action !== "view-details";
 
 const shouldShowModifyButton = (status: ProposalStatus) => status === "voting";
 
@@ -113,12 +131,12 @@ const VotingDetails = ({ items, layout }: VotingDetailsProps) => {
 const ActionButtons = ({
   layout,
   showModifyButton,
-  showActionButton,
-  actionButtonText,
-  onButtonClick,
+  actionConfig,
+  onAction,
   disabled,
   disabledErrorMessage,
 }: ActionButtonsProps) => {
+  const showActionButton = actionConfig !== null;
   if (!showModifyButton && !showActionButton) {
     return null;
   }
@@ -138,6 +156,13 @@ const ActionButtons = ({
     }
   };
 
+  const makeClickHandler =
+    (action: ProposalAction): MouseEventHandler<HTMLButtonElement> =>
+    (event) => {
+      event.stopPropagation();
+      onAction(action);
+    };
+
   return (
     <div className={containerClassName} onClick={handleDisabledClick}>
       {showModifyButton && (
@@ -146,18 +171,20 @@ const ActionButtons = ({
           variant="outline"
           size="default"
           className={buttonClassName}
-          onClick={onButtonClick}
+          onClick={makeClickHandler("modify-vote")}
           disabled={disabled}
         />
       )}
-      {showActionButton && actionButtonText && (
+      {actionConfig && (
         <AppButton
-          text={actionButtonText}
-          variant={actionButtonText === "View Details" ? "outline" : "gradient"}
+          text={actionConfig.label}
+          variant={
+            actionConfig.action === "view-details" ? "outline" : "gradient"
+          }
           size="default"
           className={buttonClassName}
-          onClick={onButtonClick}
-          disabled={disabled}
+          onClick={makeClickHandler(actionConfig.action)}
+          disabled={disabled && actionRequiresWallet(actionConfig.action)}
         />
       )}
     </div>
@@ -179,15 +206,15 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
     status,
     quorumPercent,
     title,
-    simd,
+    proposalRef,
+    description,
     publicKey,
     endEpoch,
     consensusResult,
   } = proposal;
 
   const votingStatusValue = getVotingStatusValue(status, endEpoch.toString());
-  const actionButtonText = getActionButtonText(status);
-  const showActionButton = Boolean(actionButtonText);
+  const actionConfig = getProposalAction(status);
   const showModifyButton = shouldShowModifyButton(status);
 
   const detailItems: VotingDetailItem[] = [
@@ -204,9 +231,13 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
     router.push(getProposalDetailPagePath(publicKey));
   };
 
-  const handleButtonClick: MouseEventHandler<HTMLButtonElement> = (event) => {
-    event.stopPropagation();
-    const buttonText = (event.target as HTMLButtonElement).innerText;
+  const handleAction = (action: ProposalAction) => {
+    const proposalId = publicKey.toBase58();
+
+    if (action === "view-details") {
+      router.push(getProposalDetailPagePath(proposalId));
+      return;
+    }
 
     if (!connected) {
       toast.error(
@@ -223,40 +254,47 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
       toast.error("Only validators are allowed to support");
       return;
     }
-    const proposalId = publicKey.toBase58();
-    if (buttonText === "Modify Vote" && consensusResult) {
+
+    if (action === "modify-vote" && consensusResult) {
       openModal(modifyModalName, {
         proposalId,
         consensusResult,
       });
-    } else if (buttonText === "Cast Vote" && consensusResult) {
+    } else if (action === "cast-vote" && consensusResult) {
       openModal(castModalName, {
         proposalId,
         consensusResult,
       });
-    } else if (buttonText === "Support") {
+    } else if (action === "support") {
       openModal("support-proposal", { proposalId });
-    } else if (buttonText === "View Details") {
-      router.push(getProposalDetailPagePath(proposalId));
     }
   };
 
+  // Wallet gates only apply to buttons that end in a transaction; a card
+  // whose only action is "View Details" is never disabled.
+  const hasWalletGatedButton =
+    showModifyButton ||
+    (actionConfig !== null && actionRequiresWallet(actionConfig.action));
+
   const disabledActionButtons =
-    !connected ||
-    isLoadingVoteIdentity ||
-    (walletRole === WalletRole.STAKER && proposal.status === "supporting");
+    hasWalletGatedButton &&
+    (!connected ||
+      isLoadingVoteIdentity ||
+      (walletRole === WalletRole.STAKER && proposal.status === "supporting"));
 
   let disabledErrorMessage = "";
-  if (!connected) {
-    disabledErrorMessage =
-      "Wallet not connected, please connect your wallet to be able to perform these actions";
-  } else if (isLoadingVoteIdentity) {
-    disabledErrorMessage = "Loading wallet voting identity";
-  } else if (
-    walletRole === WalletRole.STAKER &&
-    proposal.status === "supporting"
-  ) {
-    disabledErrorMessage = "Only validators are allowed to support";
+  if (disabledActionButtons) {
+    if (!connected) {
+      disabledErrorMessage =
+        "Wallet not connected, please connect your wallet to be able to perform these actions";
+    } else if (isLoadingVoteIdentity) {
+      disabledErrorMessage = "Loading wallet voting identity";
+    } else if (
+      walletRole === WalletRole.STAKER &&
+      proposal.status === "supporting"
+    ) {
+      disabledErrorMessage = "Only validators are allowed to support";
+    }
   }
 
   return (
@@ -273,9 +311,11 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="text-xs font-plus-jakarta-sans font-semibold text-dao-color-gray">
-                {simd || "-"}
-              </span>
+              <ProposalRefLabel
+                url={description}
+                fallback={proposalRef}
+                className="text-xs font-plus-jakarta-sans font-semibold text-dao-color-gray"
+              />
               <LifecycleIndicator status={status} />
             </div>
             <StatusBadge
@@ -294,9 +334,8 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
         <ActionButtons
           layout="mobile"
           showModifyButton={showModifyButton}
-          showActionButton={showActionButton}
-          actionButtonText={actionButtonText}
-          onButtonClick={handleButtonClick}
+          actionConfig={actionConfig}
+          onAction={handleAction}
           disabled={disabledActionButtons}
           disabledErrorMessage={disabledErrorMessage}
         />
@@ -306,9 +345,11 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
       <div className="hidden md:flex md:gap-4">
         <div className="flex-1 space-y-3">
           <div className="flex items-center gap-3">
-            <span className="text-xs font-plus-jakarta-sans font-semibold text-white/60">
-              {simd || "-"}
-            </span>
+            <ProposalRefLabel
+              url={description}
+              fallback={proposalRef}
+              className="text-xs font-plus-jakarta-sans font-semibold text-white/60"
+            />
             <LifecycleIndicator status={status} />
           </div>
           <h4 className="h4 font-medium text-foreground leading-tight line-clamp-2 text-balance">
@@ -326,9 +367,8 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
           <ActionButtons
             layout="tablet"
             showModifyButton={showModifyButton}
-            showActionButton={showActionButton}
-            actionButtonText={actionButtonText}
-            onButtonClick={handleButtonClick}
+            actionConfig={actionConfig}
+            onAction={handleAction}
             disabled={disabledActionButtons}
             disabledErrorMessage={disabledErrorMessage}
           />

@@ -2,15 +2,19 @@ import { useMemo } from "react";
 import { useGetValidators } from "./useGetValidators";
 
 /**
- * Hook to get the total staked lamports from all validators
- * @returns The total staked lamports (sum of all validators' activated_stake)
+ * Total activated stake across all validators, or `undefined` when it is not
+ * known — the query is in flight, or it failed.
+ *
+ * Deliberately not `0` for the unknown case: callers divide by this to produce
+ * percentages, and a zero denominator renders as "0%", which is
+ * indistinguishable from a real result.
  */
 export const useValidatorsTotalStakedLamports = () => {
-  const { data: validators, isLoading, error } = useGetValidators();
+  const { data: validators, isLoading, isError, error } = useGetValidators();
 
   const totalStakedLamports = useMemo(() => {
     if (!validators) {
-      return 0;
+      return undefined;
     }
 
     return validators.reduce(
@@ -22,7 +26,7 @@ export const useValidatorsTotalStakedLamports = () => {
   return {
     totalStakedLamports,
     isLoading,
+    isError,
     error,
   };
 };
-

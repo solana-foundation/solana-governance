@@ -13,21 +13,14 @@ import { useGovernanceConfigContext } from "@/contexts/GovernanceConfigContext";
 import {
   epochConstantsFromGovernanceConfig,
   getProposalPhaseEpochs,
+  supportThresholdPercentFromConfig,
 } from "@/lib/proposals";
 import { NotificationButton } from "./NotificationButton";
 import { PhaseStatusBadge } from "./PhaseStatusBadge";
 import { SupportDonut } from "./SupportDonut";
 import { StatBadge, StatCard } from "./StatCard";
 import { TimeRemainingCarousel } from "./TimeRemainingCarousel";
-
-// ============================================================================
-// Configuration - These will be replaced with real data later
-// ============================================================================
-
-/** Support threshold as percentage of total staked SOL (e.g., 15 = 15%) */
-
-// TODO: testnet is 10%, mainnet is 15% - create a getter depending on the endpoint type
-export const SUPPORT_THRESHOLD_PERCENT = 10;
+import { computeSupportStats } from "./stats";
 
 /** Mock total active staked SOL across the network (in lamports) */
 // const MOCK_TOTAL_STAKED_LAMPORTS = 316_010_000 * LAMPORTS_PER_SOL; // 316.01M SOL
@@ -49,7 +42,10 @@ export function SupportPhaseProgress({ proposal }: SupportPhaseProgressProps) {
 
   const phaseEpochs =
     epochs !== undefined
-      ? getProposalPhaseEpochs(proposal.creationEpoch, epochs)
+      ? getProposalPhaseEpochs(proposal.creationEpoch, epochs, {
+          voting: proposal.voting,
+          startEpoch: proposal.startEpoch,
+        })
       : undefined;
 
   const { data: supportEndsAt, isLoading: isLoadingEpochDate } =
@@ -85,61 +81,35 @@ export function SupportPhaseProgress({ proposal }: SupportPhaseProgressProps) {
     governanceConfigQuery.isLoading ||
     governanceConfigQuery.isPending;
 
-  const stats = useMemo(() => {
-    // Use proposal's clusterSupportLamports as current support
-    const currentSupportLamports = proposal.clusterSupportLamports;
-    const totalStakedLamports = validatorsStake;
-    const thresholdPercent = SUPPORT_THRESHOLD_PERCENT;
+  const configData = governanceConfigQuery.data;
 
-    // Calculate required threshold in lamports
-    const requiredThresholdLamports =
-      totalStakedLamports * (thresholdPercent / 100);
+  // The on-chain record that the support threshold was crossed. The program
+  // measured it against the epoch-stakes total of the crossing epoch, which the
+  // RPC does not expose, so recomputing from live stake can disagree (a
+  // proposal that barely crossed renders as ~99.9%). The account's verdict wins.
+  const thresholdCrossed = proposal.voting || proposal.finalized;
 
-    // Progress toward threshold (can exceed 100%)
-    const progressPercent =
-      requiredThresholdLamports > 0
-        ? (currentSupportLamports / requiredThresholdLamports) * 100
-        : 0;
-
-    // Support as percent of total staked
-    const supportPercentOfTotal =
-      totalStakedLamports > 0
-        ? (currentSupportLamports / totalStakedLamports) * 1000
-        : 0;
-
-    // Remaining SOL needed (0 if threshold met)
-    const remainingLamports = Math.max(
-      0,
-      requiredThresholdLamports - currentSupportLamports,
-    );
-
-    // Is threshold met?
-    const isThresholdMet = currentSupportLamports >= requiredThresholdLamports;
-
-    const validatorCount = supportAccounts.length;
-    const participationPercent = (validatorCount / numOfValidators) * 100;
-    const avgStakePerValidator =
-      validatorCount > 0 ? currentSupportLamports / validatorCount : 0;
-
-    return {
-      currentSupportLamports,
-      totalStakedLamports,
-      requiredThresholdLamports,
-      thresholdPercent,
-      progressPercent,
-      supportPercentOfTotal,
-      remainingLamports,
-      isThresholdMet,
-      validatorCount,
-      participationPercent,
-      avgStakePerValidator,
-    };
-  }, [
-    numOfValidators,
-    proposal.clusterSupportLamports,
-    supportAccounts.length,
-    validatorsStake,
-  ]);
+  const stats = useMemo(
+    () =>
+      computeSupportStats({
+        currentSupportLamports: proposal.clusterSupportLamports,
+        totalStakedLamports: validatorsStake,
+        // Support threshold comes from the on-chain GlobalConfig; falls back to
+        // the current mainnet default until the config loads.
+        thresholdPercent: supportThresholdPercentFromConfig(configData),
+        validatorCount: supportAccounts.length,
+        numOfValidators,
+        thresholdCrossed,
+      }),
+    [
+      configData,
+      numOfValidators,
+      proposal.clusterSupportLamports,
+      supportAccounts.length,
+      thresholdCrossed,
+      validatorsStake,
+    ],
+  );
 
   // Determine banner state
   const showBanner = stats.progressPercent >= 80 || stats.isThresholdMet;
@@ -187,8 +157,9 @@ export function SupportPhaseProgress({ proposal }: SupportPhaseProgressProps) {
         {/* Donut Chart */}
         <div className="flex flex-1 items-center justify-center">
           <SupportDonut
-            currentSupportLamports={stats.currentSupportLamports}
-            requiredThresholdLamports={stats.requiredThresholdLamports}
+            progressPercent={stats.progressPercent}
+            isThresholdMet={stats.isThresholdMet}
+            remainingLamports={stats.remainingLamports}
           />
         </div>
 

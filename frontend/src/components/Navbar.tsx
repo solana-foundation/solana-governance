@@ -23,12 +23,23 @@ import { useWallet } from "@solana/wallet-adapter-react";
 type NavLink = {
   href: string;
   label: string;
+  external?: boolean;
 };
 
 const navLinks: NavLink[] = [
   { href: "/proposals", label: "Proposals" },
   { href: "/dashboard", label: "Dashboard" },
+  {
+    href: "https://docs.governance.solana.com",
+    label: "Docs",
+    external: true,
+  },
 ];
+
+const navLinkClassName = (isActive: boolean) =>
+  `text-sm font-medium transition-colors ${
+    isActive ? "text-white" : "text-muted hover:text-white"
+  }`;
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -43,19 +54,24 @@ export default function Navbar() {
     setIsOpen(false);
   }, [pathname]);
 
-  const renderNavLinks = ({ href, label }: NavLink) => {
-    const isActive = pathname.startsWith(href);
+  const renderNavLinks = ({ href, label, external }: NavLink) => {
+    const isActive = !external && pathname.startsWith(href);
     return (
       <li key={href}>
-        <Link
-          key={href}
-          href={href}
-          className={`text-sm font-medium transition-colors ${
-            isActive ? "text-white" : "text-muted hover:text-white"
-          }`}
-        >
-          {label}
-        </Link>
+        {external ? (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={navLinkClassName(isActive)}
+          >
+            {label}
+          </a>
+        ) : (
+          <Link href={href} className={navLinkClassName(isActive)}>
+            {label}
+          </Link>
+        )}
       </li>
     );
   };
@@ -102,19 +118,28 @@ export default function Navbar() {
 
                 <nav className="flex flex-col gap-2 p-4">
                   {navLinks.map((link) => {
-                    const isActive = pathname === link.href;
+                    const isActive = !link.external && pathname === link.href;
+                    const className = `px-4 py-3 rounded-lg text-base font-medium transition-all ${
+                      isActive
+                        ? "bg-white/5 text-white"
+                        : "text-muted hover:text-white hover:bg-white/5"
+                    }`;
                     return (
                       <DrawerClose asChild key={link.href}>
-                        <Link
-                          href={link.href}
-                          className={`px-4 py-3 rounded-lg text-base font-medium transition-all ${
-                            isActive
-                              ? "bg-white/5 text-white"
-                              : "text-muted hover:text-white hover:bg-white/5"
-                          }`}
-                        >
-                          {link.label}
-                        </Link>
+                        {link.external ? (
+                          <a
+                            href={link.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={className}
+                          >
+                            {link.label}
+                          </a>
+                        ) : (
+                          <Link href={link.href} className={className}>
+                            {link.label}
+                          </Link>
+                        )}
                       </DrawerClose>
                     );
                   })}

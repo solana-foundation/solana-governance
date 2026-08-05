@@ -15,9 +15,6 @@ node_modules/
 # Env
 .env
 
-# jito-tip-router is tracked as a git submodule (see .gitmodules).
-
 admin.json
 
-jito-tip-router
 .surfpool

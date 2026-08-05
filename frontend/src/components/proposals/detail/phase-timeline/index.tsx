@@ -51,11 +51,18 @@ export default function PhaseTimeline({
     ? epochConstantsFromGovernanceConfig(governanceConfigQuery.data)
     : undefined;
   const phaseEpochs = epochConstants && proposal
-    ? getProposalPhaseEpochs(proposal.creationEpoch, epochConstants)
+    ? getProposalPhaseEpochs(proposal.creationEpoch, epochConstants, {
+        voting: proposal.voting,
+        startEpoch: proposal.startEpoch,
+      })
     : undefined;
-  const votingEndEpoch = phaseEpochs
-    ? phaseEpochs.snapshotEpoch + (epochConstants?.VOTING_EPOCHS ?? 0)
-    : undefined;
+  // Once voting is scheduled on-chain, the proposal's endEpoch is definitive.
+  const votingEndEpoch =
+    proposal?.voting && proposal.endEpoch > 0
+      ? proposal.endEpoch
+      : phaseEpochs
+        ? phaseEpochs.snapshotEpoch + (epochConstants?.VOTING_EPOCHS ?? 0)
+        : undefined;
 
   const activePhaseEndEpoch = getActivePhaseEndEpoch(
     currentPhase,

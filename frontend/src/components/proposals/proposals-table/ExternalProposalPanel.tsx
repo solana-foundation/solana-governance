@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { ProposalDescription } from "../ProposalDescription";
+import { ProposalHeading } from "../ProposalHeading";
 import { ProposalRecord, ProposalStatus } from "@/types";
 import { useChainVoteAccount, useWalletRole } from "@/hooks";
 import { SupportButton } from "../SupportButton";
@@ -50,8 +51,11 @@ function ProposalInfo({ proposal }: { proposal: ProposalRecord }) {
         className="space-y-3 block"
       >
         <h3 className="h3 whitespace-pre-wrap text-lg font-semibold tracking-tight text-white sm:text-xl hover-gradient-text transition-all duration-200">
-          {proposal.simd && `${proposal.simd}: `}
-          {proposal.title}
+          <ProposalHeading
+            url={proposal.description}
+            fallback={proposal.proposalRef}
+            title={proposal.title}
+          />
         </h3>
         <ProposalDescription githubUrl={proposal.description} />
       </Link>
@@ -218,25 +222,25 @@ function VotingPanel({ proposal }: { proposal: ProposalRecord }) {
         </div>
       </header>
 
-      {connected ? (
-        <>
-          {isDiscussion && (
-            <DiscussionMessage proposalId={proposal.publicKey.toBase58()} />
-          )}
-          {(isSupporting || isVoting) && (
-            <VoteActions
-              state={proposal.status}
-              proposalId={proposal.publicKey.toBase58()}
-              consensusResult={proposal.consensusResult}
-            />
-          )}
-        </>
+      {/* Discussion is read-only (View Details navigation) — always shown,
+          wallet or not. Only transaction actions are wallet-gated. */}
+      {isDiscussion ? (
+        <DiscussionMessage proposalId={proposal.publicKey.toBase58()} />
+      ) : connected ? (
+        (isSupporting || isVoting) && (
+          <VoteActions
+            state={proposal.status}
+            proposalId={proposal.publicKey.toBase58()}
+            consensusResult={proposal.consensusResult}
+          />
+        )
       ) : (
         <Tooltip>
           <TooltipTrigger asChild>
             <span>
-              {isSupporting ||
-                (isVoting && <VoteActions state={proposal.status} disabled />)}
+              {(isSupporting || isVoting) && (
+                <VoteActions state={proposal.status} disabled />
+              )}
             </span>
           </TooltipTrigger>
           <TooltipContent side="bottom">

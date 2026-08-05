@@ -1,15 +1,12 @@
 import { PublicKey } from "@solana/web3.js";
-import { getProposalStatus } from "../proposals";
+import { getProposalPhaseEpochs, getProposalStatus } from "../proposals";
 import type { EpochConstants, GetProposalStatusParams } from "../proposals";
-
-// Mock the SUPPORT_THRESHOLD_PERCENT constant
-jest.mock("@/components/proposals/detail/support-phase-progress", () => ({
-  SUPPORT_THRESHOLD_PERCENT: 10,
-}));
 
 describe("getProposalStatus", () => {
   const creationEpoch = 800;
   const totalStakedLamports = 100_000_000_000; // 100M SOL in lamports
+  // 10% threshold (1000 bps), passed through params like the on-chain config
+  const clusterSupportPctMinBps = 1000;
   const requiredThresholdLamports = totalStakedLamports * 0.1; // 10% = 10M SOL
   const mockConsensusResult = new PublicKey("11111111111111111111111111111111");
 
@@ -42,6 +39,7 @@ describe("getProposalStatus", () => {
     startEpoch: defaultStartEpoch,
     endEpoch: defaultEndEpoch,
     totalStakedLamports,
+    clusterSupportPctMinBps,
     consensusResult: undefined,
     finalized: false,
     voting: false,
@@ -607,5 +605,56 @@ describe("getProposalStatus", () => {
         ).toBe(expected);
       });
     });
+  });
+});
+
+describe("getProposalPhaseEpochs", () => {
+  // Mainnet-shaped constants (GlobalConfig as of epoch 1012)
+  const epochs: EpochConstants = {
+    SUPPORT_EPOCHS: 7,
+    DISCUSSION_EPOCHS: 7,
+    SNAPSHOT_EPOCHS: 1,
+    VOTING_EPOCHS: 3,
+  };
+  const creationEpoch = 1011;
+
+  it("projects the worst-case window from creationEpoch while support is in progress", () => {
+    const phases = getProposalPhaseEpochs(creationEpoch, epochs);
+
+    expect(phases.supportEndEpoch).toBe(1019); // 1011 + 7 + 1
+    expect(phases.discussionEndEpoch).toBe(1026); // 1019 + 7
+    expect(phases.snapshotEpoch).toBe(1027); // 1019 + 7 + 1
+  });
+
+  it("ignores on-chain anchors while voting is false", () => {
+    const phases = getProposalPhaseEpochs(creationEpoch, epochs, {
+      voting: false,
+      startEpoch: 0,
+    });
+
+    expect(phases.discussionEndEpoch).toBe(1026);
+  });
+
+  it("uses the on-chain startEpoch once support has succeeded", () => {
+    // Real mainnet case: threshold met in epoch 1012, program scheduled
+    // voting for epoch 1021 — 5 epochs earlier than the worst-case 1026.
+    const phases = getProposalPhaseEpochs(creationEpoch, epochs, {
+      voting: true,
+      startEpoch: 1021,
+    });
+
+    expect(phases.discussionEndEpoch).toBe(1021);
+    expect(phases.snapshotEpoch).toBe(1021);
+    // Support window is historical fact, not affected by the early finish
+    expect(phases.supportEndEpoch).toBe(1019);
+  });
+
+  it("falls back to projection when voting is true but startEpoch is unset", () => {
+    const phases = getProposalPhaseEpochs(creationEpoch, epochs, {
+      voting: true,
+      startEpoch: 0,
+    });
+
+    expect(phases.discussionEndEpoch).toBe(1026);
   });
 });

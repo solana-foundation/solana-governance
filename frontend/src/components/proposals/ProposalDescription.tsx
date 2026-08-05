@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { useProposalSimdDescription } from "@/hooks";
+import { useProposalDocument } from "@/hooks";
 
 interface Props {
   githubUrl: string;
 }
 
 export const ProposalDescription = ({ githubUrl }: Props) => {
-  const { data, isLoading } = useProposalSimdDescription(githubUrl);
+  const { data, isLoading } = useProposalDocument(githubUrl);
   const scrollRef = useRef<HTMLParagraphElement>(null);
   const [showTopShadow, setShowTopShadow] = useState(false);
   const [showBottomShadow, setShowBottomShadow] = useState(false);

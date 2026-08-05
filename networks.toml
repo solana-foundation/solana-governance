@@ -1,5 +1,4 @@
-# Release manifest — single source of truth for per-network program IDs,
-# RPC endpoints, and the canonical jito-tip-router commit pinned to this release.
+# Release manifest — single source of truth for per-network program IDs and RPC endpoints.
 
 [meta]
 release_version = "0.4.0-40100"
@@ -8,28 +7,23 @@ release_version = "0.4.0-40100"
 rpc_url = "https://api.mainnet-beta.solana.com"
 svmgov_program_id       = "govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU"
 ncn_snapshot_program_id = "ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf"
-jito_tip_router_commit  = "d60e3eb75917f8f183c6cbc1a176796f0d095708"
 
 [networks.mainnet-staging]
 rpc_url = "https://api.mainnet-beta.solana.com"
 svmgov_program_id       = "govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU"
 ncn_snapshot_program_id = "ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf"
-jito_tip_router_commit  = "d60e3eb75917f8f183c6cbc1a176796f0d095708"
 
 [networks.testnet]
 rpc_url = "https://api.testnet.solana.com"
 svmgov_program_id       = "govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU"
 ncn_snapshot_program_id = "ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf"
-jito_tip_router_commit  = "d60e3eb75917f8f183c6cbc1a176796f0d095708"
 
 [networks.testnet-staging]
 rpc_url = "https://api.testnet.solana.com"
 svmgov_program_id       = "govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU"
 ncn_snapshot_program_id = "ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf"
-jito_tip_router_commit  = "d60e3eb75917f8f183c6cbc1a176796f0d095708"
 
 [networks.localnet]
 rpc_url = "http://localhost:8899"
 svmgov_program_id       = "govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU"
 ncn_snapshot_program_id = "ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf"
-jito_tip_router_commit  = "d60e3eb75917f8f183c6cbc1a176796f0d095708"

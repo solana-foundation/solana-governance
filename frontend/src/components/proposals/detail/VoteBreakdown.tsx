@@ -11,6 +11,9 @@ import {
 } from "@/lib/governance/formatters";
 import { useHasUserVoted, useValidatorsTotalStakedLamports } from "@/hooks";
 
+/** Shown in place of a percentage when total network stake could not be loaded. */
+const UNKNOWN_PERCENTAGE = "—";
+
 interface VoteBreakdownWrapperProps {
   proposal: ProposalRecord | undefined;
   isLoading: boolean;
@@ -39,13 +42,11 @@ const VoteBreakdown = ({
   const { totalStakedLamports, isLoading: isLoadingTotalStake } =
     useValidatorsTotalStakedLamports();
 
+  // `undefined` when the denominator is unknown, so the percentages render as
+  // "—" rather than a "0.00%" that looks like a real tally.
   const votePercentages = useMemo(() => {
-    if (!proposal || !totalStakedLamports || totalStakedLamports === 0) {
-      return {
-        forVotesPercentage: 0,
-        againstVotesPercentage: 0,
-        abstainVotesPercentage: 0,
-      };
+    if (!proposal || !totalStakedLamports) {
+      return undefined;
     }
 
     return {
@@ -105,10 +106,11 @@ const VoteBreakdown = ({
                   amount={
                     formatLamportsDisplay(proposal.forVotesLamports).value
                   }
-                  percentage={formatPercentage(
-                    votePercentages.forVotesPercentage,
-                    2,
-                  )}
+                  percentage={
+                    votePercentages
+                      ? formatPercentage(votePercentages.forVotesPercentage, 2)
+                      : UNKNOWN_PERCENTAGE
+                  }
                   color="bg-primary"
                 />
                 <VoteItem
@@ -116,10 +118,14 @@ const VoteBreakdown = ({
                   amount={
                     formatLamportsDisplay(proposal.againstVotesLamports).value
                   }
-                  percentage={formatPercentage(
-                    votePercentages.againstVotesPercentage,
-                    2,
-                  )}
+                  percentage={
+                    votePercentages
+                      ? formatPercentage(
+                          votePercentages.againstVotesPercentage,
+                          2,
+                        )
+                      : UNKNOWN_PERCENTAGE
+                  }
                   color="bg-destructive"
                 />
                 <VoteItem
@@ -127,10 +133,14 @@ const VoteBreakdown = ({
                   amount={
                     formatLamportsDisplay(proposal.abstainVotesLamports).value
                   }
-                  percentage={formatPercentage(
-                    votePercentages.abstainVotesPercentage,
-                    2,
-                  )}
+                  percentage={
+                    votePercentages
+                      ? formatPercentage(
+                          votePercentages.abstainVotesPercentage,
+                          2,
+                        )
+                      : UNKNOWN_PERCENTAGE
+                  }
                   color="bg-white/30"
                 />
               </>

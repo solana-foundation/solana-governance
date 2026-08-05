@@ -59,7 +59,9 @@ export function DashboardStats({
 
   const totalStaked =
     stakeAccounts?.reduce((acc, curr) => acc + curr.activeStake, 0) || 0;
-  const activeValidators = validators?.length || 0;
+  // Left undefined when the validator query has not resolved; formatOptionalCount
+  // renders "-" rather than a "0" that reads as a real count.
+  const activeValidators = validators?.length;
 
   // TODO: on mobile only show "custom" when the network is a custom URL, otherwise show the network name
 
