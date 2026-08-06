@@ -17,8 +17,11 @@ graph TB
         SVMCLI["svmgov CLI"]
         NCNCLI["NCN CLI"]
         VS["Verifier Service"]
+    end
+
+    subgraph "Foundation Services"
         ROUTER["NCN Router
-(cron-based automation)"]
+(validates and whitelists verifiers)"]
     end
 
     subgraph "User Interfaces"
@@ -33,8 +36,9 @@ graph TB
     NCNCLI -->|"cast vote / verify proof"| NCN
     NCNCLI -->|"generate snapshot + sign hash"| OP["Operator"]
     OP -->|"signed HTTP POST /upload"| VS
-    VS -->|"serve proofs to voters and UIs"| FE
-    ROUTER -->|"automated ballot management"| NCN
+    FE -->|"proof requests"| ROUTER
+    ROUTER -->|"redirects to a whitelisted verifier"| VS
+    VS -->|"serves proofs"| FE
     FE -->|"read proposals, votes, quorum"| RPC
     FE -->|"submit vote / support / override transactions"| SVMGOV
     RPC -->|"on-chain state"| SVMGOV
@@ -64,7 +68,7 @@ Governance for the Node Consensus Network — a subset of whitelisted operators.
 | **Program** | `ncn/programs/ncn-snapshot/` | On-chain program — ballot boxes, merkle proof verification, operator whitelisting |
 | **CLI** | `ncn/cli/` | Command-line interface for casting NCN votes and verifying proofs |
 | **Verifier Service** | `ncn/verifier-service/` | Off-chain service that indexes operator-uploaded snapshots and serves merkle proofs over HTTP. It does not write on-chain |
-| **Router** | `ncn-router/` | Cron-based automation for ballot management and routing |
+| **Router** | `ncn-router/` | Foundation-run service that validates and whitelists operators' verifier services and redirects proof requests to a healthy verifier |
 
 **Flow:** Each whitelisted operator independently generates a snapshot at the target slot → casts a vote for its merkle root via CLI → when enough operators agree, `finalize_ballot` writes the `ConsensusResult` on-chain → operators upload their snapshot to a verifier service, which serves proofs against the finalized root.
 
@@ -74,7 +78,7 @@ Governance for the Node Consensus Network — a subset of whitelisted operators.
 2. **Merkle tree** — Two-tier: a top-level tree over vote accounts, each leaf carrying a sub-root over that validator's stake accounts
 3. **Operator voting** — Each operator casts its merkle root and snapshot hash into the `BallotBox` via `cast_vote`. All whitelisted operators carry equal weight
 4. **Consensus** — Once `min_consensus_threshold_bps` of operators agree on the same ballot, `finalize_ballot` creates the on-chain `ConsensusResult`
-5. **Proof service** — Operators upload their snapshots to verifier services, which serve per-account proofs against the finalized root
+5. **Proof service** — Operators upload their snapshots to verifier services, which serve per-account proofs against the finalized root; the foundation-run NCN Router validates and whitelists these verifiers and redirects frontend proof requests to one of them
 6. **Verification** — `verify_merkle_proof` checks a vote-account or stake-account leaf against the `ConsensusResult` root, typically via CPI from the governance program
 
 ## Glossary
@@ -88,6 +92,7 @@ Governance for the Node Consensus Network — a subset of whitelisted operators.
 | **Merkle Proof** | Cryptographic proof verifying a validator's inclusion and stake weight in an epoch snapshot |
 | **Merkle Root** | The top-level hash of a merkle tree, stored on-chain as a verifiable commitment to snapshot data |
 | **NCN** | Node Consensus Network — a subset of whitelisted validators participating in merkle-proof governance |
+| **NCN Router** | Foundation-run service that validates and whitelists operators' verifier services and redirects proof requests to a whitelisted verifier |
 | **Operator Whitelist** | On-chain list of authorized NCN operators who can participate in ballot voting |
 | **Proposal** | A governance action submitted for validator/staker voting, with defined phases and quorum requirements |
 | **Quorum** | In `svmgov`, the stake-weighted threshold a proposal must reach. In NCN, `min_consensus_threshold_bps` — the share of whitelisted operators that must agree on a ballot |
