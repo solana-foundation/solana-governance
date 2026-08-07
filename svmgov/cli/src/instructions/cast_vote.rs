@@ -10,7 +10,7 @@ use crate::{
     constants::*,
     svmgov_program::{accounts::Proposal, client::{accounts, args}},
     utils::{
-        api_helpers::{self, get_vote_account_proof},
+        api_helpers::{self, convert_merkle_proof_strings, get_vote_account_proof},
         utils::{
             compute_vote_expiry_timestamp, create_spinner, derive_vote_override_cache_pda,
             derive_vote_pda, setup_all,
@@ -92,8 +92,11 @@ pub async fn cast_vote(
 
         let init_spinner = create_spinner("Initializing meta merkle proof...");
 
-        let voting_wallet = Pubkey::from_str(&proof_response.meta_merkle_leaf.voting_wallet)
-            .map_err(|e| anyhow!("Invalid voting wallet in proof: {}", e))?;
+        // Validate every field from the operator API rather than assuming it is
+        // well-formed: these converters return a clear error, where the const
+        // base58 decoder would panic on a malformed response.
+        let meta_merkle_leaf = MetaMerkleLeaf::try_from(&proof_response.meta_merkle_leaf)?;
+        let meta_merkle_proof = convert_merkle_proof_strings(&proof_response.meta_merkle_proof)?;
 
         let close_timestamp = match close_timestamp_override {
             Some(ts) => ts,
@@ -105,20 +108,8 @@ pub async fn cast_vote(
             .request()
             .args(ncn_snapshot::instruction::InitMetaMerkleProof {
                 close_timestamp,
-                meta_merkle_leaf: MetaMerkleLeaf {
-                    voting_wallet,
-                    vote_account,
-                    stake_merkle_root: Pubkey::from_str_const(
-                        proof_response.meta_merkle_leaf.stake_merkle_root.as_str(),
-                    )
-                    .to_bytes(),
-                    active_stake: proof_response.meta_merkle_leaf.active_stake,
-                },
-                meta_merkle_proof: proof_response
-                    .meta_merkle_proof
-                    .iter()
-                    .map(|s| Pubkey::from_str_const(s).to_bytes())
-                    .collect(),
+                meta_merkle_leaf,
+                meta_merkle_proof,
             })
             .accounts(ncn_snapshot::accounts::InitMetaMerkleProof {
                 consensus_result: consensus_result_pda,

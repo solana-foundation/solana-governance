@@ -118,8 +118,12 @@ pub async fn cast_vote_override(
     if meta_merkle_proof_account.is_none() {
         info!("Creating meta merkle proof account");
 
-        let voting_wallet = Pubkey::from_str(&meta_merkle_proof.meta_merkle_leaf.voting_wallet)
-            .map_err(|e| anyhow!("Invalid voting wallet in proof: {}", e))?;
+        // Validate every field from the operator API rather than assuming it is
+        // well-formed: these converters return a clear error, where the const
+        // base58 decoder would panic on a malformed response.
+        let meta_merkle_leaf = MetaMerkleLeaf::try_from(&meta_merkle_proof.meta_merkle_leaf)?;
+        let meta_merkle_proof_hashes =
+            convert_merkle_proof_strings(&meta_merkle_proof.meta_merkle_proof)?;
 
         let close_timestamp = match close_timestamp_override {
             Some(ts) => ts,
@@ -131,23 +135,8 @@ pub async fn cast_vote_override(
             .request()
             .args(ncn_snapshot::instruction::InitMetaMerkleProof {
                 close_timestamp,
-                meta_merkle_leaf: MetaMerkleLeaf {
-                    voting_wallet,
-                    vote_account: vote_account_pubkey,
-                    stake_merkle_root: Pubkey::from_str_const(
-                        meta_merkle_proof
-                            .meta_merkle_leaf
-                            .stake_merkle_root
-                            .as_str(),
-                    )
-                    .to_bytes(),
-                    active_stake: meta_merkle_proof.meta_merkle_leaf.active_stake,
-                },
-                meta_merkle_proof: meta_merkle_proof
-                    .meta_merkle_proof
-                    .iter()
-                    .map(|s| Pubkey::from_str_const(s).to_bytes())
-                    .collect(),
+                meta_merkle_leaf,
+                meta_merkle_proof: meta_merkle_proof_hashes,
             })
             .accounts(ncn_snapshot::accounts::InitMetaMerkleProof {
                 consensus_result: consensus_result_pda,
