@@ -4,18 +4,18 @@ version = "0.4.0-40100"
 edition = "2021"
 
 [dependencies]
-agave-snapshots               = { version = "=4.2.0-rc.1", features = ["agave-unstable-api"] }
-solana-accounts-db            = { version = "=4.2.0-rc.1", features = ["agave-unstable-api"] }
-solana-runtime                = { version = "=4.2.0-rc.1", features = ["agave-unstable-api"] }
-solana-ledger                 = { version = "=4.2.0-rc.1", features = ["agave-unstable-api"] }
-solana-rpc                    = { version = "=4.2.0-rc.1", features = ["agave-unstable-api"] }
-solana-geyser-plugin-manager  = { version = "=4.2.0-rc.1", features = ["agave-unstable-api"] }
-solana-unified-scheduler-pool = { version = "=4.2.0-rc.1", features = ["agave-unstable-api"] }
-solana-genesis-utils          = { version = "=4.2.0-rc.1", features = ["agave-unstable-api"] }
-solana-measure                = { version = "=4.2.0-rc.1", features = ["agave-unstable-api"] }
-solana-clap-utils             = { version = "=4.2.0-rc.1", features = ["agave-unstable-api"] }
+agave-snapshots               = { version = "=4.2.0", features = ["agave-unstable-api"] }
+solana-accounts-db            = { version = "=4.2.0", features = ["agave-unstable-api"] }
+solana-runtime                = { version = "=4.2.0", features = ["agave-unstable-api"] }
+solana-ledger                 = { version = "=4.2.0", features = ["agave-unstable-api"] }
+solana-rpc                    = { version = "=4.2.0", features = ["agave-unstable-api"] }
+solana-geyser-plugin-manager  = { version = "=4.2.0", features = ["agave-unstable-api"] }
+solana-unified-scheduler-pool = { version = "=4.2.0", features = ["agave-unstable-api"] }
+solana-genesis-utils          = { version = "=4.2.0", features = ["agave-unstable-api"] }
+solana-measure                = { version = "=4.2.0", features = ["agave-unstable-api"] }
+solana-clap-utils             = { version = "=4.2.0", features = ["agave-unstable-api"] }
 solana-genesis-config         = "4.0.0"
-solana-metrics                = "=4.2.0-rc.1"
+solana-metrics                = "=4.2.0"
 solana-program = { version = "4.0.0", default-features = false, features = [] }
 solana-sdk = "=4.0.1"
 solana-shred-version = "=3.0.1"
