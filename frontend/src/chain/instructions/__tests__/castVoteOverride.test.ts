@@ -52,7 +52,8 @@ const keyFromByte = (b: number): string =>
 const SNAPSHOT_VOTE_ACCOUNT = keyFromByte(1); // validator A at snapshot
 const LIVE_VOTE_ACCOUNT = keyFromByte(2); // validator B (post-snapshot redelegation)
 const STAKE_ACCOUNT = keyFromByte(3);
-const VOTING_WALLET = keyFromByte(4);
+const DELEGATOR_WALLET = keyFromByte(4);
+const VALIDATOR_WALLET = keyFromByte(10);
 const STAKE_MERKLE_ROOT = keyFromByte(5);
 const CONSENSUS_RESULT = keyFromByte(6);
 const PROPOSAL = keyFromByte(7);
@@ -119,7 +120,7 @@ describe("castVoteOverride", () => {
       stake_merkle_leaf: {
         active_stake: 500,
         stake_account: STAKE_ACCOUNT,
-        voting_wallet: VOTING_WALLET,
+        voting_wallet: DELEGATOR_WALLET,
       },
       stake_merkle_proof: [],
       vote_account: SNAPSHOT_VOTE_ACCOUNT,
@@ -131,7 +132,7 @@ describe("castVoteOverride", () => {
         active_stake: 500,
         stake_merkle_root: STAKE_MERKLE_ROOT,
         vote_account: SNAPSHOT_VOTE_ACCOUNT,
-        voting_wallet: VOTING_WALLET,
+        voting_wallet: VALIDATOR_WALLET,
       },
       meta_merkle_proof: [],
     });
@@ -217,7 +218,7 @@ describe("castVoteOverride", () => {
         active_stake: 500,
         stake_merkle_root: STAKE_MERKLE_ROOT,
         vote_account: LIVE_VOTE_ACCOUNT,
-        voting_wallet: VOTING_WALLET,
+        voting_wallet: VALIDATOR_WALLET,
       },
       meta_merkle_proof: [],
     });

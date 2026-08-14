@@ -247,16 +247,6 @@ export function assertOverrideProofLineage(
         `does not match meta proof vote account ${metaMerkleProof.meta_merkle_leaf.vote_account}`
     );
   }
-
-  if (
-    metaMerkleProof.meta_merkle_leaf.voting_wallet !==
-    stakeMerkleProof.stake_merkle_leaf.voting_wallet
-  ) {
-    throw new Error(
-      `Override proof mismatch: stake proof voting wallet ${stakeMerkleProof.stake_merkle_leaf.voting_wallet} ` +
-        `does not match meta proof voting wallet ${metaMerkleProof.meta_merkle_leaf.voting_wallet}`
-    );
-  }
 }
 
 // Milliseconds per slot (matches solana_sdk::clock::DEFAULT_MS_PER_SLOT and the svmgov CLI's
