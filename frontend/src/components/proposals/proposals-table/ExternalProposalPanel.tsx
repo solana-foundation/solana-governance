@@ -45,20 +45,22 @@ const getHeaderLabel = (proposal: ProposalRecord): string => {
 
 function ProposalInfo({ proposal }: { proposal: ProposalRecord }) {
   return (
-    <div className="flex flex-1 flex-col justify-between gap-6">
-      <Link
-        href={getProposalDetailPagePath(proposal.publicKey)}
-        className="space-y-3 block"
-      >
-        <h3 className="h3 whitespace-pre-wrap text-lg font-semibold tracking-tight text-white sm:text-xl hover-gradient-text transition-all duration-200">
-          <ProposalHeading
-            url={proposal.description}
-            fallback={proposal.proposalRef}
-            title={proposal.title}
-          />
-        </h3>
+    <div className="flex min-w-0 flex-1 flex-col justify-between gap-6">
+      <div className="min-w-0 space-y-3">
+        <Link
+          href={getProposalDetailPagePath(proposal.publicKey)}
+          className="block"
+        >
+          <h3 className="h3 whitespace-pre-wrap text-lg font-semibold tracking-tight text-white sm:text-xl hover-gradient-text transition-all duration-200">
+            <ProposalHeading
+              url={proposal.description}
+              fallback={proposal.proposalRef}
+              title={proposal.title}
+            />
+          </h3>
+        </Link>
         <ProposalDescription githubUrl={proposal.description} />
-      </Link>
+      </div>
 
       <AppButton
         asChild
@@ -264,12 +266,12 @@ export default function ExternalProposalPanel({
   proposal,
 }: ExternalProposalPanelProps) {
   return (
-    <div className="flex flex-col gap-6 p-6 lg:flex-row lg:items-stretch xl:gap-8">
+    <div className="flex min-w-0 w-full flex-col gap-6 p-6 lg:flex-row lg:items-stretch xl:gap-8">
       <div className="w-32 shrink-0 self-stretch flex items-center justify-center">
         <Spade className="size-15 text-muted/70 animate-pulse" />
       </div>
       <ProposalInfo proposal={proposal} />
-      <div className="lg:ml-auto">
+      <div className="w-full shrink-0 lg:w-80">
         <VotingPanel proposal={proposal} />
       </div>
     </div>

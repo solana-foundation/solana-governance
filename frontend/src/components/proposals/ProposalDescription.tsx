@@ -1,5 +1,8 @@
+"use client";
+
 import { useEffect, useRef, useState } from "react";
 import { useProposalDocument } from "@/hooks";
+import { ProposalSummaryMarkdown } from "./ProposalSummaryMarkdown";
 
 interface Props {
   githubUrl: string;
@@ -7,7 +10,7 @@ interface Props {
 
 export const ProposalDescription = ({ githubUrl }: Props) => {
   const { data, isLoading } = useProposalDocument(githubUrl);
-  const scrollRef = useRef<HTMLParagraphElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [showTopShadow, setShowTopShadow] = useState(false);
   const [showBottomShadow, setShowBottomShadow] = useState(false);
 
@@ -41,7 +44,7 @@ export const ProposalDescription = ({ githubUrl }: Props) => {
   // if (isError) return <p>Error: {(error as Error).message}</p>;
 
   return (
-    <div className="relative">
+    <div className="relative min-w-0">
       {/* Top shadow gradient */}
       {showTopShadow && (
         <div
@@ -62,16 +65,16 @@ export const ProposalDescription = ({ githubUrl }: Props) => {
           }}
         />
       )}
-      <p
+      <div
         ref={scrollRef}
-        className="break-all whitespace-pre-wrap text-sm leading-relaxed text-(--basic-color-gray) [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] text-wrap"
+        className="wrap-break-word text-sm leading-relaxed text-(--basic-color-gray) [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
         style={{
           maxHeight: "300px",
           overflowY: "auto",
         }}
       >
-        {data?.summary}
-      </p>
+        <ProposalSummaryMarkdown summary={data?.summary ?? ""} />
+      </div>
     </div>
   );
 };
