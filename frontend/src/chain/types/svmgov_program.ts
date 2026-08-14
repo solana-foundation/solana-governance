@@ -1940,6 +1940,11 @@ export type SvmgovProgram = {
       "code": 6057,
       "name": "invalidMaxSupporters",
       "msg": "Invalid max supporters (must be greater than 0 and less than or equal to the supporter limit)"
+    },
+    {
+      "code": 6058,
+      "name": "supportAlreadyActivated",
+      "msg": "Support is closed: this proposal already reached its support threshold and voting has been scheduled"
     }
   ],
   "types": [

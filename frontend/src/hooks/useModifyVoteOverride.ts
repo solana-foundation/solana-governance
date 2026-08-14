@@ -3,7 +3,10 @@ import { useEndpoint } from "@/contexts/EndpointContext";
 import { useNcnApi } from "@/contexts/NcnApiContext";
 import { modifyVoteOverrideMutation } from "@/data";
 import { useMutation } from "@tanstack/react-query";
-import { useSnapshotMeta } from "./useSnapshotMeta";
+import {
+  SNAPSHOT_UNAVAILABLE_MESSAGE,
+  useSnapshotMeta,
+} from "./useSnapshotMeta";
 import { track } from "@vercel/analytics";
 
 export function useModifyVoteOverride() {
@@ -13,16 +16,21 @@ export function useModifyVoteOverride() {
   const { data: meta } = useSnapshotMeta();
   return useMutation({
     mutationKey: ["modify-vote-override"],
-    mutationFn: (params: CastVoteOverrideParams) =>
-      modifyVoteOverrideMutation(
+    mutationFn: (params: CastVoteOverrideParams) => {
+      if (meta?.slot === undefined) {
+        throw new Error(SNAPSHOT_UNAVAILABLE_MESSAGE);
+      }
+
+      return modifyVoteOverrideMutation(
         params,
         {
           endpoint,
           network: endpointType,
           ncnApiUrl,
         },
-        meta?.slot
-      ),
+        meta.slot
+      );
+    },
     onMutate: (params) => {
       track("Modify Vote Override init", { proposalId: params.proposalId });
     },

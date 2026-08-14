@@ -130,14 +130,14 @@ Use `RUST_LOG=info` to enable logs.
 RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   init-program-config
 
 # Add or remove operators from whitelist
 RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   update-operator-whitelist -a key1,key2,key3 -r key4,key5
 
 # Update config (all arguments are optional):
@@ -145,7 +145,7 @@ RUST_LOG=info cargo run --bin cli -- \
 RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   update-program-config \
   --min-consensus-threshold-bps 6000 \
   --vote-duration 180 \
@@ -156,7 +156,7 @@ RUST_LOG=info cargo run --bin cli -- \
 RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path <PATH_TO_PROPOSED_AUTHORITY_KEYPAIR> \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   finalize-proposed-authority
 ```
 
@@ -236,17 +236,17 @@ cargo run --release --bin cli -- \
 ````bash
 # Log ProgramConfig
 RUST_LOG=info cargo run --bin cli -- \
-  --rpc-url https://api.devnet.solana.com log \
+  --rpc-url <RPC_URL> log \
   --ty program-config
 
 # Log BallotBox (by snapshot_slot)
 RUST_LOG=info cargo run --bin cli -- \
-  --rpc-url https://api.devnet.solana.com log \
+  --rpc-url <RPC_URL> log \
   --ty ballot-box --snapshot-slot <SLOT>
 
 # Log ConsensusResult (by snapshot_slot)
 RUST_LOG=info cargo run --bin cli -- \
-  --rpc-url https://api.devnet.solana.com log \
+  --rpc-url <RPC_URL> log \
   --ty consensus-result --snapshot-slot <SLOT>
 
 ---
@@ -258,7 +258,7 @@ RUST_LOG=info cargo run --bin cli -- \
 RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   cast-vote --snapshot-slot <SLOT> \
   --root ByVtRpEnLyD1eVS8Bq21VvDnMffsqPAypaMT9KMZCZcJ \
   --hash 4seYTnZyZNby5ZQTy8ajAapDiMgUYrvYx4hzYRXVn4zH
@@ -267,7 +267,7 @@ RUST_LOG=info cargo run --bin cli -- \
 RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   cast-vote-from-snapshot --snapshot-slot <SLOT> \
   --read-path ./meta_merkle-340850340.zip
 
@@ -275,7 +275,7 @@ RUST_LOG=info cargo run --bin cli -- \
 RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   remove-vote --snapshot-slot <SLOT>
 ````
 
@@ -288,7 +288,7 @@ RUST_LOG=info cargo run --bin cli -- \
 RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   finalize-ballot --snapshot-slot <SLOT>
 
 # Set tie-breaking result if consensus was not reached
@@ -296,7 +296,7 @@ RUST_LOG=info cargo run --bin cli -- \
 RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   set-tie-breaker --snapshot-slot <SLOT> \
   --root <MERKLE_ROOT> --hash <SNAPSHOT_HASH>
 
@@ -304,7 +304,7 @@ RUST_LOG=info cargo run --bin cli -- \
 RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   reset-ballot-box --snapshot-slot <SLOT>
 ```
 

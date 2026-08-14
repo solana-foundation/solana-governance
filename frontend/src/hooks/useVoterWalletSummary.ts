@@ -7,20 +7,23 @@ import { useSnapshotMeta } from "./useSnapshotMeta";
 export const useVoterWalletSummary = (userPubKey: string | undefined) => {
   const { endpointType } = useEndpoint();
   const { ncnApiUrl } = useNcnApi();
-  const { data: meta, isFetched: isFetchedMeta } = useSnapshotMeta();
+  const { data: meta } = useSnapshotMeta();
+  const slot = meta?.slot;
 
   return useQuery({
     staleTime: 1000 * 120, // 2 minutes
-    enabled: isFetchedMeta && !!userPubKey,
-    queryKey: ["vote_wallet_summary", endpointType, userPubKey, ncnApiUrl],
-    queryFn: () => {
-      if (meta === undefined) throw new Error("Snapshot meta info not found");
+    enabled: slot !== undefined && !!userPubKey,
+    queryKey: ["vote_wallet_summary", endpointType, userPubKey, ncnApiUrl, slot],
+    queryFn: ({ signal }) => {
+      // Unreachable — `enabled` above already requires a slot. Present only to narrow the type.
+      if (slot === undefined) throw new Error("Snapshot slot not loaded");
 
       return getVoterWalletSummary(
         endpointType,
         userPubKey,
-        meta.slot,
-        ncnApiUrl
+        slot,
+        ncnApiUrl,
+        signal
       );
     },
   });

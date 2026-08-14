@@ -23,7 +23,8 @@ pub struct BallotBox {
     /// Operator votes
     #[max_len(MAX_OPERATOR_VOTES)]
     pub operator_votes: Vec<OperatorVote>,
-    /// Mapping of ballots votes to stake weight
+    /// Vote counts per distinct ballot. Each whitelisted operator contributes
+    /// one vote; tallies are not stake-weighted.
     #[max_len(MAX_BALLOT_TALLIES)]
     pub ballot_tallies: Vec<BallotTally>,
     /// Timestamp when voting ends. Tie breaker admin will decide the results

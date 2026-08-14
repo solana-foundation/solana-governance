@@ -5,6 +5,28 @@ This guide walks an operator through provisioning an AWS EC2 instance and runnin
 [← Back to Project README](../README.md)
 [→ Verifier Service README](README.md)
 
+## General Requirements
+
+While this guide uses AWS as the reference deployment, the verifier service runs on any Linux server meeting these minimum requirements:
+
+| Requirement | Minimum | Recommended |
+|-------------|---------|-------------|
+| CPU | 2 cores | 4+ cores |
+| RAM | 4 GB | 8 GB |
+| Storage | 40 GB SSD | 100+ GB NVMe |
+| Network | 100 Mbps | 1 Gbps |
+| OS | Ubuntu 22.04+ | Ubuntu 24.04 LTS |
+
+The 40 GB minimum matches the AWS gp3 sizing in step 1; provision more headroom on providers without elastic volume expansion. Storage grows with the database and retained snapshot uploads: `governance.db` reaches a few GB over months of operation, and each uploaded MetaMerkleSnapshot is up to the `UPLOAD_BODY_LIMIT` (100 MB default). Monitor `storage.free_storage_mb` via `/admin/stats`.
+
+### Non-AWS Deployment Notes
+
+- **SSL/TLS:** If not using Cloudflare or AWS ALB, configure a reverse proxy (nginx or caddy) with [Let's Encrypt](https://letsencrypt.org/) for HTTPS termination
+- **DNS:** Point your verifier domain to your server's public IP via an A record
+- **Firewall:** Open ports 80 (HTTP, required for Let's Encrypt HTTP-01 challenge and HTTP→HTTPS redirects) and 443 (HTTPS) and any custom ports for the verifier API. Restrict SSH (port 22) to known IPs
+- **Process management:** The recommended Docker deployment (`setup.sh`) already uses `--restart unless-stopped`, so Docker handles crash and reboot recovery. A systemd unit is only needed if you run the binary natively
+- **Bare metal / VPS providers:** Tested on Leaseweb. Any provider with the above specs will work
+
 ### Prerequisites
 
 - AWS account with permissions to create EC2 instances, Security Groups, and Elastic IPs
@@ -118,7 +140,7 @@ TTL: Auto
 ```
 
 5. Replace current nameserver with Cloudflare nameserver
-6. In SSL/TLS Overview, set mode to Flexible.
+6. In SSL/TLS Overview, set mode to Full (Strict). This requires a valid TLS certificate on the origin server (e.g., via Let's Encrypt or a Cloudflare Origin Certificate).
 7. In Security -> Security Rules, create new Rate Limiting Rule for each API path. Note that the free tier only allows 1 rule, with granularity of requests per 10s, and blocking duration of 10s.
 
 ### 8) Start the database cleanup cron
@@ -195,3 +217,72 @@ Notes:
 
 - No changes are required for the cleanup cron; it runs on the host and continues to manage `/srv/verifier/data/governance.db`.
 - For zero-downtime, you can adapt the script to start a secondary container (different port) and flip traffic via a proxy/ALB once healthy.
+
+## Monitoring & Alerting
+
+### What the service exposes
+
+The verifier service provides these monitoring surfaces:
+
+- `GET /healthz` — liveness check (no auth)
+- `GET /version` — crate version and git hash
+- `GET /meta` — metadata for the most recent snapshot, including its slot
+- `GET /admin/stats` — requires the `x-metrics-token` header, matched against the `METRICS_AUTH_TOKEN` environment variable. Returns `401` if the token is missing or wrong, and `503` if `METRICS_AUTH_TOKEN` is unset on the service. Response shape (from [`src/metrics.rs`](./src/metrics.rs)):
+
+  - `upload_total` — array of `{outcome, count}`; outcomes are `success`, `bad_request`, `unauthorized`, `internal`
+  - `proofs_not_found_total` — array of `{kind, count}`; kinds are `vote`, `stake`
+  - `storage.free_storage_mb` — free space in MB on the filesystem holding `DB_PATH`
+  - `storage.db_size_mb` — current size of the SQLite database
+  - `storage.db_path` — resolved database path
+
+  Note the storage fields are nested under `storage`, not top level.
+
+### Recommended Alerts
+
+All conditions below are derivable from the endpoints above plus container status:
+
+| Alert | Source | Condition | Severity |
+|-------|--------|-----------|----------|
+| Service down | `docker ps` / `/healthz` | Container not running or `/healthz` failing for >5 min | Critical |
+| Snapshot stale | `/meta` | Most recent snapshot slot older than ~2 epochs behind cluster tip | Warning |
+| Upload errors | `/admin/stats` `upload_total` | Error-outcome count increases across consecutive scrape intervals | Warning |
+| Low disk | `/admin/stats` `storage.free_storage_mb` | Free space below a fixed floor (e.g., < 20480 MB) | Warning |
+| DB growth | `/admin/stats` `storage.db_size_mb` | Sustained growth beyond expected snapshot retention | Info |
+
+Note: `storage.free_storage_mb` is an absolute value, not a percentage — set the threshold against your provisioned volume size. The counters are cumulative and held in process memory, so a container restart zeroes them: alert on the delta between scrapes rather than a "consecutive failures" count, which the service does not track, and treat a counter going backwards as a restart rather than an error.
+
+### Logging
+
+Under the recommended Docker deployment (`setup.sh`), logs go to the container:
+
+```bash
+sudo docker logs --tail=200 -f verifier
+```
+
+### Process Management
+
+`setup.sh` already starts the container with `--restart unless-stopped`, so Docker handles crash and reboot recovery — no additional process manager is needed for the standard deployment.
+
+If you instead run the binary natively (outside Docker), use a systemd unit, and note that the environment variables from section 6 (e.g., `OPERATOR_PUBKEY`) must be supplied via an `EnvironmentFile`:
+
+```ini
+[Unit]
+Description=NCN Verifier Service
+After=network.target
+
+[Service]
+User=sol
+EnvironmentFile=/etc/ncn-verifier/env
+ExecStart=/path/to/ncn-verifier
+Restart=on-failure
+RestartSec=10
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl enable --now ncn-verifier
+journalctl -u ncn-verifier -f
+```

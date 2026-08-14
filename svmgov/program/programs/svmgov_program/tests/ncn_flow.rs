@@ -102,6 +102,9 @@ fn assert_anchor_err(
 }
 
 /// A ballot box created through the real svmgov `support_proposal` CPI,
+/// Mirrors `ncn_snapshot::MAX_OPERATOR_WHITELIST`.
+const MAX_OPERATOR_WHITELIST: usize = 64;
+
 /// governed by a real `ProgramConfig`.
 struct FlowCtx {
     admin: Keypair,
@@ -112,6 +115,9 @@ struct FlowCtx {
     /// Clock values at ballot-box creation (activation of the proposal).
     activation_slot: u64,
     activation_timestamp: i64,
+    /// Compute units burned by the support that crossed the threshold — the
+    /// call that runs the real `init_ballot_box` CPI.
+    activation_compute_units: u64,
     nonce: u32,
 }
 
@@ -177,8 +183,11 @@ fn setup_flow(operator_count: usize, vote_duration: i64) -> (Harness, FlowCtx) {
     let snapshot_slot = expected_snapshot_slot(CREATION_EPOCH);
     let ballot_box = ballot_box_pda(snapshot_slot);
     let clock = h.svm.get_sysvar::<Clock>();
+    let mut activation_compute_units = 0u64;
     for i in 0..h.supporter_count {
-        support_one(&mut h, proposal, i, ballot_box);
+        let meta = try_support_one(&mut h, proposal, i, ballot_box)
+            .unwrap_or_else(|e| panic!("support #{i} failed: {:?}", e.err));
+        activation_compute_units = meta.compute_units_consumed;
     }
     assert!(
         fetch_proposal(&h.svm, &proposal).voting,
@@ -193,6 +202,7 @@ fn setup_flow(operator_count: usize, vote_duration: i64) -> (Harness, FlowCtx) {
         snapshot_slot,
         activation_slot: clock.slot,
         activation_timestamp: clock.unix_timestamp,
+        activation_compute_units,
         nonce,
     };
     (h, ctx)
@@ -975,5 +985,31 @@ fn direct_init_ballot_box_without_proposal_pda_rejected() {
     assert_anchor_err(
         try_send(&mut h, &admin, &mut ctx.nonce, &[ix]),
         anchor_lang::error::ErrorCode::ConstraintSeeds,
+    );
+}
+
+/// The support that crosses the threshold runs the real `init_ballot_box` CPI,
+/// which the `support_compute_budget` suite cannot measure (it pre-seeds the
+/// ballot box to short-circuit that path). It is the most expensive call the
+/// clients' compute model has to cover, so measure it here — at the maximum
+/// operator whitelist, since `init_ballot_box` clones the whitelist into the
+/// ballot box and a longer list costs more to serialize.
+#[test_log::test]
+fn activation_cpi_fits_within_the_modelled_compute_limit() {
+    let (_h, ctx) = setup_flow(MAX_OPERATOR_WHITELIST, 100_000);
+
+    // Three supporters in the flow harness, so the activating call re-tallies
+    // two prior entries.
+    let requested = modelled_support_limit(2);
+    println!(
+        "activating support at {MAX_OPERATOR_WHITELIST} operators: {} CU; clients request {requested}",
+        ctx.activation_compute_units
+    );
+    assert!(
+        ctx.activation_compute_units < requested,
+        "the activating support consumed {} CU but the clients' model requests only {requested}. \
+         Raise SUPPORT_CU_ACTIVATION in tests/common/mod.rs, svmgov/cli/src/constants.rs AND \
+         frontend/src/chain/instructions/types.ts.",
+        ctx.activation_compute_units
     );
 }

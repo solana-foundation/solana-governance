@@ -133,6 +133,13 @@ enum Commands {
             help = "Skip the network check that the --description file exists"
         )]
         skip_link_check: bool,
+
+        /// Also support the proposal in the same transaction.
+        #[arg(
+            long,
+            help = "Add the support instruction to the proposal creation transaction"
+        )]
+        with_support: bool,
     },
 
     #[command(
@@ -672,6 +679,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
             title,
             description,
             skip_link_check,
+            with_support,
         } => {
             instructions::create_proposal(
                 title.to_string(),
@@ -681,6 +689,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 cli.rpc_url,
                 network.clone(),
                 *skip_link_check,
+                *with_support,
             )
             .await?;
         }

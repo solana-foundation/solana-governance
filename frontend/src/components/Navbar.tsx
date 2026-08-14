@@ -29,6 +29,7 @@ type NavLink = {
 const navLinks: NavLink[] = [
   { href: "/proposals", label: "Proposals" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/faq", label: "FAQ" },
   {
     href: "https://docs.governance.solana.com",
     label: "Docs",

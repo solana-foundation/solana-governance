@@ -1,11 +1,16 @@
 use std::str::FromStr;
 
-use anchor_client::solana_sdk::{pubkey::Pubkey, signer::Signer, transaction::Transaction};
+use anchor_client::solana_sdk::{
+    compute_budget::ComputeBudgetInstruction, pubkey::Pubkey, signer::Signer,
+    transaction::Transaction,
+};
 use anchor_lang::system_program;
 use anyhow::{Result, anyhow};
 use ncn_snapshot::ID as SNAPSHOT_PROGRAM_ID;
 
 use crate::{
+    constants::{support_compute_unit_limit, MAX_SUPPORTERS_LIMIT},
+    svmgov_program::accounts::Proposal,
     svmgov_program::client::{accounts, args},
     utils::utils::{
         create_spinner, derive_global_config_pda, derive_program_config_pda, fetch_global_config,
@@ -26,6 +31,22 @@ pub async fn retally_support(
     let (payer, program, _client) = setup_signer_and_program(identity_keypair, rpc_url)?;
 
     let global_config = fetch_global_config(&program).await?;
+
+    // The handler re-tallies every existing supporter, so the compute budget is
+    // sized from the current list length rather than a flat worst case. If the
+    // read fails the instruction itself may still succeed, so fall back to the
+    // program's supporter cap rather than aborting on a budgeting detail.
+    let num_supporters = match program.account::<Proposal>(proposal_pubkey).await {
+        Ok(proposal) => proposal.num_supporters,
+        Err(e) => {
+            log::warn!(
+                "Could not read the supporter count for {proposal_pubkey}: {e}. Requesting the \
+                 compute budget for a full {MAX_SUPPORTERS_LIMIT}-supporter list."
+            );
+            MAX_SUPPORTERS_LIMIT
+        }
+    };
+    let compute_unit_limit = support_compute_unit_limit(num_supporters);
 
     let spinner = create_spinner("Re-tallying proposal support...");
 
@@ -49,6 +70,9 @@ pub async fn retally_support(
 
     let retally_support_ixs = program
         .request()
+        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+            compute_unit_limit,
+        ))
         .args(args::RetallySupport {})
         .accounts(accounts::RetallySupport {
             signer: payer.pubkey(),

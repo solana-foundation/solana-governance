@@ -22,6 +22,13 @@ const CRON_EVERY_2_HOURS: &str = "0 0 0,2,4,6,8,10,12,14,16,18,20,22 * * *";
 // Anchor discriminator for the BallotBox account, from the IDL.
 const BALLOT_BOX_DISCRIMINATOR: [u8; 8] = [155, 169, 156, 8, 92, 14, 24, 101];
 
+/// How far a verifier's latest snapshot may trail the freshest whitelisted
+/// verifier before it is dropped from routing. One epoch (432,000 slots, ~2
+/// days) absorbs the normal spread in upload times while rejecting operators
+/// that have stopped producing snapshots altogether. Override with
+/// `NCN_MAX_VERIFIER_SLOT_LAG`.
+const DEFAULT_MAX_VERIFIER_SLOT_LAG: u64 = 432_000;
+
 #[derive(Debug, Deserialize)]
 struct Config {
     verifiers: Vec<Verifier>,
@@ -59,6 +66,10 @@ struct LogEntry {
 struct WhitelistVerifier {
     name: String,
     domain: String,
+    /// Slot of the snapshot this verifier last reported. Recorded so staleness
+    /// can be judged against the rest of the fleet, and so an operator that has
+    /// fallen behind is visible in the whitelist file without re-polling.
+    slot: u64,
     status: String,
     reason: Option<String>,
 }
@@ -256,6 +267,7 @@ fn compare_with_chain(
             whitelist_verifiers.push(WhitelistVerifier {
                 name: entry.name.clone(),
                 domain: entry.domain.clone(),
+                slot: entry.slot,
                 status: "error".to_string(),
                 reason: entry.error.clone(),
             });
@@ -300,6 +312,7 @@ fn compare_with_chain(
                 whitelist_verifiers.push(WhitelistVerifier {
                     name: entry.name.clone(),
                     domain: entry.domain.clone(),
+                    slot: entry.slot,
                     status,
                     reason,
                 });
@@ -316,6 +329,7 @@ fn compare_with_chain(
                 whitelist_verifiers.push(WhitelistVerifier {
                     name: entry.name.clone(),
                     domain: entry.domain.clone(),
+                    slot: entry.slot,
                     status: "error".to_string(),
                     reason: Some(e),
                 });
@@ -334,6 +348,15 @@ fn compare_with_chain(
             .max()
             .unwrap_or_default()
     };
+
+    // Before de-duplication, so an origin that is stale on one row cannot be
+    // preferred as `ok` on another.
+    let mut whitelist_verifiers = whitelist_verifiers;
+    demote_stale_verifiers(
+        &mut whitelist_verifiers,
+        chosen_slot,
+        max_verifier_slot_lag(),
+    );
 
     // Collapse to one canonical record per verifier origin before persisting.
     // `ncn-router` samples whitelist rows uniformly, so duplicate rows for the
@@ -369,6 +392,59 @@ fn compare_with_chain(
     }
 
     Ok(())
+}
+
+fn max_verifier_slot_lag() -> u64 {
+    parse_max_verifier_slot_lag(env::var("NCN_MAX_VERIFIER_SLOT_LAG").ok().as_deref())
+}
+
+/// A malformed override falls back to the default but says so: silently widening
+/// the budget would keep verifiers in rotation that the configured policy meant
+/// to drop, which is the failure this whole check exists to prevent.
+fn parse_max_verifier_slot_lag(raw: Option<&str>) -> u64 {
+    let Some(value) = raw else {
+        return DEFAULT_MAX_VERIFIER_SLOT_LAG;
+    };
+    value.trim().parse().unwrap_or_else(|_| {
+        eprintln!(
+            "[ncn-meta-cron] ignoring NCN_MAX_VERIFIER_SLOT_LAG={value:?}: not a slot count; \
+             using {DEFAULT_MAX_VERIFIER_SLOT_LAG}. Verifiers the configured value would have \
+             dropped stay in rotation until this is corrected."
+        );
+        DEFAULT_MAX_VERIFIER_SLOT_LAG
+    })
+}
+
+/// Demote `ok` verifiers whose snapshot trails `freshest_slot` by more than
+/// `max_lag`, so the router stops sampling them.
+///
+/// `status == "ok"` only checks a verifier's root against the on-chain ballot at
+/// the slot *it* reported, which an operator that stopped uploading months ago
+/// still satisfies — it stays `ok` while 404ing every current proof request.
+///
+/// Measured against the freshest peer, not the chain tip: snapshots are only
+/// produced when a proposal needs one, so between proposals the whole fleet
+/// legitimately sits at the same older slot. `freshest_slot` is the max over
+/// already-`ok` verifiers, so its holder has zero lag and always survives —
+/// this narrows the routing pool but never empties it.
+fn demote_stale_verifiers(verifiers: &mut [WhitelistVerifier], freshest_slot: u64, max_lag: u64) {
+    for verifier in verifiers.iter_mut() {
+        if verifier.status != "ok" {
+            continue;
+        }
+        let lag = freshest_slot.saturating_sub(verifier.slot);
+        if lag > max_lag {
+            eprintln!(
+                "[ncn-meta-cron] dropping stale verifier '{}' ({}): slot {} is {} slots behind the freshest verifier ({}), limit {}",
+                verifier.name, verifier.domain, verifier.slot, lag, freshest_slot, max_lag
+            );
+            verifier.status = "stale".to_string();
+            verifier.reason = Some(format!(
+                "snapshot slot {} is {} slots behind freshest verifier ({}); limit {}",
+                verifier.slot, lag, freshest_slot, max_lag
+            ));
+        }
+    }
 }
 
 /// Canonical routing identity for a verifier origin. `ncn-router` redirects to
@@ -621,12 +697,21 @@ mod tests {
     }
 
     fn verifier(name: &str, domain: &str, status: &str) -> WhitelistVerifier {
+        verifier_at(name, domain, status, 0)
+    }
+
+    fn verifier_at(name: &str, domain: &str, status: &str, slot: u64) -> WhitelistVerifier {
         WhitelistVerifier {
             name: name.to_string(),
             domain: domain.to_string(),
+            slot,
             status: status.to_string(),
             reason: None,
         }
+    }
+
+    fn statuses(verifiers: &[WhitelistVerifier]) -> Vec<&str> {
+        verifiers.iter().map(|v| v.status.as_str()).collect()
     }
 
     #[test]
@@ -703,6 +788,125 @@ mod tests {
         assert_eq!(dup.status, "ok");
         assert_eq!(dup.name, "succeeded");
         assert_eq!(deduped[0].domain, "http://dup");
+    }
+
+    #[test]
+    fn stale_ok_verifier_is_demoted() {
+        // The reported failure mode: a verifier stopped uploading months ago, so
+        // its data still matches the on-chain ballot for its own old slot and it
+        // stays "ok" — while 404ing every request for a current snapshot.
+        let mut verifiers = vec![
+            verifier_at("fresh", "http://fresh", "ok", 436_919_878),
+            verifier_at("frozen", "http://frozen", "ok", 422_497_000),
+        ];
+        demote_stale_verifiers(&mut verifiers, 436_919_878, DEFAULT_MAX_VERIFIER_SLOT_LAG);
+        assert_eq!(statuses(&verifiers), vec!["ok", "stale"]);
+        assert!(verifiers[1]
+            .reason
+            .as_deref()
+            .unwrap()
+            .contains("behind freshest verifier"));
+    }
+
+    #[test]
+    fn verifier_within_lag_budget_stays_ok() {
+        // Operators do not upload in lockstep; a verifier still inside the lag
+        // budget must keep its routing ticket.
+        let mut verifiers = vec![
+            verifier_at("fresh", "http://fresh", "ok", 436_941_951),
+            verifier_at("slightly-behind", "http://behind", "ok", 436_919_878),
+        ];
+        demote_stale_verifiers(&mut verifiers, 436_941_951, DEFAULT_MAX_VERIFIER_SLOT_LAG);
+        assert_eq!(statuses(&verifiers), vec!["ok", "ok"]);
+    }
+
+    #[test]
+    fn fleet_at_a_common_older_slot_is_not_demoted() {
+        // Snapshots are only produced when a proposal needs one, so between
+        // proposals the whole fleet legitimately sits at the same older slot.
+        // Measuring against the freshest peer (not the chain tip) keeps everyone.
+        let mut verifiers = vec![
+            verifier_at("a", "http://a", "ok", 100_000),
+            verifier_at("b", "http://b", "ok", 100_000),
+            verifier_at("c", "http://c", "ok", 100_000),
+        ];
+        demote_stale_verifiers(&mut verifiers, 100_000, DEFAULT_MAX_VERIFIER_SLOT_LAG);
+        assert_eq!(statuses(&verifiers), vec!["ok", "ok", "ok"]);
+    }
+
+    #[test]
+    fn demotion_never_empties_the_routing_pool() {
+        // `freshest_slot` is the max over ok verifiers, so its holder has zero lag
+        // and always survives. Narrowing the pool is fine; emptying it is not.
+        let mut verifiers = vec![
+            verifier_at("frozen-1", "http://f1", "ok", 1),
+            verifier_at("freshest", "http://f2", "ok", 10_000_000),
+            verifier_at("frozen-2", "http://f3", "ok", 2),
+        ];
+        demote_stale_verifiers(&mut verifiers, 10_000_000, DEFAULT_MAX_VERIFIER_SLOT_LAG);
+        assert_eq!(verifiers.iter().filter(|v| v.status == "ok").count(), 1);
+        assert_eq!(verifiers[1].status, "ok");
+    }
+
+    #[test]
+    fn non_ok_verifiers_keep_their_original_status() {
+        // A verifier that failed the on-chain root comparison must stay
+        // "mismatch"/"error" — staleness must not overwrite the real reason.
+        let mut verifiers = vec![
+            verifier_at("fresh", "http://fresh", "ok", 436_919_878),
+            verifier_at("bad-root", "http://bad", "mismatch", 1),
+            verifier_at("unreachable", "http://down", "error", 0),
+        ];
+        demote_stale_verifiers(&mut verifiers, 436_919_878, DEFAULT_MAX_VERIFIER_SLOT_LAG);
+        assert_eq!(statuses(&verifiers), vec!["ok", "mismatch", "error"]);
+    }
+
+    #[test]
+    fn no_ok_verifiers_demotes_nothing() {
+        // `chosen_slot` stays 0 when nothing verified; every lag saturates to 0.
+        let mut verifiers = vec![
+            verifier_at("a", "http://a", "error", 500),
+            verifier_at("b", "http://b", "mismatch", 600),
+        ];
+        demote_stale_verifiers(&mut verifiers, 0, DEFAULT_MAX_VERIFIER_SLOT_LAG);
+        assert_eq!(statuses(&verifiers), vec!["error", "mismatch"]);
+    }
+
+    #[test]
+    fn lag_override_is_parsed_and_falls_back_loudly() {
+        assert_eq!(parse_max_verifier_slot_lag(Some("1000")), 1_000);
+        assert_eq!(parse_max_verifier_slot_lag(Some("  1000  ")), 1_000);
+        // 0 is a legitimate "any lag is stale" policy, not a parse failure.
+        assert_eq!(parse_max_verifier_slot_lag(Some("0")), 0);
+        assert_eq!(
+            parse_max_verifier_slot_lag(None),
+            DEFAULT_MAX_VERIFIER_SLOT_LAG
+        );
+        // Malformed values fall back rather than taking the cron down, but the
+        // fallback is announced — silently widening the budget would keep stale
+        // verifiers routable against the operator's intent.
+        for bad in ["", "abc", "-1", "1.5", "1_000"] {
+            assert_eq!(
+                parse_max_verifier_slot_lag(Some(bad)),
+                DEFAULT_MAX_VERIFIER_SLOT_LAG,
+                "unexpected parse of {bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn lag_exactly_at_the_limit_is_allowed() {
+        // The bound is inclusive: only a verifier strictly past the budget drops.
+        let mut verifiers = vec![
+            verifier_at("fresh", "http://fresh", "ok", DEFAULT_MAX_VERIFIER_SLOT_LAG),
+            verifier_at("edge", "http://edge", "ok", 0),
+        ];
+        demote_stale_verifiers(
+            &mut verifiers,
+            DEFAULT_MAX_VERIFIER_SLOT_LAG,
+            DEFAULT_MAX_VERIFIER_SLOT_LAG,
+        );
+        assert_eq!(statuses(&verifiers), vec!["ok", "ok"]);
     }
 
     #[test]

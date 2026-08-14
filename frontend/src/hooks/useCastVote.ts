@@ -3,7 +3,10 @@ import { useEndpoint } from "@/contexts/EndpointContext";
 import { useNcnApi } from "@/contexts/NcnApiContext";
 import { castVoteMutation } from "@/data";
 import { useMutation } from "@tanstack/react-query";
-import { useSnapshotMeta } from "./useSnapshotMeta";
+import {
+  SNAPSHOT_UNAVAILABLE_MESSAGE,
+  useSnapshotMeta,
+} from "./useSnapshotMeta";
 import { track } from "@vercel/analytics";
 
 export function useCastVote() {
@@ -13,16 +16,21 @@ export function useCastVote() {
 
   return useMutation({
     mutationKey: ["cast-vote"],
-    mutationFn: (params: CastVoteParams) =>
-      castVoteMutation(
+    mutationFn: (params: CastVoteParams) => {
+      if (meta?.slot === undefined) {
+        throw new Error(SNAPSHOT_UNAVAILABLE_MESSAGE);
+      }
+
+      return castVoteMutation(
         params,
         {
           endpoint,
           network: endpointType,
           ncnApiUrl,
         },
-        meta?.slot
-      ),
+        meta.slot
+      );
+    },
     onMutate: (params) => {
       track("Cast Vote init", { proposalId: params.proposalId });
     },

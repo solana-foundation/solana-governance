@@ -1,6 +1,26 @@
 # Solana Validator Governance System
 
-A decentralized governance platform for Solana validators featuring merkle proof verification, stake-weighted voting, and real-time event monitoring.
+A decentralized governance platform enabling Solana validators and stakers to create, vote on, and finalize on-chain proposals using stake-weighted voting and merkle proof verification.
+
+## Overview
+
+The Solana Governance System provides two governance tracks:
+
+- **SVM Governance (`svmgov/`)** — Validator and staker proposals with stake-weighted voting, vote overrides for delegated stake, and on-chain finalization
+- **NCN Governance (`ncn/`)** — whitelisted operators independently generate stake snapshots and vote on a canonical merkle root, with proof verification and a verifier service for serving proofs
+
+The two tracks weight votes differently. In `svmgov/`, voting power is stake-weighted, and delegators can override their validator's vote with their own stake. In `ncn/`, all whitelisted operators have equal voting weight — the consensus threshold is a percentage of operators, not of stake. The NCN track establishes *which* stake snapshot is canonical; `svmgov` then uses that snapshot to weight proposal votes.
+
+## Quick Start
+
+| I want to... | Go to |
+|---|---|
+| **Vote as a validator** | [Validator Guide](./docs/src/content/svmgov/validators/index.mdx) |
+| **Vote as a staker** | [Staker Guide](./docs/src/content/svmgov/stakers/index.mdx) |
+| **Run the NCN verifier** | [Verifier Service](./ncn/verifier-service/README.md) |
+| **Use the NCN operator CLI** | [NCN CLI Reference](./docs/src/content/ncn/cli/index.mdx) |
+| **Use the svmgov CLI** | [svmgov CLI Reference](./docs/src/content/svmgov/index.mdx) |
+| **Read the full docs** | [Documentation](./docs/) |
 
 ## Project Structure
 
@@ -18,3 +38,15 @@ NCN (Node Consensus Network) governance program — on-chain ballot voting, merk
 
 ### [`docs/`](./docs)
 Documentation site built with Nextra covering validator and staker workflows.
+
+## Architecture
+
+For a visual overview of how components connect and a glossary of governance terms, see [ARCHITECTURE.md](./ARCHITECTURE.md).
+
+## Contributing
+
+Issues and pull requests are welcome. See the [open issues](https://github.com/solana-foundation/solana-governance/issues) for areas that need work.
+
+## License
+
+See [LICENSE](./LICENSE) for details.

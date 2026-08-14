@@ -3,7 +3,10 @@ import { useEndpoint } from "@/contexts/EndpointContext";
 import { useGovernanceConfigContext } from "@/contexts/GovernanceConfigContext";
 import { supportProposalMutation } from "@/data";
 import { useMutation } from "@tanstack/react-query";
-import { useSnapshotMeta } from "./useSnapshotMeta";
+import {
+  SNAPSHOT_UNAVAILABLE_MESSAGE,
+  useSnapshotMeta,
+} from "./useSnapshotMeta";
 import { useChainVoteAccount } from "./useChainVoteAccount";
 
 export function useSupportProposal(userPubKey: string | undefined) {
@@ -23,13 +26,16 @@ export function useSupportProposal(userPubKey: string | undefined) {
       if (!governanceConfig) {
         throw new Error("Governance config not loaded");
       }
+      if (meta?.slot === undefined) {
+        throw new Error(SNAPSHOT_UNAVAILABLE_MESSAGE);
+      }
       return supportProposalMutation(
         params,
         {
           endpoint,
           network: endpointType,
         },
-        meta?.slot,
+        meta.slot,
         chainVoteAccount || undefined,
         governanceConfig,
       );

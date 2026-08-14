@@ -585,10 +585,35 @@ mod tests {
             verifier("a", "http://a", "ok"),
             verifier("b", "http://b", "error"),
             verifier("c", "http://c", "mismatch"),
+            verifier("d", "http://d", "stale"),
         ];
         let routable = select_routable_verifiers(&verifiers);
         assert_eq!(routable.len(), 1);
         assert_eq!(routable[0].domain, "http://a");
+    }
+
+    #[test]
+    fn whitelist_parses_the_per_verifier_slot_field() {
+        // The cron writes this file and the router reads it, so the two structs
+        // are a cross-binary contract. `slot` exists only on the writer side; if
+        // this struct ever gained `deny_unknown_fields`, the router would fail to
+        // parse the whole whitelist and stop routing entirely.
+        let json = r#"{
+            "network": "mainnet",
+            "slot": 436919878,
+            "updated_at": "2026-08-03T10:04:10Z",
+            "verifiers": [
+                {"name":"fresh","domain":"http://fresh","slot":436919878,"status":"ok","reason":null},
+                {"name":"frozen","domain":"http://frozen","slot":422497000,"status":"stale",
+                 "reason":"snapshot slot 422497000 is 14422878 slots behind freshest verifier"}
+            ]
+        }"#;
+        let snapshot: WhitelistSnapshot =
+            serde_json::from_str(json).expect("router must parse the cron's whitelist format");
+        assert_eq!(snapshot.verifiers.len(), 2);
+        let routable = select_routable_verifiers(&snapshot.verifiers);
+        assert_eq!(routable.len(), 1);
+        assert_eq!(routable[0].domain, "http://fresh");
     }
 
     #[test]

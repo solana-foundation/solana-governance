@@ -10,18 +10,18 @@ type SocialLink = {
 
 const socialLinks: SocialLink[] = [
   {
-    href: "https://github.com/solana-labs",
-    ariaLabel: "GitHub Link",
+    href: "https://github.com/solana-foundation/solana-governance-proposals",
+    ariaLabel: "Solana Governance Proposals on GitHub",
     icon: <GitHubIcon />,
   },
   {
-    href: "https://twitter.com/solana",
-    ariaLabel: "Twitter Link",
+    href: "https://x.com/solana",
+    ariaLabel: "Solana on X",
     icon: <TwitterIcon />,
   },
   {
     href: "https://discord.gg/solana",
-    ariaLabel: "Discord Link",
+    ariaLabel: "Solana tech discord",
     icon: <DiscordIcon />,
   },
 ];
@@ -45,11 +45,21 @@ export default function Footer() {
   const renderLegalLinks = () => (
     <p className="legal-text">
       ©{currentYear !== null ? ` ${currentYear} ` : " "}Solana |{" "}
-      <a href="/terms" className="legal-link">
+      <a
+        href="https://solana.com/tos"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="legal-link"
+      >
         Terms
       </a>{" "}
       |{" "}
-      <a href="/privacy" className="legal-link">
+      <a
+        href="https://solana.com/privacy-policy"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="legal-link"
+      >
         Privacy Policy
       </a>
     </p>

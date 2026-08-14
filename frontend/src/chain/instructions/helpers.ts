@@ -12,6 +12,7 @@ import {
 import { AnchorWallet } from "@solana/wallet-adapter-react";
 import { SvmgovProgram, GovV1 } from "../types";
 import { RPC_URLS } from "@/contexts/EndpointContext";
+import { DEFAULT_NCN_API_URL, fetchNcnJson } from "@/lib/ncnApi";
 
 // PDA derivation functions (based on test implementation)
 export function deriveProposalPda(
@@ -157,9 +158,6 @@ export function createProgramWitDummyWallet(endpoint?: string) {
 
   return program;
 }
-// TODO: fix dupped ncn api urls
-const DEFAULT_NCN_API_URL = "https://ncn-governance.solana.com";
-
 // API helpers using the solgov.online service
 export async function getVoteAccountProof(
   voteAccount: string,
@@ -169,13 +167,10 @@ export async function getVoteAccountProof(
 ): Promise<VoteAccountProofResponse> {
   const baseUrl = ncnApiUrl || DEFAULT_NCN_API_URL;
   const url = `${baseUrl}/proof/vote_account/${voteAccount}?network=${network}&slot=${slot}`;
-  const response = await fetch(url);
 
-  if (!response.ok) {
-    throw new Error(`Failed to get vote account proof: ${response.statusText}`);
-  }
-
-  return await response.json();
+  return fetchNcnJson<VoteAccountProofResponse>(url, {
+    label: "vote account proof",
+  });
 }
 
 export async function getStakeAccountProof(
@@ -186,15 +181,10 @@ export async function getStakeAccountProof(
 ): Promise<StakeAccountProofResponse> {
   const baseUrl = ncnApiUrl || DEFAULT_NCN_API_URL;
   const url = `${baseUrl}/proof/stake_account/${stakeAccount}?network=${network}&slot=${slot}`;
-  const response = await fetch(url);
 
-  if (!response.ok) {
-    throw new Error(
-      `Failed to get stake account proof: ${response.statusText}`
-    );
-  }
-
-  return await response.json();
+  return fetchNcnJson<StakeAccountProofResponse>(url, {
+    label: "stake account proof",
+  });
 }
 
 // Generate PDAs from vote proof response

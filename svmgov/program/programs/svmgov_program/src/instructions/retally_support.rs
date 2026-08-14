@@ -60,11 +60,12 @@ impl<'info> RetallySupport<'info> {
     pub fn retally_support(&mut self) -> Result<()> {
         let clock = Clock::get()?;
 
-        // Same eligibility gates as support_proposal: not yet voting, not
-        // finalized, and inside the support window.
+        // Same eligibility gates as support_proposal: not finalized, not being
+        // voted on, and inside the support window.
+        require!(!self.proposal.finalized, GovernanceError::ProposalFinalized);
         require!(
-            self.proposal.voting == false && self.proposal.finalized == false,
-            GovernanceError::ProposalClosed
+            !self.proposal.voting,
+            GovernanceError::SupportAlreadyActivated
         );
         check_support_window(
             clock.epoch,

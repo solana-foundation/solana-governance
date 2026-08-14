@@ -3,7 +3,10 @@ import { useEndpoint } from "@/contexts/EndpointContext";
 import { useNcnApi } from "@/contexts/NcnApiContext";
 import { modifyVoteMutation } from "@/data";
 import { useMutation } from "@tanstack/react-query";
-import { useSnapshotMeta } from "./useSnapshotMeta";
+import {
+  SNAPSHOT_UNAVAILABLE_MESSAGE,
+  useSnapshotMeta,
+} from "./useSnapshotMeta";
 import { track } from "@vercel/analytics";
 
 export function useModifyVote() {
@@ -14,12 +17,17 @@ export function useModifyVote() {
 
   return useMutation({
     mutationKey: ["modify-vote"],
-    mutationFn: (params: ModifyVoteParams) =>
-      modifyVoteMutation(
+    mutationFn: (params: ModifyVoteParams) => {
+      if (meta?.slot === undefined) {
+        throw new Error(SNAPSHOT_UNAVAILABLE_MESSAGE);
+      }
+
+      return modifyVoteMutation(
         params,
         { endpoint, network: endpointType, ncnApiUrl },
-        meta?.slot
-      ),
+        meta.slot
+      );
+    },
     onMutate: (params) => {
       track("Modify Vote init", { proposalId: params.proposalId });
     },

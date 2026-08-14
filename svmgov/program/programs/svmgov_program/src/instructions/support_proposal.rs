@@ -84,10 +84,11 @@ impl<'info> SupportProposal<'info> {
     pub fn support_proposal(&mut self, bumps: &SupportProposalBumps) -> Result<()> {
         let clock = Clock::get()?;
 
-        // Ensure proposal is eligible for support
+        // A proposal that is already finalized or being voted on is not eligible for support
+        require!(!self.proposal.finalized, GovernanceError::ProposalFinalized);
         require!(
-            self.proposal.voting == false && self.proposal.finalized == false,
-            GovernanceError::ProposalClosed
+            !self.proposal.voting,
+            GovernanceError::SupportAlreadyActivated
         );
 
         // Support is accepted anywhere inside the window

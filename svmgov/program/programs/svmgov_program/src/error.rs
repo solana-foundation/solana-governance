@@ -126,4 +126,10 @@ pub enum GovernanceError {
     SupporterLimitReached,
     #[msg("Invalid max supporters (must be greater than 0 and less than or equal to the supporter limit)")]
     InvalidMaxSupporters,
+    // Appended rather than inserted: Anchor derives error codes from declaration
+    // order, so adding anywhere above would renumber every variant after it.
+    #[msg(
+        "Support is closed: this proposal already reached its support threshold and voting has been scheduled"
+    )]
+    SupportAlreadyActivated,
 }

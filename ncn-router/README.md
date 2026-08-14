@@ -35,6 +35,7 @@
   - `SOLANA_RPC_URL` (optional): Solana RPC endpoint (defaults to mainnet/testnet public RPCs)
   - `NCN_PROGRAM_ID` (required): NCN program ID on Solana
   - `NCN_WHITELIST_MAINNET_PATH` / `NCN_WHITELIST_TESTNET_PATH` (optional): Output paths for whitelist JSON (defaults to `ncn_whitelist.mainnet.json` / `ncn_whitelist.testnet.json`)
+  - `NCN_MAX_VERIFIER_SLOT_LAG` (optional): How many slots a verifier's snapshot may trail the freshest whitelisted verifier before it is marked `stale` and dropped from routing (default: `432000`, one epoch / ~2 days). A verifier that stopped uploading still matches the on-chain ballot for its own old slot, so it stays `ok` without this bound and 404s every current proof request.
 
 ### Usage
 

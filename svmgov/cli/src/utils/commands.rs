@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     anchor_client_setup,
     svmgov_program::accounts::{GlobalConfig, Proposal},
+    utils::phase::{PhaseInputs, PhaseTimeline, ProposalPhase},
     utils::utils::fetch_global_config,
 };
 
@@ -102,21 +103,9 @@ fn print_proposal_detail(proposal_id: &str, proposal: &Proposal, current_epoch: 
     let cluster_support_sol = proposal.cluster_support_lamports as f64 / 1_000_000_000.0;
     let proposer_stake_bp = proposal.proposer_stake_weight_bp as f64 / 100.0;
 
-    let status = get_proposal_status(proposal, current_epoch, config);
-    let status_display = match status {
-        "support" => "Support",
-        "discussion" => "Discussion",
-        "snapshot" => "Snapshot",
-        "voting" => "Voting",
-        "ended" => "Ended (awaiting finalization)",
-        "finalized" => "Finalized",
-        other => other,
-    };
-
-    // Compute phase boundaries
-    let support_end = proposal.creation_epoch + config.max_support_epochs;
-    let discussion_end = support_end + config.discussion_epochs;
-    let snapshot_end = discussion_end + config.snapshot_epoch_extension;
+    let inputs = PhaseInputs::new(proposal, config);
+    let status_display = ProposalPhase::new(&inputs, current_epoch).label();
+    let timeline = PhaseTimeline::new(&inputs);
 
     table.add_row(vec![Cell::new("Proposal ID"), Cell::new(proposal_id)]);
     table.add_row(vec![Cell::new("Title"), Cell::new(&proposal.title)]);
@@ -130,37 +119,38 @@ fn print_proposal_detail(proposal_id: &str, proposal: &Proposal, current_epoch: 
     ]);
     table.add_row(vec![Cell::new("Status"), Cell::new(status_display)]);
 
-    // Show phase timeline
+    // Show phase timeline. Once activated, the epoch support crossed is not
+    // recorded on-chain and cannot be recovered, so the support/discussion
+    // boundary is shown as unknown rather than guessed — see phase.rs.
+    let support_segment = match timeline.support {
+        Some((from, to)) => format!("support: epochs {}-{}", from, to),
+        None => format!("created: epoch {}", timeline.created),
+    };
+    let discussion_segment = match timeline.discussion.0 {
+        Some(from) => format!("discussion: epochs {}-{}", from, timeline.discussion.1),
+        None => format!("discussion: through epoch {}", timeline.discussion.1),
+    };
     table.add_row(vec![
         Cell::new("Phase Timeline"),
         Cell::new(format!(
-            "support: epoch {} | discussion: epochs {}-{} | snapshot: epochs {}-{} | voting: epochs {}-{}",
-            proposal.creation_epoch,
-            proposal.creation_epoch + 1, support_end + config.discussion_epochs,
-            discussion_end + 1, snapshot_end,
-            proposal.start_epoch, proposal.end_epoch,
+            "{} | {} | snapshot: epoch {} | voting: epochs {}-{}{}",
+            support_segment,
+            discussion_segment,
+            timeline.snapshot,
+            timeline.voting.0,
+            timeline.voting.1,
+            if timeline.projected {
+                " (projected — set once support crosses)"
+            } else {
+                ""
+            },
         )),
     ]);
 
     // Show epochs remaining for current phase
-    let epochs_remaining = match status {
-        "support" => {
-            let remaining = support_end.saturating_sub(current_epoch);
-            format!("{} epoch(s) until discussion", remaining)
-        }
-        "discussion" => {
-            let remaining = discussion_end.saturating_sub(current_epoch);
-            format!("{} epoch(s) until snapshot", remaining)
-        }
-        "snapshot" => {
-            let remaining = snapshot_end.saturating_sub(current_epoch);
-            format!("{} epoch(s) until voting", remaining)
-        }
-        "voting" => {
-            let remaining = proposal.end_epoch.saturating_sub(current_epoch);
-            format!("{} epoch(s) until voting ends", remaining)
-        }
-        _ => "—".to_string(),
+    let epochs_remaining = match inputs.epochs_remaining(current_epoch) {
+        Some((remaining, what)) => format!("{} epoch(s) {}", remaining, what),
+        None => "—".to_string(),
     };
     table.add_row(vec![
         Cell::new("Epochs Remaining"),
@@ -262,35 +252,7 @@ struct ProposalOutput {
 }
 
 fn get_proposal_status(proposal: &Proposal, current_epoch: u64, config: &GlobalConfig) -> &'static str {
-    if proposal.finalized {
-        return "finalized";
-    }
-
-    // Once start_epoch/end_epoch are set (voting flag raised during support),
-    // use those to determine voting/ended phases
-    if proposal.voting && current_epoch >= proposal.end_epoch {
-        return "ended";
-    }
-    if proposal.voting && current_epoch >= proposal.start_epoch {
-        return "voting";
-    }
-
-    // Pre-voting: compute phase boundaries from creation_epoch + config durations
-    let support_end = proposal.creation_epoch + config.max_support_epochs;
-    let discussion_end = support_end + config.discussion_epochs;
-    let snapshot_end = discussion_end + config.snapshot_epoch_extension;
-
-    if current_epoch <= support_end {
-        "support"
-    } else if current_epoch <= discussion_end {
-        "discussion"
-    } else if current_epoch <= snapshot_end {
-        "snapshot"
-    } else {
-        // Past all computed phases but voting hasn't started — still waiting
-        // This can happen if support threshold wasn't reached
-        "support"
-    }
+    ProposalPhase::new(&PhaseInputs::new(proposal, config), current_epoch).id()
 }
 
 pub async fn list_proposals(
@@ -437,15 +399,7 @@ fn print_proposals_table(proposals: &[(Pubkey, Proposal)], current_epoch: u64, c
     }
 
     for (pubkey, proposal) in proposals {
-        let status = match get_proposal_status(proposal, current_epoch, config) {
-            "support" => "Support",
-            "discussion" => "Discussion",
-            "snapshot" => "Snapshot",
-            "voting" => "Voting",
-            "ended" => "Ended",
-            "finalized" => "Finalized",
-            other => other,
-        };
+        let status = ProposalPhase::new(&PhaseInputs::new(proposal, config), current_epoch).label();
 
         // Truncate title if too long
         let title = if proposal.title.len() > 40 {

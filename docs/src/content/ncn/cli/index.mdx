@@ -73,12 +73,13 @@ These options are available on all commands. Each can also be set via the matchi
 
 ### `snapshot-slot`
 
-Generates a Solana ledger snapshot for a specific target slot. Replays the validator bank up to `--slot` and writes a full snapshot into `--backup-snapshots-dir`. Requires `--ledger-path` and `--full-snapshots-path` (or defaults derived from `--ledger-path`).
+Generates a Solana ledger snapshot for a specific target slot. Replays the validator bank up to `--slot` and writes a full snapshot into `--backup-snapshots-dir`. Requires `--ledger-path` and `--full-snapshots-path` (or defaults derived from `--ledger-path`). Unlike `generate-meta-merkle` — which requires an exact-slot snapshot to already exist — `snapshot-slot` creates one, making it the recovery path when `await-snapshot` cannot find snapshot coverage for the target slot (see below).
 
 ```bash
 ncn-cli \
   --ledger-path /mnt/ledger \
   --full-snapshots-path /mnt/ledger/full-snapshots \
+  --account-paths /mnt/accounts \
   --backup-snapshots-dir /mnt/ledger/backup-snapshots \
   snapshot-slot --slot <SLOT>
 ```
@@ -91,6 +92,39 @@ ncn-cli \
 >
 > - `--full-snapshots-path`: Where the CLI reads *full* snapshots from.
 > - `--backup-snapshots-dir`: Where snapshot artifacts are copied/saved for backup.
+
+#### Recovery: `await-snapshot` is waiting forever
+
+`await-snapshot` does not wait for the slot itself — it waits for an *incremental snapshot whose range covers the target slot* to appear. If snapshot retention is too narrow, the target can fall into a coverage gap where no retained incremental ends at or before it, and the poll never completes.
+
+Recovery: stop the validator (bank load is memory-heavy), then run `snapshot-slot` to replay-build the exact-slot snapshot, and point `generate-meta-merkle` at the same `--backup-snapshots-dir`. Run inside `tmux`/`screen` — a large replay can take hours. The target slot's blocks must still be in the blockstore (not evicted by `--limit-ledger-size`); the tool logs whether the desired slot is present.
+
+#### Determinism
+
+Solana bank state at a given slot is path-independent: replaying forward from an older full snapshot reaches the same state as capturing near the target, so the recovered snapshot produces the same MetaMerkle root and snapshot hash as the rest of the cohort. Confirm with `log-meta-merkle-hash` before uploading or voting.
+
+#### Prevention
+
+Retain enough incrementals that any target slot has one terminating at or before it. A working baseline: full retention `2` / full interval `100000` / incremental retention `30` / incremental interval `2500` — roughly 75,000 slots of incremental coverage, which keeps `await-snapshot` on its happy path.
+
+#### `await-snapshot`: stage genesis into the backup ledger dir first
+
+The internal `agave-ledger-tool ... copy` step populates rocksdb into `--backup-ledger-dir` but does **not** copy the genesis files. The subsequent snapshot-creation step then fails with a misleading `Missing snapshot at slot <X>`, preceded by a `Failed to load genesis config` line. Before running `await-snapshot`, copy `genesis.tar.bz2` and `genesis.bin` from the live ledger directory into `--backup-ledger-dir`.
+
+#### Disk budget
+
+Budget roughly **350GB free** for a mainnet run: a ~118GB full-snapshot copy, ~90GB of copied ledger range (rocksdb), the accounts unpack during bank load, and the newly created target-slot snapshot. 150GB is not enough — runs fail mid-flight.
+
+#### Failure quick-reference
+
+| Symptom | Actual cause | Fix |
+|---|---|---|
+| `unexpected argument '--allow-dead-slots'` | `agave-ledger-tool` is older than the validator | Rebuild the ledger-tool from the validator's own source tree (`--manifest-path dev-bins/Cargo.toml`) and pass it via `--agave-ledger-tool-path` |
+| `Missing snapshot at slot <X>` right after `Extracting genesis.tar.bz2` | genesis files missing from `--backup-ledger-dir` | Copy `genesis.tar.bz2` + `genesis.bin` from the live ledger dir and re-run |
+| `Missing snapshot at slot <X>` with `Blockstore missing data to replay` above it | blockstore no longer covers the slot range | Pick a target inside the retained window, or recover via `snapshot-slot` while the blocks are still present |
+| `generate-meta-merkle` fails instantly with `Missing snapshot at slot <X>` | no exact-slot snapshot in `--backup-snapshots-dir` | See **Full-snapshot lookup** below — produce one with `snapshot-slot`, or run the full `await-snapshot` flow |
+| `await-snapshot` polls forever | no retained incremental covers the target | See **Recovery** above |
+| The final error line looks unrelated | the causal error is usually 2-4 lines earlier in the log | Read upward — error propagation was improved by #125 |
 
 ---
 
@@ -112,6 +146,10 @@ ncn-cli \
 |---|---|---|---|
 | `--slot <u64>` | Yes | — | Target slot. A full snapshot for this exact slot must already exist in `--backup-snapshots-dir`. |
 | `--save-path <PATH>` | No | `./` | Directory to write the compressed `MetaMerkleSnapshot` (`meta_merkle-<slot>.zip`) to. |
+
+#### Full-snapshot lookup
+
+The full-snapshot tarball (`snapshot-<slot>-*.tar.zst`) is located via `--backup-snapshots-dir`, **not** `--full-snapshots-path` (which is not consumed by this subcommand). If it isn't found there, generation fails with `Missing snapshot at slot <X>` — point `--backup-snapshots-dir` at the directory holding your `snapshot-<slot>-*.tar.zst`, or produce one with `snapshot-slot` first.
 
 ---
 
@@ -192,7 +230,7 @@ Initializes the on-chain `ProgramConfig` singleton. Must be run once per deploym
 ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   init-program-config \
   --svmgov-program-id <PUBKEY>
 ```
@@ -211,7 +249,7 @@ Updates mutable fields on the on-chain `ProgramConfig`. All arguments are option
 ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   update-program-config \
   --min-consensus-threshold-bps 6667 \
   --vote-duration 86400 \
@@ -261,7 +299,7 @@ ncn-cli \
 ncn-cli \
   --payer-path <PATH_TO_PAYER_KEYPAIR> \
   --authority-path <PATH_TO_AUTHORITY_KEYPAIR> \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   update-operator-whitelist \
   -r PUBKEY_OLD
 
@@ -269,7 +307,7 @@ ncn-cli \
 ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   update-operator-whitelist \
   -a PUBKEY_NEW \
   -r PUBKEY_OLD
@@ -292,7 +330,7 @@ Casts an operator vote on a ballot box using an explicit Merkle root and snapsho
 ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   cast-vote \
   --snapshot-slot 300000000 \
   --root <BASE58_ROOT> \
@@ -315,7 +353,7 @@ Casts an operator vote using a local `MetaMerkleSnapshot` file. Reads the root a
 ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   cast-vote-from-snapshot \
   --snapshot-slot 300000000 \
   --read-path ./meta_merkle-300000000.zip \
@@ -338,7 +376,7 @@ Removes the caller's vote from a `BallotBox`. Only permitted before consensus is
 ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   remove-vote --snapshot-slot <SLOT>
 ```
 
@@ -358,7 +396,7 @@ Resolves a stalled ballot by writing an explicit winning ballot. The provided `-
 ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   set-tie-breaker --snapshot-slot <SLOT> \
   --root <MERKLE_ROOT> --hash <SNAPSHOT_HASH>
 ```
@@ -379,7 +417,7 @@ Resets a bricked `BallotBox`. Permitted only when the ballot box's vote window h
 ncn-cli \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   reset-ballot-box --snapshot-slot <SLOT>
 ```
 
@@ -396,7 +434,7 @@ Finalizes the winning ballot for a snapshot slot. Closes voting for `--snapshot-
 ```bash
 ncn-cli \
   --payer-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   finalize-ballot --snapshot-slot <SLOT>
 ```
 
@@ -421,22 +459,22 @@ Dumps the raw `Debug` representation of an on-chain account. Selects the account
 ```bash
 # View ProgramConfig
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com log \
+  --rpc-url <RPC_URL> log \
   --ty program-config
 
 # View a BallotBox
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com log \
+  --rpc-url <RPC_URL> log \
   --ty ballot-box --snapshot-slot <SLOT>
 
 # View a ConsensusResult
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com log \
+  --rpc-url <RPC_URL> log \
   --ty consensus-result --snapshot-slot <SLOT>
 
 # View a MetaMerkleProof
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com log \
+  --rpc-url <RPC_URL> log \
   --ty proof \
   --snapshot-slot <SLOT> \
   --vote-account <VOTE_ACCOUNT_PUBKEY>
@@ -458,7 +496,7 @@ Prints the on-chain `ProgramConfig` singleton.
 
 ```bash
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   get-program-config
 ```
 
@@ -470,7 +508,7 @@ Prints the operator whitelist from `ProgramConfig`.
 
 ```bash
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   get-operator-whitelist
 ```
 
@@ -482,7 +520,7 @@ Prints the on-chain `BallotBox` for a snapshot slot, including tallies and opera
 
 ```bash
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   get-ballot \
   --snapshot-slot <SLOT>
 ```
@@ -499,7 +537,7 @@ Prints a single operator's vote within a ballot box.
 
 ```bash
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   get-operator-vote \
   --snapshot-slot <SLOT> \
   --operator <OPERATOR_PUBKEY>
@@ -518,7 +556,7 @@ Prints the `ConsensusResult` PDA for a snapshot slot.
 
 ```bash
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   get-consensus-result \
   --snapshot-slot <SLOT>
 ```
@@ -535,7 +573,7 @@ Prints the `MetaMerkleProof` PDA for a vote account.
 
 ```bash
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   get-proof \
   --snapshot-slot <SLOT> \
   --vote-account <VOTE_ACCOUNT_PUBKEY>
@@ -554,7 +592,7 @@ Checks whether a `BallotBox` exists for a snapshot slot.
 
 ```bash
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   ballot-exists \
   --snapshot-slot <SLOT>
 ```
@@ -571,7 +609,7 @@ Prints a combined status report: program config, ballot box, and consensus resul
 
 ```bash
 ncn-cli \
-  --rpc-url https://api.devnet.solana.com \
+  --rpc-url <RPC_URL> \
   --cluster mainnet \
   status \
   --snapshot-slot <SLOT>

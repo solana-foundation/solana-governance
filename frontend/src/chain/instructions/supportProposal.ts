@@ -1,4 +1,9 @@
-import { PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import {
+  ComputeBudgetProgram,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+} from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
 import {
   BlockchainParams,
@@ -6,6 +11,8 @@ import {
   SupportProposalParams,
   TransactionResult,
   SNAPSHOT_PROGRAM_ID,
+  MAX_SUPPORTERS,
+  supportComputeUnitLimit,
   ChainVoteAccountData,
 } from "./types";
 import {
@@ -44,6 +51,21 @@ export async function supportProposal(
 
   const proposalPubkey = new PublicKey(proposalId);
   const splVoteAccount = new PublicKey(validatorVoteAccount.voteAccount);
+
+  // The handler re-tallies every existing supporter, so the compute budget is
+  // sized from the current list length rather than a flat worst case. If the
+  // read fails the support itself may still succeed, so fall back to the
+  // program's supporter cap rather than aborting on a budgeting detail.
+  let numSupporters = MAX_SUPPORTERS;
+  try {
+    const proposalAccount = await program.account.proposal.fetch(proposalPubkey);
+    numSupporters = proposalAccount.numSupporters;
+  } catch (error) {
+    console.warn(
+      `Could not read the supporter count for ${proposalId}; requesting the compute budget for a full ${MAX_SUPPORTERS}-supporter list`,
+      error,
+    );
+  }
 
   // Derive support PDA - based on IDL, it uses proposal and signer
   const supportPda = deriveSupportPda(
@@ -92,6 +114,13 @@ export async function supportProposal(
     .instruction();
 
   const transaction = new Transaction();
+  // Sized from the current supporter count — the handler re-tallies the whole
+  // list. See supportComputeUnitLimit.
+  transaction.add(
+    ComputeBudgetProgram.setComputeUnitLimit({
+      units: supportComputeUnitLimit(numSupporters),
+    }),
+  );
   transaction.add(supportProposalInstruction);
   transaction.feePayer = wallet.publicKey;
   transaction.recentBlockhash = (

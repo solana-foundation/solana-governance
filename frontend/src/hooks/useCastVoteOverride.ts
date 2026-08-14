@@ -3,7 +3,10 @@ import { useEndpoint } from "@/contexts/EndpointContext";
 import { useNcnApi } from "@/contexts/NcnApiContext";
 import { castVoteOverrideMutation } from "@/data";
 import { useMutation } from "@tanstack/react-query";
-import { useSnapshotMeta } from "./useSnapshotMeta";
+import {
+  SNAPSHOT_UNAVAILABLE_MESSAGE,
+  useSnapshotMeta,
+} from "./useSnapshotMeta";
 import { track } from "@vercel/analytics";
 
 export function useCastVoteOverride() {
@@ -13,16 +16,21 @@ export function useCastVoteOverride() {
 
   return useMutation({
     mutationKey: ["cast-vote-override"],
-    mutationFn: (params: CastVoteOverrideParams) =>
-      castVoteOverrideMutation(
+    mutationFn: (params: CastVoteOverrideParams) => {
+      if (meta?.slot === undefined) {
+        throw new Error(SNAPSHOT_UNAVAILABLE_MESSAGE);
+      }
+
+      return castVoteOverrideMutation(
         params,
         {
           endpoint,
           network: endpointType,
           ncnApiUrl,
         },
-        meta?.slot
-      ),
+        meta.slot
+      );
+    },
     onMutate: (params) => {
       track("Cast Vote Override init", { proposalId: params.proposalId });
     },

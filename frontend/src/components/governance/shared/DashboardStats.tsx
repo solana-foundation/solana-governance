@@ -32,8 +32,11 @@ export function DashboardStats({
   isLoading: isLoadingProps,
 }: DashboardStatsProps) {
   const { endpointType } = useEndpoint();
-  const { data: snapshotMeta, isLoading: isLoadingSnapshotMeta } =
-    useSnapshotMeta();
+  const {
+    data: snapshotMeta,
+    isLoading: isLoadingSnapshotMeta,
+    isError: isErrorSnapshotMeta,
+  } = useSnapshotMeta();
 
   const { data: validators, isLoading: isLoadingValidators } =
     useGetValidators();
@@ -53,6 +56,11 @@ export function DashboardStats({
     isLoadingProps;
 
   const snapshotSlot = snapshotMeta?.slot;
+  // "-" reads as a legitimate value; say so explicitly when the NCN API could not be reached.
+  const snapshotSlotValue = 
+    isErrorSnapshotMeta || endpointType === "custom"
+      ? "Unavailable"
+      : formatOptionalSlot(snapshotSlot);
   const delegationsReceived = votingPower;
   // TODO: clarify what this number is exactly
   const voteAccountsCount = 321;
@@ -77,7 +85,7 @@ export function DashboardStats({
           },
           {
             label: "Snapshot Slot",
-            value: formatOptionalSlot(snapshotSlot),
+            value: snapshotSlotValue,
             showRaw: false,
             isLoading: isLoadingSnapshotMeta,
           },
@@ -103,7 +111,7 @@ export function DashboardStats({
           },
           {
             label: "Snapshot Slot",
-            value: formatOptionalSlot(snapshotSlot),
+            value: snapshotSlotValue,
             showRaw: false,
             isLoading: isLoadingSnapshotMeta,
           },

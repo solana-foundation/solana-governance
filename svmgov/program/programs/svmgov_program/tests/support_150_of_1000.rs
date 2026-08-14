@@ -119,8 +119,14 @@ fn support_proposal_remeasures_prior_stake_across_epochs() {
     assert_eq!(after.snapshot_slot, expected_snapshot_slot(crossing_epoch));
 }
 
-/// Once voting is active, both `support_proposal` and `retally_support` return
-/// `ProposalClosed`.
+/// Once voting is active, both `support_proposal` and `retally_support` reject
+/// with `SupportAlreadyActivated`.
+///
+/// The error is deliberately not `ProposalClosed` ("the voting period has
+/// ended"): activation happens the moment the threshold is crossed, while
+/// `start_epoch` is still in the future, so at this point voting has not even
+/// begun. Reporting it as ended sent validators looking for the wrong problem
+/// (issue #141).
 #[test_log::test]
 fn support_and_retally_reject_after_voting_activated() {
     const CREATION_EPOCH: u64 = 10;
@@ -142,9 +148,19 @@ fn support_and_retally_reject_after_voting_activated() {
     retally_one(&mut h, proposal, UNDER_THRESHOLD, ballot_box);
     assert!(fetch_proposal(&h.svm, &proposal).voting);
 
+    // The transition state the issue describes: activated, but before
+    // start_epoch, so voting has not started.
+    let state = fetch_proposal(&h.svm, &proposal);
+    assert!(state.voting && !state.finalized);
+    assert!(
+        CREATION_EPOCH < state.start_epoch,
+        "current epoch must still be below start_epoch for this to be the \
+         activated-but-not-yet-voting case"
+    );
+
     let closed = TransactionError::InstructionError(
         1,
-        anchor_custom_error(GovernanceError::ProposalClosed),
+        anchor_custom_error(GovernanceError::SupportAlreadyActivated),
     );
     let support_err = try_support_one(&mut h, proposal, UNDER_THRESHOLD, ballot_box)
         .expect_err("support after voting should fail");
@@ -154,6 +170,64 @@ fn support_and_retally_reject_after_voting_activated() {
     let retally_err = try_retally_one(&mut h, proposal, 1, ballot_box)
         .expect_err("retally after voting should fail");
     assert_eq!(retally_err.err, closed);
+}
+
+/// Once the proposal is finalized, both `support_proposal` and
+/// `retally_support` reject with `ProposalFinalized` rather than
+/// `SupportAlreadyActivated`.
+///
+/// The two guards sit one after the other and a finalized proposal always has
+/// `voting == true`, so the ordering is what decides which error a caller sees.
+/// Reversing them would report every finalized proposal as merely activated.
+#[test_log::test]
+fn support_and_retally_reject_after_finalization() {
+    const CREATION_EPOCH: u64 = 10;
+    // Cross the threshold via stake drift rather than the last supporter, so a
+    // funded validator is left that has not supported and can make the
+    // post-finalization attempt below.
+    const UNDER_THRESHOLD: usize = SUPPORTER_COUNT - 1;
+    let mut h = setup(CREATION_EPOCH);
+    let ballot_box = seed_ballot_box(&mut h.svm, expected_snapshot_slot(CREATION_EPOCH));
+    let proposal = create_proposal(&mut h, 98, "closed after finalization");
+
+    for i in 0..UNDER_THRESHOLD {
+        support_one(&mut h, proposal, i, ballot_box);
+    }
+    h.svm
+        .set_epoch_stake(h.validators[0].vote.pubkey(), 2 * STAKE_PER_VALIDATOR)
+        .unwrap();
+    h.svm
+        .set_epoch_stake(h.validators[VALIDATOR_COUNT - 1].vote.pubkey(), 0)
+        .unwrap();
+    retally_one(&mut h, proposal, UNDER_THRESHOLD, ballot_box);
+    let activated = fetch_proposal(&h.svm, &proposal);
+    assert!(activated.voting, "proposal must activate before it can finalize");
+
+    // Finalization needs the voting window to have closed.
+    set_clock(&mut h.svm, activated.end_epoch);
+    let finalizer = h.validators[0].identity.insecure_clone();
+    send_ix(
+        &mut h.svm,
+        &finalizer,
+        &[finalize_proposal_ix(&finalizer.pubkey(), proposal)],
+    );
+    let state = fetch_proposal(&h.svm, &proposal);
+    assert!(state.finalized && state.voting);
+
+    let finalized_err = TransactionError::InstructionError(
+        1,
+        anchor_custom_error(GovernanceError::ProposalFinalized),
+    );
+
+    // The support window is long past by now too, so this also pins that the
+    // finalized guard runs before check_support_window.
+    let support_err = try_support_one(&mut h, proposal, UNDER_THRESHOLD, ballot_box)
+        .expect_err("support after finalization should fail");
+    assert_eq!(support_err.err, finalized_err);
+
+    let retally_err = try_retally_one(&mut h, proposal, 1, ballot_box)
+        .expect_err("retally after finalization should fail");
+    assert_eq!(retally_err.err, finalized_err);
 }
 
 /// Retally is rejected once the clock moves past the support window

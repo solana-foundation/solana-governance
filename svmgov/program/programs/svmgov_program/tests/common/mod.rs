@@ -43,6 +43,23 @@ pub const MAX_SUPPORT_EPOCHS: u64 = 10;
 pub const VOTING_EPOCHS: u64 = 3;
 /// Mirrors `constants::MAX_SUPPORTERS_LIMIT` (not exported from the crate).
 pub const MAX_SUPPORTERS: u32 = 2_000;
+
+// Mirror of `support_compute_unit_limit` in svmgov/cli/src/constants.rs and
+// `supportComputeUnitLimit` in frontend/src/chain/instructions/types.ts. The
+// clients size their compute request from the supporter count; these suites are
+// what justify the model, so the constants must move together.
+pub const SUPPORT_CU_BASE: u32 = 22_500;
+pub const SUPPORT_CU_PER_SUPPORTER: u32 = 132;
+pub const SUPPORT_CU_ACTIVATION: u32 = 28_000;
+pub const SUPPORT_CU_HEADROOM_PERCENT: u32 = 15;
+
+/// Compute units the clients request for a support/retally at `num_supporters`.
+pub fn modelled_support_limit(num_supporters: u32) -> u64 {
+    let modelled = SUPPORT_CU_BASE
+        .saturating_add(SUPPORT_CU_PER_SUPPORTER.saturating_mul(num_supporters))
+        .saturating_add(SUPPORT_CU_ACTIVATION);
+    (u64::from(modelled) * u64::from(100 + SUPPORT_CU_HEADROOM_PERCENT)).div_ceil(100)
+}
 /// Anchor `#[error_code]` offset (`anchor_lang::error::ERROR_CODE_OFFSET`).
 pub const ANCHOR_ERROR_CODE_OFFSET: u32 = 6000;
 
