@@ -136,6 +136,7 @@ export function mapProposalDto(
     finalized,
 
     consensusResult,
+    snapshotSlot: raw.snapshotSlot.toNumber(),
 
     proposalBump: raw.proposalBump,
     index: raw.index,

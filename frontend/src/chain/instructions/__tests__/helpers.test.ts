@@ -6,11 +6,13 @@ jest.mock("@/contexts/EndpointContext", () => ({
   RPC_URLS: { testnet: "http://localhost:8899" },
 }));
 
+import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 
 import {
   assertOverrideProofLineage,
   computeProofCloseTimestamp,
+  resolveProposalSnapshotSlot,
   resolveSnapshotVoteAccount,
 } from "../helpers";
 import type {
@@ -226,6 +228,18 @@ describe("resolveSnapshotVoteAccount", () => {
     });
     expect(() => resolveSnapshotVoteAccount(proof)).toThrow(
       /missing the snapshot vote_account/
+    );
+  });
+});
+
+describe("resolveProposalSnapshotSlot", () => {
+  it("returns the proposal's on-chain snapshot slot", () => {
+    expect(resolveProposalSnapshotSlot(new BN(340_850_340))).toBe(340_850_340);
+  });
+
+  it("throws when voting has not been activated (slot is 0)", () => {
+    expect(() => resolveProposalSnapshotSlot(new BN(0))).toThrow(
+      /no snapshot slot/
     );
   });
 });

@@ -49,6 +49,7 @@ export type ProposalRecord = {
   finalized: boolean; // Is finalized
 
   consensusResult: PublicKey | undefined;
+  snapshotSlot: number;
 
   // Technical
   proposalBump: number;

@@ -17,6 +17,7 @@ import {
   getStakeAccountProof,
   resolveSnapshotVoteAccount,
   assertOverrideProofLineage,
+  resolveProposalSnapshotSlot,
   convertMerkleProofStrings,
   convertStakeMerkleLeafDataToIdlType,
   validateVoteBasisPoints,
@@ -33,8 +34,7 @@ import { BN } from "@coral-xyz/anchor";
  */
 export async function modifyVoteOverride(
   params: ModifyVoteOverrideParams,
-  blockchainParams: BlockchainParams,
-  slot: number | undefined
+  blockchainParams: BlockchainParams
 ): Promise<TransactionResult> {
   const {
     proposalId,
@@ -50,10 +50,6 @@ export async function modifyVoteOverride(
     throw new Error("Wallet not connected");
   }
 
-  if (slot === undefined) {
-    throw new Error("Slot is not defined");
-  }
-
   if (consensusResult === undefined) {
     throw new Error("Consensus result not defined");
   }
@@ -63,6 +59,8 @@ export async function modifyVoteOverride(
 
   const proposalPubkey = new PublicKey(proposalId);
   const program = createProgramWithWallet(wallet, blockchainParams.endpoint);
+  const proposalAccount = await program.account.proposal.fetch(proposalPubkey);
+  const slot = resolveProposalSnapshotSlot(proposalAccount.snapshotSlot);
 
   const stakeAccountPubkey = new PublicKey(stakeAccount);
 
@@ -123,8 +121,6 @@ export async function modifyVoteOverride(
 
     // Set close_timestamp to the proposal's vote expiry so the proof cannot be closed
     // permissionlessly while voting is open. See computeProofCloseTimestamp.
-    const proposalAccount =
-      await program.account.proposal.fetch(proposalPubkey);
     const closeTimestamp = await computeProofCloseTimestamp(
       program.provider.connection,
       proposalAccount.endEpoch.toNumber()
