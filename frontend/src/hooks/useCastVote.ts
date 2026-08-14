@@ -2,6 +2,7 @@ import { CastVoteParams } from "@/chain";
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { useNcnApi } from "@/contexts/NcnApiContext";
 import { castVoteMutation } from "@/data";
+import { resolveSnapshotNetwork } from "@/lib/snapshotNetwork";
 import { useMutation } from "@tanstack/react-query";
 import { track } from "@vercel/analytics";
 
@@ -11,10 +12,12 @@ export function useCastVote() {
 
   return useMutation({
     mutationKey: ["cast-vote"],
-    mutationFn: (params: CastVoteParams) => {
+    mutationFn: async (params: CastVoteParams) => {
+      const network = await resolveSnapshotNetwork(endpointType, endpoint);
+
       return castVoteMutation(params, {
         endpoint,
-        network: endpointType,
+        network,
         ncnApiUrl,
       });
     },

@@ -2,11 +2,9 @@ import { SupportProposalParams } from "@/chain";
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { useGovernanceConfigContext } from "@/contexts/GovernanceConfigContext";
 import { supportProposalMutation } from "@/data";
+import { SNAPSHOT_UNAVAILABLE_MESSAGE } from "@/lib/snapshotNetwork";
 import { useMutation } from "@tanstack/react-query";
-import {
-  SNAPSHOT_UNAVAILABLE_MESSAGE,
-  useSnapshotMeta,
-} from "./useSnapshotMeta";
+import { useSnapshotMeta } from "./useSnapshotMeta";
 import { useChainVoteAccount } from "./useChainVoteAccount";
 
 export function useSupportProposal(userPubKey: string | undefined) {

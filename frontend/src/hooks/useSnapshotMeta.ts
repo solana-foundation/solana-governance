@@ -4,13 +4,6 @@ import { useNcnApi } from "@/contexts/NcnApiContext";
 import { fetchNcnJson } from "@/lib/ncnApi";
 import { useQuery } from "@tanstack/react-query";
 
-/**
- * Shown when an action needs a snapshot slot but the NCN API never returned one. Surfaced to
- * the user by the modals' error handlers rather than letting a mutation proceed with no slot.
- */
-export const SNAPSHOT_UNAVAILABLE_MESSAGE =
-  "Snapshot service unavailable — please try again in a moment";
-
 export const useSnapshotMeta = () => {
   const { endpointType } = useEndpoint();
   const { ncnApiUrl } = useNcnApi();
