@@ -4,12 +4,13 @@ import type { RPCEndpoint } from "@/types";
 export type KnownSnapshotNetwork = Exclude<RPCEndpoint, "custom">;
 
 /**
- * Shown when an action needs the snapshot service but it cannot be used: the NCN API never
- * returned a slot, or a custom RPC's genesis hash is not a known cluster. Surfaced to the
- * user by the modals' error handlers rather than letting a mutation proceed with no network.
+ * Shown when an action needs the snapshot service but the RPC is not a known cluster.
  */
 export const SNAPSHOT_UNAVAILABLE_MESSAGE =
   "Snapshot service unavailable in this network";
+
+/** Shown when there is no snapshot slot set yet. */
+export const SNAPSHOT_SLOT_UNSET_MESSAGE = "No snapshot slot has been set yet";
 
 /**
  * Known cluster genesis hashes for each network.

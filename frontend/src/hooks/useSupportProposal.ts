@@ -3,7 +3,7 @@ import { useEndpoint } from "@/contexts/EndpointContext";
 import { useGovernanceConfigContext } from "@/contexts/GovernanceConfigContext";
 import { supportProposalMutation } from "@/data";
 import {
-  SNAPSHOT_UNAVAILABLE_MESSAGE,
+  SNAPSHOT_SLOT_UNSET_MESSAGE,
   requireKnownSnapshotNetwork,
 } from "@/lib/snapshotNetwork";
 import { useMutation } from "@tanstack/react-query";
@@ -28,7 +28,7 @@ export function useSupportProposal(userPubKey: string | undefined) {
         throw new Error("Governance config not loaded");
       }
       if (meta?.slot === undefined) {
-        throw new Error(SNAPSHOT_UNAVAILABLE_MESSAGE);
+        throw new Error(SNAPSHOT_SLOT_UNSET_MESSAGE);
       }
       return supportProposalMutation(
         params,
