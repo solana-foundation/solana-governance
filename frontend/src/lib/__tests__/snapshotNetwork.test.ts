@@ -11,7 +11,9 @@ import { Connection } from "@solana/web3.js";
 import {
   CLUSTER_GENESIS_HASHES,
   SNAPSHOT_UNAVAILABLE_MESSAGE,
+  isKnownSnapshotNetwork,
   networkFromGenesisHash,
+  requireKnownSnapshotNetwork,
   resolveSnapshotNetwork,
 } from "../snapshotNetwork";
 
@@ -30,6 +32,31 @@ describe("networkFromGenesisHash", () => {
 
   it("returns undefined for an unrecognized hash", () => {
     expect(networkFromGenesisHash("unknown-genesis")).toBeUndefined();
+  });
+});
+
+describe("isKnownSnapshotNetwork", () => {
+  it("is true only for mainnet, testnet, and devnet", () => {
+    expect(isKnownSnapshotNetwork("mainnet")).toBe(true);
+    expect(isKnownSnapshotNetwork("testnet")).toBe(true);
+    expect(isKnownSnapshotNetwork("devnet")).toBe(true);
+    expect(isKnownSnapshotNetwork("custom")).toBe(false);
+    expect(isKnownSnapshotNetwork(undefined)).toBe(false);
+  });
+});
+
+describe("requireKnownSnapshotNetwork", () => {
+  it("returns a known cluster", () => {
+    expect(requireKnownSnapshotNetwork("testnet")).toBe("testnet");
+  });
+
+  it("throws when the cluster is not a known snapshot network", () => {
+    expect(() => requireKnownSnapshotNetwork(undefined)).toThrow(
+      SNAPSHOT_UNAVAILABLE_MESSAGE,
+    );
+    expect(() => requireKnownSnapshotNetwork("custom")).toThrow(
+      SNAPSHOT_UNAVAILABLE_MESSAGE,
+    );
   });
 });
 
@@ -58,11 +85,11 @@ describe("resolveSnapshotNetwork", () => {
     );
   });
 
-  it("throws when a custom RPC is not a known cluster", async () => {
+  it("returns undefined when a custom RPC is not a known cluster", async () => {
     mockGetGenesisHash.mockResolvedValue("localnet-genesis");
 
     await expect(
       resolveSnapshotNetwork("custom", "http://localhost:8899"),
-    ).rejects.toThrow(SNAPSHOT_UNAVAILABLE_MESSAGE);
+    ).resolves.toBeUndefined();
   });
 });

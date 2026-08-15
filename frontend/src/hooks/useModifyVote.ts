@@ -2,25 +2,22 @@ import { ModifyVoteParams } from "@/chain";
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { useNcnApi } from "@/contexts/NcnApiContext";
 import { modifyVoteMutation } from "@/data";
-import { resolveSnapshotNetwork } from "@/lib/snapshotNetwork";
+import { requireKnownSnapshotNetwork } from "@/lib/snapshotNetwork";
 import { useMutation } from "@tanstack/react-query";
 import { track } from "@vercel/analytics";
 
 export function useModifyVote() {
-  const { endpointUrl: endpoint, endpointType } = useEndpoint();
+  const { endpointUrl: endpoint, network } = useEndpoint();
   const { ncnApiUrl } = useNcnApi();
 
   return useMutation({
     mutationKey: ["modify-vote"],
-    mutationFn: async (params: ModifyVoteParams) => {
-      const network = await resolveSnapshotNetwork(endpointType, endpoint);
-
-      return modifyVoteMutation(params, {
+    mutationFn: (params: ModifyVoteParams) =>
+      modifyVoteMutation(params, {
         endpoint,
-        network,
+        network: requireKnownSnapshotNetwork(network),
         ncnApiUrl,
-      });
-    },
+      }),
     onMutate: (params) => {
       track("Modify Vote init", { proposalId: params.proposalId });
     },

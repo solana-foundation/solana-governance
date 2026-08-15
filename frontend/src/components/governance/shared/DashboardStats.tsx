@@ -1,4 +1,5 @@
 import { useEndpoint } from "@/contexts/EndpointContext";
+import { isKnownSnapshotNetwork } from "@/lib/snapshotNetwork";
 import {
   useGetValidators,
   useValidatorVotingPower,
@@ -31,7 +32,7 @@ export function DashboardStats({
   currentView,
   isLoading: isLoadingProps,
 }: DashboardStatsProps) {
-  const { endpointType } = useEndpoint();
+  const { endpointType, network, isResolvingNetwork } = useEndpoint();
   const {
     data: snapshotMeta,
     isLoading: isLoadingSnapshotMeta,
@@ -57,8 +58,8 @@ export function DashboardStats({
 
   const snapshotSlot = snapshotMeta?.slot;
   // "-" reads as a legitimate value; say so explicitly when the NCN API could not be reached.
-  const snapshotSlotValue = 
-    isErrorSnapshotMeta || endpointType === "custom"
+  const snapshotSlotValue =
+    isErrorSnapshotMeta || !isKnownSnapshotNetwork(network)
       ? "Unavailable"
       : formatOptionalSlot(snapshotSlot);
   const delegationsReceived = votingPower;
@@ -78,16 +79,16 @@ export function DashboardStats({
       ? [
           {
             label: "Network",
-            value: endpointType,
-            mobileValue: endpointType,
+            value: network ?? endpointType,
+            mobileValue: network ?? endpointType,
             showRaw: false,
-            isLoading: false,
+            isLoading: isResolvingNetwork,
           },
           {
             label: "Snapshot Slot",
             value: snapshotSlotValue,
             showRaw: false,
-            isLoading: isLoadingSnapshotMeta,
+            isLoading: isLoadingSnapshotMeta || isResolvingNetwork,
           },
           {
             label: "Delegations Received",
@@ -104,16 +105,16 @@ export function DashboardStats({
       : [
           {
             label: "Network",
-            value: endpointType,
-            mobileValue: endpointType,
+            value: network ?? endpointType,
+            mobileValue: network ?? endpointType,
             showRaw: false,
-            isLoading: false,
+            isLoading: isResolvingNetwork,
           },
           {
             label: "Snapshot Slot",
             value: snapshotSlotValue,
             showRaw: false,
-            isLoading: isLoadingSnapshotMeta,
+            isLoading: isLoadingSnapshotMeta || isResolvingNetwork,
           },
           {
             label: "Total Staked",

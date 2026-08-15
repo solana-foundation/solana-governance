@@ -20,6 +20,12 @@ export const CLUSTER_GENESIS_HASHES: Record<KnownSnapshotNetwork, string> = {
   testnet: "4uhcVJyU9pJkvQyS88uRDiswHXSCkY3zQawwpjk2NsNY",
 };
 
+export function isKnownSnapshotNetwork(
+  network: string | undefined,
+): network is KnownSnapshotNetwork {
+  return network !== undefined && network in CLUSTER_GENESIS_HASHES;
+}
+
 export function networkFromGenesisHash(
   genesisHash: string,
 ): KnownSnapshotNetwork | undefined {
@@ -41,13 +47,18 @@ async function fetchGenesisHash(endpointUrl: string): Promise<string> {
 export async function resolveSnapshotNetwork(
   endpointType: RPCEndpoint,
   endpointUrl: string,
-): Promise<KnownSnapshotNetwork> {
+): Promise<KnownSnapshotNetwork | undefined> {
   if (endpointType !== "custom") {
     return endpointType;
   }
 
-  const network = networkFromGenesisHash(await fetchGenesisHash(endpointUrl));
-  if (network === undefined) {
+  return networkFromGenesisHash(await fetchGenesisHash(endpointUrl));
+}
+
+export function requireKnownSnapshotNetwork(
+  network: string | undefined,
+): KnownSnapshotNetwork {
+  if (!isKnownSnapshotNetwork(network)) {
     throw new Error(SNAPSHOT_UNAVAILABLE_MESSAGE);
   }
   return network;

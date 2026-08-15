@@ -2,13 +2,16 @@ import { SupportProposalParams } from "@/chain";
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { useGovernanceConfigContext } from "@/contexts/GovernanceConfigContext";
 import { supportProposalMutation } from "@/data";
-import { SNAPSHOT_UNAVAILABLE_MESSAGE } from "@/lib/snapshotNetwork";
+import {
+  SNAPSHOT_UNAVAILABLE_MESSAGE,
+  requireKnownSnapshotNetwork,
+} from "@/lib/snapshotNetwork";
 import { useMutation } from "@tanstack/react-query";
 import { useSnapshotMeta } from "./useSnapshotMeta";
 import { useChainVoteAccount } from "./useChainVoteAccount";
 
 export function useSupportProposal(userPubKey: string | undefined) {
-  const { endpointUrl: endpoint, endpointType } = useEndpoint();
+  const { endpointUrl: endpoint, network } = useEndpoint();
   const governanceConfigQuery = useGovernanceConfigContext();
   const { data: meta } = useSnapshotMeta();
   const { data: chainVoteAccount } = useChainVoteAccount(userPubKey);
@@ -31,7 +34,7 @@ export function useSupportProposal(userPubKey: string | undefined) {
         params,
         {
           endpoint,
-          network: endpointType,
+          network: requireKnownSnapshotNetwork(network),
         },
         meta.slot,
         chainVoteAccount || undefined,
