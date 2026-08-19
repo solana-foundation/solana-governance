@@ -1,8 +1,9 @@
+import { createSolanaRpc } from "@solana/kit";
 import {
-  createProgramWitDummyWallet,
-  deriveGlobalConfigPda,
-  type GlobalConfigAccount,
-} from "@/chain";
+  fetchGlobalConfig,
+  findGlobalConfigPda,
+  type GlobalConfig,
+} from "@solana/svmgov";
 
 export interface GovernanceConfigDto {
   admin: string;
@@ -21,14 +22,11 @@ export interface GovernanceConfigDto {
 
 /** Maps chain account to the public DTO. */
 export function toGovernanceConfigDto(
-  account: GlobalConfigAccount,
+  account: GlobalConfig,
 ): GovernanceConfigDto {
-  const n = (v: unknown) =>
-    typeof v === "number"
-      ? v
-      : ((v as { toNumber: () => number })?.toNumber?.() ?? 0);
+  const n = (v: bigint) => Number(v);
   return {
-    admin: account.admin.toBase58(),
+    admin: account.admin,
     // TODO: revisit this, once global config account is initialized
     //   we cant simply default to 0, since we will be using this in FE validations
     maxTitleLength: account.maxTitleLength ?? 0,
@@ -42,7 +40,7 @@ export function toGovernanceConfigDto(
     votingEpochs: n(account.votingEpochs),
     snapshotEpochExtension: n(account.snapshotEpochExtension),
     snapshotSlotOffset: n(account.snapshotSlotOffset),
-    maxSupporters: n(account.maxSupporters),
+    maxSupporters: account.maxSupporters,
     bump: account.bump,
   };
 }
@@ -53,9 +51,8 @@ export function toGovernanceConfigDto(
 export async function fetchGovernanceConfigFromChain(
   rpcUrl: string,
 ): Promise<GovernanceConfigDto> {
-  const program = createProgramWitDummyWallet(rpcUrl);
-  const pda = deriveGlobalConfigPda(program.programId);
-  console.log("globalConfig pda addr:", pda.toBase58());
-  const account = await program.account.globalConfig.fetch(pda);
-  return toGovernanceConfigDto(account);
+  const rpc = createSolanaRpc(rpcUrl);
+  const [address] = await findGlobalConfigPda();
+  const account = await fetchGlobalConfig(rpc, address);
+  return toGovernanceConfigDto(account.data);
 }
