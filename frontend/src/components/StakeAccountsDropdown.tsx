@@ -11,7 +11,7 @@ import {
   formatLamportsDisplay,
 } from "@/lib/governance/formatters";
 import { Loader2 } from "lucide-react";
-import { useAnchorWallet } from "@solana/wallet-adapter-react";
+import { useWalletSession } from "@/contexts/WalletSessionContext";
 import { StakeAccountData } from "@/types";
 
 interface VotingProposalsDropdownProps {
@@ -27,7 +27,7 @@ export const StakeAccountsDropdown = ({
   disabled,
   disabledAccounts,
 }: VotingProposalsDropdownProps) => {
-  const wallet = useAnchorWallet();
+  const { anchorWallet: wallet } = useWalletSession();
 
   const { data: stakeAccounts, isLoading } = useWalletStakeAccounts(
     wallet?.publicKey?.toBase58()

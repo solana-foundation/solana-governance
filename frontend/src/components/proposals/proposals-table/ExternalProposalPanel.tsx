@@ -10,7 +10,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletSession } from "@/contexts/WalletSessionContext";
 import { ProposalDescription } from "../ProposalDescription";
 import { ProposalHeading } from "../ProposalHeading";
 import { ProposalRecord, ProposalStatus } from "@/types";
@@ -117,7 +117,7 @@ function VoteActions({
   disabled?: boolean;
 }) {
   const { openModal } = useModal();
-  const { publicKey } = useWallet();
+  const { publicKey } = useWalletSession();
   const { isLoading: isLoadingWalletRole } = useWalletRole(
     publicKey?.toBase58()
   );
@@ -202,7 +202,7 @@ function DiscussionMessage({ proposalId }: { proposalId: string }) {
 }
 
 function VotingPanel({ proposal }: { proposal: ProposalRecord }) {
-  const { connected } = useWallet();
+  const { connected } = useWalletSession();
 
   const isVoting = proposal.status === "voting";
   const isSupporting = proposal.status === "supporting";

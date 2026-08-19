@@ -2,15 +2,13 @@
 
 import { GovernanceEmptyState } from "./shared/GovernanceEmptyState";
 import { GovernanceDashboardLayout } from "@/components/governance/GovernanceDashboardLayout";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { useWalletSession } from "@/contexts/WalletSessionContext";
 
 export function GovernanceDashboard() {
-  const { connected, publicKey } = useWallet();
-  const { setVisible } = useWalletModal();
+  const { connected, publicKey, openWalletModal } = useWalletSession();
 
   const handleConnectWallet = () => {
-    setVisible(true);
+    openWalletModal();
   };
 
   // If not connected, only show empty state

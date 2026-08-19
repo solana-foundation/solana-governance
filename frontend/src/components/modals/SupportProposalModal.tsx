@@ -15,7 +15,7 @@ import ErrorMessage from "./shared/ErrorMessage";
 import RequirementItem from "./shared/RequirementItem";
 import { toast } from "sonner";
 import { formatAddress } from "@/lib/governance/formatters";
-import { useAnchorWallet } from "@solana/wallet-adapter-react";
+import { useWalletSession } from "@/contexts/WalletSessionContext";
 import { useSupportProposal } from "@/hooks";
 import { captureException } from "@sentry/nextjs";
 
@@ -35,7 +35,7 @@ export function SupportProposalModal({
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | undefined>();
 
-  const wallet = useAnchorWallet();
+  const { anchorWallet: wallet } = useWalletSession();
 
   const { mutate: supportProposal } = useSupportProposal(
     wallet?.publicKey?.toBase58(),

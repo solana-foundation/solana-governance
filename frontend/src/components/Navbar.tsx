@@ -17,8 +17,7 @@ import {
 } from "@/components/ui/drawer";
 import { formatAddress } from "@/lib/governance/formatters";
 import { useModal } from "@/contexts/ModalContext";
-import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletSession } from "@/contexts/WalletSessionContext";
 
 type NavLink = {
   href: string;
@@ -47,9 +46,8 @@ export default function Navbar() {
   const { openModal } = useModal();
   const [isOpen, setIsOpen] = useState(false);
 
-  const { publicKey: walletAddress, connected, disconnect } = useWallet();
-
-  const { setVisible } = useWalletModal();
+  const { publicKey: walletAddress, connected, disconnect, openWalletModal } =
+    useWalletSession();
 
   useEffect(() => {
     setIsOpen(false);
@@ -222,7 +220,7 @@ export default function Navbar() {
                 size="lg"
                 className="rounded-full font-plus-jakarta-sans font-bold lg:h-9 lg:px-6"
                 text="Connect Wallet"
-                onClick={() => setVisible(true)}
+                onClick={openWalletModal}
               />
             )}
           </div>

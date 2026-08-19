@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useModal } from "@/contexts/ModalContext";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletSession } from "@/contexts/WalletSessionContext";
 import {
   Tooltip,
   TooltipContent,
@@ -153,7 +153,7 @@ export function GovernanceActions({
   isLoading,
 }: GovernanceActionsProps) {
   const { openModal } = useModal();
-  const { connected } = useWallet();
+  const { connected } = useWalletSession();
   const config =
     variant === "validator"
       ? getValidatorConfig(openModal, !connected)

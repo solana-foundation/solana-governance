@@ -20,7 +20,7 @@ import {
   VoteDistribution,
 } from "@/hooks";
 import { toast } from "sonner";
-import { useAnchorWallet } from "@solana/wallet-adapter-react";
+import { useWalletSession } from "@/contexts/WalletSessionContext";
 import { PublicKey } from "@solana/web3.js";
 import { WalletRole } from "@/types";
 import { VotingProposalsDropdown } from "../VotingProposalsDropdown";
@@ -61,7 +61,7 @@ export function ModifyVoteModal({
     resetDistribution,
   } = useVoteDistribution(initialVoteDist);
 
-  const wallet = useAnchorWallet();
+  const { anchorWallet: wallet } = useWalletSession();
 
   const { walletRole } = useWalletRole(wallet?.publicKey?.toBase58());
 

@@ -13,8 +13,8 @@ const mockHandleOptionChange = jest.fn();
 const mockHandleQuickSelect = jest.fn();
 const mockResetDistribution = jest.fn();
 
-jest.mock("@solana/wallet-adapter-react", () => ({
-  useAnchorWallet: jest.fn(),
+jest.mock("@/contexts/WalletSessionContext", () => ({
+  useWalletSession: jest.fn(),
 }));
 
 jest.mock("@/hooks", () => ({
@@ -68,7 +68,7 @@ jest.mock("@sentry/nextjs", () => ({
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { useAnchorWallet } = require("@solana/wallet-adapter-react");
+const { useWalletSession } = require("@/contexts/WalletSessionContext");
 
 beforeAll(() => {
   globalThis.ResizeObserver = class ResizeObserver {
@@ -94,7 +94,7 @@ describe("OverrideVoteModal", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    useAnchorWallet.mockReturnValue(wallet);
+    useWalletSession.mockReturnValue({ anchorWallet: wallet });
     mockUseWalletRole.mockReturnValue({ walletRole: WalletRole.STAKER });
     mockUseWalletStakeAccounts.mockReturnValue({
       data: [

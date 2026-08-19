@@ -12,7 +12,7 @@ import {
   formatOptionalSlot,
 } from "@/lib/governance/formatters";
 import type { ViewType } from "@/types/governance";
-import { useAnchorWallet } from "@solana/wallet-adapter-react";
+import { useWalletSession } from "@/contexts/WalletSessionContext";
 
 interface DashboardStatsProps {
   currentView: ViewType;
@@ -42,7 +42,7 @@ export function DashboardStats({
   const { data: validators, isLoading: isLoadingValidators } =
     useGetValidators();
 
-  const wallet = useAnchorWallet();
+  const { anchorWallet: wallet } = useWalletSession();
 
   const { data: stakeAccounts, isLoading: isLoadingStakeAccounts } =
     useWalletStakeAccounts(wallet?.publicKey?.toBase58());

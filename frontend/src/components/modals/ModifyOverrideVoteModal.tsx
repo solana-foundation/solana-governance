@@ -20,7 +20,7 @@ import {
 } from "@/hooks";
 import { toast } from "sonner";
 import { WalletRole } from "@/types";
-import { useAnchorWallet } from "@solana/wallet-adapter-react";
+import { useWalletSession } from "@/contexts/WalletSessionContext";
 import { FormEvent, useEffect, useState } from "react";
 import { useModifyVoteOverride } from "@/hooks";
 import { GetVoteOverrideFilters } from "@/data";
@@ -91,7 +91,7 @@ export function ModifyOverrideVoteModal({
     resetDistribution,
   } = useVoteDistribution(initialVoteDist);
 
-  const wallet = useAnchorWallet();
+  const { anchorWallet: wallet } = useWalletSession();
 
   const { data: stakeAccounts } = useWalletStakeAccounts(
     wallet?.publicKey?.toBase58()

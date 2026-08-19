@@ -1,7 +1,7 @@
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { getUserHasVoted, GetVoteOverrideFilters } from "@/data";
 import { GET_USER_HAS_VOTED } from "@/helpers";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletSession } from "@/contexts/WalletSessionContext";
 import { useQuery } from "@tanstack/react-query";
 import { PublicKey } from "@solana/web3.js";
 import { useVoteOverrideAccounts } from "./useVoteOverrideAccounts";
@@ -40,7 +40,7 @@ export const useHasUserVoted = (
   enabledProp = true
 ) => {
   const { endpointUrl: endpoint } = useEndpoint();
-  const { publicKey, connected } = useWallet();
+  const { publicKey, connected } = useWalletSession();
 
   const { walletRole } = useWalletRole(publicKey?.toBase58());
 

@@ -5,7 +5,7 @@ import { useModal } from "@/contexts/ModalContext";
 import { PublicKey } from "@solana/web3.js";
 import { Ban, ThumbsDown, ThumbsUp } from "lucide-react";
 
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletSession } from "@/contexts/WalletSessionContext";
 import {
   Tooltip,
   TooltipContent,
@@ -50,7 +50,7 @@ function CastVote({
   disabled,
 }: CastVoteProps) {
   const { openModal } = useModal();
-  const { publicKey } = useWallet();
+  const { publicKey } = useWalletSession();
   const { isLoading: isLoadingWalletRole } = useWalletRole(
     publicKey?.toBase58()
   );
@@ -152,7 +152,7 @@ export default function CastVoteWrapper({
   proposal: ProposalRecord | undefined;
   isLoading: boolean;
 }) {
-  const { connected, publicKey } = useWallet();
+  const { connected, publicKey } = useWalletSession();
 
   const enabled = connected && proposal && publicKey;
 

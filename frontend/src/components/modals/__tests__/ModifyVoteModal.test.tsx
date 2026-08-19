@@ -6,12 +6,8 @@ import { PublicKey } from "@solana/web3.js";
 import { WalletRole } from "@/types";
 
 // Mock only external dependencies
-jest.mock("@solana/wallet-adapter-react", () => ({
-  useAnchorWallet: jest.fn(),
-  useWallet: jest.fn(() => ({
-    publicKey: { toBase58: () => "test-wallet-address" },
-    connected: true,
-  })),
+jest.mock("@/contexts/WalletSessionContext", () => ({
+  useWalletSession: jest.fn(),
 }));
 
 const mockHandleOptionChange = jest.fn();
@@ -62,7 +58,7 @@ jest.mock("@/contexts/EndpointContext", () => ({
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { useAnchorWallet } = require("@solana/wallet-adapter-react");
+const { useWalletSession } = require("@/contexts/WalletSessionContext");
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { useHasValidatorVoted } = require("@/hooks");
 
@@ -99,7 +95,7 @@ describe("ModifyVoteModal - Loading State for hasVoted", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    useAnchorWallet.mockReturnValue(mockWallet);
+    useWalletSession.mockReturnValue({ anchorWallet: mockWallet });
     mockHandleOptionChange.mockClear();
     mockHandleQuickSelect.mockClear();
     mockResetDistribution.mockClear();
