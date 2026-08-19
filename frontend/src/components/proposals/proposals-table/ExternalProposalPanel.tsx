@@ -16,7 +16,7 @@ import { ProposalHeading } from "../ProposalHeading";
 import { ProposalRecord, ProposalStatus } from "@/types";
 import { useChainVoteAccount, useWalletRole } from "@/hooks";
 import { SupportButton } from "../SupportButton";
-import { PublicKey } from "@solana/web3.js";
+import type { LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
 import { toast } from "sonner";
 import { getProposalDetailPagePath } from "@/helpers/proposalPage";
 import { getVoteModalNames } from "@/lib/governance/role-detection";

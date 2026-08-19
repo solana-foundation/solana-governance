@@ -1,4 +1,4 @@
-import type { PublicKey } from "@solana/web3.js";
+import type { LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
 
 export const shortenPublicKey = (pk: PublicKey | string) => {
   const stringPk = typeof pk === "string" ? pk : pk.toString();

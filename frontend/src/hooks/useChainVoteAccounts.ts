@@ -1,6 +1,5 @@
-import { ChainVoteAccountData } from "@/chain";
 import { useEndpoint } from "@/contexts/EndpointContext";
-import { fetchRawVoteAccounts, type RpcVoteAccountData } from "@/lib/rpcVoteAccounts";
+import { fetchRawVoteAccounts, type ChainVoteAccountData, type RpcVoteAccountData } from "@/lib/rpcVoteAccounts";
 import { useQuery } from "@tanstack/react-query";
 
 export const useChainVoteAccounts = () => {

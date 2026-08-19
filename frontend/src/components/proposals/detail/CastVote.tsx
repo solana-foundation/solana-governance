@@ -2,7 +2,7 @@
 
 import { AppButton } from "@/components/ui/AppButton";
 import { useModal } from "@/contexts/ModalContext";
-import { PublicKey } from "@solana/web3.js";
+import type { LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
 import { Ban, ThumbsDown, ThumbsUp } from "lucide-react";
 
 import { useWalletSession } from "@/contexts/WalletSessionContext";

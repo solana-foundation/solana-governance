@@ -12,15 +12,6 @@ export * from "./getVoteProposals";
 export * from "./getProposalVotes";
 export * from "./getProposalVoteOverrides";
 
-export * from "./castVoteMutation";
-export * from "./modifyVoteMutation";
-
-export * from "./castVoteOverrideMutation";
-export * from "./modifyVoteOverrideMutation";
-
-export * from "./createProposalMutation";
-export * from "./supportProposalMutation";
-
 export * from "./getVoterWalletSummary";
 
 export * from "./getValidators";

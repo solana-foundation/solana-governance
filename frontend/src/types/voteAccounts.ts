@@ -1,6 +1,4 @@
-import { VoteAccount } from "@/chain";
-import { PublicKey } from "@solana/web3.js";
-import BN from "bn.js";
+import type { LegacyBn as BN, LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
 
 export interface VoteAccountData {
   validator: PublicKey;
@@ -38,9 +36,4 @@ export interface OldVoteAccountData {
   overrideLamports: BN;
   voteTimestamp: BN;
   bump: number;
-}
-
-export interface RawVoteAccountDataAccount {
-  account: VoteAccount;
-  publicKey: PublicKey;
 }

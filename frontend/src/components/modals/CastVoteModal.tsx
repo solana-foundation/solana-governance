@@ -28,7 +28,7 @@ import {
   formatLamportsDisplay,
 } from "@/lib/governance/formatters";
 import { VotingProposalsDropdown } from "../VotingProposalsDropdown";
-import { PublicKey } from "@solana/web3.js";
+import type { LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
 import { captureException } from "@sentry/nextjs";
 import RequirementItem from "./shared/RequirementItem";
 

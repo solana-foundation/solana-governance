@@ -1,6 +1,5 @@
-import { ProposalAccount } from "@/chain";
 import type { ProposalRef } from "@/lib/github";
-import { PublicKey } from "@solana/web3.js";
+import type { LegacyPublicKey } from "@/lib/governance/legacyAdapters";
 
 export type ProposalStatus =
   | "supporting"
@@ -10,7 +9,7 @@ export type ProposalStatus =
   | "failed";
 
 export type ProposalRecord = {
-  publicKey: PublicKey;
+  publicKey: LegacyPublicKey;
   id: string; // used for table
   // Identity
   /**
@@ -48,7 +47,7 @@ export type ProposalRecord = {
   voting: boolean; // Is currently voting
   finalized: boolean; // Is finalized
 
-  consensusResult: PublicKey | undefined;
+  consensusResult: LegacyPublicKey | undefined;
   snapshotSlot: number;
 
   // Technical
@@ -66,10 +65,6 @@ export type ProposalRecord = {
 
 // Input type depends on your data source
 
-export interface RawProposalAccount {
-  account: ProposalAccount;
-  publicKey: PublicKey;
-}
 export interface RawProposal {
   simd: string;
   title: string;

@@ -8,7 +8,7 @@ import {
 } from "./ui";
 import { formatAddress } from "@/lib/governance/formatters";
 import { Loader2 } from "lucide-react";
-import { PublicKey } from "@solana/web3.js";
+import type { LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
 import { toast } from "sonner";
 
 interface VotingProposalsDropdownProps {

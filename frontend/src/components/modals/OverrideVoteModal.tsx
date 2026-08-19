@@ -25,7 +25,7 @@ import { WalletRole } from "@/types";
 import { useWalletSession } from "@/contexts/WalletSessionContext";
 import { FormEvent, useEffect, useState } from "react";
 import { GetVoteOverrideFilters } from "@/data";
-import { PublicKey } from "@solana/web3.js";
+import type { LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
 import { VotingProposalsDropdown } from "../VotingProposalsDropdown";
 import { StakeAccountsDropdown } from "../StakeAccountsDropdown";
 import { captureException } from "@sentry/nextjs";

@@ -21,7 +21,7 @@ import {
 } from "@/hooks";
 import { toast } from "sonner";
 import { useWalletSession } from "@/contexts/WalletSessionContext";
-import { PublicKey } from "@solana/web3.js";
+import type { LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
 import { WalletRole } from "@/types";
 import { VotingProposalsDropdown } from "../VotingProposalsDropdown";
 import { FormEvent, useEffect, useState } from "react";

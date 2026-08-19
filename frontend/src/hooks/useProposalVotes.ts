@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { PublicKey } from "@solana/web3.js";
+import type { LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
 import BN from "bn.js";
 import { TopVoterRecord } from "@/types/topVoters";
 import { Validator } from "@/types";
@@ -113,12 +113,12 @@ export const useProposalVotes = (proposalPublicKey: PublicKey | undefined) => {
           votePercentage,
           voteTimestamp,
           voteData: {
-            forVotesBp: v.forVotesBp ? new BN(v.forVotesBp) : new BN(0),
+            forVotesBp: v.forVotesBp ? new BN(v.forVotesBp.toString()) : new BN(0),
             againstVotesBp: v.againstVotesBp
-              ? new BN(v.againstVotesBp)
+              ? new BN(v.againstVotesBp.toString())
               : new BN(0),
             abstainVotesBp: v.abstainVotesBp
-              ? new BN(v.abstainVotesBp)
+              ? new BN(v.abstainVotesBp.toString())
               : new BN(0),
           },
           accentColor: getColorFromString(validatorName),
@@ -162,12 +162,12 @@ export const useProposalVotes = (proposalPublicKey: PublicKey | undefined) => {
           voteTimestamp,
           stakeAccount: v.stakeAccount.toBase58(),
           voteData: {
-            forVotesBp: v.forVotesBp ? new BN(v.forVotesBp) : new BN(0),
+            forVotesBp: v.forVotesBp ? new BN(v.forVotesBp.toString()) : new BN(0),
             againstVotesBp: v.againstVotesBp
-              ? new BN(v.againstVotesBp)
+              ? new BN(v.againstVotesBp.toString())
               : new BN(0),
             abstainVotesBp: v.abstainVotesBp
-              ? new BN(v.abstainVotesBp)
+              ? new BN(v.abstainVotesBp.toString())
               : new BN(0),
           },
           accentColor: getColorFromString(validatorName),

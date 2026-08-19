@@ -1,4 +1,4 @@
-import { NetworkMetaResponse } from "@/chain";
+import type { NetworkMetaResponse } from "@/lib/ncnProofs";
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { useNcnApi } from "@/contexts/NcnApiContext";
 import { fetchNcnJson } from "@/lib/ncnApi";

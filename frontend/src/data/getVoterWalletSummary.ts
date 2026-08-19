@@ -1,4 +1,4 @@
-import { VoterSummaryResponse } from "@/chain";
+import type { VoterSummaryResponse } from "@/lib/ncnProofs";
 import { DEFAULT_NCN_API_URL, fetchNcnJson } from "@/lib/ncnApi";
 import type { KnownSnapshotNetwork } from "@/lib/snapshotNetwork";
 

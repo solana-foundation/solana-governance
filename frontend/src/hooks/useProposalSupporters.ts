@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { PublicKey } from "@solana/web3.js";
+import type { LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
 import { TopSupporterRecord, Validator } from "@/types";
 import { accentColors } from "@/types/topVoters";
 import { buildSupportFilters, useSupportAccounts } from "./useSupportAccounts";

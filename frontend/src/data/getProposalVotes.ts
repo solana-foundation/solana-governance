@@ -2,7 +2,7 @@ import { createSolanaRpc, type Address } from "@solana/kit";
 import { fetchVotes } from "@/lib/governance/programAccounts";
 import { mapVoteAccountDto } from "./getVoteAccounts";
 import { OldVoteAccountData } from "@/types";
-import { PublicKey } from "@solana/web3.js";
+import { toLegacyPublicKey, type LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
 
 /**
  * Fetches votes for a specific proposal
@@ -17,5 +17,5 @@ export const getProposalVotes = async (
   });
 
   // Map to the expected format with voter field
-  return proposalVotes.map(({ address, data }) => ({ ...mapVoteAccountDto(data, address), voter: new PublicKey(address) }));
+  return proposalVotes.map(({ address, data }) => ({ ...mapVoteAccountDto(data, address), voter: toLegacyPublicKey(address) }));
 };

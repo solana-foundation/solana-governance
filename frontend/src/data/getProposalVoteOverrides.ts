@@ -2,8 +2,7 @@ import { VoteOverrideAccountData } from "@/types";
 import { createSolanaRpc, type Address } from "@solana/kit";
 import { fetchVoteOverrides } from "@/lib/governance/programAccounts";
 import { mapVoteOverrideAccountDto } from "./getVoteOverrideAccounts";
-import { PublicKey } from "@solana/web3.js";
-import BN from "bn.js";
+import type { LegacyBn as BN, LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
 
 /**
  * Fetches vote overrides for a specific proposal

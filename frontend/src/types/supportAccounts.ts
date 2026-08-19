@@ -1,14 +1,8 @@
-import { SupportAccount } from "@/chain";
-import { PublicKey } from "@solana/web3.js";
+import type { LegacyPublicKey } from "@/lib/governance/legacyAdapters";
 
 export interface SupportAccountData {
-  publicKey: PublicKey;
-  proposal: PublicKey;
-  validator: PublicKey;
+  publicKey: LegacyPublicKey;
+  proposal: LegacyPublicKey;
+  validator: LegacyPublicKey;
   bump: number;
-}
-
-export interface RawSupportAccountDataAccount {
-  account: SupportAccount;
-  publicKey: PublicKey;
 }

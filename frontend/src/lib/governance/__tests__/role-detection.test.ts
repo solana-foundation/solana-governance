@@ -1,4 +1,4 @@
-import type { ChainVoteAccountData } from "@/chain";
+import type { ChainVoteAccountData } from "@/lib/rpcVoteAccounts";
 import {
   determineWalletRole,
   getVoteModalNames,

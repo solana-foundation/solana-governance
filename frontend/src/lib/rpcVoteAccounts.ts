@@ -14,6 +14,12 @@ export interface RawVoteAccountsData {
   delinquent: RpcVoteAccountData[];
 }
 
+export interface ChainVoteAccountData {
+  activeStake: number;
+  voteAccount: string;
+  nodePubkey: string;
+}
+
 function mapVoteAccount(account: {
   activatedStake: bigint;
   commission: number;

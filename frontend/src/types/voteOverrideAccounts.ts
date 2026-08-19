@@ -1,26 +1,19 @@
-import { VoteOverrideAccount } from "@/chain";
-import { PublicKey } from "@solana/web3.js";
-import BN from "bn.js";
+import type { LegacyBn, LegacyPublicKey } from "@/lib/governance/legacyAdapters";
 
 export interface VoteOverrideAccountData {
-  publicKey: PublicKey;
-  stakeAccount: PublicKey;
-  delegator: PublicKey;
-  validator: PublicKey;
-  proposal: PublicKey;
-  voteAccountValidator: PublicKey;
-  forVotesBp: BN;
-  againstVotesBp: BN;
-  abstainVotesBp: BN;
-  forVotesLamports: BN;
-  againstVotesLamports: BN;
-  abstainVotesLamports: BN;
-  stakeAmount: BN;
-  voteOverrideTimestamp: BN;
+  publicKey: LegacyPublicKey;
+  stakeAccount: LegacyPublicKey;
+  delegator: LegacyPublicKey;
+  validator: LegacyPublicKey;
+  proposal: LegacyPublicKey;
+  voteAccountValidator: LegacyPublicKey;
+  forVotesBp: LegacyBn;
+  againstVotesBp: LegacyBn;
+  abstainVotesBp: LegacyBn;
+  forVotesLamports: LegacyBn;
+  againstVotesLamports: LegacyBn;
+  abstainVotesLamports: LegacyBn;
+  stakeAmount: LegacyBn;
+  voteOverrideTimestamp: LegacyBn;
   bump: number;
-}
-
-export interface RawVoteOverrideAccountDataAccount {
-  account: VoteOverrideAccount;
-  publicKey: PublicKey;
 }

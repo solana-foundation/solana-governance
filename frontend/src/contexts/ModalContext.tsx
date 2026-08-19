@@ -21,7 +21,7 @@ import {
   useState,
 } from "react";
 import { ModifyOverrideVoteModal } from "@/components/modals/ModifyOverrideVoteModal";
-import { PublicKey } from "@solana/web3.js";
+import type { LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
 
 import { track } from "@vercel/analytics";
 

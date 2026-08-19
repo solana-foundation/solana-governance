@@ -1,6 +1,6 @@
 import type { GovernanceConfigDto } from "@/lib/getGovernanceConfig";
 import type { ProposalStatus } from "@/types";
-import { PublicKey } from "@solana/web3.js";
+import type { LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
 
 export interface EpochConstants {
   SUPPORT_EPOCHS: number;

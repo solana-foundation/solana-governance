@@ -1,4 +1,4 @@
-import { REQUIRED_QUORUM_PCT } from "@/chain";
+const REQUIRED_QUORUM_PCT = 0.6;
 import { VotingRateChartLoadingSkeleton } from "./ui/VotingRateChartLoadingSkeleton";
 
 export const QuorumLoadingSkeleton = () => {
