@@ -1,5 +1,7 @@
-import { createProgramWitDummyWallet } from "@/chain";
-import { OldVoteAccountData, RawVoteAccountDataAccount } from "@/types";
+import { createSolanaRpc } from "@solana/kit";
+import { fetchVotes, type Vote } from "@/lib/governance/programAccounts";
+import { toLegacyBn, toLegacyPublicKey } from "@/lib/governance/legacyAdapters";
+import { OldVoteAccountData } from "@/types";
 
 /**
  * @deprecated cant fetch ALL vote accounts at once.
@@ -7,45 +9,32 @@ import { OldVoteAccountData, RawVoteAccountDataAccount } from "@/types";
 export const getVoteAccounts = async (
   endpoint: string,
 ): Promise<OldVoteAccountData[]> => {
-  const program = createProgramWitDummyWallet(endpoint);
-
-  // TODO: implement filter. we cant fetch all vote accounts at once.
-  // fetch vote accounts for a specific proposals or stake account owner only
-  //  (stake account owner to be added to program, revisit this method once program is updated)
-  const voteAccs = await program.account.vote.all();
-
-  return voteAccs.map(mapVoteAccountDto);
+  const voteAccs = await fetchVotes(createSolanaRpc(endpoint), {});
+  return voteAccs.map(({ address, data }) => mapVoteAccountDto(data, address));
 };
 
 /**
  * Maps raw on-chain vote account to internal type.
  */
 export function mapVoteAccountDto(
-  rawAccount: RawVoteAccountDataAccount,
+  raw: Vote,
+  address: string,
 ): OldVoteAccountData {
-  const raw = rawAccount.account;
-
   return {
-    voteAccount: rawAccount.publicKey,
-    proposal: raw.proposal,
+    voteAccount: toLegacyPublicKey(address),
+    proposal: toLegacyPublicKey(raw.proposal),
     // validator data
-    activeStake: raw.stake ? +raw.stake.toString() : 0,
-    identity: raw.validator,
+    activeStake: Number(raw.stake),
+    identity: toLegacyPublicKey(raw.validator),
     commission: 0,
     lastVote: 0,
     credits: 0,
     epochCredits: 0,
     activatedStake: 0,
     // vote data
-    forVotesBp: raw.forVotesBp,
-    againstVotesBp: raw.againstVotesBp,
-    abstainVotesBp: raw.abstainVotesBp,
-    forVotesLamports: raw.forVotesLamports,
-    againstVotesLamports: raw.againstVotesLamports,
-    abstainVotesLamports: raw.abstainVotesLamports,
-    stake: raw.stake,
-    overrideLamports: raw.overrideLamports,
-    voteTimestamp: raw.voteTimestamp,
+    forVotesBp: toLegacyBn(raw.forVotesBp), againstVotesBp: toLegacyBn(raw.againstVotesBp), abstainVotesBp: toLegacyBn(raw.abstainVotesBp),
+    forVotesLamports: toLegacyBn(raw.forVotesLamports), againstVotesLamports: toLegacyBn(raw.againstVotesLamports), abstainVotesLamports: toLegacyBn(raw.abstainVotesLamports),
+    stake: toLegacyBn(raw.stake), overrideLamports: toLegacyBn(raw.overrideLamports), voteTimestamp: toLegacyBn(raw.voteTimestamp),
     bump: raw.bump,
   };
 }

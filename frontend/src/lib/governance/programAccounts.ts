@@ -64,3 +64,5 @@ export async function fetchVoteOverrides(rpc: Rpc<GetProgramAccountsApi>, filter
   }).send();
   return result.map(({ account, pubkey }) => decodeVoteOverride(parseBase64RpcAccount(pubkey, account)));
 }
+
+export type { Proposal, Support, Vote, VoteOverride };
