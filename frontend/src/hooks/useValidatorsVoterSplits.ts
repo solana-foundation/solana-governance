@@ -37,13 +37,13 @@ export const useValidatorsVoterSplits = () => {
 
       for (const vote of votes) {
         for (const validator of validators) {
-          if (validator.vote_identity === vote.account.validator.toBase58()) {
-            const data = vote.account;
+          if (validator.vote_identity === vote.data.validator) {
+            const data = vote.data;
             const vote_identity = validator.vote_identity;
 
             // compute latest timestamp for this validator and vote
             const { voteTimestamp } = data;
-            const parsedVoteTimestamp = voteTimestamp.toNumber() * 1000;
+            const parsedVoteTimestamp = Number(voteTimestamp) * 1000;
             if (
               !votesLatestTimestamp[vote_identity] ||
               parsedVoteTimestamp > votesLatestTimestamp[vote_identity]
@@ -62,9 +62,9 @@ export const useValidatorsVoterSplits = () => {
               };
             }
 
-            voteSums[vote_identity].for += data.forVotesBp.toNumber();
-            voteSums[vote_identity].against += data.againstVotesBp.toNumber();
-            voteSums[vote_identity].abstain += data.abstainVotesBp.toNumber();
+            voteSums[vote_identity].for += Number(data.forVotesBp);
+            voteSums[vote_identity].against += Number(data.againstVotesBp);
+            voteSums[vote_identity].abstain += Number(data.abstainVotesBp);
             voteSums[vote_identity].count += 1;
 
             if (!votesCount[vote_identity]) {
