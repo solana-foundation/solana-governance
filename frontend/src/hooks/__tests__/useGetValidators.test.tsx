@@ -15,11 +15,8 @@ jest.mock("@/data", () => ({
 }));
 
 const mockGetVoteAccounts = jest.fn();
-jest.mock("@solana/web3.js", () => ({
-  ...jest.requireActual("@solana/web3.js"),
-  Connection: jest.fn().mockImplementation(() => ({
-    getVoteAccounts: () => mockGetVoteAccounts(),
-  })),
+jest.mock("@/lib/rpcVoteAccounts", () => ({
+  fetchRawVoteAccounts: () => mockGetVoteAccounts(),
 }));
 
 import { useGetValidators } from "../useGetValidators";

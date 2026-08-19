@@ -7,13 +7,13 @@ import {
   getProposalStatus,
   type EpochConstants,
 } from "@/lib/proposals";
+import type { RawVoteAccountsData } from "@/lib/rpcVoteAccounts";
 import type { ProposalRecord } from "@/types";
 import { createSolanaRpc, unwrapOption } from "@solana/kit";
-import { EpochInfo, VoteAccountInfo } from "@solana/web3.js";
 
-export interface RawVoteAccountsData {
-  current: VoteAccountInfo[];
-  delinquent: VoteAccountInfo[];
+export interface EpochInfoData {
+  absoluteSlot: bigint;
+  epoch: bigint;
 }
 
 export const getProposals = async (
@@ -24,7 +24,7 @@ export const getProposals = async (
       finalized?: boolean;
     }
     | undefined,
-  epochInfo: EpochInfo,
+  epochInfo: EpochInfoData,
   voteAccountsData: RawVoteAccountsData,
   governanceConfig: GovernanceConfigDto,
 ): Promise<ProposalRecord[]> => {
@@ -41,7 +41,7 @@ export const getProposals = async (
     0,
   );
 
-  const currentEpoch = epochInfo.epoch;
+  const currentEpoch = Number(epochInfo.epoch);
 
   let data = proposalAccs.map((acc, index) =>
     mapProposalDto(

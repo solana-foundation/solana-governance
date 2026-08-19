@@ -72,7 +72,7 @@ export default function PhaseTimeline({
   );
 
   const { data: activePhaseEndsAt } = useEpochToDate(activePhaseEndEpoch);
-  const currentEpoch = epochData?.epochInfo.epoch;
+  const currentEpoch = epochData ? Number(epochData.epochInfo.epoch) : undefined;
   const remainingTime = activePhaseEndsAt
     ? calculateVotingEndsIn(activePhaseEndsAt.toISOString()) ?? "-"
     : "-";
