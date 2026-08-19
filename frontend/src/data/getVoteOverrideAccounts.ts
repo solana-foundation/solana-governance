@@ -1,7 +1,7 @@
-import { createProgramWitDummyWallet, VoteOverrideAccount } from "@/chain";
 import { VoteOverrideAccountData } from "@/types";
-import { ProgramAccount } from "@coral-xyz/anchor";
-import { MemcmpFilter } from "@solana/web3.js";
+import { createSolanaRpc, type Address } from "@solana/kit";
+import { fetchVoteOverrides, type VoteOverride } from "@/lib/governance/programAccounts";
+import { toLegacyBn, toLegacyPublicKey } from "@/lib/governance/legacyAdapters";
 
 interface GetVoteOverrideFilter {
   name: "delegator" | "proposal" | "validator" | "stakeAccount";
@@ -9,26 +9,6 @@ interface GetVoteOverrideFilter {
 }
 
 export type GetVoteOverrideFilters = GetVoteOverrideFilter[];
-
-const filterOffsetMap = {
-  delegator: 8, // 8 bytes discriminator
-  stakeAccount: 40, // 8 bytes discriminator + 32 bytes delegator
-  validator: 72, // 8 bytes discriminator + 32 bytes delegator + 32 bytes stakeAccount
-  proposal: 104, // 8 bytes discriminator + 32 bytes delegator + 32 bytes stakeAccount + 32 bytes validator
-};
-
-export function filtersToMemcmp(
-  filters: GetVoteOverrideFilters,
-): MemcmpFilter[] {
-  return filters
-    .filter((f) => typeof f.value === "string" && !!f.value)
-    .map((f) => ({
-      memcmp: {
-        offset: filterOffsetMap[f.name],
-        bytes: f.value,
-      },
-    }));
-}
 
 export const getVoteOverrideAccounts = async (
   endpoint: string,
@@ -40,40 +20,27 @@ export const getVoteOverrideAccounts = async (
     );
   }
 
-  const program = createProgramWitDummyWallet(endpoint);
-
-  const memcmpFilters = filtersToMemcmp(filters);
-
-  const voteOverrideAccs =
-    await program.account.voteOverride.all(memcmpFilters);
-
-  // Filter out null accounts and map to DTO
-  return voteOverrideAccs.map(mapVoteOverrideAccountDto);
+  const values = Object.fromEntries(filters.map(({ name, value }) => [name, value])) as Partial<Record<GetVoteOverrideFilter["name"], string>>;
+  const accounts = await fetchVoteOverrides(createSolanaRpc(endpoint), {
+    delegator: values.delegator as Address | undefined,
+    stakeAccount: values.stakeAccount as Address | undefined,
+    validator: values.validator as Address | undefined,
+    proposal: values.proposal as Address | undefined,
+  });
+  return accounts.map(({ address, data }) => mapVoteOverrideAccountDto(data, address));
 };
 
 /**
  * Maps raw on-chain vote account to internal type.
  */
-function mapVoteOverrideAccountDto(
-  rawAccount: ProgramAccount<VoteOverrideAccount>,
+export function mapVoteOverrideAccountDto(
+  raw: VoteOverride,
+  address: string,
 ): VoteOverrideAccountData {
-  const raw = rawAccount.account;
-
   return {
-    publicKey: rawAccount.publicKey,
-    delegator: raw.delegator,
-    stakeAccount: raw.stakeAccount,
-    validator: raw.validator,
-    proposal: raw.proposal,
-    voteAccountValidator: raw.voteAccountValidator,
-    forVotesBp: raw.forVotesBp,
-    againstVotesBp: raw.againstVotesBp,
-    abstainVotesBp: raw.abstainVotesBp,
-    forVotesLamports: raw.forVotesLamports,
-    againstVotesLamports: raw.againstVotesLamports,
-    abstainVotesLamports: raw.abstainVotesLamports,
-    stakeAmount: raw.stakeAmount,
-    voteOverrideTimestamp: raw.voteOverrideTimestamp,
+    publicKey: toLegacyPublicKey(address), delegator: toLegacyPublicKey(raw.delegator), stakeAccount: toLegacyPublicKey(raw.stakeAccount), validator: toLegacyPublicKey(raw.validator), proposal: toLegacyPublicKey(raw.proposal), voteAccountValidator: toLegacyPublicKey(raw.voteAccountValidator),
+    forVotesBp: toLegacyBn(raw.forVotesBp), againstVotesBp: toLegacyBn(raw.againstVotesBp), abstainVotesBp: toLegacyBn(raw.abstainVotesBp),
+    forVotesLamports: toLegacyBn(raw.forVotesLamports), againstVotesLamports: toLegacyBn(raw.againstVotesLamports), abstainVotesLamports: toLegacyBn(raw.abstainVotesLamports), stakeAmount: toLegacyBn(raw.stakeAmount), voteOverrideTimestamp: toLegacyBn(raw.voteOverrideTimestamp),
     bump: raw.bump,
   };
 }

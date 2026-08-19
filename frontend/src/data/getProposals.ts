@@ -1,12 +1,14 @@
-import { createProgramWitDummyWallet } from "@/chain";
 import { getProposalRefFromUrl } from "@/lib/github";
+import { fetchProposals, type Proposal } from "@/lib/governance/programAccounts";
+import { toLegacyPublicKey } from "@/lib/governance/legacyAdapters";
 import type { GovernanceConfigDto } from "@/lib/getGovernanceConfig";
 import {
   epochConstantsFromGovernanceConfig,
   getProposalStatus,
   type EpochConstants,
 } from "@/lib/proposals";
-import type { ProposalRecord, RawProposalAccount } from "@/types";
+import type { ProposalRecord } from "@/types";
+import { createSolanaRpc, unwrapOption } from "@solana/kit";
 import { EpochInfo, VoteAccountInfo } from "@solana/web3.js";
 
 export interface RawVoteAccountsData {
@@ -26,11 +28,8 @@ export const getProposals = async (
   voteAccountsData: RawVoteAccountsData,
   governanceConfig: GovernanceConfigDto,
 ): Promise<ProposalRecord[]> => {
-  const program = createProgramWitDummyWallet(endpoint);
   const epochConstants = epochConstantsFromGovernanceConfig(governanceConfig);
-
-  // Fetch proposals
-  const proposalAccs = await program.account.proposal.all();
+  const proposalAccs = await fetchProposals(createSolanaRpc(endpoint));
 
   // Calculate total staked lamports from all vote accounts
   const allVotes = [
@@ -46,7 +45,8 @@ export const getProposals = async (
 
   let data = proposalAccs.map((acc, index) =>
     mapProposalDto(
-      acc,
+      acc.data,
+      acc.address,
       index,
       currentEpoch,
       totalStakedLamports,
@@ -72,19 +72,22 @@ export const getProposals = async (
 };
 
 export function mapProposalDto(
-  rawAccount: RawProposalAccount,
+  raw: Proposal,
+  address: string,
   index: number,
   currentEpoch: number,
   totalStakedLamports: number,
   epochConstants: EpochConstants,
   clusterSupportPctMinBps: number,
 ): ProposalRecord {
-  const raw = rawAccount.account;
-  const creationEpoch = raw.creationEpoch.toNumber();
-  const startEpoch = raw.startEpoch.toNumber();
-  const endEpoch = raw.endEpoch.toNumber();
-  const clusterSupportLamports = +raw.clusterSupportLamports?.toString() || 0;
-  const consensusResult = rawAccount.account.consensusResult || undefined;
+  const creationEpoch = Number(raw.creationEpoch);
+  const startEpoch = Number(raw.startEpoch);
+  const endEpoch = Number(raw.endEpoch);
+  const clusterSupportLamports = Number(raw.clusterSupportLamports);
+  const consensusResult = unwrapOption(raw.consensusResult);
+  const consensusResultPublicKey = consensusResult
+    ? toLegacyPublicKey(consensusResult)
+    : undefined;
   const finalized = raw.finalized;
 
   const status = getProposalStatus({
@@ -95,7 +98,7 @@ export function mapProposalDto(
     clusterSupportLamports,
     totalStakedLamports,
     clusterSupportPctMinBps,
-    consensusResult,
+    consensusResult: consensusResultPublicKey,
     finalized,
     voting: raw.voting,
     epochConstants,
@@ -104,39 +107,39 @@ export function mapProposalDto(
   const proposalRef = getProposalRefFromUrl(raw.description);
 
   return {
-    publicKey: rawAccount.publicKey,
+    publicKey: toLegacyPublicKey(address),
     id: index.toString(),
     proposalRef,
     title: raw.title,
     description: raw.description,
-    author: raw.author.toBase58(),
+    author: raw.author,
 
     creationEpoch,
     startEpoch,
     endEpoch,
-    creationTimestamp: raw.creationTimestamp?.toNumber() || 0,
+    creationTimestamp: Number(raw.creationTimestamp),
 
     clusterSupportLamports,
     forVotesLamports: raw.forVotesLamports
-      ? +raw.forVotesLamports.toString()
+      ? Number(raw.forVotesLamports)
       : 0,
     againstVotesLamports: raw.againstVotesLamports
-      ? +raw.againstVotesLamports.toString()
+      ? Number(raw.againstVotesLamports)
       : 0,
     abstainVotesLamports: raw.abstainVotesLamports
-      ? +raw.abstainVotesLamports.toString()
+      ? Number(raw.abstainVotesLamports)
       : 0,
     voteCount: raw.voteCount,
 
     quorumPercent: 60, // TODO ?
-    proposerStakeWeightBp: raw.proposerStakeWeightBp?.toNumber() || 0,
+    proposerStakeWeightBp: Number(raw.proposerStakeWeightBp),
 
     status,
     voting: raw.voting,
     finalized,
 
-    consensusResult,
-    snapshotSlot: raw.snapshotSlot.toNumber(),
+    consensusResult: consensusResultPublicKey,
+    snapshotSlot: Number(raw.snapshotSlot),
 
     proposalBump: raw.proposalBump,
     index: raw.index,
