@@ -1,7 +1,13 @@
-import { getAddressEncoder, type Address, type TransactionModifyingSigner } from "@solana/kit";
+import {
+  address,
+  getAddressEncoder,
+  type Address,
+  type TransactionModifyingSigner,
+} from "@solana/kit";
 import {
   findBallotBoxPda,
   findMetaMerkleProofPda,
+  getInitMetaMerkleProofInstruction,
   NCN_SNAPSHOT_PROGRAM_ADDRESS,
   type StakeMerkleLeaf,
 } from "@solana/ncn-snapshot";
@@ -14,6 +20,7 @@ import {
   getModifyVoteOverrideInstructionAsync,
   getSupportProposalInstructionAsync,
 } from "@solana/svmgov";
+import type { VoteAccountProof } from "./ncnProofs";
 
 export type VoteDistribution = { forVotesBp: number; againstVotesBp: number; abstainVotesBp: number };
 const basisPoints = (distribution: VoteDistribution) => ({
@@ -30,6 +37,40 @@ export async function buildCreateProposalInstruction(input: {
 
 export function buildFinalizeProposalInstruction(input: { proposal: Address; signer: TransactionModifyingSigner }) {
   return getFinalizeProposalInstruction(input);
+}
+
+/**
+ * Builds the proof initialization that must precede a vote when the NCN proof
+ * PDA has not yet been created. It is submitted in the same transaction as
+ * the vote so a proof cannot be removed between initialization and use.
+ */
+export async function buildInitializeMetaMerkleProofInstruction(input: {
+  closeTimestamp: bigint;
+  consensusResult: Address;
+  proof: VoteAccountProof;
+  signer: TransactionModifyingSigner;
+}) {
+  const [merkleProof] = await findMetaMerkleProofPda({
+    consensusResult: input.consensusResult,
+    voteAccount: address(input.proof.meta_merkle_leaf.vote_account),
+  });
+  return getInitMetaMerkleProofInstruction({
+    closeTimestamp: input.closeTimestamp,
+    consensusResult: input.consensusResult,
+    merkleProof,
+    metaMerkleLeaf: {
+      activeStake: BigInt(input.proof.meta_merkle_leaf.active_stake),
+      stakeMerkleRoot: getAddressEncoder().encode(
+        address(input.proof.meta_merkle_leaf.stake_merkle_root),
+      ),
+      voteAccount: address(input.proof.meta_merkle_leaf.vote_account),
+      votingWallet: address(input.proof.meta_merkle_leaf.voting_wallet),
+    },
+    metaMerkleProof: input.proof.meta_merkle_proof.map((node) =>
+      getAddressEncoder().encode(address(node)),
+    ),
+    payer: input.signer,
+  });
 }
 
 export async function buildSupportProposalInstruction(input: {
