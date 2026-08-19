@@ -1,0 +1,9 @@
+{
+  "name": "solana-governance",
+  "private": true,
+  "packageManager": "pnpm@9.0.6",
+  "workspaces": [
+    "svmgov",
+    "ncn"
+  ]
+}
