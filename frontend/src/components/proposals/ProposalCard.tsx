@@ -196,11 +196,9 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
   const { openModal } = useModal();
 
   const { publicKey: walletPubKey, connected } = useWalletSession();
-  const { walletRole, isLoading: isLoadingWalletRole } = useWalletRole(
-    walletPubKey?.toBase58()
-  );
+  const { walletRole, isLoading: isLoadingWalletRole } = useWalletRole(walletPubKey);
   const { data: chainVoteAccount, isLoading: isLoadingChainVoteAccount } =
-    useChainVoteAccount(walletPubKey?.toBase58());
+    useChainVoteAccount(walletPubKey);
 
   const {
     status,

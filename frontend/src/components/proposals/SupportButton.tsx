@@ -20,7 +20,7 @@ export const SupportButton = ({
 }: Props) => {
   const { openModal } = useModal();
   const { connected, publicKey } = useWalletSession();
-  const { walletRole } = useWalletRole(publicKey?.toBase58());
+  const { walletRole } = useWalletRole(publicKey);
 
   const { data: hasUserSupported, isLoading: isLoadingHasUserSupported } =
     useHasUserSupported(proposalId);

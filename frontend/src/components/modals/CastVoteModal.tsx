@@ -72,12 +72,12 @@ export function CastVoteModal({
     resetDistribution,
   } = useVoteDistribution(initialVoteDist);
 
-  const { anchorWallet: wallet } = useWalletSession();
+  const { publicKey } = useWalletSession();
 
-  const { walletRole } = useWalletRole(wallet?.publicKey?.toBase58());
+  const { walletRole } = useWalletRole(publicKey);
 
   const { votingPower, isLoading: isLoadingVotingPower } =
-    useValidatorVotingPower(wallet?.publicKey?.toBase58());
+    useValidatorVotingPower(publicKey);
 
   const { data: hasVoted = false, isLoading: isLoadingHasVoted } =
     useHasUserVoted(selectedProposal.id);
@@ -114,7 +114,7 @@ export function CastVoteModal({
   };
 
   const handleVote = (voteDistribution: VoteDistribution) => {
-    if (!wallet) {
+    if (!publicKey) {
       toast.error("Wallet not connected");
       return;
     }
@@ -136,7 +136,7 @@ export function CastVoteModal({
     ) {
       castVote(
         {
-          wallet,
+          publicKey,
           proposalId: selectedProposal.id,
           forVotesBp: voteDistribution.for * 100,
           againstVotesBp: voteDistribution.against * 100,
@@ -211,7 +211,7 @@ export function CastVoteModal({
               <div className="space-y-4 rounded-lg bg-white/5 p-4">
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-xs text-foreground sm:text-sm">
-                    {formatAddress(wallet?.publicKey?.toBase58() || "", 6)}
+                    {formatAddress(publicKey || "", 6)}
                   </span>
                   <div className="text-right">
                     <p className="text-xs text-white/60">Voting Power</p>

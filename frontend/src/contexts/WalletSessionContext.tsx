@@ -1,51 +1,64 @@
 "use client";
 
-import { createContext, useContext, useMemo, type ReactNode } from "react";
-import {
-  useAnchorWallet,
-  useConnection,
-  useWallet,
-  type AnchorWallet,
-  type WalletContextState,
-} from "@solana/wallet-adapter-react";
-import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import type { Connection } from "@solana/web3.js";
+import { useConnector } from "@solana/connector/react";
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AppButton } from "@/components/ui/AppButton";
 
-export type WalletSession = WalletContextState & {
-  anchorWallet: AnchorWallet | undefined;
-  connection: Connection;
+export type WalletSession = {
+  connected: boolean;
+  connecting: boolean;
+  publicKey: string | undefined;
+  disconnect: () => Promise<void>;
   openWalletModal: () => void;
 };
 
 const WalletSessionContext = createContext<WalletSession | null>(null);
 
 export function WalletSessionProvider({ children }: { children: ReactNode }) {
-  const wallet = useWallet();
-  const anchorWallet = useAnchorWallet();
-  const { connection } = useConnection();
-  const { setVisible } = useWalletModal();
-
+  const [modalOpen, setModalOpen] = useState(false);
+  const { account, connectWallet, connectors, disconnectWallet, isConnected, isConnecting } = useConnector();
+  const openWalletModal = useCallback(() => setModalOpen(true), []);
   const value = useMemo<WalletSession>(
     () => ({
-      ...wallet,
-      anchorWallet,
-      connection,
-      openWalletModal: () => setVisible(true),
+      connected: isConnected,
+      connecting: isConnecting,
+      publicKey: account ?? undefined,
+      disconnect: disconnectWallet,
+      openWalletModal,
     }),
-    [anchorWallet, connection, setVisible, wallet],
+    [account, disconnectWallet, isConnected, isConnecting, openWalletModal],
   );
 
   return (
     <WalletSessionContext.Provider value={value}>
       {children}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="app-modal-content">
+          <DialogHeader><DialogTitle>Connect wallet</DialogTitle></DialogHeader>
+          <div className="space-y-2">
+            {connectors.filter((connector) => connector.ready).map((connector) => (
+              <AppButton
+                key={connector.id}
+                className="w-full justify-start"
+                disabled={isConnecting}
+                onClick={async () => {
+                  await connectWallet(connector.id);
+                  setModalOpen(false);
+                }}
+              >
+                {connector.name}
+              </AppButton>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </WalletSessionContext.Provider>
   );
 }
 
 export function useWalletSession(): WalletSession {
   const session = useContext(WalletSessionContext);
-  if (!session) {
-    throw new Error("useWalletSession must be used inside AppWalletProvider");
-  }
+  if (!session) throw new Error("useWalletSession must be used inside AppWalletProvider");
   return session;
 }

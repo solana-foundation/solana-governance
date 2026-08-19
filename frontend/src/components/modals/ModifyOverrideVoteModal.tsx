@@ -41,7 +41,7 @@ interface OverrideVoteModalProps {
  */
 function buildVoteOverrideFilters(
   proposalPublicKey: string | undefined,
-  delegatorPublicKey: PublicKey | null
+  delegatorPublicKey: string | null
 ): GetVoteOverrideFilters {
   const filters: GetVoteOverrideFilters = [];
 
@@ -55,7 +55,7 @@ function buildVoteOverrideFilters(
   if (delegatorPublicKey) {
     filters.push({
       name: "delegator" as const,
-      value: delegatorPublicKey.toBase58(),
+      value: delegatorPublicKey,
     });
   }
 
@@ -91,17 +91,17 @@ export function ModifyOverrideVoteModal({
     resetDistribution,
   } = useVoteDistribution(initialVoteDist);
 
-  const { anchorWallet: wallet } = useWalletSession();
+  const { publicKey } = useWalletSession();
 
   const { data: stakeAccounts } = useWalletStakeAccounts(
-    wallet?.publicKey?.toBase58()
+    publicKey
   );
 
-  const { walletRole } = useWalletRole(wallet?.publicKey?.toBase58());
+  const { walletRole } = useWalletRole(publicKey);
 
   const voteOverrideFilters = buildVoteOverrideFilters(
     selectedProposal.id,
-    wallet?.publicKey ?? null
+    publicKey ?? null
   );
 
   const { data: voteOverrideAccounts = [] } = useVoteOverrideAccounts(
@@ -160,7 +160,7 @@ export function ModifyOverrideVoteModal({
   };
 
   const handleVote = (voteDistribution: VoteDistribution) => {
-    if (!wallet) {
+    if (!publicKey) {
       toast.error("Wallet not connected");
       setIsLoading(false);
       return;
@@ -200,7 +200,7 @@ export function ModifyOverrideVoteModal({
       // redelegated stake account can still override using its snapshot-time validator.
       modifyVoteOverride(
         {
-          wallet,
+          publicKey,
           proposalId: selectedProposal.id,
           forVotesBp: voteDistribution.for * 100,
           againstVotesBp: voteDistribution.against * 100,

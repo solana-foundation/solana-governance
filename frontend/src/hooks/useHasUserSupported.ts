@@ -14,7 +14,7 @@ export const useHasUserSupported = (
   const { endpointUrl: endpoint } = useEndpoint();
   const { publicKey, connected } = useWalletSession();
 
-  const { walletRole } = useWalletRole(publicKey?.toBase58());
+  const { walletRole } = useWalletRole(publicKey);
 
   const isValidator = walletRole === WalletRole.VALIDATOR;
   const isBoth = walletRole === WalletRole.BOTH;

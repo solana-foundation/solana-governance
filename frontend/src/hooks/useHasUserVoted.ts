@@ -3,7 +3,6 @@ import { getUserHasVoted, GetVoteOverrideFilters } from "@/data";
 import { GET_USER_HAS_VOTED } from "@/helpers";
 import { useWalletSession } from "@/contexts/WalletSessionContext";
 import { useQuery } from "@tanstack/react-query";
-import { PublicKey } from "@solana/web3.js";
 import { useVoteOverrideAccounts } from "./useVoteOverrideAccounts";
 import { useWalletRole } from "./useWalletRole";
 import { WalletRole } from "@/types";
@@ -14,7 +13,7 @@ import { useValidatorProposalVoteAccount } from "./useValidatorProposalVoteAccou
  */
 function buildVoteOverrideFilters(
   proposalPublicKey: string | undefined,
-  delegatorPublicKey: PublicKey | null
+  delegatorPublicKey: string | null | undefined
 ): GetVoteOverrideFilters {
   const filters: GetVoteOverrideFilters = [];
 
@@ -28,7 +27,7 @@ function buildVoteOverrideFilters(
   if (delegatorPublicKey) {
     filters.push({
       name: "delegator" as const,
-      value: delegatorPublicKey.toBase58(),
+      value: delegatorPublicKey,
     });
   }
 
@@ -42,7 +41,7 @@ export const useHasUserVoted = (
   const { endpointUrl: endpoint } = useEndpoint();
   const { publicKey, connected } = useWalletSession();
 
-  const { walletRole } = useWalletRole(publicKey?.toBase58());
+  const { walletRole } = useWalletRole(publicKey);
 
   const isValidator = walletRole === WalletRole.VALIDATOR;
   const isStaker = walletRole === WalletRole.STAKER;

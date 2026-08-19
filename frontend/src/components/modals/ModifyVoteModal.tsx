@@ -61,9 +61,9 @@ export function ModifyVoteModal({
     resetDistribution,
   } = useVoteDistribution(initialVoteDist);
 
-  const { anchorWallet: wallet } = useWalletSession();
+  const { publicKey } = useWalletSession();
 
-  const { walletRole } = useWalletRole(wallet?.publicKey?.toBase58());
+  const { walletRole } = useWalletRole(publicKey);
 
   const { mutate: modifyVote } = useModifyVote();
 
@@ -102,7 +102,7 @@ export function ModifyVoteModal({
   };
 
   const handleModifyVote = (voteDistribution: VoteDistribution) => {
-    if (!wallet) {
+    if (!publicKey) {
       toast.error("Wallet not connected");
       return;
     }
@@ -124,7 +124,7 @@ export function ModifyVoteModal({
     ) {
       modifyVote(
         {
-          wallet,
+          publicKey,
           proposalId: selectedProposal.id,
           // convert basis points to BN, not %
           forVotesBp: voteDistribution.for * 100,

@@ -27,10 +27,10 @@ export const StakeAccountsDropdown = ({
   disabled,
   disabledAccounts,
 }: VotingProposalsDropdownProps) => {
-  const { anchorWallet: wallet } = useWalletSession();
+  const { publicKey } = useWalletSession();
 
   const { data: stakeAccounts, isLoading } = useWalletStakeAccounts(
-    wallet?.publicKey?.toBase58()
+    publicKey
   );
 
   const isAccountValid = (stakeAcc: StakeAccountData) =>

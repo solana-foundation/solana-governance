@@ -13,7 +13,7 @@ export const useHasValidatorVoted = (
   const { endpointUrl: endpoint } = useEndpoint();
   const { publicKey, connected } = useWalletSession();
 
-  const { walletRole } = useWalletRole(publicKey?.toBase58());
+  const { walletRole } = useWalletRole(publicKey);
 
   const isValidator = walletRole === WalletRole.VALIDATOR;
   const isBoth = walletRole === WalletRole.BOTH;
@@ -30,7 +30,7 @@ export const useHasValidatorVoted = (
       GET_VALIDATOR_HAS_VOTED,
       endpoint,
       proposalPublicKey,
-      publicKey?.toBase58(),
+      publicKey,
     ],
     enabled,
     staleTime: 1000 * 120, // 2 minutes
@@ -38,7 +38,7 @@ export const useHasValidatorVoted = (
       const voteAccount = await getValidatorProposalVoteAccount(
         endpoint,
         proposalPublicKey,
-        publicKey?.toBase58()
+        publicKey
       );
       return !!voteAccount;
     },

@@ -94,7 +94,9 @@ describe("OverrideVoteModal", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    useWalletSession.mockReturnValue({ anchorWallet: wallet });
+    useWalletSession.mockReturnValue({
+      publicKey: wallet.publicKey.toBase58(),
+    });
     mockUseWalletRole.mockReturnValue({ walletRole: WalletRole.STAKER });
     mockUseWalletStakeAccounts.mockReturnValue({
       data: [

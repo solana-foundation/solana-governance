@@ -51,11 +51,9 @@ function CastVote({
 }: CastVoteProps) {
   const { openModal } = useModal();
   const { publicKey } = useWalletSession();
-  const { isLoading: isLoadingWalletRole } = useWalletRole(
-    publicKey?.toBase58()
-  );
+  const { isLoading: isLoadingWalletRole } = useWalletRole(publicKey);
   const { data: chainVoteAccount, isLoading: isLoadingChainVoteAccount } =
-    useChainVoteAccount(publicKey?.toBase58());
+    useChainVoteAccount(publicKey);
   const { castModalName } = getVoteModalNames(chainVoteAccount);
 
   const { data: hasUserVoted = false, isLoading: isLoadingHasUserVoted } =

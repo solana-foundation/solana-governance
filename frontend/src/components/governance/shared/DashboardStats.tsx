@@ -42,13 +42,13 @@ export function DashboardStats({
   const { data: validators, isLoading: isLoadingValidators } =
     useGetValidators();
 
-  const { anchorWallet: wallet } = useWalletSession();
+  const { publicKey } = useWalletSession();
 
   const { data: stakeAccounts, isLoading: isLoadingStakeAccounts } =
-    useWalletStakeAccounts(wallet?.publicKey?.toBase58());
+    useWalletStakeAccounts(publicKey);
 
   const { votingPower, isLoading: isLoadingVotingPower } =
-    useValidatorVotingPower(wallet?.publicKey?.toBase58());
+    useValidatorVotingPower(publicKey);
 
   const isLoading =
     isLoadingSnapshotMeta ||

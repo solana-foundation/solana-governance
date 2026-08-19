@@ -41,7 +41,7 @@ export function CreateProposalModal({
   /** Keeps the field from turning red while the user is still typing the URL. */
   const [descriptionTouched, setDescriptionTouched] = React.useState(false);
 
-  const { anchorWallet: wallet } = useWalletSession();
+  const { publicKey } = useWalletSession();
   const { mutate: createProposal } = useCreateProposal();
 
   const descriptionValidation = React.useMemo(
@@ -89,7 +89,7 @@ export function CreateProposalModal({
       {
         title: formData.title,
         description: formData.description,
-        wallet,
+        publicKey,
       },
       {
         onSuccess: handleSuccess,

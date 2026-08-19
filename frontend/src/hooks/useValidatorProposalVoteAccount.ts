@@ -19,7 +19,7 @@ export const useValidatorProposalVoteAccount = (
       GET_VALIDATOR_PROPOSAL_VOTE_ACCOUNTS,
       endpoint,
       proposalId,
-      publicKey?.toBase58(),
+      publicKey,
     ],
     enabled: enabledQuery,
     staleTime: 1000 * 120, // 2 minutes
@@ -27,7 +27,7 @@ export const useValidatorProposalVoteAccount = (
       getValidatorProposalVoteAccount(
         endpoint,
         proposalId,
-        publicKey?.toBase58()
+        publicKey
       ),
   });
 };
