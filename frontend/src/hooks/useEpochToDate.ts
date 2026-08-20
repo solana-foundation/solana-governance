@@ -13,7 +13,12 @@ export function useEpochToDate(epoch: number | undefined) {
   const { data: epochData, isLoading: isLoadingEpochInfo } = useEpochInfo();
 
   return useQuery({
-    queryKey: ["epochToDate", epoch, endpointUrl, epochData?.epochInfo.epoch],
+    queryKey: [
+      "epochToDate",
+      epoch,
+      endpointUrl,
+      epochData?.epochInfo.epoch.toString(),
+    ],
     queryFn: async () => {
       if (epoch === undefined || !epochData) return null;
       return epochToDate(

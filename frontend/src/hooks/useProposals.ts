@@ -32,7 +32,7 @@ export const useProposals = (filters?: {
       GET_ALL_PROPOSALS,
       endpoint,
       filters,
-      epochData?.epochInfo.epoch,
+      epochData?.epochInfo.epoch.toString(),
       voteAccountsData?.current.length,
       governanceConfigKey,
     ],
