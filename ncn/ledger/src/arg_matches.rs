@@ -18,7 +18,7 @@ pub fn set_ledger_tool_arg_matches(
     arg_matches: &mut ArgMatches<'_>,
     full_snapshots_archives_dir: PathBuf,
     incremental_snapshots_archives_dir: PathBuf,
-    account_paths: Vec<PathBuf>,
+    _account_paths: Vec<PathBuf>,
 ) {
     let _rent = Rent::default();
 
@@ -435,13 +435,6 @@ pub fn set_ledger_tool_arg_matches(
         full_snapshots_archives_dir.into(),
         "--incremental-snapshot-archive-path".into(),
         incremental_snapshots_archives_dir.into(),
-        "--accounts".into(),
-        account_paths
-            .iter()
-            .map(|p| p.to_string_lossy().to_string())
-            .collect::<Vec<_>>()
-            .join(",")
-            .into(),
     ];
 
     let matches = app.get_matches_from(args);
@@ -543,7 +536,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn forwards_account_paths_to_ledger_loading() {
+    fn omits_custom_account_paths_for_secondary_access() {
         let mut matches = ArgMatches::new();
         set_ledger_tool_arg_matches(
             &mut matches,
@@ -552,9 +545,11 @@ mod tests {
             vec![PathBuf::from("accounts-a"), PathBuf::from("accounts-b")],
         );
 
+        assert_eq!(matches.value_of("account_paths"), None);
+        assert_eq!(matches.value_of("snapshots"), Some("full-snapshots"));
         assert_eq!(
-            matches.value_of("account_paths"),
-            Some("accounts-a,accounts-b")
+            matches.value_of("incremental_snapshot_archive_path"),
+            Some("incremental-snapshots")
         );
     }
 }
