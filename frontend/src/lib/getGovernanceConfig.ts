@@ -20,6 +20,56 @@ export interface GovernanceConfigDto {
   bump: number;
 }
 
+/** JSON-safe representation used at the API and persisted-query boundaries. */
+export type GovernanceConfigJson = Omit<
+  GovernanceConfigDto,
+  | "maxSupportEpochs"
+  | "minProposalStakeLamports"
+  | "clusterSupportPctMinBps"
+  | "discussionEpochs"
+  | "votingEpochs"
+  | "snapshotEpochExtension"
+  | "snapshotSlotOffset"
+> & {
+  maxSupportEpochs: string;
+  minProposalStakeLamports: string;
+  clusterSupportPctMinBps: string;
+  discussionEpochs: string;
+  votingEpochs: string;
+  snapshotEpochExtension: string;
+  snapshotSlotOffset: string;
+};
+
+export function governanceConfigToJson(
+  dto: GovernanceConfigDto,
+): GovernanceConfigJson {
+  return {
+    ...dto,
+    maxSupportEpochs: dto.maxSupportEpochs.toString(),
+    minProposalStakeLamports: dto.minProposalStakeLamports.toString(),
+    clusterSupportPctMinBps: dto.clusterSupportPctMinBps.toString(),
+    discussionEpochs: dto.discussionEpochs.toString(),
+    votingEpochs: dto.votingEpochs.toString(),
+    snapshotEpochExtension: dto.snapshotEpochExtension.toString(),
+    snapshotSlotOffset: dto.snapshotSlotOffset.toString(),
+  };
+}
+
+export function governanceConfigFromJson(
+  json: GovernanceConfigJson,
+): GovernanceConfigDto {
+  return {
+    ...json,
+    maxSupportEpochs: BigInt(json.maxSupportEpochs),
+    minProposalStakeLamports: BigInt(json.minProposalStakeLamports),
+    clusterSupportPctMinBps: BigInt(json.clusterSupportPctMinBps),
+    discussionEpochs: BigInt(json.discussionEpochs),
+    votingEpochs: BigInt(json.votingEpochs),
+    snapshotEpochExtension: BigInt(json.snapshotEpochExtension),
+    snapshotSlotOffset: BigInt(json.snapshotSlotOffset),
+  };
+}
+
 /** Maps chain account to the public DTO. */
 export function toGovernanceConfigDto(
   account: GlobalConfig,

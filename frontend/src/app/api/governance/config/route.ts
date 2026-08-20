@@ -1,7 +1,10 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { fetchGovernanceConfigFromChain } from "@/lib/getGovernanceConfig";
+import {
+  fetchGovernanceConfigFromChain,
+  governanceConfigToJson,
+} from "@/lib/getGovernanceConfig";
 import {
   getRpcUrlForEndpoint,
   type RpcEnvSource,
@@ -49,7 +52,7 @@ async function getCachedGovernanceConfig(rpcUrl: string, cacheKey: string) {
   "use cache: remote";
   cacheTag("governance-config", cacheKey);
   cacheLife({ revalidate: REVALIDATE_SECONDS });
-  return fetchGovernanceConfigFromChain(rpcUrl);
+  return governanceConfigToJson(await fetchGovernanceConfigFromChain(rpcUrl));
 }
 
 /**

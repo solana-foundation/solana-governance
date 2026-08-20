@@ -1,4 +1,8 @@
-import type { GovernanceConfigDto } from "@/lib/getGovernanceConfig";
+import {
+  governanceConfigFromJson,
+  type GovernanceConfigDto,
+  type GovernanceConfigJson,
+} from "@/lib/getGovernanceConfig";
 import { useQuery } from "@tanstack/react-query";
 import { GET_GOVERNANCE_CONFIG } from "@/helpers";
 import { useEndpoint } from "@/contexts/EndpointContext";
@@ -39,7 +43,9 @@ export function useGovernanceConfig() {
           `Failed to fetch config (${res.status})`;
         throw new Error(message);
       }
-      return res.json() as Promise<GovernanceConfigDto>;
+      return governanceConfigFromJson(
+        (await res.json()) as GovernanceConfigJson,
+      );
     },
     staleTime: GOVERNANCE_CONFIG_STALE_MS,
     gcTime: GOVERNANCE_CONFIG_STALE_MS,
