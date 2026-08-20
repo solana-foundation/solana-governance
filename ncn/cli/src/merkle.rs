@@ -90,6 +90,12 @@ impl MetaMerkleSnapshot {
     /// rejects uploads whose nested roots or stake sums do not line up).
     pub fn remerklize(&mut self) -> io::Result<()> {
         for bundle in self.leaf_bundles.iter_mut() {
+            // Match generate_meta_merkle_snapshot's canonical leaf order. The
+            // Merkle tree canonicalizes child pairs, but not the input leaves.
+            bundle
+                .stake_merkle_leaves
+                .sort_by_key(|leaf| leaf.stake_account);
+
             let stake_nodes: Vec<[u8; 32]> = bundle
                 .stake_merkle_leaves
                 .iter()
@@ -107,6 +113,11 @@ impl MetaMerkleSnapshot {
                 .map(|leaf| leaf.active_stake)
                 .sum();
         }
+
+        // Keep bundles paired with their now-derived stake roots while ordering
+        // the meta-level leaves exactly as snapshot generation does.
+        self.leaf_bundles
+            .sort_by_key(|bundle| bundle.meta_merkle_leaf.vote_account);
 
         let meta_nodes: Vec<[u8; 32]> = self
             .leaf_bundles
@@ -144,5 +155,90 @@ impl MetaMerkleLeafBundle {
             .collect();
         let stake_merkle = MerkleTree::new(&hashed_nodes[..], true);
         get_proof(&stake_merkle, index)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anchor_lang::prelude::Pubkey;
+
+    fn pubkey(seed: u8) -> Pubkey {
+        Pubkey::new_from_array([seed; 32])
+    }
+
+    fn stake_leaf(stake_account: u8, active_stake: u64) -> StakeMerkleLeaf {
+        StakeMerkleLeaf {
+            voting_wallet: pubkey(1),
+            stake_account: pubkey(stake_account),
+            active_stake,
+        }
+    }
+
+    fn bundle(vote_account: u8, stake_leaves: Vec<StakeMerkleLeaf>) -> MetaMerkleLeafBundle {
+        MetaMerkleLeafBundle {
+            meta_merkle_leaf: MetaMerkleLeaf {
+                voting_wallet: pubkey(2),
+                vote_account: pubkey(vote_account),
+                stake_merkle_root: [0; 32],
+                active_stake: 0,
+            },
+            stake_merkle_leaves: stake_leaves,
+            proof: None,
+        }
+    }
+
+    #[test]
+    fn remerklize_canonicalizes_stake_and_vote_leaf_order() {
+        let first_bundle = bundle(10, vec![stake_leaf(4, 40), stake_leaf(3, 30)]);
+        let second_bundle = bundle(20, vec![stake_leaf(2, 20), stake_leaf(1, 10)]);
+
+        let mut snapshot = MetaMerkleSnapshot {
+            root: [0; 32],
+            leaf_bundles: vec![second_bundle.clone(), first_bundle.clone()],
+            slot: 42,
+        };
+        let mut reordered_snapshot = MetaMerkleSnapshot {
+            root: [0; 32],
+            leaf_bundles: vec![
+                bundle(
+                    10,
+                    vec![
+                        first_bundle.stake_merkle_leaves[1].clone(),
+                        first_bundle.stake_merkle_leaves[0].clone(),
+                    ],
+                ),
+                bundle(
+                    20,
+                    vec![
+                        second_bundle.stake_merkle_leaves[1].clone(),
+                        second_bundle.stake_merkle_leaves[0].clone(),
+                    ],
+                ),
+            ],
+            slot: 42,
+        };
+
+        snapshot.remerklize().unwrap();
+        reordered_snapshot.remerklize().unwrap();
+
+        assert_eq!(snapshot.root, reordered_snapshot.root);
+        for (bundle, reordered_bundle) in snapshot
+            .leaf_bundles
+            .iter()
+            .zip(&reordered_snapshot.leaf_bundles)
+        {
+            assert_eq!(bundle.meta_merkle_leaf, reordered_bundle.meta_merkle_leaf);
+            assert_eq!(bundle.proof, reordered_bundle.proof);
+        }
+        assert!(snapshot.leaf_bundles.windows(2).all(|bundles| {
+            bundles[0].meta_merkle_leaf.vote_account < bundles[1].meta_merkle_leaf.vote_account
+        }));
+        assert!(snapshot.leaf_bundles.iter().all(|bundle| {
+            bundle
+                .stake_merkle_leaves
+                .windows(2)
+                .all(|leaves| leaves[0].stake_account < leaves[1].stake_account)
+        }));
     }
 }

@@ -41,6 +41,10 @@ CREATE TABLE snapshot_meta (
     merkle_root TEXT NOT NULL,
     snapshot_hash TEXT NOT NULL,
     created_at TEXT NOT NULL,
+    -- Total active stake across every meta leaf in the snapshot. NULL for rows
+    -- written before this column existed; those snapshots cannot be
+    -- back-filled without the original upload.
+    total_active_stake INTEGER,
     PRIMARY KEY (network, slot)
 )
 "#;
@@ -53,3 +57,9 @@ pub const CREATE_DB_INDEXES: &[&str] = &[
     "CREATE INDEX idx_vote_voting_wallet_order ON vote_accounts(network, voting_wallet, snapshot_slot, vote_account)",
     "CREATE INDEX idx_stake_voting_wallet_order ON stake_accounts(network, voting_wallet, snapshot_slot, stake_account)",
 ];
+
+/// Adds `total_active_stake` to `snapshot_meta` for databases created before it
+/// existed. SQLite has no `ADD COLUMN IF NOT EXISTS`, so `apply_migration_v2`
+/// checks `pragma_table_info` before running this.
+pub const ADD_SNAPSHOT_TOTAL_ACTIVE_STAKE_SQL: &str =
+    "ALTER TABLE snapshot_meta ADD COLUMN total_active_stake INTEGER";

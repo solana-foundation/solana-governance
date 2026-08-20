@@ -39,6 +39,7 @@ jest.mock("../helpers", () => {
   };
 });
 
+import { BN } from "@coral-xyz/anchor";
 import type { AnchorWallet } from "@solana/wallet-adapter-react";
 
 import { castVoteOverride } from "../castVoteOverride";
@@ -52,12 +53,15 @@ const keyFromByte = (b: number): string =>
 const SNAPSHOT_VOTE_ACCOUNT = keyFromByte(1); // validator A at snapshot
 const LIVE_VOTE_ACCOUNT = keyFromByte(2); // validator B (post-snapshot redelegation)
 const STAKE_ACCOUNT = keyFromByte(3);
-const VOTING_WALLET = keyFromByte(4);
+const DELEGATOR_WALLET = keyFromByte(4);
+const VALIDATOR_WALLET = keyFromByte(10);
 const STAKE_MERKLE_ROOT = keyFromByte(5);
 const CONSENSUS_RESULT = keyFromByte(6);
 const PROPOSAL = keyFromByte(7);
 const SIGNER = keyFromByte(8);
 const BLOCKHASH = keyFromByte(9);
+const PROPOSAL_SNAPSHOT_SLOT = 340_850_340;
+const LATEST_META_SLOT = 341_000_000;
 
 // Stand-in return values for the mocked PDA-derivation helpers.
 const META_MERKLE_PROOF_PDA = new PublicKey(keyFromByte(20));
@@ -67,6 +71,7 @@ const VOTE_OVERRIDE_CACHE_PDA = new PublicKey(keyFromByte(23));
 
 describe("castVoteOverride", () => {
   let recordedAccounts: Record<string, PublicKey>;
+  const mockFetchProposal = jest.fn();
 
   function buildFakeProgram() {
     recordedAccounts = {};
@@ -87,10 +92,15 @@ describe("castVoteOverride", () => {
       provider: {
         connection: {
           // Truthy account info => the MetaMerkleProof already exists, so the init branch (which
-          // needs the gov-v1 program / proposal fetch / block time) is skipped.
+          // needs the gov-v1 program / close-timestamp) is skipped.
           getAccountInfo: jest.fn(async () => ({ data: Buffer.alloc(0) })),
           getLatestBlockhash: jest.fn(async () => ({ blockhash: BLOCKHASH })),
           sendRawTransaction: jest.fn(async () => "test-signature"),
+        },
+      },
+      account: {
+        proposal: {
+          fetch: mockFetchProposal,
         },
       },
       methods: { castVoteOverride: castVoteOverrideMethod },
@@ -110,28 +120,32 @@ describe("castVoteOverride", () => {
     mockDeriveVotePda.mockReturnValue(VALIDATOR_VOTE_PDA);
     mockDeriveVoteOverridePda.mockReturnValue(VOTE_OVERRIDE_PDA);
     mockDeriveVoteOverrideCachePda.mockReturnValue(VOTE_OVERRIDE_CACHE_PDA);
+    mockFetchProposal.mockResolvedValue({
+      snapshotSlot: new BN(PROPOSAL_SNAPSHOT_SLOT),
+      endEpoch: new BN(100),
+    });
 
     // The verifier returns the validator the stake was delegated to AT SNAPSHOT TIME (A),
     // regardless of any later redelegation to B.
     mockGetStakeAccountProof.mockResolvedValue({
       network: "testnet",
-      snapshot_slot: 340_850_340,
+      snapshot_slot: PROPOSAL_SNAPSHOT_SLOT,
       stake_merkle_leaf: {
         active_stake: 500,
         stake_account: STAKE_ACCOUNT,
-        voting_wallet: VOTING_WALLET,
+        voting_wallet: DELEGATOR_WALLET,
       },
       stake_merkle_proof: [],
       vote_account: SNAPSHOT_VOTE_ACCOUNT,
     });
     mockGetVoteAccountProof.mockResolvedValue({
       network: "testnet",
-      snapshot_slot: 340_850_340,
+      snapshot_slot: PROPOSAL_SNAPSHOT_SLOT,
       meta_merkle_leaf: {
         active_stake: 500,
         stake_merkle_root: STAKE_MERKLE_ROOT,
         vote_account: SNAPSHOT_VOTE_ACCOUNT,
-        voting_wallet: VOTING_WALLET,
+        voting_wallet: VALIDATOR_WALLET,
       },
       meta_merkle_proof: [],
     });
@@ -151,10 +165,34 @@ describe("castVoteOverride", () => {
     endpoint: "http://localhost:8899",
     ncnApiUrl: "http://localhost:9000",
   };
-  const slot = 340_850_340;
+
+  it("fetches proofs at the proposal snapshot slot, not a later network-wide /meta slot", async () => {
+    const result = await castVoteOverride(params, blockchainParams);
+
+    expect(result).toEqual({ signature: "test-signature", success: true });
+    expect(mockFetchProposal).toHaveBeenCalled();
+    expect(mockGetStakeAccountProof).toHaveBeenCalledWith(
+      STAKE_ACCOUNT,
+      "testnet",
+      PROPOSAL_SNAPSHOT_SLOT,
+      blockchainParams.ncnApiUrl
+    );
+    expect(mockGetVoteAccountProof).toHaveBeenCalledWith(
+      SNAPSHOT_VOTE_ACCOUNT,
+      "testnet",
+      PROPOSAL_SNAPSHOT_SLOT,
+      blockchainParams.ncnApiUrl
+    );
+    expect(mockGetStakeAccountProof).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      LATEST_META_SLOT,
+      expect.anything()
+    );
+  });
 
   it("resolves the meta proof and PDAs from the stake proof's SNAPSHOT vote account, not the live delegation", async () => {
-    const result = await castVoteOverride(params, blockchainParams, slot);
+    const result = await castVoteOverride(params, blockchainParams);
 
     expect(result).toEqual({ signature: "test-signature", success: true });
 
@@ -162,7 +200,7 @@ describe("castVoteOverride", () => {
     expect(mockGetStakeAccountProof).toHaveBeenCalledWith(
       STAKE_ACCOUNT,
       "testnet",
-      slot,
+      PROPOSAL_SNAPSHOT_SLOT,
       blockchainParams.ncnApiUrl
     );
 
@@ -171,7 +209,7 @@ describe("castVoteOverride", () => {
     expect(mockGetVoteAccountProof).toHaveBeenCalledWith(
       SNAPSHOT_VOTE_ACCOUNT,
       "testnet",
-      slot,
+      PROPOSAL_SNAPSHOT_SLOT,
       blockchainParams.ncnApiUrl
     );
     expect(mockGetVoteAccountProof).not.toHaveBeenCalledWith(
@@ -212,18 +250,30 @@ describe("castVoteOverride", () => {
     // the stake proof's snapshot vote account, the override must be rejected client-side.
     mockGetVoteAccountProof.mockResolvedValue({
       network: "testnet",
-      snapshot_slot: 340_850_340,
+      snapshot_slot: PROPOSAL_SNAPSHOT_SLOT,
       meta_merkle_leaf: {
         active_stake: 500,
         stake_merkle_root: STAKE_MERKLE_ROOT,
         vote_account: LIVE_VOTE_ACCOUNT,
-        voting_wallet: VOTING_WALLET,
+        voting_wallet: VALIDATOR_WALLET,
       },
       meta_merkle_proof: [],
     });
 
-    await expect(
-      castVoteOverride(params, blockchainParams, slot)
-    ).rejects.toThrow(/does not match meta proof vote account/);
+    await expect(castVoteOverride(params, blockchainParams)).rejects.toThrow(
+      /does not match meta proof vote account/
+    );
+  });
+
+  it("throws when the proposal has no snapshot slot yet", async () => {
+    mockFetchProposal.mockResolvedValue({
+      snapshotSlot: new BN(0),
+      endEpoch: new BN(100),
+    });
+
+    await expect(castVoteOverride(params, blockchainParams)).rejects.toThrow(
+      /no snapshot slot/
+    );
+    expect(mockGetStakeAccountProof).not.toHaveBeenCalled();
   });
 });

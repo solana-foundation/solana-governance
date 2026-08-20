@@ -549,7 +549,7 @@ pub fn create_proposal(h: &mut Harness, seed: u64, title: &str) -> Address {
             h.global_config,
             seed,
             title,
-            "https://github.com/solana-foundation/solana-governance",
+            "https://github.com/solana-foundation/solana-governance-proposals/blob/commit-sha/proposals/title.md",
         )],
     );
     proposal
@@ -671,9 +671,6 @@ pub struct VoteOverrideCacheState {
     pub validator: [u8; 32],
     pub proposal: [u8; 32],
     pub vote_account_validator: [u8; 32],
-    pub for_votes_bp: u64,
-    pub against_votes_bp: u64,
-    pub abstain_votes_bp: u64,
     pub for_votes_lamports: u64,
     pub against_votes_lamports: u64,
     pub abstain_votes_lamports: u64,

@@ -226,6 +226,23 @@ export function resolveSnapshotVoteAccount(
 }
 
 /**
+ * Read the snapshot slot a proposal is bound to. Voting and override proofs must be fetched
+ * at this slot — not the network-wide latest `/meta` slot — so the merkle material matches
+ * `proposal.consensus_result`. `0` means voting has not been activated yet.
+ */
+export function resolveProposalSnapshotSlot(snapshotSlot: {
+  toNumber(): number;
+}): number {
+  const slot = snapshotSlot.toNumber();
+  if (!Number.isFinite(slot) || slot <= 0) {
+    throw new Error(
+      "Proposal has no snapshot slot; voting may not have been activated yet"
+    );
+  }
+  return slot;
+}
+
+/**
  * Cross-check that a stake proof and a meta (vote-account) proof belong to the same snapshot
  * lineage before they are paired in an override vote. The override builders derive the vote
  * account from the stake proof's snapshot `vote_account` and fetch the meta proof for it, so these
@@ -245,16 +262,6 @@ export function assertOverrideProofLineage(
     throw new Error(
       `Override proof mismatch: stake proof's snapshot vote account ${stakeMerkleProof.vote_account} ` +
         `does not match meta proof vote account ${metaMerkleProof.meta_merkle_leaf.vote_account}`
-    );
-  }
-
-  if (
-    metaMerkleProof.meta_merkle_leaf.voting_wallet !==
-    stakeMerkleProof.stake_merkle_leaf.voting_wallet
-  ) {
-    throw new Error(
-      `Override proof mismatch: stake proof voting wallet ${stakeMerkleProof.stake_merkle_leaf.voting_wallet} ` +
-        `does not match meta proof voting wallet ${metaMerkleProof.meta_merkle_leaf.voting_wallet}`
     );
   }
 }

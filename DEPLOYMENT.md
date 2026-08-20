@@ -147,7 +147,7 @@ by full path, or `cargo run --release --bin cli --` for ncn.
 | Flag                            | Meaning                                                                    | Decide   |
 | ------------------------------- | -------------------------------------------------------------------------- | -------- |
 | `--max-title-length`            | proposal title length, **in bytes** (1–200)                                | e.g. 50  |
-| `--max-description-length`      | desc length **in bytes** (1–500); desc must be a `https://github.com` link | e.g. 250 |
+| `--max-description-length`      | desc length **in bytes** (1–500); desc must link to `https://github.com/solana-foundation/solana-governance-proposals` | e.g. 250 |
 | `--max-support-epochs`          | max epochs in support phase                                                | ?        |
 | `--min-proposal-stake-lamports` | min stake to create a proposal                                             | ?        |
 | `--cluster-support-pct-min-bps` | % cluster stake to activate voting (bps, 0–10000)                          | ?        |

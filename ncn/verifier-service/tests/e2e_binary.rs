@@ -86,12 +86,22 @@ async fn e2e_binary_endpoints() -> anyhow::Result<()> {
         .json()
         .await?;
 
+    // The quorum denominator SGP-0001 Art. IV.3 measures against, summed from
+    // the uploaded snapshot rather than the live cluster. Computed here from the
+    // same fixture the server ingested, so the served value is checked against
+    // the file rather than against itself.
+    let expected_total_active_stake: u64 = snapshot
+        .leaf_bundles
+        .iter()
+        .map(|b| b.meta_merkle_leaf.active_stake)
+        .sum();
     let expected_meta = serde_json::json!({
         "network": "testnet",
         "slot": slot,
         "merkle_root": merkle_root,
         "snapshot_hash": encoded_hash,
         "created_at": meta["created_at"],
+        "total_active_stake": expected_total_active_stake,
     });
     assert_eq!(meta, expected_meta);
 

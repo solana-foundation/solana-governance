@@ -5,18 +5,12 @@ import {
 } from "../validateProposalUrl";
 
 const SHA = "27bca51e5c0fc34ddbea6904faf86f5098225316";
-const VALID_SIMD = `https://github.com/${SIMD_REPO}/blob/main/proposals/0022-multi-stake.md`;
 const VALID_SGP = `https://github.com/${SGP_REPO}/blob/${SHA}/proposals/sgp-0001-solana-constitution.md`;
+const MUTABLE_SGP = `https://github.com/${SGP_REPO}/blob/main/proposals/sgp-0001-solana-constitution.md`;
 
 const codes = (issues: { code: string }[]) => issues.map((i) => i.code);
 
 describe("validateProposalUrl - accepted", () => {
-  it("accepts a SIMD proposal link", () => {
-    const result = validateProposalUrl(VALID_SIMD);
-    expect(result.ok).toBe(true);
-    expect(result.errors).toEqual([]);
-  });
-
   it("accepts an SGP proposal link pinned to a commit with no warnings", () => {
     const result = validateProposalUrl(VALID_SGP);
     expect(result.ok).toBe(true);
@@ -60,11 +54,11 @@ describe("validateProposalUrl - rejected", () => {
     ["https://github.com/org/repo", "unsupported"],
     ["https://github.com/org/repo/issues/12", "unsupported"],
     [
-      `https://github.com/${SIMD_REPO}/blob/main/proposals/0022-multi-stake.txt`,
+      `https://github.com/${SGP_REPO}/blob/main/proposals/sgp-0001-solana-constitution.txt`,
       "not-markdown",
     ],
-    [`${VALID_SIMD}?plain=1`, "query-or-fragment"],
-    [`${VALID_SIMD}#L10`, "query-or-fragment"],
+    [`${VALID_SGP}?plain=1`, "query-or-fragment"],
+    [`${VALID_SGP}#L10`, "query-or-fragment"],
   ])("rejects %j with code %s", (url, code) => {
     const result = validateProposalUrl(url);
     expect(result.ok).toBe(false);
@@ -74,8 +68,8 @@ describe("validateProposalUrl - rejected", () => {
   // These resolve fine in a browser but are rejected by the on-chain validator, so accepting
   // them would only surface as an opaque custom program error at transaction time.
   it.each([
-    [`https://www.github.com/${SIMD_REPO}/blob/main/proposals/0022-x.md`],
-    [`https://raw.githubusercontent.com/${SIMD_REPO}/main/proposals/0022-x.md`],
+    [`https://www.github.com/${SGP_REPO}/blob/main/proposals/sgp-0001-x.md`],
+    [`https://raw.githubusercontent.com/${SGP_REPO}/main/proposals/sgp-0001-x.md`],
   ])("rejects %j because the program requires an exact github.com prefix", (url) => {
     const result = validateProposalUrl(url);
     expect(result.ok).toBe(false);
@@ -84,11 +78,11 @@ describe("validateProposalUrl - rejected", () => {
 
   it.each([
     [
-      `https://github.com/${SIMD_REPO}/blob/main/proposals/0022%20multi.md`,
+      `https://github.com/${SGP_REPO}/blob/main/proposals/sgp-0001%20x.md`,
       "character",
     ],
     [
-      `https://github.com/${SIMD_REPO}/blob/main/a/b/c/d/e/f/g/h/0022-x.md`,
+      `https://github.com/${SGP_REPO}/blob/main/a/b/c/d/e/f/g/h/sgp-0001-x.md`,
       "segments",
     ],
   ])("rejects %j as incompatible with the on-chain grammar", (url) => {
@@ -98,7 +92,7 @@ describe("validateProposalUrl - rejected", () => {
   });
 
   it("rejects a link longer than the on-chain description limit", () => {
-    const url = `https://github.com/${SIMD_REPO}/blob/main/proposals/${"a".repeat(500)}/0022-x.md`;
+    const url = `https://github.com/${SGP_REPO}/blob/main/proposals/${"a".repeat(500)}/sgp-0001-x.md`;
     expect(codes(validateProposalUrl(url).errors)).toContain("too-long");
   });
 
@@ -111,17 +105,33 @@ describe("validateProposalUrl - rejected", () => {
 
 describe("validateProposalUrl - warnings", () => {
   it("warns about a branch ref but still passes", () => {
-    const result = validateProposalUrl(VALID_SIMD);
+    const result = validateProposalUrl(MUTABLE_SGP);
     expect(result.ok).toBe(true);
     expect(codes(result.warnings)).toContain("mutable-ref");
   });
 
-  it("warns about an unknown repo but still passes", () => {
+  it("rejects repositories other than solana-governance-proposals", () => {
     const result = validateProposalUrl(
       `https://github.com/someone/fork/blob/${SHA}/proposals/sgp-0002-x.md`,
     );
-    expect(result.ok).toBe(true);
-    expect(codes(result.warnings)).toContain("unknown-repo");
+    expect(result.ok).toBe(false);
+    expect(codes(result.errors)).toContain("not-allowed-repo");
+  });
+
+  it("rejects legacy SIMD repository links", () => {
+    const result = validateProposalUrl(
+      `https://github.com/${SIMD_REPO}/blob/main/proposals/0022-multi-stake.md`,
+    );
+    expect(result.ok).toBe(false);
+    expect(codes(result.errors)).toContain("not-allowed-repo");
+  });
+
+  it("rejects raw path traversal even though URL parsing normalizes it", () => {
+    const result = validateProposalUrl(
+      `https://github.com/${SGP_REPO}/../../attacker/repo/blob/ref/0022-x.md`,
+    );
+    expect(result.ok).toBe(false);
+    expect(codes(result.errors)).toContain("rejected-on-chain");
   });
 
   it("warns when the filename carries no proposal number", () => {

@@ -16,7 +16,7 @@ use {
 const MAX_TITLE_LEN: usize = 200;
 const MAX_DESCRIPTION_LEN: usize = 500;
 
-const VALID_LINK: &str = "https://github.com/solana-foundation/solana-governance";
+const VALID_LINK: &str = "https://github.com/solana-foundation/solana-governance-proposals/blob/commit-sha/proposals/title.md";
 
 /// One funded validator is all these tests need.
 fn setup() -> Harness {
@@ -102,7 +102,7 @@ fn description_too_long_rejected() {
     let mut h = setup();
     // Length is checked before link shape: even a well-formed GitHub link is
     // rejected once it exceeds the configured maximum.
-    const PREFIX: &str = "https://github.com/org/";
+    const PREFIX: &str = "https://github.com/solana-foundation/solana-governance-proposals/";
     let description = format!(
         "{PREFIX}{}",
         "a".repeat(MAX_DESCRIPTION_LEN + 1 - PREFIX.len())
@@ -128,6 +128,9 @@ fn description_must_be_github_link() {
         "https://github.com/org/repo#anchor",       // fragment
         "https://github.com/org/repo name",         // whitespace
         "https://github.com/a/b/c/d/e/f/g/h/i/j/k", // 11 segments, max is 10
+        "https://github.com/attacker/repo/blob/ref/0022-x.md", // unapproved repository
+        "https://github.com/solana-foundation/solana-improvement-documents/blob/ref/0022-x.md", // legacy SIMD repository
+        "https://github.com/solana-foundation/solana-governance-proposals/../../attacker/repo/blob/ref/0022-x.md", // path traversal
     ];
     for (i, link) in bad_links.iter().enumerate() {
         assert_rejected(
@@ -141,9 +144,9 @@ fn description_must_be_github_link() {
 fn valid_proposal_accepted() {
     let mut h = setup();
 
-    // Boundary: title exactly at the cap; link with a trailing slash.
+    // Boundary: title exactly at the cap; valid link to a proposal document.
     let title = "t".repeat(MAX_TITLE_LEN);
-    let description = "https://github.com/solana-foundation/solana-governance/";
+    let description = "https://github.com/solana-foundation/solana-governance-proposals/blob/main/proposals/sgp-0001-title.md";
     try_create(&mut h, 1, &title, description).unwrap_or_else(|e| {
         panic!(
             "create_proposal failed: {:#?}\nlogs: {:#?}",
@@ -159,7 +162,7 @@ fn valid_proposal_accepted() {
     assert!(!state.voting);
 
     // Boundary: description exactly at the cap.
-    const PREFIX: &str = "https://github.com/org/";
+    const PREFIX: &str = "https://github.com/solana-foundation/solana-governance-proposals/";
     let max_description = format!("{PREFIX}{}", "a".repeat(MAX_DESCRIPTION_LEN - PREFIX.len()));
     assert_eq!(max_description.len(), MAX_DESCRIPTION_LEN);
     try_create(&mut h, 2, "second", &max_description).unwrap_or_else(|e| {

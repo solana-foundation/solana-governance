@@ -114,7 +114,6 @@
         },
         {
           "name": "vote_override_cache",
-          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -853,7 +852,6 @@
         },
         {
           "name": "validator_vote",
-          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -2656,18 +2654,6 @@
           {
             "name": "vote_account_validator",
             "type": "pubkey"
-          },
-          {
-            "name": "for_votes_bp",
-            "type": "u64"
-          },
-          {
-            "name": "against_votes_bp",
-            "type": "u64"
-          },
-          {
-            "name": "abstain_votes_bp",
-            "type": "u64"
           },
           {
             "name": "for_votes_lamports",

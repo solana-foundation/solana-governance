@@ -108,11 +108,11 @@ enum Commands {
     #[command(
         about = "Create a proposal to vote on",
         long_about = "This command creates a new governance proposal with the help of the Solana Validator Governance program. \
-                      It requires a title and a GitHub link for the proposal description, and optionally a unique seed to derive the proposal's address (PDA). \
+                      It requires a title and a link to a proposal in the solana-foundation/solana-governance-proposals repo for the proposal description, and optionally a unique seed to derive the proposal's address (PDA). \
                       The identity keypair is required to sign the transaction, and an optional RPC URL can be provided to connect to the chain.\n\n\
                       Examples:\n\
-                      $ svmgov -k /path/to/key.json create-proposal --title \"New Governance Rule\" --description \"https://github.com/repo/proposal\"\n\
-                      $ svmgov -k /path/to/key.json --rpc-url https://api.mainnet-beta.solana.com create-proposal --seed 42 --title \"New Governance Rule\" --description \"https://github.com/repo/proposal\""
+                      $ svmgov -k /path/to/key.json create-proposal --title \"New Governance Rule\" --description \"https://github.com/solana-foundation/solana-governance-proposals/blob/<commit-sha>/proposals/sgp-0001-title.md\"\n\
+                      $ svmgov -k /path/to/key.json --rpc-url https://api.mainnet-beta.solana.com create-proposal --seed 42 --title \"New Governance Rule\" --description \"https://github.com/solana-foundation/solana-governance-proposals/blob/<commit-sha>/proposals/sgp-0001-title.md\""
     )]
     CreateProposal {
         /// Optional unique seed for the proposal (used to derive the PDA).
@@ -123,8 +123,8 @@ enum Commands {
         #[arg(long, help = "Proposal title")]
         title: String,
 
-        /// GitHub link for the proposal description.
-        #[arg(long, help = "GitHub link for the proposal description")]
+        /// Link in solana-foundation/solana-governance-proposals for the proposal description.
+        #[arg(long, help = "Proposal link in https://github.com/solana-foundation/solana-governance-proposals (no .. path segments)")]
         description: String,
 
         /// Skip the network check that the linked proposal file exists.

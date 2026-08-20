@@ -6,11 +6,13 @@ jest.mock("@/contexts/EndpointContext", () => ({
   RPC_URLS: { testnet: "http://localhost:8899" },
 }));
 
+import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 
 import {
   assertOverrideProofLineage,
   computeProofCloseTimestamp,
+  resolveProposalSnapshotSlot,
   resolveSnapshotVoteAccount,
 } from "../helpers";
 import type {
@@ -129,7 +131,10 @@ describe("assertOverrideProofLineage", () => {
   const SNAPSHOT_VOTE_ACCOUNT = "SnapshotVoteAccount11111111111111111111111";
   // A different validator the stake was redelegated to after the snapshot.
   const LIVE_VOTE_ACCOUNT = "LiveVoteAccount2222222222222222222222222222";
-  const VOTING_WALLET = "VotingWallet333333333333333333333333333333";
+  // Snapshot generation gives the meta leaf the validator identity and the stake leaf the
+  // delegator withdrawer (or stake-pool manager). These are distinct in the ordinary case.
+  const VALIDATOR_WALLET = "ValidatorWallet3333333333333333333333333333";
+  const DELEGATOR_WALLET = "DelegatorWallet4444444444444444444444444444";
 
   function stakeProof(
     overrides: Partial<StakeAccountProofResponse> = {}
@@ -140,7 +145,7 @@ describe("assertOverrideProofLineage", () => {
       stake_merkle_leaf: {
         active_stake: 500,
         stake_account: "StakeAccount4444444444444444444444444444444",
-        voting_wallet: VOTING_WALLET,
+        voting_wallet: DELEGATOR_WALLET,
       },
       stake_merkle_proof: [],
       vote_account: SNAPSHOT_VOTE_ACCOUNT,
@@ -158,14 +163,15 @@ describe("assertOverrideProofLineage", () => {
         active_stake: 500,
         stake_merkle_root: "StakeMerkleRoot55555555555555555555555555555",
         vote_account: SNAPSHOT_VOTE_ACCOUNT,
-        voting_wallet: VOTING_WALLET,
+        voting_wallet: VALIDATOR_WALLET,
         ...overrides,
       },
       meta_merkle_proof: [],
     };
   }
 
-  it("passes when the stake proof and meta proof share the snapshot vote account and voting wallet", () => {
+  it("passes when proofs share the snapshot vote account, even if voting wallets differ", () => {
+    expect(VALIDATOR_WALLET).not.toBe(DELEGATOR_WALLET);
     expect(() =>
       assertOverrideProofLineage(stakeProof(), metaProof())
     ).not.toThrow();
@@ -182,13 +188,15 @@ describe("assertOverrideProofLineage", () => {
     ).toThrow(/does not match meta proof vote account/);
   });
 
-  it("throws when the voting wallets disagree", () => {
+  it("does not throw when the voting wallets disagree", () => {
+    // Ordinary override: validator identity on the meta leaf, delegator withdrawer on the
+    // stake leaf. The on-chain handlers only require the stake wallet to match the signer.
     expect(() =>
       assertOverrideProofLineage(
         stakeProof(),
         metaProof({ voting_wallet: "OtherWallet66666666666666666666666666666666" })
       )
-    ).toThrow(/voting wallet/);
+    ).not.toThrow();
   });
 });
 
@@ -226,6 +234,18 @@ describe("resolveSnapshotVoteAccount", () => {
     });
     expect(() => resolveSnapshotVoteAccount(proof)).toThrow(
       /missing the snapshot vote_account/
+    );
+  });
+});
+
+describe("resolveProposalSnapshotSlot", () => {
+  it("returns the proposal's on-chain snapshot slot", () => {
+    expect(resolveProposalSnapshotSlot(new BN(340_850_340))).toBe(340_850_340);
+  });
+
+  it("throws when voting has not been activated (slot is 0)", () => {
+    expect(() => resolveProposalSnapshotSlot(new BN(0))).toThrow(
+      /no snapshot slot/
     );
   });
 });

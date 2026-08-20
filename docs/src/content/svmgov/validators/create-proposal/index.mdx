@@ -8,14 +8,14 @@ Create a new governance proposal on-chain.
 
 Submits a new governance proposal. The validator must have at least **100,000 SOL staked** to their vote account. The proposal is assigned a unique sequential index and a PDA derived from the seed and the validator's vote account.
 
-The `description` must be a GitHub URL — full proposal text, rationale, and discussion lives there. Only the title and GitHub link are stored on-chain to keep accounts small.
+The `description` must link to the [`solana-foundation/solana-governance-proposals`](https://github.com/solana-foundation/solana-governance-proposals) repository. Full proposal text, rationale, and discussion lives there; only the title and GitHub link are stored on-chain to keep accounts small. The URL must not contain a `..` path-traversal segment.
 
 ## Usage
 
 ```bash
 svmgov create-proposal \
   --title "Your Proposal Title" \
-  --description "https://github.com/your-org/repo/issues/1" \
+  --description "https://github.com/solana-foundation/solana-governance-proposals/blob/<commit-sha>/proposals/sgp-0001-title.md" \
   --network mainnet
 ```
 
@@ -24,7 +24,7 @@ svmgov create-proposal \
 | Argument | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `--title` | String | **Yes** | — | Proposal title. Length in bytes must be ≤ `max_title_length` (config-set, up to 200 bytes) |
-| `--description` | String | **Yes** | — | GitHub link for full proposal details. Must start with `https://github.com`; length in bytes must be ≤ `max_description_length` (config-set, up to 500 bytes) |
+| `--description` | String | **Yes** | — | Link in `https://github.com/solana-foundation/solana-governance-proposals`; must not contain `..`; length in bytes must be ≤ `max_description_length` (config-set, up to 500 bytes) |
 | `--network` | String | No | Config value | Network override for proof fetching: `mainnet`, `testnet` |
 | `--seed` | u64 | No | Random | Unique seed for PDA derivation |
 
@@ -39,7 +39,7 @@ svmgov create-proposal \
 
 - Validator must have ≥ **100,000 SOL** staked to their vote account
 - The identity keypair must match the `node_pubkey` of the vote account
-- Description must be a valid `https://github.com/...` URL
+- Description must be a `https://github.com/solana-foundation/solana-governance-proposals/...` URL without `..` path segments
 - `ProposalIndex` must be initialized (run `svmgov init-index` once)
 
 ## Examples
@@ -48,20 +48,20 @@ svmgov create-proposal \
 # With config (recommended)
 svmgov create-proposal \
   --title "Increase max validator commission to 12%" \
-  --description "https://github.com/my-org/governance/issues/42" \
+  --description "https://github.com/solana-foundation/solana-governance-proposals/blob/<commit-sha>/proposals/sgp-0001-title.md" \
   --network mainnet
 
 # With a specific seed for deterministic PDA
 svmgov create-proposal \
   --seed 100 \
   --title "Update cluster fee schedule" \
-  --description "https://github.com/my-org/governance/proposals/fee-update" \
+  --description "https://github.com/solana-foundation/solana-governance-proposals/blob/<commit-sha>/proposals/sgp-0001-title.md" \
   --network mainnet
 
 # With explicit keypair
 svmgov create-proposal \
   --title "My Proposal" \
-  --description "https://github.com/repo/issues/1" \
+  --description "https://github.com/solana-foundation/solana-governance-proposals/blob/<commit-sha>/proposals/sgp-0001-title.md" \
   --network mainnet \
   --keypair ~/.config/solana/validator-identity.json
 ```

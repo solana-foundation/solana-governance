@@ -316,7 +316,7 @@ export default function ProposalsTable({ title }: { title: string }) {
                       >
                         <TableCell
                           colSpan={row.getVisibleCells().length}
-                          className="p-0 bg-black/5"
+                          className="p-0 bg-black/5 whitespace-normal"
                         >
                           <motion.div
                             initial={{ height: 0, opacity: 0 }}

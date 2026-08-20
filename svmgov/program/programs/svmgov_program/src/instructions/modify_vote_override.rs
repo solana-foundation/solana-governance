@@ -23,7 +23,6 @@ pub struct ModifyVoteOverride<'info> {
     pub proposal: Account<'info, Proposal>, // Proposal being voted on
     /// CHECK: Validator vote account. Must exist for modification
     #[account(
-        mut,
         seeds = [b"vote", proposal.key().as_ref(), spl_vote_account.key.as_ref()],
         bump,
     )]

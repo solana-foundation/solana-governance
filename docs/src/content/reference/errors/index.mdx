@@ -32,7 +32,7 @@ All error codes from both the `ncn-snapshot` and `svmgov` programs.
 | `TitleTooLong` | Title exceeds `max_title_length` (measured in bytes) |
 | `DescriptionEmpty` | Description is empty |
 | `DescriptionTooLong` | Description exceeds `max_description_length` (measured in bytes) |
-| `DescriptionInvalid` | Description must be a `https://github.com` URL |
+| `DescriptionInvalid` | Description must be a URL in `https://github.com/solana-foundation/solana-governance-proposals` without `..` path segments |
 | `InvalidProposalId` | Invalid proposal ID |
 | `VotingNotStarted` | Proposal has not entered voting phase yet |
 | `ProposalClosed` | Voting period has ended |

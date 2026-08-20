@@ -2,24 +2,21 @@ import { NetworkMetaResponse } from "@/chain";
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { useNcnApi } from "@/contexts/NcnApiContext";
 import { fetchNcnJson } from "@/lib/ncnApi";
+import {
+  isKnownSnapshotNetwork,
+  requireKnownSnapshotNetwork,
+} from "@/lib/snapshotNetwork";
 import { useQuery } from "@tanstack/react-query";
 
-/**
- * Shown when an action needs a snapshot slot but the NCN API never returned one. Surfaced to
- * the user by the modals' error handlers rather than letting a mutation proceed with no slot.
- */
-export const SNAPSHOT_UNAVAILABLE_MESSAGE =
-  "Snapshot service unavailable — please try again in a moment";
-
 export const useSnapshotMeta = () => {
-  const { endpointType } = useEndpoint();
+  const { network } = useEndpoint();
   const { ncnApiUrl } = useNcnApi();
 
   return useQuery({
     staleTime: 1000 * 120, // 2 minutes
-    // A custom RPC has no corresponding snapshot on the NCN API, so the request can only
-    // fail. Skip it rather than spending three retries proving that.
-    enabled: endpointType !== "custom",
+    // The NCN API needs a known cluster. Skip until EndpointContext has resolved one,
+    // rather than spending three retries on a custom or unrecognized RPC.
+    enabled: isKnownSnapshotNetwork(network),
     // Retry count comes from the query client default, which also skips retries once the
     // upstream has answered definitively (see isPermanentNcnFailure).
     //
@@ -27,9 +24,9 @@ export const useSnapshotMeta = () => {
     // router in lockstep.
     retryDelay: (attempt) =>
       Math.min(1000 * 2 ** attempt, 8000) + Math.random() * 250,
-    queryKey: ["snapshot_meta", endpointType, ncnApiUrl],
+    queryKey: ["snapshot_meta", network, ncnApiUrl],
     queryFn: ({ signal }): Promise<NetworkMetaResponse> => {
-      const network = endpointType;
+      requireKnownSnapshotNetwork(network);
       const url = `${ncnApiUrl}/meta?network=${network}`;
 
       return fetchNcnJson<NetworkMetaResponse>(url, {

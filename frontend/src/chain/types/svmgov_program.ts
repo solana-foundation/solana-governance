@@ -120,7 +120,6 @@ export type SvmgovProgram = {
         },
         {
           "name": "voteOverrideCache",
-          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -859,7 +858,6 @@ export type SvmgovProgram = {
         },
         {
           "name": "validatorVote",
-          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -2662,18 +2660,6 @@ export type SvmgovProgram = {
           {
             "name": "voteAccountValidator",
             "type": "pubkey"
-          },
-          {
-            "name": "forVotesBp",
-            "type": "u64"
-          },
-          {
-            "name": "againstVotesBp",
-            "type": "u64"
-          },
-          {
-            "name": "abstainVotesBp",
-            "type": "u64"
           },
           {
             "name": "forVotesLamports",

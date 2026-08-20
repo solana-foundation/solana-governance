@@ -60,9 +60,10 @@ macro_rules! calculate_vote_lamports {
     }};
 }
 
-/// Validates if the input is a well-formed GitHub repository or issue link.
+/// Validates that the input points to the approved GitHub proposal repository.
 pub fn is_valid_github_link(link: &str) -> bool {
     const PREFIX: &str = "https://github.com/";
+    const REPOSITORY_PATH: &str = "solana-foundation/solana-governance-proposals";
     const MAX_SEGMENTS: usize = 10;
     const MIN_SEGMENTS: usize = 2;
 
@@ -79,6 +80,20 @@ pub fn is_valid_github_link(link: &str) -> bool {
         path = &path[..path.len() - 1];
     }
     if path.is_empty() || path.starts_with('/') {
+        return false;
+    }
+
+    // path must start with repository path followed by another segment
+    if !path
+        .strip_prefix(REPOSITORY_PATH)
+        .is_some_and(|suffix| suffix.starts_with('/'))
+    {
+        return false;
+    }
+
+    // URL consumers normalize `..` by walking to a parent path. Reject it here so the
+    // raw on-chain string and the URL that clients resolve always identify the same repo.
+    if path.contains("/../") || path.ends_with("/..") {
         return false;
     }
 
@@ -283,6 +298,22 @@ pub fn min_stake_threshold(
 mod tests {
     use super::*;
     use crate::error::GovernanceError;
+
+    #[test]
+    fn github_link_requires_the_allowed_repository_without_traversal() {
+        assert!(is_valid_github_link(
+            "https://github.com/solana-foundation/solana-governance-proposals/blob/main/proposals/sgp-0001-title.md"
+        ));
+        assert!(!is_valid_github_link(
+            "https://github.com/attacker/repo/blob/ref/0022-x.md"
+        ));
+        assert!(!is_valid_github_link(
+            "https://github.com/solana-foundation/solana-governance-proposals/../../attacker/repo/blob/ref/0022-x.md"
+        ));
+        assert!(!is_valid_github_link(
+            "https://github.com/solana-foundation/solana-governance-proposals"
+        ));
+    }
 
     // --- check_support_window ---
 

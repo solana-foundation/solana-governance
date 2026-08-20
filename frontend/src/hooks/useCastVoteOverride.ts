@@ -2,35 +2,22 @@ import { CastVoteOverrideParams } from "@/chain";
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { useNcnApi } from "@/contexts/NcnApiContext";
 import { castVoteOverrideMutation } from "@/data";
+import { requireKnownSnapshotNetwork } from "@/lib/snapshotNetwork";
 import { useMutation } from "@tanstack/react-query";
-import {
-  SNAPSHOT_UNAVAILABLE_MESSAGE,
-  useSnapshotMeta,
-} from "./useSnapshotMeta";
 import { track } from "@vercel/analytics";
 
 export function useCastVoteOverride() {
-  const { endpointUrl: endpoint, endpointType } = useEndpoint();
+  const { endpointUrl: endpoint, network } = useEndpoint();
   const { ncnApiUrl } = useNcnApi();
-  const { data: meta } = useSnapshotMeta();
 
   return useMutation({
     mutationKey: ["cast-vote-override"],
-    mutationFn: (params: CastVoteOverrideParams) => {
-      if (meta?.slot === undefined) {
-        throw new Error(SNAPSHOT_UNAVAILABLE_MESSAGE);
-      }
-
-      return castVoteOverrideMutation(
-        params,
-        {
-          endpoint,
-          network: endpointType,
-          ncnApiUrl,
-        },
-        meta.slot
-      );
-    },
+    mutationFn: (params: CastVoteOverrideParams) =>
+      castVoteOverrideMutation(params, {
+        endpoint,
+        network: requireKnownSnapshotNetwork(network),
+        ncnApiUrl,
+      }),
     onMutate: (params) => {
       track("Cast Vote Override init", { proposalId: params.proposalId });
     },

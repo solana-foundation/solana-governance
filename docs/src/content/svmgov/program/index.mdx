@@ -60,7 +60,7 @@ The main proposal account. One per governance proposal.
 |---|---|---|
 | `author` | `Pubkey` | Validator who created the proposal |
 | `title` | `String` | Short title (length in bytes ≤ `max_title_length`, ≤ 200) |
-| `description` | `String` | GitHub URL for full proposal text (length in bytes ≤ `max_description_length`, ≤ 500) |
+| `description` | `String` | URL in `https://github.com/solana-foundation/solana-governance-proposals` for full proposal text (length in bytes ≤ `max_description_length`, ≤ 500) |
 | `creation_epoch` | `u64` | Epoch when created |
 | `start_epoch` | `u64` | Epoch when voting begins |
 | `end_epoch` | `u64` | Epoch when voting ends |
@@ -242,7 +242,7 @@ Creates a new governance proposal.
 |---|---|---|
 | `seed: u64` | `u64` | Unique seed for PDA derivation |
 | `title: String` | `String` | Non-empty, ≤ `max_title_length` |
-| `description: String` | `String` | Non-empty, ≤ `max_description_length`, must start with `https://github.com` |
+| `description: String` | `String` | Non-empty, ≤ `max_description_length`, must be in `https://github.com/solana-foundation/solana-governance-proposals` and contain no `..` segment |
 
 **Additional checks:** proposer stake ≥ `min_proposal_stake_lamports`
 
@@ -347,7 +347,7 @@ Admin-only recovery instruction. Re-anchors a supported proposal's snapshot/voti
 | `TitleTooLong` | Title exceeds max length (bytes) |
 | `DescriptionEmpty` | Description is empty |
 | `DescriptionTooLong` | Description exceeds max length (bytes) |
-| `DescriptionInvalid` | Description must be a `https://github.com` link |
+| `DescriptionInvalid` | Description must link to `https://github.com/solana-foundation/solana-governance-proposals` without `..` path segments |
 | `InvalidProposalId` | Invalid proposal ID |
 | `VotingNotStarted` | Proposal has not yet entered voting phase |
 | `ProposalClosed` | Voting period has ended |

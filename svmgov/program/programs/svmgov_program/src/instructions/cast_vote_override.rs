@@ -286,9 +286,6 @@ impl<'info> CastVoteOverride<'info> {
                     validator: meta_merkle_leaf.vote_account,
                     proposal: self.proposal.key(),
                     vote_account_validator: self.validator_vote.key(),
-                    for_votes_bp,
-                    against_votes_bp,
-                    abstain_votes_bp,
                     for_votes_lamports,
                     against_votes_lamports,
                     abstain_votes_lamports,
@@ -307,22 +304,6 @@ impl<'info> CastVoteOverride<'info> {
                     self.validator_vote.key(),
                     GovernanceError::InvalidVoteAccount
                 );
-
-                self.vote_override_cache.for_votes_bp = self
-                    .vote_override_cache
-                    .for_votes_bp
-                    .checked_add(for_votes_bp)
-                    .ok_or(GovernanceError::ArithmeticOverflow)?;
-                self.vote_override_cache.against_votes_bp = self
-                    .vote_override_cache
-                    .against_votes_bp
-                    .checked_add(against_votes_bp)
-                    .ok_or(GovernanceError::ArithmeticOverflow)?;
-                self.vote_override_cache.abstain_votes_bp = self
-                    .vote_override_cache
-                    .abstain_votes_bp
-                    .checked_add(abstain_votes_bp)
-                    .ok_or(GovernanceError::ArithmeticOverflow)?;
 
                 self.vote_override_cache.for_votes_lamports = self
                     .vote_override_cache
@@ -372,9 +353,6 @@ impl<'info> CastVoteOverride<'info> {
                     validator: meta_merkle_leaf.vote_account,
                     proposal: self.proposal.key(),
                     vote_account_validator: self.validator_vote.key(),
-                    for_votes_bp,
-                    against_votes_bp,
-                    abstain_votes_bp,
                     for_votes_lamports,
                     against_votes_lamports,
                     abstain_votes_lamports,
@@ -394,23 +372,6 @@ impl<'info> CastVoteOverride<'info> {
                     self.validator_vote.key(),
                     GovernanceError::InvalidVoteAccount
                 );
-
-                // Update cache by adding delegator's vote
-                self.vote_override_cache.for_votes_bp = self
-                    .vote_override_cache
-                    .for_votes_bp
-                    .checked_add(for_votes_bp)
-                    .ok_or(GovernanceError::ArithmeticOverflow)?;
-                self.vote_override_cache.against_votes_bp = self
-                    .vote_override_cache
-                    .against_votes_bp
-                    .checked_add(against_votes_bp)
-                    .ok_or(GovernanceError::ArithmeticOverflow)?;
-                self.vote_override_cache.abstain_votes_bp = self
-                    .vote_override_cache
-                    .abstain_votes_bp
-                    .checked_add(abstain_votes_bp)
-                    .ok_or(GovernanceError::ArithmeticOverflow)?;
 
                 self.vote_override_cache.for_votes_lamports = self
                     .vote_override_cache

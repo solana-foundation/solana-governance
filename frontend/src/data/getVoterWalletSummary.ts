@@ -1,9 +1,9 @@
 import { VoterSummaryResponse } from "@/chain";
 import { DEFAULT_NCN_API_URL, fetchNcnJson } from "@/lib/ncnApi";
-import { RPCEndpoint } from "@/types";
+import type { KnownSnapshotNetwork } from "@/lib/snapshotNetwork";
 
 export const getVoterWalletSummary = async (
-  network: RPCEndpoint,
+  network: KnownSnapshotNetwork,
   walletAddress: string | undefined,
   slot: number,
   ncnApiUrl?: string,

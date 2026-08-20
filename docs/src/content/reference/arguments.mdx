@@ -69,7 +69,7 @@ When voting, `for_votes + against_votes + abstain_votes` must equal exactly **10
 | Argument | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `--title` | String | Yes | — | Proposal title; byte length must be ≤ configured `max_title_length` and ≤ 200 |
-| `--description` | String | Yes | — | GitHub URL (`https://github.com/...`); byte length must be ≤ configured `max_description_length` and ≤ 500 |
+| `--description` | String | Yes | — | URL in `https://github.com/solana-foundation/solana-governance-proposals/...` without `..`; byte length must be ≤ configured `max_description_length` and ≤ 500 |
 | `--network` | String | No | Config value | Network for proof fetching |
 | `--seed` | u64 | No | Random | PDA derivation seed |
 

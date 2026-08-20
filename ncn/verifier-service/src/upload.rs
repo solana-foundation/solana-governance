@@ -191,6 +191,23 @@ fn validate_snapshot(snapshot: &MetaMerkleSnapshot) -> Result<()> {
     Ok(())
 }
 
+/// Total active stake across every meta leaf, in lamports.
+///
+/// This is the denominator SGP-0001 Art. IV.3 measures quorum against. It is
+/// summed from the snapshot rather than read from the cluster because Art. IV.2
+/// fixes the stake distribution at snapshot time for the whole voting period —
+/// a live cluster total drifts away from it while voting is open.
+///
+/// `validate_snapshot` has already checked that each bundle's `active_stake`
+/// equals the sum of its stake leaves, so this total is consistent with the
+/// per-account figures served by `/proof/...`.
+fn total_active_stake(snapshot: &MetaMerkleSnapshot) -> Result<u64> {
+    snapshot.leaf_bundles.iter().try_fold(0u64, |acc, bundle| {
+        acc.checked_add(bundle.meta_merkle_leaf.active_stake)
+            .ok_or_else(|| anyhow::anyhow!("overflow summing total active stake"))
+    })
+}
+
 fn derive_stake_merkle_root(
     stake_merkle_leaves: &[ncn_snapshot::StakeMerkleLeaf],
 ) -> Option<[u8; 32]> {
@@ -332,6 +349,7 @@ async fn index_snapshot_data(
         merkle_root: merkle_root.to_string(),
         snapshot_hash: snapshot_hash.to_string(),
         created_at: chrono::Utc::now().to_rfc3339(),
+        total_active_stake: Some(total_active_stake(snapshot)?),
     };
     snapshot_meta.insert_exec(&mut *tx).await?;
 
@@ -435,6 +453,46 @@ mod tests {
         let message = upload_signature_message(slot, network, merkle_root, snapshot_hash);
         let signature = keypair.sign_message(&message);
         (keypair, signature.to_string())
+    }
+
+    fn bundle(active_stake: u64) -> cli::MetaMerkleLeafBundle {
+        cli::MetaMerkleLeafBundle {
+            meta_merkle_leaf: ncn_snapshot::MetaMerkleLeaf {
+                voting_wallet: AnchorPubkey::new_unique(),
+                vote_account: AnchorPubkey::new_unique(),
+                stake_merkle_root: [0u8; 32],
+                active_stake,
+            },
+            stake_merkle_leaves: vec![],
+            proof: None,
+        }
+    }
+
+    fn snapshot_of(stakes: &[u64]) -> MetaMerkleSnapshot {
+        MetaMerkleSnapshot {
+            root: [0u8; 32],
+            leaf_bundles: stakes.iter().copied().map(bundle).collect(),
+            slot: 1,
+        }
+    }
+
+    #[test]
+    fn total_active_stake_sums_every_bundle() {
+        assert_eq!(total_active_stake(&snapshot_of(&[1, 2, 3])).unwrap(), 6);
+    }
+
+    #[test]
+    fn total_active_stake_of_an_empty_snapshot_is_zero() {
+        assert_eq!(total_active_stake(&snapshot_of(&[])).unwrap(), 0);
+    }
+
+    #[test]
+    fn total_active_stake_rejects_overflow() {
+        // Cannot happen with real stake, but a wrapped total would silently
+        // shrink the quorum denominator and make every vote look like it
+        // cleared the bar.
+        let s = snapshot_of(&[u64::MAX, 1]);
+        assert!(total_active_stake(&s).is_err());
     }
 
     #[test]

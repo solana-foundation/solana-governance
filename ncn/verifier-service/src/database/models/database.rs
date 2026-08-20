@@ -42,4 +42,12 @@ pub struct SnapshotMetaRecord {
     pub merkle_root: String,
     pub snapshot_hash: String,
     pub created_at: String, // ISO8601 UTC timestamp
+    /// Total active stake across every meta leaf in this snapshot, in lamports.
+    ///
+    /// This is the denominator SGP-0001 Art. IV.3 defines quorum against: the
+    /// snapshot fixes the stake distribution for the whole voting period
+    /// (Art. IV.2), so a live cluster total would drift away from it as votes
+    /// come in. `None` for snapshots uploaded before this was recorded — those
+    /// cannot be back-filled without the original file.
+    pub total_active_stake: Option<u64>,
 }

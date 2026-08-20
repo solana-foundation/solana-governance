@@ -6,8 +6,9 @@ use tracing::info;
 
 use super::constants::MIGRATION_DESCRIPTIONS;
 use super::sql::{
-    CREATE_DB_INDEXES, CREATE_MIGRATIONS_TABLE_SQL, CREATE_SNAPSHOT_META_TABLE_SQL,
-    CREATE_STAKE_ACCOUNTS_TABLE_SQL, CREATE_VOTE_ACCOUNTS_TABLE_SQL,
+    ADD_SNAPSHOT_TOTAL_ACTIVE_STAKE_SQL, CREATE_DB_INDEXES, CREATE_MIGRATIONS_TABLE_SQL,
+    CREATE_SNAPSHOT_META_TABLE_SQL, CREATE_STAKE_ACCOUNTS_TABLE_SQL,
+    CREATE_VOTE_ACCOUNTS_TABLE_SQL,
 };
 
 /// Run all pending database migrations
@@ -24,6 +25,9 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<()> {
     // Apply migrations in order
     if current_version < 1 {
         apply_migration_v1(pool).await?;
+    }
+    if current_version < 2 {
+        apply_migration_v2(pool).await?;
     }
 
     info!("All migrations completed");
@@ -82,4 +86,148 @@ async fn apply_migration_v1(pool: &SqlitePool) -> Result<()> {
 
     info!("Migration v1 completed successfully");
     Ok(())
+}
+
+/// Apply migration version 2: record the snapshot's total active stake.
+///
+/// A database created after this change already has the column, because
+/// `CREATE_SNAPSHOT_META_TABLE_SQL` gained it at the same time — so the
+/// `ALTER TABLE` is only needed by a database created before it. SQLite has no
+/// `ADD COLUMN IF NOT EXISTS`, so the column is probed first rather than
+/// running the `ALTER` and swallowing its error, which would also hide a
+/// genuinely broken schema.
+async fn apply_migration_v2(pool: &SqlitePool) -> Result<()> {
+    info!("Applying migration v2: {}", MIGRATION_DESCRIPTIONS[1]);
+
+    let mut tx = pool.begin().await?;
+
+    let already_present = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM pragma_table_info('snapshot_meta') WHERE name = 'total_active_stake'",
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if already_present == 0 {
+        sqlx::query(ADD_SNAPSHOT_TOTAL_ACTIVE_STAKE_SQL)
+            .execute(&mut *tx)
+            .await?;
+    }
+
+    sqlx::query(
+        "INSERT INTO schema_migrations (version, applied_at, description) VALUES (?, ?, ?)",
+    )
+    .bind(2)
+    .bind(chrono::Utc::now().to_rfc3339())
+    .bind(MIGRATION_DESCRIPTIONS[1])
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    info!("Migration v2 completed successfully");
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::database::models::SnapshotMetaRecord;
+    use crate::database::sql::{
+        CREATE_MIGRATIONS_TABLE_SQL, CREATE_STAKE_ACCOUNTS_TABLE_SQL,
+        CREATE_VOTE_ACCOUNTS_TABLE_SQL,
+    };
+
+    /// `snapshot_meta` exactly as v1 created it, before `total_active_stake`.
+    const V1_SNAPSHOT_META_TABLE_SQL: &str = r#"
+CREATE TABLE snapshot_meta (
+    network TEXT NOT NULL,
+    slot INTEGER NOT NULL,
+    merkle_root TEXT NOT NULL,
+    snapshot_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (network, slot)
+)
+"#;
+
+    async fn pool() -> SqlitePool {
+        SqlitePool::connect("sqlite::memory:").await.unwrap()
+    }
+
+    /// A database at the pre-v2 schema, with a row already in it.
+    async fn legacy_v1_database() -> SqlitePool {
+        let pool = pool().await;
+        for sql in [
+            CREATE_MIGRATIONS_TABLE_SQL,
+            CREATE_VOTE_ACCOUNTS_TABLE_SQL,
+            CREATE_STAKE_ACCOUNTS_TABLE_SQL,
+            V1_SNAPSHOT_META_TABLE_SQL,
+        ] {
+            sqlx::query(sql).execute(&pool).await.unwrap();
+        }
+        sqlx::query(
+            "INSERT INTO schema_migrations (version, applied_at, description) VALUES (1, '', 'v1')",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO snapshot_meta (network, slot, merkle_root, snapshot_hash, created_at)
+             VALUES ('mainnet', 100, 'root', 'hash', '2026-01-01T00:00:00Z')",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        pool
+    }
+
+    #[tokio::test]
+    async fn upgrading_a_v1_database_adds_the_column_and_keeps_existing_rows() {
+        let pool = legacy_v1_database().await;
+        run_migrations(&pool).await.unwrap();
+
+        assert_eq!(get_current_version(&pool).await.unwrap(), 2);
+
+        // The pre-existing snapshot survives, with an unknown total rather than
+        // a fabricated one — it cannot be back-filled without the upload.
+        let record = SnapshotMetaRecord::get_latest(&pool, "mainnet")
+            .await
+            .unwrap()
+            .expect("the v1 row must still be readable");
+        assert_eq!(record.slot, 100);
+        assert_eq!(record.merkle_root, "root");
+        assert_eq!(record.total_active_stake, None);
+    }
+
+    #[tokio::test]
+    async fn a_fresh_database_lands_on_v2_with_the_column_present() {
+        let pool = pool().await;
+        run_migrations(&pool).await.unwrap();
+        assert_eq!(get_current_version(&pool).await.unwrap(), 2);
+
+        let record = SnapshotMetaRecord {
+            network: "mainnet".to_string(),
+            slot: 1,
+            merkle_root: "root".to_string(),
+            snapshot_hash: "hash".to_string(),
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+            total_active_stake: Some(4_000_000_000_000_000),
+        };
+        record.insert_exec(&pool).await.unwrap();
+
+        let read = SnapshotMetaRecord::get_latest(&pool, "mainnet")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(read.total_active_stake, Some(4_000_000_000_000_000));
+    }
+
+    #[tokio::test]
+    async fn migrations_are_idempotent() {
+        // Startup runs these on every boot; a second pass must be a no-op
+        // rather than failing on a duplicate ALTER.
+        let pool = legacy_v1_database().await;
+        run_migrations(&pool).await.unwrap();
+        run_migrations(&pool).await.unwrap();
+        assert_eq!(get_current_version(&pool).await.unwrap(), 2);
+    }
 }

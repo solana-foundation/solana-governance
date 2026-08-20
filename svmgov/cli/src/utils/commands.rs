@@ -402,8 +402,9 @@ fn print_proposals_table(proposals: &[(Pubkey, Proposal)], current_epoch: u64, c
         let status = ProposalPhase::new(&PhaseInputs::new(proposal, config), current_epoch).label();
 
         // Truncate title if too long
-        let title = if proposal.title.len() > 40 {
-            format!("{}...", &proposal.title[..37])
+        let title = if proposal.title.chars().count() > 40 {
+            let truncated: String = proposal.title.chars().take(37).collect();
+            format!("{truncated}...")
         } else {
             proposal.title.clone()
         };

@@ -20,6 +20,7 @@ import {
   getVoteAccountProof,
   getMetaMerkleProofPda,
   computeProofCloseTimestamp,
+  resolveProposalSnapshotSlot,
 } from "./helpers";
 
 /**
@@ -27,8 +28,7 @@ import {
  */
 export async function castVote(
   params: CastVoteParams,
-  blockchainParams: BlockchainParams,
-  slot: number | undefined
+  blockchainParams: BlockchainParams
 ): Promise<TransactionResult> {
   const {
     proposalId,
@@ -43,10 +43,6 @@ export async function castVote(
     throw new Error("Wallet not connected");
   }
 
-  if (slot === undefined) {
-    throw new Error("Slot is not defined");
-  }
-
   if (consensusResult === undefined) {
     throw new Error("Consensus result not defined");
   }
@@ -56,6 +52,8 @@ export async function castVote(
 
   const proposalPubkey = new PublicKey(proposalId);
   const program = createProgramWithWallet(wallet, blockchainParams.endpoint);
+  const proposalAccount = await program.account.proposal.fetch(proposalPubkey);
+  const slot = resolveProposalSnapshotSlot(proposalAccount.snapshotSlot);
 
   const voteAccounts = await program.provider.connection.getVoteAccounts();
   const validatorVoteAccount = voteAccounts.current.find(
@@ -110,8 +108,6 @@ export async function castVote(
   if (!merkleAccountInfo) {
     // Set close_timestamp to the proposal's vote expiry so the proof cannot be closed
     // permissionlessly while voting is open. See computeProofCloseTimestamp.
-    const proposalAccount =
-      await program.account.proposal.fetch(proposalPubkey);
     const closeTimestamp = await computeProofCloseTimestamp(
       program.provider.connection,
       proposalAccount.endEpoch.toNumber()

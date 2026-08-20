@@ -1,10 +1,11 @@
 //! Validation for the `--description` GitHub link on `create-proposal`.
 //!
 //! The on-chain program (`svmgov_program::utils::is_valid_github_link`) only checks that the
-//! description looks broadly like a GitHub URL: an `https://github.com/` prefix, 2-10 path
-//! segments, and characters limited to alphanumerics plus `-`, `_`, `.`. A pull request link
-//! such as `.../owner/repo/pull/3` is four clean segments, so it sails through — and then the
-//! frontend cannot resolve it to a proposal document.
+//! description must name the approved `solana-foundation/solana-governance-proposals` GitHub
+//! repository, have 2-10 path segments, contain no `..` traversal segment, and use only
+//! alphanumerics plus `-`, `_`, `.`. A pull request link such as `.../owner/repo/pull/3` is four
+//! clean segments, so it sails through the broad shape check — and then the frontend cannot
+//! resolve it to a proposal document.
 //!
 //! This module closes that gap client-side. It does NOT reimplement the on-chain rules; it is
 //! strictly stricter by construction, accepting only
@@ -20,6 +21,8 @@ use anyhow::{Result, anyhow};
 /// The exact prefix `is_valid_github_link` requires. A `www.` host or a
 /// `raw.githubusercontent.com` link would be rejected on chain, so they are rejected here.
 const GITHUB_PREFIX: &str = "https://github.com/";
+const PROPOSAL_OWNER: &str = "solana-foundation";
+const PROPOSAL_REPOSITORY: &str = "solana-governance-proposals";
 
 /// Mirrors `svmgov_program::utils::is_valid_github_link`.
 const MIN_PATH_SEGMENTS: usize = 2;
@@ -166,6 +169,12 @@ pub fn validate_description_structure(description: &str) -> Result<GithubLinkKin
         ));
     };
 
+    if !is_allowed_proposal_repo(owner, repo) {
+        return Err(anyhow!(
+            "`--description` must point to https://github.com/{PROPOSAL_OWNER}/{PROPOSAL_REPOSITORY}\n\n  got: {link}"
+        ));
+    }
+
     // 6
     let file_name = path.rsplit('/').next().unwrap_or_default();
     if !file_name.to_ascii_lowercase().ends_with(".md") {
@@ -183,11 +192,6 @@ pub fn validate_description_structure(description: &str) -> Result<GithubLinkKin
             "`{git_ref}` is a branch or tag. The description cannot be changed once it is on chain, \
              so a full commit SHA is safer against the branch moving or being deleted."
         );
-    }
-
-    // 10 — unknown repos are allowed; only the shape is enforced.
-    if !is_known_proposal_repo(owner, repo) {
-        log::warn!("{owner}/{repo} is not a recognized proposal repository");
     }
 
     // 11
@@ -295,9 +299,21 @@ fn assert_on_chain_compatible(link: &str) -> Result<()> {
     let path = link.trim_start_matches(GITHUB_PREFIX).trim_end_matches('/');
     let segments: Vec<&str> = path.split('/').collect();
 
+    if segments.get(0) != Some(&PROPOSAL_OWNER) || segments.get(1) != Some(&PROPOSAL_REPOSITORY) {
+        return Err(anyhow!(
+            "`--description` must point to https://github.com/{PROPOSAL_OWNER}/{PROPOSAL_REPOSITORY}\n\n  got: {link}"
+        ));
+    }
+
     if segments.iter().any(|segment| segment.is_empty()) {
         return Err(anyhow!(
             "`--description` contains an empty path segment; the on-chain program rejects it\n\n  got: {link}"
+        ));
+    }
+
+    if segments.iter().any(|segment| *segment == "..") {
+        return Err(anyhow!(
+            "`--description` contains a `..` path-traversal segment, which the on-chain program rejects\n\n  got: {link}"
         ));
     }
 
@@ -325,17 +341,8 @@ fn is_commit_sha(git_ref: &str) -> bool {
     git_ref.len() == 40 && git_ref.chars().all(|c| c.is_ascii_hexdigit())
 }
 
-fn is_known_proposal_repo(owner: &str, repo: &str) -> bool {
-    matches!(
-        (
-            owner.to_ascii_lowercase().as_str(),
-            repo.to_ascii_lowercase().as_str()
-        ),
-        (
-            "solana-foundation",
-            "solana-improvement-documents" | "solana-governance-proposals"
-        )
-    )
+fn is_allowed_proposal_repo(owner: &str, repo: &str) -> bool {
+    owner == PROPOSAL_OWNER && repo == PROPOSAL_REPOSITORY
 }
 
 /// `sgp-0001-title.md` -> `0001`, `0022-multi-stake.md` -> `0022`. Leading zeros are kept.
@@ -426,7 +433,7 @@ mod tests {
 
     #[test]
     fn accepts_real_proposal_links() {
-        for link in [SIMD_FILE, SGP_FILE] {
+        for link in [SGP_FILE] {
             assert!(
                 validate_description_structure(link).is_ok(),
                 "should accept {link}"
@@ -474,7 +481,7 @@ mod tests {
             ("https://github.com/o/r", "link to a file"),
             ("https://github.com/o/r/issues/12", "link to a file"),
             (
-                "https://github.com/o/r/blob/main/proposals/0001-x.txt",
+                "https://github.com/solana-foundation/solana-governance-proposals/blob/main/proposals/sgp-0001-x.txt",
                 ".md file",
             ),
             (
@@ -513,7 +520,7 @@ mod tests {
     #[test]
     fn rejects_characters_the_program_rejects() {
         let error = validate_description_structure(
-            "https://github.com/o/r/blob/main/proposals/0001%20x.md",
+            "https://github.com/solana-foundation/solana-governance-proposals/blob/main/proposals/sgp-0001%20x.md",
         )
         .unwrap_err()
         .to_string();
@@ -523,7 +530,7 @@ mod tests {
     #[test]
     fn rejects_paths_deeper_than_the_program_allows() {
         let link = format!(
-            "https://github.com/o/r/blob/main/{}/0001-x.md",
+            "https://github.com/solana-foundation/solana-governance-proposals/blob/main/{}/sgp-0001-x.md",
             ["deep"; 8].join("/")
         );
         let error = validate_description_structure(&link)
@@ -538,10 +545,9 @@ mod tests {
     #[test]
     fn accepted_links_satisfy_the_on_chain_rules() {
         let accepted = [
-            SIMD_FILE,
             SGP_FILE,
-            "https://github.com/o/r/blob/main/x.md",
-            "https://github.com/o/r/blob/main/a/b/c/d/e/f.md",
+            "https://github.com/solana-foundation/solana-governance-proposals/blob/main/x.md",
+            "https://github.com/solana-foundation/solana-governance-proposals/blob/main/a/b/c/d/e/f.md",
         ];
 
         for link in accepted {
@@ -608,17 +614,27 @@ mod tests {
     }
 
     #[test]
-    fn unknown_repos_are_accepted() {
+    fn only_the_governance_proposals_repository_is_accepted() {
         assert!(
             validate_description_structure(
                 "https://github.com/someone/fork/blob/main/proposals/sgp-0002-x.md"
             )
-            .is_ok()
+            .is_err()
         );
-        assert!(!is_known_proposal_repo("someone", "fork"));
-        assert!(is_known_proposal_repo(
+        assert!(!is_allowed_proposal_repo("someone", "fork"));
+        assert!(is_allowed_proposal_repo(
             "solana-foundation",
             "solana-governance-proposals"
         ));
+    }
+
+    #[test]
+    fn rejects_path_traversal() {
+        let error = validate_description_structure(
+            "https://github.com/solana-foundation/solana-governance-proposals/blob/main/../../attacker/repo.md",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("path-traversal"), "got: {error}");
     }
 }

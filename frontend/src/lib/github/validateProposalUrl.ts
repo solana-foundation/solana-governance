@@ -1,6 +1,6 @@
 import {
-  isKnownProposalRepo,
   parseProposalUrl,
+  SGP_REPO,
   type ParsedProposalUrl,
 } from "./proposalUrl";
 
@@ -9,6 +9,7 @@ export type ProposalUrlErrorCode =
   | "not-a-url"
   | "not-https"
   | "not-github"
+  | "not-allowed-repo"
   | "pull-request"
   | "tree-or-directory"
   | "not-markdown"
@@ -19,7 +20,6 @@ export type ProposalUrlErrorCode =
 
 export type ProposalUrlWarningCode =
   | "mutable-ref"
-  | "unknown-repo"
   | "unrecognized-filename";
 
 export interface ProposalUrlIssue<Code extends string> {
@@ -169,11 +169,13 @@ export function validateProposalUrl(url: string): ProposalUrlValidation {
     });
   }
 
-  // 10: unknown repos are allowed — only their shape is checked.
-  if (!isKnownProposalRepo(parsed.repo)) {
-    warnings.push({
-      code: "unknown-repo",
-      message: `${parsed.repo.owner}/${parsed.repo.repo} is not a recognized proposal repository.`,
+  // 10: descriptions are an on-chain trust boundary, so creation is limited to the
+  // repository the program accepts. Compare the raw case-sensitive components to mirror the
+  // program rather than treating GitHub's case-insensitive names as interchangeable.
+  if (`${parsed.repo.owner}/${parsed.repo.repo}` !== SGP_REPO) {
+    errors.push({
+      code: "not-allowed-repo",
+      message: `The link must point to https://github.com/${SGP_REPO}.`,
     });
   }
 
@@ -211,6 +213,10 @@ function describeOnChainViolation(url: string): string | undefined {
 
   if (segments.some((segment) => segment === "")) {
     return "The link contains an empty path segment, which the on-chain program rejects.";
+  }
+
+  if (segments.some((segment) => segment === "..")) {
+    return 'The link contains a ".." path-traversal segment, which the on-chain program rejects.';
   }
 
   if (
