@@ -22,8 +22,8 @@ path = "src/main.rs"
 [dependencies]
 anchor-client = "0.31.1"
 clap = { version = "4", features = ["derive", "env"] }
-ncn-ledger = { path = "../ledger" }
-ncn-merkle-tree = { path = "../merkle-tree" }
+ncn-ledger = { path = "../ledger", version = "0.4.0-40100" }
+ncn-merkle-tree = { path = "../merkle-tree", version = "0.4.0-40100" }
 solana-accounts-db            = { version = "=4.2.0", features = ["agave-unstable-api"] }
 solana-runtime                = { version = "=4.2.0", features = ["agave-unstable-api"] }
 solana-vote                   = { version = "=4.2.0", features = ["agave-unstable-api"] }

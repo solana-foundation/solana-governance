@@ -61,7 +61,7 @@ export BACKUP_SNAPSHOTS_DIR=/mnt/ledger/gov-backup-snapshots
 ```bash
 RUSTFLAGS="-C target-cpu=native" RAYON_NUM_THREADS=$(nproc) ZSTD_NBTHREADS=$(nproc) \
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
-cargo run --release --bin cli -- \
+cargo run --release --bin ncn-cli -- \
   await-snapshot \
   --scan-interval 1 \
   --slot <TARGET_SLOT> \
@@ -87,7 +87,7 @@ cargo run --release --bin cli -- \
 Extract the merkle root and snapshot hash from your generated snapshot:
 
 ```bash
-RUST_LOG=info cargo run --release --bin cli -- \
+RUST_LOG=info cargo run --release --bin ncn-cli -- \
   --authority-path <OPERATOR_KEYPAIR> \
   log-meta-merkle-hash \
   --read-path "$BACKUP_SNAPSHOTS_DIR"/meta_merkle-<TARGET_SLOT>.zip \
@@ -104,7 +104,7 @@ RUST_LOG=info cargo run --release --bin cli -- \
 
 **Option A — Vote from snapshot file (recommended):**
 ```bash
-RUST_LOG=info cargo run --release --bin cli -- \
+RUST_LOG=info cargo run --release --bin ncn-cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path <OPERATOR_KEYPAIR> \
   --rpc-url <YOUR_RPC_URL> \
@@ -115,7 +115,7 @@ RUST_LOG=info cargo run --release --bin cli -- \
 
 **Option B — Vote with root + hash directly:**
 ```bash
-RUST_LOG=info cargo run --release --bin cli -- \
+RUST_LOG=info cargo run --release --bin ncn-cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path <OPERATOR_KEYPAIR> \
   --rpc-url <YOUR_RPC_URL> \
@@ -134,7 +134,7 @@ RUST_LOG=info cargo run --release --bin cli -- \
 Check the BallotBox to confirm your vote was recorded:
 
 ```bash
-RUST_LOG=info cargo run --release --bin cli -- \
+RUST_LOG=info cargo run --release --bin ncn-cli -- \
   --rpc-url <YOUR_RPC_URL> \
   log --ty ballot-box \
   --snapshot-slot <TARGET_SLOT>
@@ -147,7 +147,7 @@ RUST_LOG=info cargo run --release --bin cli -- \
 Once consensus is reached (enough operators voted for the same ballot):
 
 ```bash
-RUST_LOG=info cargo run --release --bin cli -- \
+RUST_LOG=info cargo run --release --bin ncn-cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path <OPERATOR_KEYPAIR> \
   --rpc-url <YOUR_RPC_URL> \
@@ -166,7 +166,7 @@ Two conditions must both hold: consensus must not yet be reached, **and** the ba
 After expiry, votes can be neither cast nor removed. If consensus was never reached, the `tie_breaker_admin` may then select any ballot value to preserve liveness.
 
 ```bash
-RUST_LOG=info cargo run --release --bin cli -- \
+RUST_LOG=info cargo run --release --bin ncn-cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path <OPERATOR_KEYPAIR> \
   --rpc-url <YOUR_RPC_URL> \

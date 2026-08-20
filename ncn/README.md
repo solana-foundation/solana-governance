@@ -115,7 +115,7 @@ The CLI and verifier-service suites run from this directory with
 
 All commands assume:
 
-- You're running from project root using `RUST_LOG=info cargo run --bin cli -- ...`
+- You're running from project root using `RUST_LOG=info cargo run --bin ncn-cli -- ...`
   - `--payer-path` signs transactions
   - `--authority-path` signs Operator votes
 - Replace `~/.config/solana/id.json` with path to keypair file
@@ -127,14 +127,14 @@ Use `RUST_LOG=info` to enable logs.
 
 ```bash
 # Initialize ProgramConfig global singleton on-chain
-RUST_LOG=info cargo run --bin cli -- \
+RUST_LOG=info cargo run --bin ncn-cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url <RPC_URL> \
   init-program-config
 
 # Add or remove operators from whitelist
-RUST_LOG=info cargo run --bin cli -- \
+RUST_LOG=info cargo run --bin ncn-cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url <RPC_URL> \
@@ -142,7 +142,7 @@ RUST_LOG=info cargo run --bin cli -- \
 
 # Update config (all arguments are optional):
 # threshold, vote duration, tie-breaker-admin, proposed authority (two-step)
-RUST_LOG=info cargo run --bin cli -- \
+RUST_LOG=info cargo run --bin ncn-cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url <RPC_URL> \
@@ -153,7 +153,7 @@ RUST_LOG=info cargo run --bin cli -- \
   --proposed-authority <NEW_ADMIN_PUBKEY>
 
 # Finalize proposed authority (run as the proposed authority)
-RUST_LOG=info cargo run --bin cli -- \
+RUST_LOG=info cargo run --bin ncn-cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path <PATH_TO_PROPOSED_AUTHORITY_KEYPAIR> \
   --rpc-url <RPC_URL> \
@@ -174,7 +174,7 @@ Environment variables affecting snapshot IO:
 # Increase file descriptor limit to with `ulimit -n 1000000` if needed,
 RUSTFLAGS="-C target-cpu=native" RAYON_NUM_THREADS=$(nproc) ZSTD_NBTHREADS=$(nproc) \
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
-cargo run --release --bin cli -- \
+cargo run --release --bin ncn-cli -- \
   --ledger-path /mnt/ledger \
   --full-snapshots-path /mnt/ledger/snapshots \
   --backup-snapshots-dir /mnt/ledger/snapshots \
@@ -188,7 +188,7 @@ TMPDIR=/mnt/ledger/gov-tmp \
 RUSTFLAGS="-C target-cpu=native" \
 RAYON_NUM_THREADS=$(nproc) ZSTD_NBTHREADS=$(nproc) \
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
-cargo run --release --bin cli -- \
+cargo run --release --bin ncn-cli -- \
   --ledger-path /mnt/ledger \
   --account-paths /mnt/ledger/gov-tmp/accounts \
   --backup-snapshots-dir /mnt/ledger/backup \
@@ -199,13 +199,13 @@ TMPDIR=/tmp \
 RUSTFLAGS="-C target-cpu=native" \
 RAYON_NUM_THREADS=$(sysctl -n hw.ncpu) ZSTD_NBTHREADS=$(sysctl -n hw.ncpu) \
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
-cargo run --release --bin cli -- \
+cargo run --release --bin ncn-cli -- \
   --ledger-path test-ledger \
   --backup-snapshots-dir test-ledger/backup-snapshots \
   generate-meta-merkle --slot 340850340
 
 # Log Merkle root, hash,' and operator signature from snapshot file
-RUST_LOG=info cargo run --bin cli -- --authority-path ~/.config/solana/id.json log-meta-merkle-hash  --read-path ./meta_merkle-367628001.zip --is-compressed
+RUST_LOG=info cargo run --bin ncn-cli -- --authority-path ~/.config/solana/id.json log-meta-merkle-hash  --read-path ./meta_merkle-367628001.zip --is-compressed
 ```
 
 #### Await Snapshot (RECOMMENDED)
@@ -219,7 +219,7 @@ Example:
 ```bash
 RUSTFLAGS="-C target-cpu=native" RAYON_NUM_THREADS=$(nproc) ZSTD_NBTHREADS=$(nproc) \
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
-cargo run --release --bin cli -- \
+cargo run --release --bin ncn-cli -- \
   await-snapshot \
   --scan-interval 1 \
   --slot 368478463 \
@@ -235,17 +235,17 @@ cargo run --release --bin cli -- \
 
 ````bash
 # Log ProgramConfig
-RUST_LOG=info cargo run --bin cli -- \
+RUST_LOG=info cargo run --bin ncn-cli -- \
   --rpc-url <RPC_URL> log \
   --ty program-config
 
 # Log BallotBox (by snapshot_slot)
-RUST_LOG=info cargo run --bin cli -- \
+RUST_LOG=info cargo run --bin ncn-cli -- \
   --rpc-url <RPC_URL> log \
   --ty ballot-box --snapshot-slot <SLOT>
 
 # Log ConsensusResult (by snapshot_slot)
-RUST_LOG=info cargo run --bin cli -- \
+RUST_LOG=info cargo run --bin ncn-cli -- \
   --rpc-url <RPC_URL> log \
   --ty consensus-result --snapshot-slot <SLOT>
 
@@ -255,7 +255,7 @@ RUST_LOG=info cargo run --bin cli -- \
 
 ```bash
 # Vote with root + hash
-RUST_LOG=info cargo run --bin cli -- \
+RUST_LOG=info cargo run --bin ncn-cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url <RPC_URL> \
@@ -264,7 +264,7 @@ RUST_LOG=info cargo run --bin cli -- \
   --hash 4seYTnZyZNby5ZQTy8ajAapDiMgUYrvYx4hzYRXVn4zH
 
 # Vote using a snapshot file
-RUST_LOG=info cargo run --bin cli -- \
+RUST_LOG=info cargo run --bin ncn-cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url <RPC_URL> \
@@ -272,7 +272,7 @@ RUST_LOG=info cargo run --bin cli -- \
   --read-path ./meta_merkle-340850340.zip
 
 # Remove vote (before consensus and voting expiry)
-RUST_LOG=info cargo run --bin cli -- \
+RUST_LOG=info cargo run --bin ncn-cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url <RPC_URL> \
@@ -285,7 +285,7 @@ RUST_LOG=info cargo run --bin cli -- \
 
 ```bash
 # Finalize winning ballot (after consensus)
-RUST_LOG=info cargo run --bin cli -- \
+RUST_LOG=info cargo run --bin ncn-cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url <RPC_URL> \
@@ -293,7 +293,7 @@ RUST_LOG=info cargo run --bin cli -- \
 
 # Set tie-breaking result if consensus was not reached
 # Note: Can set any ballot value, not limited to existing ballots
-RUST_LOG=info cargo run --bin cli -- \
+RUST_LOG=info cargo run --bin ncn-cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url <RPC_URL> \
@@ -301,7 +301,7 @@ RUST_LOG=info cargo run --bin cli -- \
   --root <MERKLE_ROOT> --hash <SNAPSHOT_HASH>
 
 # Reset ballot box if bricked (before expiry, consensus not reached, tallies at max)
-RUST_LOG=info cargo run --bin cli -- \
+RUST_LOG=info cargo run --bin ncn-cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url <RPC_URL> \
@@ -362,13 +362,13 @@ solana-test-validator
 2. Run CLI for generating ledger snapshot for a slot (e.g. 100)
 
 ```
-RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots snapshot-slot --slot 100
+RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin ncn-cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots snapshot-slot --slot 100
 ```
 
 3. Run CLI for generating the MeteMerkleSnapshot from the ledger snapshot
 
 ```
-RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots generate-meta-merkle --slot 340850340
+RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin ncn-cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots generate-meta-merkle --slot 340850340
 ```
 
 ### To generate MetaMerkleSnapshot from testnet snapshots.
@@ -410,5 +410,5 @@ find test-ledger -mindepth 1 -maxdepth 1 \
 ```bash
 # (DEV MODE - Use Release Mode for production snapshots)
 # Generates MetaMerkleSnapshot from the Solana ledger snapshot and stores at save path.
-RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots generate-meta-merkle --slot 340850340 --save-path ./
+RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin ncn-cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots generate-meta-merkle --slot 340850340 --save-path ./
 ```
