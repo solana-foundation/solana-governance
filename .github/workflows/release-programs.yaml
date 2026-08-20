@@ -102,7 +102,7 @@ jobs:
           auth-method: oidc
           doppler-identity-id: ${{ vars.DOPPLER_SERVICE_IDENTITY_ID }}
           doppler-project: solana-governance
-          doppler-config: ${{ inputs.network == 'mainnet' && 'prd_github' || 'stg_github' }}
+          doppler-config: ${{ inputs.network == 'mainnet' && 'prd' || 'stg' }}
           inject-env-vars: true
 
       - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
