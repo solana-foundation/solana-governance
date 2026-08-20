@@ -233,7 +233,7 @@ jobs:
       - if: inputs.network == 'mainnet'
         name: Confirm mainnet buffer handoff
         run: |
-          : "${SQUADS_VAULT:?Set SQUADS_VAULT in Doppler prd_github}"
+          : "${SQUADS_VAULT:?Set SQUADS_VAULT in Doppler prd}"
           echo "Program buffer authority assigned to Squads vault: $SQUADS_VAULT"
           echo "IDL metadata buffer authority assigned to Squads vault: $SQUADS_VAULT"
 
