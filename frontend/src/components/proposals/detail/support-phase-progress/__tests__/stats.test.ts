@@ -1,11 +1,11 @@
 import { computeSupportStats } from "../stats";
 
-const TOTAL = 100_000_000_000;
+const TOTAL = 100_000_000_000n;
 
 const base = {
-  currentSupportLamports: 0,
+  currentSupportLamports: 0n,
   totalStakedLamports: TOTAL,
-  thresholdPercent: 15,
+  thresholdPercent: "15",
   validatorCount: 0,
   numOfValidators: 100,
 };
@@ -15,21 +15,21 @@ describe("computeSupportStats", () => {
     // 9% of stake against a 15% threshold is 60% of the way there.
     const stats = computeSupportStats({
       ...base,
-      currentSupportLamports: TOTAL * 0.09,
+      currentSupportLamports: TOTAL * 9n / 100n,
     });
     expect(stats.progressPercent).toBeCloseTo(60, 10);
     expect(stats.supportPercentOfTotal).toBeCloseTo(9, 10);
     expect(stats.isThresholdMet).toBe(false);
-    expect(stats.remainingLamports).toBeCloseTo(TOTAL * 0.06, 0);
+    expect(stats.remainingLamports).toBe(TOTAL * 6n / 100n);
   });
 
   it("meets the threshold exactly at the configured percentage", () => {
     const stats = computeSupportStats({
       ...base,
-      currentSupportLamports: TOTAL * 0.15,
+      currentSupportLamports: TOTAL * 15n / 100n,
     });
     expect(stats.isThresholdMet).toBe(true);
-    expect(stats.remainingLamports).toBe(0);
+    expect(stats.remainingLamports).toBe(0n);
   });
 
   it("does not report success before validator stake is known", () => {
@@ -38,8 +38,8 @@ describe("computeSupportStats", () => {
     // showed "Support threshold reached! Proposal advancing to next phase."
     const stats = computeSupportStats({
       ...base,
-      currentSupportLamports: TOTAL * 0.01,
-      totalStakedLamports: 0,
+      currentSupportLamports: TOTAL / 100n,
+      totalStakedLamports: 0n,
     });
     expect(stats.isThresholdMet).toBe(false);
     expect(stats.progressPercent).toBe(0);
@@ -53,10 +53,10 @@ describe("computeSupportStats", () => {
     // agreement instead of reporting unmet for a legitimate config.
     const stats = computeSupportStats({
       ...base,
-      thresholdPercent: 0,
-      currentSupportLamports: 1,
+      thresholdPercent: "0",
+      currentSupportLamports: 1n,
     });
-    expect(stats.requiredThresholdLamports).toBe(0);
+    expect(stats.requiredThresholdLamports).toBe(0n);
     expect(stats.isThresholdMet).toBe(true);
   });
 
@@ -64,9 +64,9 @@ describe("computeSupportStats", () => {
     // The two zero-threshold causes must not collapse into one another.
     const stats = computeSupportStats({
       ...base,
-      thresholdPercent: 0,
-      totalStakedLamports: 0,
-      currentSupportLamports: 1,
+      thresholdPercent: "0",
+      totalStakedLamports: 0n,
+      currentSupportLamports: 1n,
     });
     expect(stats.isThresholdMet).toBe(false);
   });
@@ -80,24 +80,24 @@ describe("computeSupportStats", () => {
       numOfValidators: 0,
     });
     expect(stats.participationPercent).toBe(0);
-    expect(stats.avgStakePerValidator).toBe(0);
+    expect(stats.avgStakePerValidator).toBe(0n);
   });
 
   it("reports participation against the validator count", () => {
     const stats = computeSupportStats({
       ...base,
-      currentSupportLamports: TOTAL * 0.2,
+      currentSupportLamports: TOTAL / 5n,
       validatorCount: 25,
       numOfValidators: 100,
     });
     expect(stats.participationPercent).toBe(25);
-    expect(stats.avgStakePerValidator).toBeCloseTo((TOTAL * 0.2) / 25, 0);
+    expect(stats.avgStakePerValidator).toBe(TOTAL / 5n / 25n);
   });
 
   it("allows progress to exceed 100% once the threshold is passed", () => {
     const stats = computeSupportStats({
       ...base,
-      currentSupportLamports: TOTAL * 0.3,
+      currentSupportLamports: TOTAL * 3n / 10n,
     });
     expect(stats.progressPercent).toBeCloseTo(200, 10);
     expect(stats.isThresholdMet).toBe(true);
@@ -111,30 +111,30 @@ describe("computeSupportStats", () => {
       // with tens of thousands of SOL "missing".
       const stats = computeSupportStats({
         ...base,
-        currentSupportLamports: TOTAL * 0.1499,
+        currentSupportLamports: TOTAL * 1499n / 10_000n,
         thresholdCrossed: true,
       });
       expect(stats.isThresholdMet).toBe(true);
       expect(stats.progressPercent).toBe(100);
-      expect(stats.remainingLamports).toBe(0);
+      expect(stats.remainingLamports).toBe(0n);
     });
 
     it("reports met even while live stake is unknown", () => {
       // The chain's verdict does not depend on the validator query resolving.
       const stats = computeSupportStats({
         ...base,
-        totalStakedLamports: 0,
+        totalStakedLamports: 0n,
         thresholdCrossed: true,
       });
       expect(stats.isThresholdMet).toBe(true);
       expect(stats.progressPercent).toBe(100);
-      expect(stats.remainingLamports).toBe(0);
+      expect(stats.remainingLamports).toBe(0n);
     });
 
     it("does not cap live progress that already exceeds 100%", () => {
       const stats = computeSupportStats({
         ...base,
-        currentSupportLamports: TOTAL * 0.3,
+        currentSupportLamports: TOTAL * 3n / 10n,
         thresholdCrossed: true,
       });
       expect(stats.progressPercent).toBeCloseTo(200, 10);
@@ -143,12 +143,12 @@ describe("computeSupportStats", () => {
     it("changes nothing while the proposal has not crossed", () => {
       const stats = computeSupportStats({
         ...base,
-        currentSupportLamports: TOTAL * 0.1499,
+        currentSupportLamports: TOTAL * 1499n / 10_000n,
         thresholdCrossed: false,
       });
       expect(stats.isThresholdMet).toBe(false);
       expect(stats.progressPercent).toBeCloseTo(99.9333, 3);
-      expect(stats.remainingLamports).toBeCloseTo(TOTAL * 0.0001, 0);
+      expect(stats.remainingLamports).toBe(TOTAL / 10_000n);
     });
   });
 });

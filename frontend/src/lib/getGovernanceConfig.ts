@@ -9,13 +9,13 @@ export interface GovernanceConfigDto {
   admin: string;
   maxTitleLength: number;
   maxDescriptionLength: number;
-  maxSupportEpochs: number;
-  minProposalStakeLamports: number;
-  clusterSupportPctMinBps: number;
-  discussionEpochs: number;
-  votingEpochs: number;
-  snapshotEpochExtension: number;
-  snapshotSlotOffset: number;
+  maxSupportEpochs: bigint;
+  minProposalStakeLamports: bigint;
+  clusterSupportPctMinBps: bigint;
+  discussionEpochs: bigint;
+  votingEpochs: bigint;
+  snapshotEpochExtension: bigint;
+  snapshotSlotOffset: bigint;
   maxSupporters: number;
   bump: number;
 }
@@ -24,7 +24,6 @@ export interface GovernanceConfigDto {
 export function toGovernanceConfigDto(
   account: GlobalConfig,
 ): GovernanceConfigDto {
-  const n = (v: bigint) => Number(v);
   return {
     admin: account.admin,
     // TODO: revisit this, once global config account is initialized
@@ -33,13 +32,13 @@ export function toGovernanceConfigDto(
     // TODO: revisit this, once global config account is initialized
     //   we cant simply default to 0, since we will be using this in FE validations
     maxDescriptionLength: account.maxDescriptionLength ?? 0,
-    maxSupportEpochs: n(account.maxSupportEpochs),
-    minProposalStakeLamports: n(account.minProposalStakeLamports),
-    clusterSupportPctMinBps: n(account.clusterSupportPctMinBps),
-    discussionEpochs: n(account.discussionEpochs),
-    votingEpochs: n(account.votingEpochs),
-    snapshotEpochExtension: n(account.snapshotEpochExtension),
-    snapshotSlotOffset: n(account.snapshotSlotOffset),
+    maxSupportEpochs: account.maxSupportEpochs,
+    minProposalStakeLamports: account.minProposalStakeLamports,
+    clusterSupportPctMinBps: account.clusterSupportPctMinBps,
+    discussionEpochs: account.discussionEpochs,
+    votingEpochs: account.votingEpochs,
+    snapshotEpochExtension: account.snapshotEpochExtension,
+    snapshotSlotOffset: account.snapshotSlotOffset,
     maxSupporters: account.maxSupporters,
     bump: account.bump,
   };

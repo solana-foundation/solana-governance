@@ -1,7 +1,6 @@
 import { SupportAccountData } from "@/types";
 import { createSolanaRpc, type Address } from "@solana/kit";
 import { fetchSupports } from "@/lib/governance/programAccounts";
-import { toLegacyPublicKey } from "@/lib/governance/legacyAdapters";
 
 interface GetSupportFilter {
   name: "proposal" | "validator";
@@ -31,9 +30,9 @@ export const getSupportAccounts = async (
     validator: values.validator as Address | undefined,
   });
   return supportAccs.map(({ address, data }) => ({
-    publicKey: toLegacyPublicKey(address),
-    proposal: toLegacyPublicKey(data.proposal),
-    validator: toLegacyPublicKey(data.validator),
+    publicKey: address,
+    proposal: data.proposal,
+    validator: data.validator,
     bump: data.bump,
   }));
 };

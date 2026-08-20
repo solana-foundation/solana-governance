@@ -8,12 +8,12 @@ import {
 } from "./ui";
 import { formatAddress } from "@/lib/governance/formatters";
 import { Loader2 } from "lucide-react";
-import type { LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
+import type { Address } from "@solana/kit";
 import { toast } from "sonner";
 
 interface VotingProposalsDropdownProps {
   value?: string;
-  onValueChange: (proposalid: string, consensusResult: PublicKey) => void;
+  onValueChange: (proposalid: string, consensusResult: Address) => void;
   disabled?: boolean;
 }
 
@@ -30,7 +30,7 @@ export const VotingProposalsDropdown = ({
   const handleChange = (value: string) => {
     if (proposals) {
       const consensusResult = proposals.find(
-        (p) => p.publicKey.toBase58() === value
+        (p) => p.publicKey === value
       )?.consensusResult;
 
       if (consensusResult) {
@@ -66,11 +66,11 @@ export const VotingProposalsDropdown = ({
         <SelectContent className="text-white bg-background/40 backdrop-blur">
           {proposals?.map((proposal) => (
             <SelectItem
-              key={proposal.publicKey.toBase58()}
-              value={proposal.publicKey.toBase58()}
+              key={proposal.publicKey}
+              value={proposal.publicKey}
             >
               {proposal.title} -&nbsp;{" "}
-              {formatAddress(proposal.publicKey.toBase58())}
+              {formatAddress(proposal.publicKey)}
             </SelectItem>
           ))}
         </SelectContent>

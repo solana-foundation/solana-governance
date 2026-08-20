@@ -106,8 +106,8 @@ export function TopVoters() {
     downloadCsvData(validators || []);
   };
 
-  const formatNumber = (num: number) => {
-    return num.toLocaleString();
+  const formatNumber = (num: bigint) => {
+    return num.toString();
   };
 
   const debouncedSearch = useDebounceCallback(setSearchQuery, 500);

@@ -22,7 +22,7 @@ export function mapStakeAccountDto(
   return {
     id: index.toString(),
     voteAccount: raw.voter ?? undefined,
-    activeStake: Number(raw.activeStakeLamports),
+    activeStake: raw.activeStakeLamports,
     stakeAccount: raw.address,
     state: raw.state,
   };

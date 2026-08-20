@@ -67,7 +67,7 @@ export function DashboardStats({
   const voteAccountsCount = 321;
 
   const totalStaked =
-    stakeAccounts?.reduce((acc, curr) => acc + curr.activeStake, 0) || 0;
+    stakeAccounts?.reduce((acc, curr) => acc + curr.activeStake, 0n) || 0n;
   // Left undefined when the validator query has not resolved; formatOptionalCount
   // renders "-" rather than a "0" that reads as a real count.
   const activeValidators = validators?.length;

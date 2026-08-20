@@ -73,7 +73,7 @@ describe("Kit bigint query keys", () => {
   });
 
   it("allows epoch-to-date queries to use a Kit epoch value", async () => {
-    const { result } = renderHook(() => useEpochToDate(124), { wrapper });
+    const { result } = renderHook(() => useEpochToDate(124n), { wrapper });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
   });

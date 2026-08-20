@@ -7,7 +7,7 @@ import {
 } from "../role-detection";
 
 const chainVoteAccount: ChainVoteAccountData = {
-  activeStake: 1_000,
+  activeStake: 1_000n,
   nodePubkey: "validator-wallet",
   voteAccount: "validator-vote-account",
 };

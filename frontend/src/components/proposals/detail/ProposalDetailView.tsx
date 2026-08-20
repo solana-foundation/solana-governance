@@ -45,7 +45,7 @@ export default function ProposalDetailView({
           {isSupporting && (
             <div className="md:hidden">
               <SupportProposalSection
-                proposalId={proposal?.publicKey?.toBase58()}
+                proposalId={proposal?.publicKey}
                 proposalStatus={proposal?.status}
                 disabled={!isConnected}
               />
@@ -56,7 +56,7 @@ export default function ProposalDetailView({
             {/* Supporting phase: show on tablet and desktop */}
             {isSupporting && (
               <SupportProposalSection
-                proposalId={proposal?.publicKey?.toBase58()}
+                proposalId={proposal?.publicKey}
                 proposalStatus={proposal?.status}
                 disabled={!isConnected}
                 className="hidden md:flex"
@@ -65,7 +65,7 @@ export default function ProposalDetailView({
             {/* Discussion phase: show only on desktop with discussion variant */}
             {isDiscussion && (
               <SupportProposalSection
-                proposalId={proposal?.publicKey?.toBase58()}
+                proposalId={proposal?.publicKey}
                 proposalStatus={proposal?.status}
                 variant="discussion"
                 className="hidden xl:flex"
@@ -74,7 +74,7 @@ export default function ProposalDetailView({
             {/* Failed status: show only on desktop with failed variant */}
             {isFailed && (
               <SupportProposalSection
-                proposalId={proposal?.publicKey?.toBase58()}
+                proposalId={proposal?.publicKey}
                 proposalStatus={proposal?.status}
                 variant="failed"
                 className="hidden xl:flex"
@@ -94,7 +94,7 @@ export default function ProposalDetailView({
             <VoteBreakdown proposal={proposal} isLoading={isLoading} />
             {isFinalized ? (
               <SupportProposalSection
-                proposalId={proposal?.publicKey?.toBase58()}
+                proposalId={proposal?.publicKey}
                 proposalStatus={proposal?.status}
                 variant="finalized"
                 className="hidden md:flex"

@@ -26,7 +26,7 @@ const VOTE_ACCOUNT = "Vote111111111111111111111111111111111111111";
 const IDENTITY = "Node1111111111111111111111111111111111111111";
 
 /** RPC stake is an integer in lamports; StakeWiz reports SOL as a float. */
-const RPC_STAKE_LAMPORTS = 5_123_456_789_012_345;
+const RPC_STAKE_LAMPORTS = 5_123_456_789_012_345n;
 
 function voteAccounts() {
   return {
@@ -51,7 +51,7 @@ function stakeWiz() {
         name: "Real Validator",
         vote_identity: VOTE_ACCOUNT,
         // Same stake expressed in SOL, as StakeWiz reports it.
-        activated_stake: RPC_STAKE_LAMPORTS / 1e9,
+        activated_stake: 5_123_456,
         commission: 5,
         epoch_credits: 123,
         last_vote: 999,

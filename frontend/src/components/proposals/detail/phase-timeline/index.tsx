@@ -23,9 +23,9 @@ interface PhaseTimelineProps {
 
 function getActivePhaseEndEpoch(
   phase: ProposalRecord["status"] | undefined,
-  supportEndEpoch: number | undefined,
-  discussionEndEpoch: number | undefined,
-  votingEndEpoch: number | undefined
+  supportEndEpoch: bigint | undefined,
+  discussionEndEpoch: bigint | undefined,
+  votingEndEpoch: bigint | undefined
 ) {
   switch (phase) {
     case "supporting":
@@ -58,10 +58,10 @@ export default function PhaseTimeline({
     : undefined;
   // Once voting is scheduled on-chain, the proposal's endEpoch is definitive.
   const votingEndEpoch =
-    proposal?.voting && proposal.endEpoch > 0
+    proposal?.voting && proposal.endEpoch > 0n
       ? proposal.endEpoch
       : phaseEpochs
-        ? phaseEpochs.snapshotEpoch + (epochConstants?.VOTING_EPOCHS ?? 0)
+        ? phaseEpochs.snapshotEpoch + (epochConstants?.VOTING_EPOCHS ?? 0n)
         : undefined;
 
   const activePhaseEndEpoch = getActivePhaseEndEpoch(
@@ -72,7 +72,7 @@ export default function PhaseTimeline({
   );
 
   const { data: activePhaseEndsAt } = useEpochToDate(activePhaseEndEpoch);
-  const currentEpoch = epochData ? Number(epochData.epochInfo.epoch) : undefined;
+  const currentEpoch = epochData?.epochInfo.epoch;
   const remainingTime = activePhaseEndsAt
     ? calculateVotingEndsIn(activePhaseEndsAt.toISOString()) ?? "-"
     : "-";

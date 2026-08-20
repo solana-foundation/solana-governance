@@ -28,14 +28,14 @@ import {
   formatLamportsDisplay,
 } from "@/lib/governance/formatters";
 import { VotingProposalsDropdown } from "../VotingProposalsDropdown";
-import type { LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
+import type { Address } from "@solana/kit";
 import { captureException } from "@sentry/nextjs";
 import RequirementItem from "./shared/RequirementItem";
 
 export type CastVoteModalDataProps =
   | {
       proposalId: string;
-      consensusResult: PublicKey;
+      consensusResult: Address;
       initialVoteDist?: VoteDistribution;
     }
   | {
@@ -94,7 +94,7 @@ export function CastVoteModal({
 
   const handleProposalChange = (
     proposalId: string,
-    consensusResult: PublicKey
+    consensusResult: Address
   ) => {
     setSelectedProposal({ id: proposalId, consensusResult });
   };

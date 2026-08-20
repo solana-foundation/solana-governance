@@ -1,6 +1,7 @@
 import { useGetValidators } from "./useGetValidators";
 import { useVotes } from "./useVotes";
 import { useQuery } from "@tanstack/react-query";
+import { bigintToSafeNumber } from "@/helpers/bigint";
 
 type ValidatorVoteIdentity = string;
 
@@ -30,7 +31,7 @@ export const useValidatorsVoterSplits = () => {
       // we need to compute each validators Voter Split (average yes/no/abstain/undecided of ALL votes)
       const voteSums: Record<
         ValidatorVoteIdentity,
-        { for: number; against: number; abstain: number; count: number }
+        { for: bigint; against: bigint; abstain: bigint; count: bigint }
       > = {};
       const votesLatestTimestamp: Record<ValidatorVoteIdentity, number> = {};
       const votesCount: Record<ValidatorVoteIdentity, number> = {};
@@ -43,7 +44,7 @@ export const useValidatorsVoterSplits = () => {
 
             // compute latest timestamp for this validator and vote
             const { voteTimestamp } = data;
-            const parsedVoteTimestamp = Number(voteTimestamp) * 1000;
+            const parsedVoteTimestamp = bigintToSafeNumber(voteTimestamp, "vote timestamp") * 1000;
             if (
               !votesLatestTimestamp[vote_identity] ||
               parsedVoteTimestamp > votesLatestTimestamp[vote_identity]
@@ -55,17 +56,17 @@ export const useValidatorsVoterSplits = () => {
 
             if (!voteSums[vote_identity]) {
               voteSums[vote_identity] = {
-                for: 0,
-                against: 0,
-                abstain: 0,
-                count: 0,
+                for: 0n,
+                against: 0n,
+                abstain: 0n,
+                count: 0n,
               };
             }
 
-            voteSums[vote_identity].for += Number(data.forVotesBp);
-            voteSums[vote_identity].against += Number(data.againstVotesBp);
-            voteSums[vote_identity].abstain += Number(data.abstainVotesBp);
-            voteSums[vote_identity].count += 1;
+            voteSums[vote_identity].for += data.forVotesBp;
+            voteSums[vote_identity].against += data.againstVotesBp;
+            voteSums[vote_identity].abstain += data.abstainVotesBp;
+            voteSums[vote_identity].count += 1n;
 
             if (!votesCount[vote_identity]) {
               votesCount[vote_identity] = 0;
@@ -88,13 +89,14 @@ export const useValidatorsVoterSplits = () => {
         const avgFor = f / count;
         const avgAgainst = a / count;
         const avgAbstain = ab / count;
-        const undecided = 10000 - (avgFor + avgAgainst + avgAbstain);
+        const undecided = 10000n - (avgFor + avgAgainst + avgAbstain);
 
         result[vote_identity] = {
-          yes: avgFor / 100,
-          no: avgAgainst / 100,
-          abstain: avgAbstain / 100,
-          undecided: undecided / 100,
+          // These are derived protocol-bounded percentages, not chain values.
+          yes: Number((avgFor / 100n).toString()),
+          no: Number((avgAgainst / 100n).toString()),
+          abstain: Number((avgAbstain / 100n).toString()),
+          undecided: Number((undecided / 100n).toString()),
         };
       }
 

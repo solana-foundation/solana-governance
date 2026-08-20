@@ -79,7 +79,7 @@ const getValidators = async (endpoint: string): Promise<Validators> => {
       vote_identity: vote.votePubkey,
       identity: vote.nodePubkey,
       commission: vote.commission,
-      epoch_credits: vote.epochCredits?.[0]?.[0] || 0,
+      epoch_credits: vote.epochCredits?.[0]?.[0] || 0n,
       last_vote: vote.lastVote,
     };
     return unknownValidator;

@@ -1,7 +1,6 @@
 import { VoteAccountData } from "@/types";
 import { createSolanaRpc, type Address } from "@solana/kit";
 import { fetchVotes, type Vote } from "@/lib/governance/programAccounts";
-import { toLegacyBn, toLegacyPublicKey } from "@/lib/governance/legacyAdapters";
 
 /**
  * Fetches a validator's vote account for a specific proposal
@@ -44,10 +43,10 @@ export const getValidatorProposalVoteAccount = async (
  */
 function mapVoteAccountDto(raw: Vote): VoteAccountData {
   return {
-    validator: toLegacyPublicKey(raw.validator), proposal: toLegacyPublicKey(raw.proposal),
-    forVotesBp: toLegacyBn(raw.forVotesBp), againstVotesBp: toLegacyBn(raw.againstVotesBp), abstainVotesBp: toLegacyBn(raw.abstainVotesBp),
-    forVotesLamports: toLegacyBn(raw.forVotesLamports), againstVotesLamports: toLegacyBn(raw.againstVotesLamports), abstainVotesLamports: toLegacyBn(raw.abstainVotesLamports),
-    stake: toLegacyBn(raw.stake), overrideLamports: toLegacyBn(raw.overrideLamports), voteTimestamp: toLegacyBn(raw.voteTimestamp),
+    validator: raw.validator, proposal: raw.proposal,
+    forVotesBp: raw.forVotesBp, againstVotesBp: raw.againstVotesBp, abstainVotesBp: raw.abstainVotesBp,
+    forVotesLamports: raw.forVotesLamports, againstVotesLamports: raw.againstVotesLamports, abstainVotesLamports: raw.abstainVotesLamports,
+    stake: raw.stake, overrideLamports: raw.overrideLamports, voteTimestamp: raw.voteTimestamp,
     bump: raw.bump,
   };
 }

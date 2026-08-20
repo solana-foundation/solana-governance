@@ -9,6 +9,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { AppButton } from "@/components/ui/AppButton";
+import { bigintToSafeNumber } from "@/helpers/bigint";
 import ErrorMessage from "./shared/ErrorMessage";
 import { VoteDistributionControls } from "./shared/VoteDistributionControls";
 import {
@@ -24,14 +25,14 @@ import { useWalletSession } from "@/contexts/WalletSessionContext";
 import { FormEvent, useEffect, useState } from "react";
 import { useModifyVoteOverride } from "@/hooks";
 import { GetVoteOverrideFilters } from "@/data";
-import type { LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
+import type { Address } from "@solana/kit";
 import { StakeAccountsDropdown } from "../StakeAccountsDropdown";
 import { VotingProposalsDropdown } from "../VotingProposalsDropdown";
 import { captureException } from "@sentry/nextjs";
 
 interface OverrideVoteModalProps {
   proposalId?: string;
-  consensusResult?: PublicKey;
+  consensusResult?: Address;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -116,13 +117,15 @@ export function ModifyOverrideVoteModal({
   useEffect(() => {
     if (selectedStakeAccount) {
       const selectedStakeAccountVote = voteOverrideAccounts.find(
-        (voa) => voa.stakeAccount.toBase58() === selectedStakeAccount
+        (voa) => voa.stakeAccount === selectedStakeAccount
       );
       if (selectedStakeAccountVote) {
         const voteDistribution: VoteDistribution = {
-          for: selectedStakeAccountVote.forVotesBp.toNumber() / 100,
-          against: selectedStakeAccountVote.againstVotesBp.toNumber() / 100,
-          abstain: selectedStakeAccountVote.abstainVotesBp.toNumber() / 100,
+          // Form controls require numbers; protocol-bounded basis points are
+          // checked before crossing this presentation-only boundary.
+          for: bigintToSafeNumber(selectedStakeAccountVote.forVotesBp, "for vote basis points") / 100,
+          against: bigintToSafeNumber(selectedStakeAccountVote.againstVotesBp, "against vote basis points") / 100,
+          abstain: bigintToSafeNumber(selectedStakeAccountVote.abstainVotesBp, "abstain vote basis points") / 100,
         };
         setInitialVoteDist(voteDistribution);
       }
@@ -140,7 +143,7 @@ export function ModifyOverrideVoteModal({
 
   const handleProposalChange = (
     proposalId: string,
-    consensusResult: PublicKey
+    consensusResult: Address
   ) => {
     setSelectedProposal({ id: proposalId, consensusResult });
   };
@@ -295,7 +298,7 @@ export function ModifyOverrideVoteModal({
                       (sa) =>
                         !voteOverrideAccounts.some(
                           (voa) =>
-                            voa.stakeAccount.toBase58() === sa.stakeAccount
+                            voa.stakeAccount === sa.stakeAccount
                         )
                     )
                     .map((sa) => sa.stakeAccount)}

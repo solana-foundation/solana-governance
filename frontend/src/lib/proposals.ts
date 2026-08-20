@@ -1,12 +1,12 @@
 import type { GovernanceConfigDto } from "@/lib/getGovernanceConfig";
 import type { ProposalStatus } from "@/types";
-import type { LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
+import type { Address } from "@solana/kit";
 
 export interface EpochConstants {
-  SUPPORT_EPOCHS: number;
-  DISCUSSION_EPOCHS: number;
-  SNAPSHOT_EPOCHS: number;
-  VOTING_EPOCHS: number;
+  SUPPORT_EPOCHS: bigint;
+  DISCUSSION_EPOCHS: bigint;
+  SNAPSHOT_EPOCHS: bigint;
+  VOTING_EPOCHS: bigint;
 }
 
 /** Derives lifecycle epoch lengths from the on-chain GlobalConfig (see GovernanceConfigDto). */
@@ -31,39 +31,39 @@ export const DEFAULT_SUPPORT_THRESHOLD_PERCENT = 15;
 /** Support threshold as a percentage (e.g. 15 for 15%), from the on-chain GlobalConfig. */
 export function supportThresholdPercentFromConfig(
   dto: GovernanceConfigDto | undefined,
-): number {
+): string {
   return dto
-    ? dto.clusterSupportPctMinBps / 100
-    : DEFAULT_SUPPORT_THRESHOLD_PERCENT;
+    ? formatBasisPoints(dto.clusterSupportPctMinBps)
+    : DEFAULT_SUPPORT_THRESHOLD_PERCENT.toString();
 }
 
 /** Shared copy for the support-phase requirement. */
-export function supportPhaseRequirementCopy(thresholdPercent: number): string {
+export function supportPhaseRequirementCopy(thresholdPercent: string): string {
   return `The support phase requires ${thresholdPercent}% of total validator stake expressing support for the proposal before it can move on to discussion and voting phase`;
 }
 
 export interface GetProposalStatusParams {
-  creationEpoch: number;
-  startEpoch: number;
-  endEpoch: number;
-  currentEpoch: number;
-  clusterSupportLamports: number;
-  totalStakedLamports: number;
+  creationEpoch: bigint;
+  startEpoch: bigint;
+  endEpoch: bigint;
+  currentEpoch: bigint;
+  clusterSupportLamports: bigint;
+  totalStakedLamports: bigint;
   /** GlobalConfig.clusterSupportPctMinBps — support threshold in basis points. */
-  clusterSupportPctMinBps: number;
-  consensusResult: PublicKey | undefined;
+  clusterSupportPctMinBps: bigint;
+  consensusResult: Address | undefined;
   finalized: boolean;
   voting: boolean;
   epochConstants: EpochConstants;
 }
 
 export interface ProposalPhaseEpochs {
-  supportStartEpoch: number;
-  supportEndEpoch: number;
-  phaseBaseEpoch: number;
-  discussionStartEpoch: number;
-  discussionEndEpoch: number;
-  snapshotEpoch: number;
+  supportStartEpoch: bigint;
+  supportEndEpoch: bigint;
+  phaseBaseEpoch: bigint;
+  discussionStartEpoch: bigint;
+  discussionEndEpoch: bigint;
+  snapshotEpoch: bigint;
 }
 
 /**
@@ -75,11 +75,11 @@ export interface ProposalPhaseEpochs {
  */
 export interface ProposalPhaseAnchors {
   voting: boolean;
-  startEpoch: number;
+  startEpoch: bigint;
 }
 
 export function getProposalPhaseEpochs(
-  creationEpoch: number,
+  creationEpoch: bigint,
   epochs: EpochConstants,
   onChain?: ProposalPhaseAnchors,
 ): ProposalPhaseEpochs {
@@ -87,7 +87,7 @@ export function getProposalPhaseEpochs(
   const supportStartEpoch = creationEpoch;
   // Threshold check happens at creationEpoch + SUPPORT_EPOCHS + 1
   // (support phase is epochs [creationEpoch, creationEpoch + SUPPORT_EPOCHS], threshold check at creationEpoch + SUPPORT_EPOCHS + 1)
-  const supportEndEpoch = creationEpoch + epochs.SUPPORT_EPOCHS + 1;
+  const supportEndEpoch = creationEpoch + epochs.SUPPORT_EPOCHS + 1n;
   // When voting === false, calculate phases based on creationEpoch
   const phaseBaseEpoch = supportEndEpoch;
   const discussionStartEpoch = phaseBaseEpoch;
@@ -98,7 +98,7 @@ export function getProposalPhaseEpochs(
   // Support already succeeded: the program has set the real voting start
   // (discussion + snapshot extension counted from when the threshold was
   // met, not from the end of the full support window). Use it.
-  if (onChain?.voting && onChain.startEpoch > 0) {
+  if (onChain?.voting && onChain.startEpoch > 0n) {
     discussionEndEpoch = onChain.startEpoch;
     snapshotEpoch = onChain.startEpoch;
   }
@@ -156,7 +156,7 @@ export const getProposalStatus = ({
   // Voting ends when currentEpoch >= endEpoch (inclusive)
   // If voting has ended but not finalized, check if proposal failed first
   // If voting === false, proposal failed (didn't get enough support) - show failed even if past endEpoch
-  if (currentEpoch >= endEpoch && endEpoch !== 0) {
+  if (currentEpoch >= endEpoch && endEpoch !== 0n) {
     if (!voting) {
       return "failed";
     }
@@ -173,7 +173,7 @@ export const getProposalStatus = ({
   } = getProposalPhaseEpochs(creationEpoch, epochs);
   // When voting === false, voting starts right after snapshot phase
   // When voting === true, use startEpoch directly as the voting start epoch
-  const votingStartEpoch = voting ? startEpoch : snapshotEpoch + 1; // epoch 806 for creationEpoch 800 (or startEpoch if voting = true)
+  const votingStartEpoch = voting ? startEpoch : snapshotEpoch + 1n; // epoch 806 for creationEpoch 800 (or startEpoch if voting = true)
 
   // Before support phase starts
   if (currentEpoch < supportStartEpoch) {
@@ -212,7 +212,7 @@ export const getProposalStatus = ({
   // At support end epoch (epoch 802) - check threshold directly
   if (currentEpoch === supportEndEpoch) {
     const requiredThresholdLamports =
-      totalStakedLamports * (clusterSupportPctMinBps / 10_000);
+      (totalStakedLamports * clusterSupportPctMinBps) / 10_000n;
     const isThresholdMet = clusterSupportLamports >= requiredThresholdLamports;
 
     if (!isThresholdMet) {
@@ -241,3 +241,10 @@ export const getProposalStatus = ({
   // Fallback (shouldn't reach here, but return supporting as default)
   return "supporting";
 };
+
+/** Formats a basis-point value without coercing its on-chain bigint to Number. */
+function formatBasisPoints(basisPoints: bigint): string {
+  const whole = basisPoints / 100n;
+  const fraction = (basisPoints % 100n).toString().padStart(2, "0").replace(/0+$/, "");
+  return fraction ? `${whole}.${fraction}` : whole.toString();
+}

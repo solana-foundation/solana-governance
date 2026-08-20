@@ -7,7 +7,7 @@ import {
 interface ParsedStakeAccount {
   stakeAccount: string;
   voter: string | undefined;
-  amountSOL: number;
+  amountLamports: bigint;
   staker: string | undefined;
   withdrawer: string | undefined;
   state: string;
@@ -36,7 +36,7 @@ function mapDelegatedStakeAccountDto(raw: WalletStakeAccount): ParsedStakeAccoun
   return {
     stakeAccount: raw.address,
     voter: raw.voter ?? undefined,
-    amountSOL: Number(raw.activeStakeLamports) / 1e9,
+    amountLamports: raw.activeStakeLamports,
     staker: raw.staker,
     withdrawer: raw.withdrawer,
     state: raw.state,

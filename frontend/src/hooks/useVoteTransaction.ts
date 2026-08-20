@@ -1,4 +1,4 @@
-import { address, createSolanaRpc } from "@solana/kit";
+import { address, createSolanaRpc, type Address } from "@solana/kit";
 import {
   fetchMaybeMetaMerkleProof,
   findMetaMerkleProofPda,
@@ -24,10 +24,8 @@ import {
 } from "@/lib/transactions";
 import { useSignTransaction } from "./useSignTransaction";
 
-type PublicKeyLike = string | { toBase58(): string };
-type VoteInput = VoteDistribution & { proposalId: string; consensusResult: PublicKeyLike; publicKey?: string };
+type VoteInput = VoteDistribution & { proposalId: string; consensusResult: Address; publicKey?: string };
 type OverrideInput = VoteInput & { stakeAccount: string };
-const toAddress = (value: PublicKeyLike) => address(typeof value === "string" ? value : value.toBase58());
 
 async function computeProofCloseTimestamp(
   rpc: ReturnType<typeof createSolanaRpc>,
@@ -104,7 +102,7 @@ function useValidatorVoteTransaction(modify: boolean) {
       const proof = await getVoteAccountProof(vote.votePubkey, requireKnownSnapshotNetwork(network), snapshotSlot, ncnApiUrl);
       const builder = modify ? buildModifyVoteInstruction : buildCastVoteInstruction;
       const signature = await signAndSend(async ({ signer }) => {
-        const consensusResult = toAddress(input.consensusResult);
+        const consensusResult = input.consensusResult;
         const [initProofInstruction, voteInstruction] = await Promise.all([
           buildMetaMerkleProofInitialization(rpc, {
             consensusResult,
@@ -138,7 +136,7 @@ function useOverrideVoteTransaction(modify: boolean) {
       assertOverrideProofLineage(stakeProof, metaProof);
       const builder = modify ? buildModifyVoteOverrideInstruction : buildCastVoteOverrideInstruction;
       const signature = await signAndSend(async ({ signer }) => {
-        const consensusResult = toAddress(input.consensusResult);
+        const consensusResult = input.consensusResult;
         const rpc = createSolanaRpc(endpointUrl);
         const [initProofInstruction, voteInstruction] = await Promise.all([
           buildMetaMerkleProofInitialization(rpc, {

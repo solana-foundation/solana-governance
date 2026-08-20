@@ -16,7 +16,7 @@ import { ProposalHeading } from "../ProposalHeading";
 import { ProposalRecord, ProposalStatus } from "@/types";
 import { useChainVoteAccount, useWalletRole } from "@/hooks";
 import { SupportButton } from "../SupportButton";
-import type { LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
+import type { Address } from "@solana/kit";
 import { toast } from "sonner";
 import { getProposalDetailPagePath } from "@/helpers/proposalPage";
 import { getVoteModalNames } from "@/lib/governance/role-detection";
@@ -113,7 +113,7 @@ function VoteActions({
 }: {
   state: ProposalStatus;
   proposalId?: string;
-  consensusResult?: PublicKey;
+  consensusResult?: Address;
   disabled?: boolean;
 }) {
   const { openModal } = useModal();
@@ -225,12 +225,12 @@ function VotingPanel({ proposal }: { proposal: ProposalRecord }) {
       {/* Discussion is read-only (View Details navigation) — always shown,
           wallet or not. Only transaction actions are wallet-gated. */}
       {isDiscussion ? (
-        <DiscussionMessage proposalId={proposal.publicKey.toBase58()} />
+        <DiscussionMessage proposalId={proposal.publicKey} />
       ) : connected ? (
         (isSupporting || isVoting) && (
           <VoteActions
             state={proposal.status}
-            proposalId={proposal.publicKey.toBase58()}
+            proposalId={proposal.publicKey}
             consensusResult={proposal.consensusResult}
           />
         )

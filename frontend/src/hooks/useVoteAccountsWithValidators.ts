@@ -49,12 +49,12 @@ export const useVoteAccountsWithValidators = () => {
 
       for (const vote of votes) {
         const validator = validators.find(
-          (v) => vote.identity?.toBase58() === v.vote_identity,
+          (v) => vote.identity === v.vote_identity,
         );
-        const votePk = vote.voteAccount.toBase58();
+        const votePk = vote.voteAccount;
         if (validator) {
           const entry: VoteValidatorEntry = {
-            votePDA: vote.voteAccount.toBase58(),
+            votePDA: vote.voteAccount,
             // enrich vote account info with matched validator data
             voteAccount: {
               ...vote,
@@ -78,7 +78,7 @@ export const useVoteAccountsWithValidators = () => {
         } else {
           // console.warn("no validator found");
           const entry: VoteValidatorEntry = {
-            votePDA: vote.voteAccount.toBase58(),
+            votePDA: vote.voteAccount,
             voteAccount: {
               ...vote,
               identity: vote.identity,

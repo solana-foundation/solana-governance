@@ -1,19 +1,19 @@
-import type { LegacyBn, LegacyPublicKey } from "@/lib/governance/legacyAdapters";
+import type { Address } from "@solana/kit";
 
 export interface VoteOverrideAccountData {
-  publicKey: LegacyPublicKey;
-  stakeAccount: LegacyPublicKey;
-  delegator: LegacyPublicKey;
-  validator: LegacyPublicKey;
-  proposal: LegacyPublicKey;
-  voteAccountValidator: LegacyPublicKey;
-  forVotesBp: LegacyBn;
-  againstVotesBp: LegacyBn;
-  abstainVotesBp: LegacyBn;
-  forVotesLamports: LegacyBn;
-  againstVotesLamports: LegacyBn;
-  abstainVotesLamports: LegacyBn;
-  stakeAmount: LegacyBn;
-  voteOverrideTimestamp: LegacyBn;
+  publicKey: Address;
+  stakeAccount: Address;
+  delegator: Address;
+  validator: Address;
+  proposal: Address;
+  voteAccountValidator: Address;
+  forVotesBp: bigint;
+  againstVotesBp: bigint;
+  abstainVotesBp: bigint;
+  forVotesLamports: bigint;
+  againstVotesLamports: bigint;
+  abstainVotesLamports: bigint;
+  stakeAmount: bigint;
+  voteOverrideTimestamp: bigint;
   bump: number;
 }

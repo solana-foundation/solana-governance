@@ -1,6 +1,6 @@
 export interface ValidatorVoteAccountData {
   voteAccount: string;
-  activeStake: number;
+  activeStake: bigint;
   nodePubkey: string;
 }
 

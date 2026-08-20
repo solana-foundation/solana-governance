@@ -1,6 +1,5 @@
 import { getProposalRefFromUrl } from "@/lib/github";
 import { fetchProposals, type Proposal } from "@/lib/governance/programAccounts";
-import { toLegacyPublicKey } from "@/lib/governance/legacyAdapters";
 import type { GovernanceConfigDto } from "@/lib/getGovernanceConfig";
 import {
   epochConstantsFromGovernanceConfig,
@@ -9,7 +8,7 @@ import {
 } from "@/lib/proposals";
 import type { RawVoteAccountsData } from "@/lib/rpcVoteAccounts";
 import type { ProposalRecord } from "@/types";
-import { createSolanaRpc, unwrapOption } from "@solana/kit";
+import { createSolanaRpc, type Address, unwrapOption } from "@solana/kit";
 
 export interface EpochInfoData {
   absoluteSlot: bigint;
@@ -37,11 +36,11 @@ export const getProposals = async (
     // ...voteAccountsData.delinquent,
   ];
   const totalStakedLamports = allVotes.reduce(
-    (sum, vote) => sum + (vote.activatedStake || 0),
-    0,
+    (sum, vote) => sum + vote.activatedStake,
+    0n,
   );
 
-  const currentEpoch = Number(epochInfo.epoch);
+  const currentEpoch = epochInfo.epoch;
 
   let data = proposalAccs.map((acc, index) =>
     mapProposalDto(
@@ -66,28 +65,32 @@ export const getProposals = async (
     }
   }
 
-  data = data.sort((a, b) => b.creationTimestamp - a.creationTimestamp);
+  data = data.sort((a, b) =>
+    a.creationTimestamp === b.creationTimestamp
+      ? 0
+      : a.creationTimestamp > b.creationTimestamp
+        ? -1
+        : 1,
+  );
 
   return data;
 };
 
 export function mapProposalDto(
   raw: Proposal,
-  address: string,
+  address: Address,
   index: number,
-  currentEpoch: number,
-  totalStakedLamports: number,
+  currentEpoch: bigint,
+  totalStakedLamports: bigint,
   epochConstants: EpochConstants,
-  clusterSupportPctMinBps: number,
+  clusterSupportPctMinBps: bigint,
 ): ProposalRecord {
-  const creationEpoch = Number(raw.creationEpoch);
-  const startEpoch = Number(raw.startEpoch);
-  const endEpoch = Number(raw.endEpoch);
-  const clusterSupportLamports = Number(raw.clusterSupportLamports);
+  const creationEpoch = raw.creationEpoch;
+  const startEpoch = raw.startEpoch;
+  const endEpoch = raw.endEpoch;
+  const clusterSupportLamports = raw.clusterSupportLamports;
   const consensusResult = unwrapOption(raw.consensusResult);
-  const consensusResultPublicKey = consensusResult
-    ? toLegacyPublicKey(consensusResult)
-    : undefined;
+  const consensusResultPublicKey = consensusResult ?? undefined;
   const finalized = raw.finalized;
 
   const status = getProposalStatus({
@@ -107,7 +110,7 @@ export function mapProposalDto(
   const proposalRef = getProposalRefFromUrl(raw.description);
 
   return {
-    publicKey: toLegacyPublicKey(address),
+    publicKey: address,
     id: index.toString(),
     proposalRef,
     title: raw.title,
@@ -117,29 +120,23 @@ export function mapProposalDto(
     creationEpoch,
     startEpoch,
     endEpoch,
-    creationTimestamp: Number(raw.creationTimestamp),
+    creationTimestamp: raw.creationTimestamp,
 
     clusterSupportLamports,
-    forVotesLamports: raw.forVotesLamports
-      ? Number(raw.forVotesLamports)
-      : 0,
-    againstVotesLamports: raw.againstVotesLamports
-      ? Number(raw.againstVotesLamports)
-      : 0,
-    abstainVotesLamports: raw.abstainVotesLamports
-      ? Number(raw.abstainVotesLamports)
-      : 0,
+    forVotesLamports: raw.forVotesLamports ?? 0n,
+    againstVotesLamports: raw.againstVotesLamports ?? 0n,
+    abstainVotesLamports: raw.abstainVotesLamports ?? 0n,
     voteCount: raw.voteCount,
 
     quorumPercent: 60, // TODO ?
-    proposerStakeWeightBp: Number(raw.proposerStakeWeightBp),
+    proposerStakeWeightBp: raw.proposerStakeWeightBp,
 
     status,
     voting: raw.voting,
     finalized,
 
     consensusResult: consensusResultPublicKey,
-    snapshotSlot: Number(raw.snapshotSlot),
+    snapshotSlot: raw.snapshotSlot,
 
     proposalBump: raw.proposalBump,
     index: raw.index,

@@ -81,7 +81,6 @@ export function VoteAccountsTable() {
     if (searchValue) {
       filtered = filtered.filter((row) =>
         row.voteAccount
-          .toBase58()
           .toLowerCase()
           .includes(searchValue.toLowerCase())
       );
@@ -288,7 +287,7 @@ export function VoteAccountsTable() {
               label="Vote Account"
               value={
                 <CopyableAddress
-                  address={selectedRow.voteAccount.toBase58()}
+                  address={selectedRow.voteAccount}
                   shortenedLength={8}
                   copyLabel="Copy full address"
                 />
@@ -299,7 +298,7 @@ export function VoteAccountsTable() {
               label="Identity"
               value={
                 selectedRow.identity
-                  ? formatAddress(selectedRow.identity.toBase58(), 8)
+                  ? formatAddress(selectedRow.identity, 8)
                   : "-"
               }
               fullWidth

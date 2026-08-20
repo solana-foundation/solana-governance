@@ -2,7 +2,7 @@
 
 import { AppButton } from "@/components/ui/AppButton";
 import { useModal } from "@/contexts/ModalContext";
-import type { LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
+import type { Address } from "@solana/kit";
 import { Ban, ThumbsDown, ThumbsUp } from "lucide-react";
 
 import { useWalletSession } from "@/contexts/WalletSessionContext";
@@ -17,8 +17,8 @@ import { toast } from "sonner";
 import { getVoteModalNames } from "@/lib/governance/role-detection";
 
 interface CastVoteProps {
-  proposalPublicKey: PublicKey | undefined;
-  consensusResult: PublicKey | undefined;
+  proposalPublicKey: Address | undefined;
+  consensusResult: Address | undefined;
   isLoading: boolean;
   disabled?: boolean;
 }
@@ -57,7 +57,7 @@ function CastVote({
   const { castModalName } = getVoteModalNames(chainVoteAccount);
 
   const { data: hasUserVoted = false, isLoading: isLoadingHasUserVoted } =
-    useHasUserVoted(proposalPublicKey?.toBase58());
+    useHasUserVoted(proposalPublicKey);
 
   const disabledButtons =
     disabled ||
@@ -71,7 +71,7 @@ function CastVote({
     if (proposalPublicKey && consensusResult) {
       openModal(castModalName, {
         consensusResult,
-        proposalId: proposalPublicKey.toBase58(),
+        proposalId: proposalPublicKey,
         initialVoteDist: { for: 100, abstain: 0, against: 0 },
       });
     }
@@ -80,7 +80,7 @@ function CastVote({
     if (proposalPublicKey && consensusResult) {
       openModal(castModalName, {
         consensusResult,
-        proposalId: proposalPublicKey.toBase58(),
+        proposalId: proposalPublicKey,
         initialVoteDist: { against: 100, for: 0, abstain: 0 },
       });
     }
@@ -89,7 +89,7 @@ function CastVote({
     if (proposalPublicKey && consensusResult) {
       openModal(castModalName, {
         consensusResult,
-        proposalId: proposalPublicKey.toBase58(),
+        proposalId: proposalPublicKey,
         initialVoteDist: { abstain: 100, for: 0, against: 0 },
       });
     }

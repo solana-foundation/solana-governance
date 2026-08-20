@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import type { LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
-import BN from "bn.js";
+import type { Address } from "@solana/kit";
 import { TopVoterRecord } from "@/types/topVoters";
 import { Validator } from "@/types";
 import { getProposalVotes, getProposalVoteOverrides } from "@/data";
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { useGetValidators } from "./useGetValidators";
+import { bigintToSafeNumber, formatBigintPercentage } from "@/helpers/bigint";
 
 const accentColors = [
   "linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)",
@@ -35,14 +35,14 @@ const getColorFromString = (str: string): string => {
   return accentColors[index];
 };
 
-export const useProposalVotes = (proposalPublicKey: PublicKey | undefined) => {
+export const useProposalVotes = (proposalPublicKey: Address | undefined) => {
   const { endpointUrl: endpoint } = useEndpoint();
   const { data: validators } = useGetValidators();
 
   return useQuery({
     queryKey: [
       "proposal-votes",
-      proposalPublicKey?.toBase58(),
+      proposalPublicKey,
       endpoint,
       // Refetch when validators load so we can resolve names (votes use validator identity)
       validators === undefined ? "no-validators" : validators.length,
@@ -75,31 +75,25 @@ export const useProposalVotes = (proposalPublicKey: PublicKey | undefined) => {
 
       // Total stake is calculated from all validators' activated_stake
       const totalStakedLamports = validators
-        ? validators.reduce((sum, v) => sum + (v.activated_stake || 0), 0)
-        : 0;
+        ? validators.reduce((sum, v) => sum + v.activated_stake, 0n)
+        : 0n;
 
       // 5. Map to TopVoterRecord[]
       const validatorVoters = votes.map((v) => {
-        const identity = v.identity?.toBase58
-          ? v.identity.toBase58()
-          : typeof v.identity === "string"
-            ? v.identity
-            : "unknown";
+        const identity = v.identity ?? "unknown";
         const validator = validatorMap[identity];
         const validatorName = validator?.name || "Unknown Validator";
-        const stakedLamports = v.activeStake || 0;
+        const stakedLamports = v.activeStake || 0n;
         const votePercentage =
-          totalStakedLamports > 0 && stakedLamports > 0
-            ? (stakedLamports / totalStakedLamports) * 100
+          totalStakedLamports > 0n && stakedLamports > 0n
+            ? Number(formatBigintPercentage(stakedLamports, totalStakedLamports))
             : 0;
         // If voteTimestamp is unix/BN, convert to string
         let voteTimestamp: string;
-        if (v.voteTimestamp && typeof v.voteTimestamp.toNumber === "function") {
+        if (v.voteTimestamp) {
           voteTimestamp = new Date(
-            v.voteTimestamp.toNumber() * 1000,
+            bigintToSafeNumber(v.voteTimestamp, "vote timestamp") * 1000,
           ).toISOString();
-        } else if (typeof v.voteTimestamp === "number") {
-          voteTimestamp = new Date(v.voteTimestamp * 1000).toISOString();
         } else {
           voteTimestamp = new Date().toISOString();
         }
@@ -113,13 +107,9 @@ export const useProposalVotes = (proposalPublicKey: PublicKey | undefined) => {
           votePercentage,
           voteTimestamp,
           voteData: {
-            forVotesBp: v.forVotesBp ? new BN(v.forVotesBp.toString()) : new BN(0),
-            againstVotesBp: v.againstVotesBp
-              ? new BN(v.againstVotesBp.toString())
-              : new BN(0),
-            abstainVotesBp: v.abstainVotesBp
-              ? new BN(v.abstainVotesBp.toString())
-              : new BN(0),
+            forVotesBp: v.forVotesBp,
+            againstVotesBp: v.againstVotesBp,
+            abstainVotesBp: v.abstainVotesBp,
           },
           accentColor: getColorFromString(validatorName),
           walletType: "validator" as const,
@@ -127,27 +117,21 @@ export const useProposalVotes = (proposalPublicKey: PublicKey | undefined) => {
       });
 
       const stakerVoters = voteOverrides.map((v) => {
-        const identity = v.identity?.toBase58
-          ? v.identity.toBase58()
-          : typeof v.identity === "string"
-            ? v.identity
-            : "unknown";
+        const identity = v.identity ?? "unknown";
 
         const validator = validatorMap[identity];
         const validatorName = validator?.name || "Unknown Validator";
-        const stakedLamports = v.activeStake || 0;
+        const stakedLamports = v.activeStake || 0n;
         const votePercentage =
-          totalStakedLamports > 0 && stakedLamports > 0
-            ? (stakedLamports / totalStakedLamports) * 100
+          totalStakedLamports > 0n && stakedLamports > 0n
+            ? Number(formatBigintPercentage(stakedLamports, totalStakedLamports))
             : 0;
         // If voteTimestamp is unix/BN, convert to string
         let voteTimestamp: string;
-        if (v.voteTimestamp && typeof v.voteTimestamp.toNumber === "function") {
+        if (v.voteTimestamp) {
           voteTimestamp = new Date(
-            v.voteTimestamp.toNumber() * 1000,
+            bigintToSafeNumber(v.voteTimestamp, "vote timestamp") * 1000,
           ).toISOString();
-        } else if (typeof v.voteTimestamp === "number") {
-          voteTimestamp = new Date(v.voteTimestamp * 1000).toISOString();
         } else {
           voteTimestamp = new Date().toISOString();
         }
@@ -160,15 +144,11 @@ export const useProposalVotes = (proposalPublicKey: PublicKey | undefined) => {
           stakedLamports,
           votePercentage,
           voteTimestamp,
-          stakeAccount: v.stakeAccount.toBase58(),
+          stakeAccount: v.stakeAccount,
           voteData: {
-            forVotesBp: v.forVotesBp ? new BN(v.forVotesBp.toString()) : new BN(0),
-            againstVotesBp: v.againstVotesBp
-              ? new BN(v.againstVotesBp.toString())
-              : new BN(0),
-            abstainVotesBp: v.abstainVotesBp
-              ? new BN(v.abstainVotesBp.toString())
-              : new BN(0),
+            forVotesBp: v.forVotesBp,
+            againstVotesBp: v.againstVotesBp,
+            abstainVotesBp: v.abstainVotesBp,
           },
           accentColor: getColorFromString(validatorName),
           walletType: "staker" as const,

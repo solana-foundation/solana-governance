@@ -35,7 +35,7 @@ export const StakeAccountsDropdown = ({
 
   const isAccountValid = (stakeAcc: StakeAccountData) =>
     !disabledAccounts?.includes(stakeAcc.stakeAccount) &&
-    stakeAcc.activeStake > 0;
+    stakeAcc.activeStake > 0n;
 
   const validStakeAccounts = stakeAccounts?.filter(isAccountValid);
 
@@ -67,7 +67,7 @@ export const StakeAccountsDropdown = ({
             >
               {formatAddress(stakeAcc.stakeAccount)} -&nbsp;
               {formatLamportsDisplay(stakeAcc.activeStake).value}
-              {stakeAcc.activeStake === 0 && (
+              {stakeAcc.activeStake === 0n && (
                 <span className="text-white/40">
                   &nbsp;(Insufficient balance)
                 </span>

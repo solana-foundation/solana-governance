@@ -18,7 +18,7 @@ export const getValidatorVoteAccounts = async (
 
   return {
     voteAccount: validatorVoteAccount.votePubkey,
-    activeStake: Number(validatorVoteAccount.activatedStake),
+    activeStake: validatorVoteAccount.activatedStake,
     nodePubkey: validatorVoteAccount.nodePubkey,
   } satisfies ValidatorVoteAccountData;
 };

@@ -230,7 +230,7 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
   };
 
   const handleAction = (action: ProposalAction) => {
-    const proposalId = publicKey.toBase58();
+    const proposalId = publicKey;
 
     if (action === "view-details") {
       router.push(getProposalDetailPagePath(proposalId));

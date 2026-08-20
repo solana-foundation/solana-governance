@@ -2,27 +2,26 @@ import { VoteOverrideAccountData } from "@/types";
 import { createSolanaRpc, type Address } from "@solana/kit";
 import { fetchVoteOverrides } from "@/lib/governance/programAccounts";
 import { mapVoteOverrideAccountDto } from "./getVoteOverrideAccounts";
-import type { LegacyBn as BN, LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
 
 /**
  * Fetches vote overrides for a specific proposal
  * Filters by proposal public key directly on the RPC for efficient querying
  */
 export const getProposalVoteOverrides = async (
-  proposalPublicKey: PublicKey,
+  proposalPublicKey: Address,
   endpoint: string,
 ): Promise<
   Array<
     VoteOverrideAccountData & {
-      voter: PublicKey;
-      activeStake: number;
-      identity: PublicKey;
-      voteTimestamp: BN;
+      voter: Address;
+      activeStake: bigint;
+      identity: Address;
+      voteTimestamp: bigint;
     }
   >
 > => {
   const proposalOverrides = await fetchVoteOverrides(createSolanaRpc(endpoint), {
-    proposal: proposalPublicKey.toBase58() as Address,
+    proposal: proposalPublicKey,
   });
 
   // Map to the expected format with voter, activeStake, identity, and voteTimestamp fields
@@ -31,7 +30,7 @@ export const getProposalVoteOverrides = async (
     return {
       ...mapped,
       voter: mapped.stakeAccount,
-      activeStake: mapped.stakeAmount.toNumber() || 0,
+      activeStake: mapped.stakeAmount,
       identity: mapped.validator, // Map validator to identity for consistency
       voteTimestamp: mapped.voteOverrideTimestamp, // Map voteOverrideTimestamp to voteTimestamp
     };

@@ -21,7 +21,7 @@ import {
 } from "@/hooks";
 import { toast } from "sonner";
 import { useWalletSession } from "@/contexts/WalletSessionContext";
-import type { LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
+import type { Address } from "@solana/kit";
 import { WalletRole } from "@/types";
 import { VotingProposalsDropdown } from "../VotingProposalsDropdown";
 import { FormEvent, useEffect, useState } from "react";
@@ -29,7 +29,7 @@ import { captureException } from "@sentry/nextjs";
 
 export interface ModifyVoteModalDataProps {
   proposalId?: string;
-  consensusResult?: PublicKey;
+  consensusResult?: Address;
   initialVoteDist?: VoteDistribution;
 }
 
@@ -82,7 +82,7 @@ export function ModifyVoteModal({
 
   const handleProposalChange = (
     proposalId: string,
-    consensusResult: PublicKey
+    consensusResult: Address
   ) => {
     setSelectedProposal({ id: proposalId, consensusResult });
   };

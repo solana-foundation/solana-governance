@@ -1,8 +1,8 @@
-import type { LegacyPublicKey } from "@/lib/governance/legacyAdapters";
+import type { Address } from "@solana/kit";
 
 export interface SupportAccountData {
-  publicKey: LegacyPublicKey;
-  proposal: LegacyPublicKey;
-  validator: LegacyPublicKey;
+  publicKey: Address;
+  proposal: Address;
+  validator: Address;
   bump: number;
 }

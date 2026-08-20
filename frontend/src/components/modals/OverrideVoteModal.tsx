@@ -25,7 +25,7 @@ import { WalletRole } from "@/types";
 import { useWalletSession } from "@/contexts/WalletSessionContext";
 import { FormEvent, useEffect, useState } from "react";
 import { GetVoteOverrideFilters } from "@/data";
-import type { LegacyPublicKey as PublicKey } from "@/lib/governance/legacyAdapters";
+import type { Address } from "@solana/kit";
 import { VotingProposalsDropdown } from "../VotingProposalsDropdown";
 import { StakeAccountsDropdown } from "../StakeAccountsDropdown";
 import { captureException } from "@sentry/nextjs";
@@ -35,7 +35,7 @@ import { hasOnChainValidatorIdentity } from "@/lib/governance/role-detection";
 export type OverrideVoteModalDataProps =
   | {
       proposalId: string;
-      consensusResult: PublicKey;
+      consensusResult: Address;
       initialVoteDist?: VoteDistribution;
     }
   | {
@@ -140,7 +140,7 @@ export function OverrideVoteModal({
 
   const handleProposalChange = (
     proposalId: string,
-    consensusResult: PublicKey
+    consensusResult: Address
   ) => {
     setSelectedProposal({ id: proposalId, consensusResult });
   };
@@ -315,7 +315,7 @@ export function OverrideVoteModal({
                   value={selectedStakeAccount}
                   onValueChange={setSelectedStakeAccount}
                   disabledAccounts={voteOverrideAccounts.map((voa) =>
-                    voa.stakeAccount.toBase58()
+                    voa.stakeAccount
                   )}
                 />
               </div>

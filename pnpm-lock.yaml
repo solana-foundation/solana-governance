@@ -88,9 +88,6 @@ importers:
       axios:
         specifier: ^1.9.0
         version: 1.19.0
-      bn.js:
-        specifier: ^5.2.2
-        version: 5.2.5
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -155,9 +152,6 @@ importers:
       '@testing-library/react-hooks':
         specifier: ^8.0.1
         version: 8.0.1(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      '@types/bn.js':
-        specifier: ^5.2.0
-        version: 5.2.0
       '@types/d3':
         specifier: ^7.4.3
         version: 7.4.3
@@ -2604,9 +2598,6 @@ packages:
 
   '@types/babel__traverse@7.28.0':
     resolution: {integrity: sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q==}
-
-  '@types/bn.js@5.2.0':
-    resolution: {integrity: sha512-DLbJ1BPqxvQhIGbeu8VbUC1DiAiahHtAYvA0ZEAa4P31F7IaArc8z3C3BRQdWX4mtLQuABG4yzp76ZrS02Ui1Q==}
 
   '@types/connect@3.4.38':
     resolution: {integrity: sha512-K6uROf1LD88uDQqJCktA4yzL1YYAK6NgfsI0v/mTgyPKWsX1CnJ0XPSDhViejru1GcRkLWb8RlzFYJRqGUbaug==}
@@ -9463,10 +9454,6 @@ snapshots:
     dependencies:
       '@babel/types': 7.29.8
 
-  '@types/bn.js@5.2.0':
-    dependencies:
-      '@types/node': 22.20.1
-
   '@types/connect@3.4.38':
     dependencies:
       '@types/node': 22.20.1
@@ -10566,7 +10553,8 @@ snapshots:
   bn.js@4.12.5:
     optional: true
 
-  bn.js@5.2.5: {}
+  bn.js@5.2.5:
+    optional: true
 
   borsh@0.7.0:
     dependencies:

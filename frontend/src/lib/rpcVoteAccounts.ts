@@ -1,10 +1,10 @@
 import { createSolanaRpc } from "@solana/kit";
 
 export interface RpcVoteAccountData {
-  activatedStake: number;
+  activatedStake: bigint;
   commission: number;
-  epochCredits: readonly [number, number, number][];
-  lastVote: number;
+  epochCredits: readonly [bigint, bigint, bigint][];
+  lastVote: bigint;
   nodePubkey: string;
   votePubkey: string;
 }
@@ -15,7 +15,7 @@ export interface RawVoteAccountsData {
 }
 
 export interface ChainVoteAccountData {
-  activeStake: number;
+  activeStake: bigint;
   voteAccount: string;
   nodePubkey: string;
 }
@@ -29,14 +29,14 @@ function mapVoteAccount(account: {
   votePubkey: string;
 }): RpcVoteAccountData {
   return {
-    activatedStake: Number(account.activatedStake),
+    activatedStake: account.activatedStake,
     commission: account.commission,
     epochCredits: account.epochCredits.map(([epoch, credits, previous]) => [
-      Number(epoch),
-      Number(credits),
-      Number(previous),
+      epoch,
+      credits,
+      previous,
     ]),
-    lastVote: Number(account.lastVote),
+    lastVote: account.lastVote,
     nodePubkey: account.nodePubkey,
     votePubkey: account.votePubkey,
   };
