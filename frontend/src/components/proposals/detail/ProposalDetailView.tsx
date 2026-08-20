@@ -9,7 +9,7 @@ import TopVotersTable from "./TopVotersTable";
 import TopSupportersTable from "./TopSupportersTable";
 import CastVoteWrapper from "./CastVote";
 import SupportProposalSection from "./SupportProposalSection";
-import { useWalletSession } from "@/contexts/WalletSessionContext";
+import { useConnector } from "@solana/connector/react";
 import { SupportPhaseProgress } from "./support-phase-progress";
 
 interface ProposalDetailViewProps {
@@ -21,7 +21,7 @@ export default function ProposalDetailView({
   proposal,
   isLoading,
 }: ProposalDetailViewProps) {
-  const { connected: isConnected } = useWalletSession();
+  const { isConnected } = useConnector();
 
   const isSupporting = proposal?.status === "supporting";
   const isDiscussion = proposal?.status === "discussion";

@@ -1,6 +1,6 @@
 import { useModal } from "@/contexts/ModalContext";
 import { AppButton } from "../ui/AppButton";
-import { useWalletSession } from "@/contexts/WalletSessionContext";
+import { useConnector } from "@solana/connector/react";
 import { useWalletRole } from "@/hooks";
 import { ProposalStatus, WalletRole } from "@/types";
 import { useHasUserSupported } from "@/hooks/useHasUserSupported";
@@ -19,7 +19,8 @@ export const SupportButton = ({
   disabled: disabledProps,
 }: Props) => {
   const { openModal } = useModal();
-  const { connected, publicKey } = useWalletSession();
+  const { account, isConnected: connected } = useConnector();
+  const publicKey = account ?? undefined;
   const { walletRole } = useWalletRole(publicKey);
 
   const { data: hasUserSupported, isLoading: isLoadingHasUserSupported } =

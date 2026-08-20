@@ -1,7 +1,7 @@
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { getUserHasSupported } from "@/data";
 import { GET_USER_HAS_SUPPORTED } from "@/helpers";
-import { useWalletSession } from "@/contexts/WalletSessionContext";
+import { useConnector } from "@solana/connector/react";
 import { useQuery } from "@tanstack/react-query";
 import { buildSupportFilters, useSupportAccounts } from "./useSupportAccounts";
 import { useWalletRole } from "./useWalletRole";
@@ -12,7 +12,8 @@ export const useHasUserSupported = (
   enabledProp = true
 ) => {
   const { endpointUrl: endpoint } = useEndpoint();
-  const { publicKey, connected } = useWalletSession();
+  const { account, isConnected: connected } = useConnector();
+  const publicKey = account ?? undefined;
 
   const { walletRole } = useWalletRole(publicKey);
 

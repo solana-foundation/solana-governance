@@ -10,7 +10,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useWalletSession } from "@/contexts/WalletSessionContext";
+import { useConnector } from "@solana/connector/react";
 import { ProposalDescription } from "../ProposalDescription";
 import { ProposalHeading } from "../ProposalHeading";
 import { ProposalRecord, ProposalStatus } from "@/types";
@@ -117,7 +117,8 @@ function VoteActions({
   disabled?: boolean;
 }) {
   const { openModal } = useModal();
-  const { publicKey } = useWalletSession();
+  const { account } = useConnector();
+  const publicKey = account ?? undefined;
   const { isLoading: isLoadingWalletRole } = useWalletRole(publicKey);
   const { data: chainVoteAccount, isLoading: isLoadingChainVoteAccount } =
     useChainVoteAccount(publicKey);
@@ -200,7 +201,7 @@ function DiscussionMessage({ proposalId }: { proposalId: string }) {
 }
 
 function VotingPanel({ proposal }: { proposal: ProposalRecord }) {
-  const { connected } = useWalletSession();
+  const { isConnected: connected } = useConnector();
 
   const isVoting = proposal.status === "voting";
   const isSupporting = proposal.status === "supporting";

@@ -21,7 +21,7 @@ import {
 } from "@/hooks";
 import { toast } from "sonner";
 import { WalletRole } from "@/types";
-import { useWalletSession } from "@/contexts/WalletSessionContext";
+import { useConnector } from "@solana/connector/react";
 import { FormEvent, useEffect, useState } from "react";
 import { useModifyVoteOverride } from "@/hooks";
 import { GetVoteOverrideFilters } from "@/data";
@@ -92,7 +92,8 @@ export function ModifyOverrideVoteModal({
     resetDistribution,
   } = useVoteDistribution(initialVoteDist);
 
-  const { publicKey } = useWalletSession();
+  const { account } = useConnector();
+  const publicKey = account ?? undefined;
 
   const { data: stakeAccounts } = useWalletStakeAccounts(
     publicKey

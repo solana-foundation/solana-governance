@@ -12,7 +12,7 @@ import {
   formatOptionalSlot,
 } from "@/lib/governance/formatters";
 import type { ViewType } from "@/types/governance";
-import { useWalletSession } from "@/contexts/WalletSessionContext";
+import { useConnector } from "@solana/connector/react";
 
 interface DashboardStatsProps {
   currentView: ViewType;
@@ -42,7 +42,8 @@ export function DashboardStats({
   const { data: validators, isLoading: isLoadingValidators } =
     useGetValidators();
 
-  const { publicKey } = useWalletSession();
+  const { account } = useConnector();
+  const publicKey = account ?? undefined;
 
   const { data: stakeAccounts, isLoading: isLoadingStakeAccounts } =
     useWalletStakeAccounts(publicKey);

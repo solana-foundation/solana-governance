@@ -15,7 +15,7 @@ import ErrorMessage from "./shared/ErrorMessage";
 import RequirementItem from "./shared/RequirementItem";
 import { toast } from "sonner";
 import { formatAddress } from "@/lib/governance/formatters";
-import { useWalletSession } from "@/contexts/WalletSessionContext";
+import { useConnector } from "@solana/connector/react";
 import { useSupportProposal } from "@/hooks";
 import { captureException } from "@sentry/nextjs";
 
@@ -35,7 +35,8 @@ export function SupportProposalModal({
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | undefined>();
 
-  const { publicKey } = useWalletSession();
+  const { account } = useConnector();
+  const publicKey = account ?? undefined;
 
   const { mutate: supportProposal } = useSupportProposal(
     publicKey,

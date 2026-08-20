@@ -9,7 +9,7 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import { useRouter } from "next/navigation";
 import { useModal } from "@/contexts/ModalContext";
 import { motion } from "framer-motion";
-import { useWalletSession } from "@/contexts/WalletSessionContext";
+import { useConnector } from "@solana/connector/react";
 import { useChainVoteAccount, useWalletRole } from "@/hooks";
 import { toast } from "sonner";
 import { getProposalDetailPagePath } from "@/helpers/proposalPage";
@@ -195,7 +195,8 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
   const router = useRouter();
   const { openModal } = useModal();
 
-  const { publicKey: walletPubKey, connected } = useWalletSession();
+  const { account, isConnected: connected } = useConnector();
+  const walletPubKey = account ?? undefined;
   const { walletRole, isLoading: isLoadingWalletRole } = useWalletRole(walletPubKey);
   const { data: chainVoteAccount, isLoading: isLoadingChainVoteAccount } =
     useChainVoteAccount(walletPubKey);

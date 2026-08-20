@@ -2,10 +2,13 @@
 
 import { GovernanceEmptyState } from "./shared/GovernanceEmptyState";
 import { GovernanceDashboardLayout } from "@/components/governance/GovernanceDashboardLayout";
-import { useWalletSession } from "@/contexts/WalletSessionContext";
+import { useConnector } from "@solana/connector/react";
+import { useWallet } from "@/contexts/WalletContext";
 
 export function GovernanceDashboard() {
-  const { connected, publicKey, openWalletModal } = useWalletSession();
+  const { account, isConnected: connected } = useConnector();
+  const publicKey = account ?? undefined;
+  const { openModal: openWalletModal } = useWallet();
 
   const handleConnectWallet = () => {
     openWalletModal();

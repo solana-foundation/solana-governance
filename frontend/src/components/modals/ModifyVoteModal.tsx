@@ -20,7 +20,7 @@ import {
   VoteDistribution,
 } from "@/hooks";
 import { toast } from "sonner";
-import { useWalletSession } from "@/contexts/WalletSessionContext";
+import { useConnector } from "@solana/connector/react";
 import type { Address } from "@solana/kit";
 import { WalletRole } from "@/types";
 import { VotingProposalsDropdown } from "../VotingProposalsDropdown";
@@ -61,7 +61,8 @@ export function ModifyVoteModal({
     resetDistribution,
   } = useVoteDistribution(initialVoteDist);
 
-  const { publicKey } = useWalletSession();
+  const { account } = useConnector();
+  const publicKey = account ?? undefined;
 
   const { walletRole } = useWalletRole(publicKey);
 

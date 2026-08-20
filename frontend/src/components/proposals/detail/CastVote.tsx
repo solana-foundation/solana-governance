@@ -5,7 +5,7 @@ import { useModal } from "@/contexts/ModalContext";
 import type { Address } from "@solana/kit";
 import { Ban, ThumbsDown, ThumbsUp } from "lucide-react";
 
-import { useWalletSession } from "@/contexts/WalletSessionContext";
+import { useConnector } from "@solana/connector/react";
 import {
   Tooltip,
   TooltipContent,
@@ -50,7 +50,8 @@ function CastVote({
   disabled,
 }: CastVoteProps) {
   const { openModal } = useModal();
-  const { publicKey } = useWalletSession();
+  const { account } = useConnector();
+  const publicKey = account ?? undefined;
   const { isLoading: isLoadingWalletRole } = useWalletRole(publicKey);
   const { data: chainVoteAccount, isLoading: isLoadingChainVoteAccount } =
     useChainVoteAccount(publicKey);
@@ -150,7 +151,8 @@ export default function CastVoteWrapper({
   proposal: ProposalRecord | undefined;
   isLoading: boolean;
 }) {
-  const { connected, publicKey } = useWalletSession();
+  const { account, isConnected: connected } = useConnector();
+  const publicKey = account ?? undefined;
 
   const enabled = connected && proposal && publicKey;
 

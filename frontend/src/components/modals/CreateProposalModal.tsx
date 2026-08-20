@@ -14,7 +14,7 @@ import { AppButton } from "@/components/ui/AppButton";
 import ErrorMessage from "./shared/ErrorMessage";
 import { toast } from "sonner";
 import { useCreateProposal } from "@/hooks";
-import { useWalletSession } from "@/contexts/WalletSessionContext";
+import { useConnector } from "@solana/connector/react";
 import { captureException } from "@sentry/nextjs";
 import { validateProposalUrl } from "@/lib/github";
 
@@ -41,7 +41,8 @@ export function CreateProposalModal({
   /** Keeps the field from turning red while the user is still typing the URL. */
   const [descriptionTouched, setDescriptionTouched] = React.useState(false);
 
-  const { publicKey } = useWalletSession();
+  const { account } = useConnector();
+  const publicKey = account ?? undefined;
   const { mutate: createProposal } = useCreateProposal();
 
   const descriptionValidation = React.useMemo(

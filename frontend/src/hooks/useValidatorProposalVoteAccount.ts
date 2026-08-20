@@ -1,7 +1,7 @@
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { getValidatorProposalVoteAccount } from "@/data/getValidatorProposalVoteAccount";
 import { GET_VALIDATOR_PROPOSAL_VOTE_ACCOUNTS } from "@/helpers";
-import { useWalletSession } from "@/contexts/WalletSessionContext";
+import { useConnector } from "@solana/connector/react";
 import { useQuery } from "@tanstack/react-query";
 
 export const useValidatorProposalVoteAccount = (
@@ -10,7 +10,8 @@ export const useValidatorProposalVoteAccount = (
 ) => {
   const { endpointUrl: endpoint } = useEndpoint();
 
-  const { publicKey, connected } = useWalletSession();
+  const { account, isConnected: connected } = useConnector();
+  const publicKey = account ?? undefined;
 
   const enabledQuery = connected && !!publicKey && !!proposalId && enabled;
 
