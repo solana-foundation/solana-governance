@@ -46,15 +46,6 @@ export const columns: ColumnDef<ProposalRecord>[] = [
     cell: ({ row }) => <LifecycleIndicator status={row.original.status} />,
   },
   {
-    accessorKey: "quorumPercent",
-    header: "Quorum (%)",
-    cell: ({ getValue }) => (
-      <span className="text-sm font-medium text-white/60">
-        {getValue<number>()}
-      </span>
-    ),
-  },
-  {
     accessorKey: "startEpoch",
     header: ({ column }) => (
       <SortableHeaderButton column={column} label="Voting Start" />

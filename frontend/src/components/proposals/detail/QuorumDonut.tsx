@@ -8,6 +8,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  QUORUM_DENOMINATOR,
+  QUORUM_FRACTION,
+  QUORUM_NUMERATOR,
+} from "@/chain/quorum";
 
 const defaultColors = {
   for: { start: "#c8e6da", end: "#11C67D" },
@@ -19,9 +24,8 @@ interface QuorumDonutProps {
   forLamports: number;
   againstLamports: number;
   abstainLamports: number;
-  /** `undefined` when total network stake could not be loaded. */
+  /** Snapshot total; `undefined` when the snapshot did not record it. */
   totalLamports: number | undefined;
-  quorumPercentage?: number;
 }
 
 /** Shown in the donut centre when total network stake could not be loaded. */
@@ -54,7 +58,6 @@ export default function QuorumDonut({
   againstLamports,
   abstainLamports,
   totalLamports,
-  quorumPercentage,
 }: QuorumDonutProps) {
   const colors = defaultColors;
 
@@ -74,8 +77,9 @@ export default function QuorumDonut({
     return { chartData, totalLamports, totalSol };
   }, [totalLamports, forLamports, againstLamports, abstainLamports]);
 
-  // Calculate the rotation for the quorum marker in degrees
-  const quorumAngleDegrees = quorumPercentage ? quorumPercentage * 360 : 0;
+  // Arcs are drawn against the same total, so their combined length reaching
+  // this marker is exactly quorum being met.
+  const quorumAngleDegrees = QUORUM_FRACTION * 360;
 
   // SVG Donut Chart calculations
   const radius = 50;
@@ -113,7 +117,7 @@ export default function QuorumDonut({
   const againstOffset = to([forP], (fp) => -fp * circumference);
   const abstainOffset = to(
     [forP, againstP],
-    (fp, ap) => -(fp + ap) * circumference
+    (fp, ap) => -(fp + ap) * circumference,
   );
 
   // Static angles for gradients
@@ -196,7 +200,7 @@ export default function QuorumDonut({
             strokeLinecap="round"
             strokeDasharray={to(
               [abstainLength],
-              (l) => `${l} ${circumference}`
+              (l) => `${l} ${circumference}`,
             )}
             style={{ strokeDashoffset: abstainOffset }}
           />
@@ -211,7 +215,7 @@ export default function QuorumDonut({
             strokeLinecap="round"
             strokeDasharray={to(
               [againstLength],
-              (l) => `${l} ${circumference}`
+              (l) => `${l} ${circumference}`,
             )}
             style={{ strokeDashoffset: againstOffset }}
           />
@@ -247,8 +251,7 @@ export default function QuorumDonut({
             sideOffset={8}
           >
             <p className="text-xs font-medium text-foreground">
-              Quorum:{" "}
-              {(quorumPercentage ? quorumPercentage * 100 : 0).toFixed(0)}%
+              Quorum: {QUORUM_NUMERATOR}/{QUORUM_DENOMINATOR} of network stake
             </p>
           </TooltipContent>
         </Tooltip>

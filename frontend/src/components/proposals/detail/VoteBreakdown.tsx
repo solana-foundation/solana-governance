@@ -9,9 +9,16 @@ import {
   formatLamportsDisplay,
   formatPercentage,
 } from "@/lib/governance/formatters";
-import { useHasUserVoted, useValidatorsTotalStakedLamports } from "@/hooks";
+import { useHasUserVoted } from "@/hooks";
+import { useSnapshotMeta } from "@/hooks/useSnapshotMeta";
+import {
+  computeQuorum,
+  QUORUM_DENOMINATOR,
+  QUORUM_NUMERATOR,
+  resolveQuorumDenominator,
+} from "@/chain/quorum";
 
-/** Shown in place of a percentage when total network stake could not be loaded. */
+/** Shown in place of a percentage when the snapshot total is not known. */
 const UNKNOWN_PERCENTAGE = "—";
 
 interface VoteBreakdownWrapperProps {
@@ -39,28 +46,43 @@ const VoteBreakdown = ({
   const { data: hasUserVoted = false, isLoading: isLoadingHasUserVoted } =
     useHasUserVoted(proposal?.publicKey?.toBase58());
 
-  const { totalStakedLamports, isLoading: isLoadingTotalStake } =
-    useValidatorsTotalStakedLamports();
+  // The proposal's own snapshot total, not a live cluster sum: Art. IV.2 fixes
+  // the distribution for the voting period, so a live total drifts.
+  const { data: meta, isLoading: isLoadingMeta } = useSnapshotMeta();
+  const totalActiveStake = resolveQuorumDenominator(
+    meta,
+    proposal?.snapshotSlot,
+  );
+
+  const quorum = useMemo(
+    () =>
+      proposal
+        ? computeQuorum({
+            forLamports: proposal.forVotesLamports,
+            againstLamports: proposal.againstVotesLamports,
+            abstainLamports: proposal.abstainVotesLamports,
+            totalActiveStake,
+          })
+        : undefined,
+    [proposal, totalActiveStake],
+  );
 
   // `undefined` when the denominator is unknown, so the percentages render as
   // "—" rather than a "0.00%" that looks like a real tally.
   const votePercentages = useMemo(() => {
-    if (!proposal || !totalStakedLamports) {
+    if (!proposal || !quorum?.known) {
       return undefined;
     }
 
+    const total = quorum.totalActiveStake;
     return {
-      forVotesPercentage:
-        (proposal.forVotesLamports / totalStakedLamports) * 100,
-      againstVotesPercentage:
-        (proposal.againstVotesLamports / totalStakedLamports) * 100,
-      abstainVotesPercentage:
-        (proposal.abstainVotesLamports / totalStakedLamports) * 100,
+      forVotesPercentage: (proposal.forVotesLamports / total) * 100,
+      againstVotesPercentage: (proposal.againstVotesLamports / total) * 100,
+      abstainVotesPercentage: (proposal.abstainVotesLamports / total) * 100,
     };
-  }, [proposal, totalStakedLamports]);
+  }, [proposal, quorum]);
 
-  const isLoading =
-    isLoadingParent || isLoadingHasUserVoted || isLoadingTotalStake;
+  const isLoading = isLoadingParent || isLoadingHasUserVoted || isLoadingMeta;
 
   if (!proposal && !isLoadingParent) return <div>No proposal info</div>;
 
@@ -76,8 +98,9 @@ const VoteBreakdown = ({
               forLamports={proposal.forVotesLamports}
               againstLamports={proposal.againstVotesLamports}
               abstainLamports={proposal.abstainVotesLamports}
-              totalLamports={totalStakedLamports}
-              quorumPercentage={proposal.quorumPercent / 100}
+              totalLamports={
+                quorum?.known ? quorum.totalActiveStake : undefined
+              }
             />
           )}
         </div>
@@ -91,6 +114,32 @@ const VoteBreakdown = ({
             <p className="text-center text-sm text-white/60 lg:text-left">
               Current distribution of recorded votes for this proposal.
             </p>
+            {isLoading || !quorum ? (
+              <div className="mx-auto h-4 w-52 animate-pulse rounded bg-white/10 lg:mx-0" />
+            ) : (
+              <p className="text-center text-sm lg:text-left">
+                <span className="text-white/60">
+                  Participation ({QUORUM_NUMERATOR}/{QUORUM_DENOMINATOR}{" "}
+                  needed):{" "}
+                </span>
+                {quorum.known ? (
+                  <span
+                    className={
+                      quorum.isMet ? "text-emerald-400" : "text-foreground"
+                    }
+                  >
+                    {quorum.participationPercent.toFixed(2)}%
+                    {quorum.isMet ? " — quorum met" : ""}
+                  </span>
+                ) : (
+                  // Not "not recorded": the total may exist, just for another
+                  // snapshot, which `/meta` cannot be asked for.
+                  <span className="text-white/60">
+                    {UNKNOWN_PERCENTAGE} (snapshot total unavailable)
+                  </span>
+                )}
+              </p>
+            )}
           </div>
           <div className="flex-1 space-y-2 md:space-y-3 lg:space-y-4 mt-1 lg:mt-0">
             {isLoading || proposal === undefined ? (

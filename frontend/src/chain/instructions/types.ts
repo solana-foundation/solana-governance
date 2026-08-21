@@ -158,6 +158,12 @@ export interface NetworkMetaResponse {
   merkle_root: string;
   snapshot_hash: string;
   created_at: string;
+  /**
+   * Lamports across every leaf — the quorum denominator. `null` for snapshots
+   * uploaded before the verifier recorded it, absent from verifiers that
+   * predate the field.
+   */
+  total_active_stake?: number | null;
 }
 
 // Constants

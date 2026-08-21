@@ -3,7 +3,6 @@ export * from "./icons";
 export * from "./LiveProposal";
 export * from "./LiveResults";
 export * from "./CurrentPhase";
-export * from "./Quorum";
 export * from "./TopVoters";
 export * from "./Footer";
 export * from "./VotingProposalsDropdown";

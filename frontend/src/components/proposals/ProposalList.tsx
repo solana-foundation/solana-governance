@@ -10,7 +10,6 @@ export default function ProposalList() {
   // const [showEligibleOnly, setShowEligibleOnly] = useState(false);
   // const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [quorumFilter, setQuorumFilter] = useState(80);
   const [filterState, setFilterState] = useState<FilterState>({
     onlyEligible: false,
     status: "all",
@@ -35,20 +34,15 @@ export default function ProposalList() {
       ) {
         return false;
       }
-      if (proposal.quorumPercent > quorumFilter) {
-        return false;
-      }
       return true;
     });
-  }, [filterState, searchQuery, quorumFilter, proposals]);
+  }, [filterState, searchQuery, proposals]);
 
   return (
     <div className="space-y-4 -mt-6">
       <FilterPanel
         searchQuery={searchQuery}
         onSearchQueryChange={setSearchQuery}
-        quorumFilter={quorumFilter}
-        onQuorumFilterChange={setQuorumFilter}
         filterState={filterState}
         onFilterStateChange={setFilterState}
         disabled={isLoading}
