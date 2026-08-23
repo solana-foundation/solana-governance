@@ -95,7 +95,7 @@ export interface FinalizeProposalParams {
 // API response types (based on solgov.online API)
 export interface VoteAccountProofResponse {
   meta_merkle_leaf: {
-    active_stake: number;
+    active_stake: string | number;
     stake_merkle_root: string;
     vote_account: string;
     voting_wallet: string;
@@ -106,7 +106,7 @@ export interface VoteAccountProofResponse {
 }
 
 export interface StakeMerkleLeafRaw {
-  active_stake: number;
+  active_stake: string | number;
   stake_account: string;
   voting_wallet: string;
 }

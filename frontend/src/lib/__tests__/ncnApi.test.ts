@@ -31,6 +31,28 @@ describe("fetchNcnJson", () => {
     ).resolves.toEqual(meta);
   });
 
+  it("preserves selected u64 fields beyond Number.MAX_SAFE_INTEGER", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        '{"meta_merkle_leaf":{"active_stake":16054077974334921},"snapshot_slot":440641000}',
+    }) as unknown as typeof fetch;
+
+    await expect(
+      fetchNcnJson<{
+        meta_merkle_leaf: { active_stake: string };
+        snapshot_slot: number;
+      }>(URL_UNDER_TEST, {
+        label: "vote account proof",
+        losslessIntegerFields: ["active_stake"],
+      }),
+    ).resolves.toEqual({
+      meta_merkle_leaf: { active_stake: "16054077974334921" },
+      snapshot_slot: 440641000,
+    });
+  });
+
   it("throws NcnApiHttpError naming the status, the operator that answered, and its body", async () => {
     // HTTP/2 has no reason phrase, so statusText is empty in practice — the numeric status
     // is the only thing that identifies the failure. The router redirects, so response.url is

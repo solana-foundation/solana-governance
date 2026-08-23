@@ -170,6 +170,7 @@ export async function getVoteAccountProof(
 
   return fetchNcnJson<VoteAccountProofResponse>(url, {
     label: "vote account proof",
+    losslessIntegerFields: ["active_stake"],
   });
 }
 
@@ -184,6 +185,7 @@ export async function getStakeAccountProof(
 
   return fetchNcnJson<StakeAccountProofResponse>(url, {
     label: "stake account proof",
+    losslessIntegerFields: ["active_stake"],
   });
 }
 

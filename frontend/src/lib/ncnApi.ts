@@ -157,6 +157,8 @@ interface FetchNcnJsonOptions {
   timeoutMs?: number;
   /** Number of retries after the initial request. */
   maxRetries?: number;
+  /** Integer-valued response fields that must be returned as exact decimal strings. */
+  losslessIntegerFields?: readonly string[];
   /** Override the backoff calculation, primarily for callers with tighter latency budgets. */
   retryDelayMs?: (retryNumber: number) => number;
   /** Human-readable name of the resource, used in error messages. */
@@ -167,7 +169,33 @@ interface FetchNcnJsonOnceOptions {
   signal?: AbortSignal;
   timeoutMs: number;
   label: string;
+  losslessIntegerFields?: readonly string[];
 }
+
+/**
+ * Quote selected integer tokens before JSON.parse can round them to IEEE-754 doubles.
+ *
+ * The verifier API currently serializes u64 lamport values as JSON numbers. Validator stake can
+ * exceed Number.MAX_SAFE_INTEGER, and rounding even one lamport changes a Merkle leaf hash. Keep
+ * this scoped to explicitly named, trusted API fields so ordinary response numbers stay numbers.
+ */
+const parseNcnJson = <T>(
+  body: string,
+  losslessIntegerFields: readonly string[],
+): T => {
+  let normalized = body;
+
+  for (const field of losslessIntegerFields) {
+    const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const integerValue = new RegExp(
+      `("${escapedField}"\\s*:\\s*)(-?(?:0|[1-9]\\d*))(?=\\s*[,}])`,
+      "g",
+    );
+    normalized = normalized.replace(integerValue, '$1"$2"');
+  }
+
+  return JSON.parse(normalized) as T;
+};
 
 const defaultRetryDelayMs = (retryNumber: number): number =>
   Math.min(1000 * 2 ** retryNumber, MAX_RETRY_DELAY_MS) +
@@ -202,7 +230,12 @@ const waitForRetry = async (
 /** Make one bounded request. Retry orchestration lives in `fetchNcnJson`. */
 const fetchNcnJsonOnce = async <T>(
   url: string,
-  { signal, timeoutMs, label }: FetchNcnJsonOnceOptions,
+  {
+    signal,
+    timeoutMs,
+    label,
+    losslessIntegerFields = [],
+  }: FetchNcnJsonOnceOptions,
 ): Promise<T> => {
   // Composed by hand rather than with AbortSignal.any/AbortSignal.timeout, which need
   // Safari 17.4+ — and Safari users are the ones hitting these failures.
@@ -232,7 +265,11 @@ const fetchNcnJsonOnce = async <T>(
       });
     }
 
-    return (await response.json()) as T;
+    if (losslessIntegerFields.length === 0) {
+      return (await response.json()) as T;
+    }
+
+    return parseNcnJson<T>(await response.text(), losslessIntegerFields);
   } catch (error) {
     // The caller cancelled us (unmount, invalidation). Rethrow untouched so React Query
     // records a cancellation rather than a failure — cancellations never reach
@@ -278,13 +315,19 @@ export async function fetchNcnJson<T>(
     signal,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     maxRetries = DEFAULT_MAX_RETRIES,
+    losslessIntegerFields,
     retryDelayMs = defaultRetryDelayMs,
     label,
   }: FetchNcnJsonOptions,
 ): Promise<T> {
   for (let retryNumber = 0; ; retryNumber += 1) {
     try {
-      return await fetchNcnJsonOnce<T>(url, { signal, timeoutMs, label });
+      return await fetchNcnJsonOnce<T>(url, {
+        signal,
+        timeoutMs,
+        label,
+        losslessIntegerFields,
+      });
     } catch (error) {
       const failureKind = classifyNcnFailure(error);
       const shouldRetry =
