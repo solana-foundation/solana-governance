@@ -9,6 +9,7 @@ import {
   createProgramWithWallet,
   deriveProposalIndexPda,
   deriveGlobalConfigPda,
+  signTransactionForWallet,
 } from "./helpers";
 import { deriveProposalAccount } from "../helpers";
 import { assertValidProposalUrl } from "@/lib/github";
@@ -24,6 +25,10 @@ export async function createProposal(
   if (!wallet || !wallet.publicKey) {
     throw new Error("Wallet not connected");
   }
+
+  // The transaction is built and signed for this account. signTransactionForWallet verifies
+  // that the wallet-returned transaction contains its signature before the proposal is submitted.
+  const signer = wallet.publicKey;
 
   // Enforced here rather than only in the modal so every caller inherits it. The on-chain
   // check accepts anything github.com-shaped, including pull request links, which the
@@ -70,12 +75,12 @@ export async function createProposal(
 
   const transaction = new Transaction();
   transaction.add(proposalInstruction);
-  transaction.feePayer = wallet.publicKey;
+  transaction.feePayer = signer;
   transaction.recentBlockhash = (
     await program.provider.connection.getLatestBlockhash("confirmed")
   ).blockhash;
 
-  const tx = await wallet.signTransaction(transaction);
+  const tx = await signTransactionForWallet(wallet, transaction, signer);
 
   const signature = await program.provider.connection.sendRawTransaction(
     tx.serialize(),

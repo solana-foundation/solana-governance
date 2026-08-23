@@ -21,6 +21,7 @@ import {
   getMetaMerkleProofPda,
   computeProofCloseTimestamp,
   resolveProposalSnapshotSlot,
+  signTransactionForWallet,
 } from "./helpers";
 
 /**
@@ -42,6 +43,10 @@ export async function castVote(
   if (!wallet || !wallet.publicKey) {
     throw new Error("Wallet not connected");
   }
+
+  // The transaction is built and signed for this account. signTransactionForWallet verifies
+  // that the wallet-returned transaction contains its signature before the vote is submitted.
+  const signer = wallet.publicKey;
 
   if (consensusResult === undefined) {
     throw new Error("Consensus result not defined");
@@ -169,12 +174,12 @@ export async function castVote(
 
   const transaction = new Transaction();
   transaction.add(...instructions);
-  transaction.feePayer = wallet.publicKey;
+  transaction.feePayer = signer;
   transaction.recentBlockhash = (
     await program.provider.connection.getLatestBlockhash("confirmed")
   ).blockhash;
 
-  const tx = await wallet.signTransaction(transaction);
+  const tx = await signTransactionForWallet(wallet, transaction, signer);
 
   const signature = await program.provider.connection.sendRawTransaction(
     tx.serialize()

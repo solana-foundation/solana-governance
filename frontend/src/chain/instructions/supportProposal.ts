@@ -19,6 +19,7 @@ import {
   createProgramWithWallet,
   deriveSupportPda,
   deriveGlobalConfigPda,
+  signTransactionForWallet,
 } from "./helpers";
 
 /**
@@ -36,6 +37,10 @@ export async function supportProposal(
   if (!wallet || !wallet.publicKey) {
     throw new Error("Wallet not connected");
   }
+
+  // The transaction is built and signed for this account. signTransactionForWallet verifies
+  // that the wallet-returned transaction contains its signature before the support is submitted.
+  const signer = wallet.publicKey;
 
   if (slot === undefined) {
     throw new Error("Slot is not defined");
@@ -122,12 +127,12 @@ export async function supportProposal(
     }),
   );
   transaction.add(supportProposalInstruction);
-  transaction.feePayer = wallet.publicKey;
+  transaction.feePayer = signer;
   transaction.recentBlockhash = (
     await program.provider.connection.getLatestBlockhash("confirmed")
   ).blockhash;
 
-  const tx = await wallet.signTransaction(transaction);
+  const tx = await signTransactionForWallet(wallet, transaction, signer);
 
   const signature = await program.provider.connection.sendRawTransaction(
     tx.serialize(),
