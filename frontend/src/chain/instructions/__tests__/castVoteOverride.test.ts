@@ -1,4 +1,8 @@
-import { PublicKey, TransactionInstruction } from "@solana/web3.js";
+import {
+  PublicKey,
+  Transaction,
+  TransactionInstruction,
+} from "@solana/web3.js";
 
 // helpers.ts transitively imports EndpointContext -> env.ts (an ESM-only package Jest does not
 // transform). Stub it so the real helpers (PDA derivations, converters, assertOverrideProofLineage)
@@ -14,6 +18,8 @@ jest.mock("@/contexts/EndpointContext", () => ({
 const mockGetStakeAccountProof = jest.fn();
 const mockGetVoteAccountProof = jest.fn();
 const mockCreateProgramWithWallet = jest.fn();
+const mockCreateGovV1ProgramWithWallet = jest.fn();
+const mockComputeProofCloseTimestamp = jest.fn();
 const mockGetMetaMerkleProofPda = jest.fn();
 const mockDeriveVotePda = jest.fn();
 const mockDeriveVoteOverridePda = jest.fn();
@@ -29,6 +35,10 @@ jest.mock("../helpers", () => {
       mockGetVoteAccountProof(...args),
     createProgramWithWallet: (...args: unknown[]) =>
       mockCreateProgramWithWallet(...args),
+    createGovV1ProgramWithWallet: (...args: unknown[]) =>
+      mockCreateGovV1ProgramWithWallet(...args),
+    computeProofCloseTimestamp: (...args: unknown[]) =>
+      mockComputeProofCloseTimestamp(...args),
     getMetaMerkleProofPda: (...args: unknown[]) =>
       mockGetMetaMerkleProofPda(...args),
     deriveVotePda: (...args: unknown[]) => mockDeriveVotePda(...args),
@@ -72,6 +82,10 @@ const VOTE_OVERRIDE_CACHE_PDA = new PublicKey(keyFromByte(23));
 describe("castVoteOverride", () => {
   let recordedAccounts: Record<string, PublicKey>;
   const mockFetchProposal = jest.fn();
+  const mockGetAccountInfo = jest.fn();
+  const mockGetLatestBlockhash = jest.fn();
+  const mockSendRawTransaction = jest.fn();
+  const mockConfirmTransaction = jest.fn();
 
   function buildFakeProgram() {
     recordedAccounts = {};
@@ -91,11 +105,10 @@ describe("castVoteOverride", () => {
       programId: SVMGOV_PROGRAM_ID,
       provider: {
         connection: {
-          // Truthy account info => the MetaMerkleProof already exists, so the init branch (which
-          // needs the gov-v1 program / close-timestamp) is skipped.
-          getAccountInfo: jest.fn(async () => ({ data: Buffer.alloc(0) })),
-          getLatestBlockhash: jest.fn(async () => ({ blockhash: BLOCKHASH })),
-          sendRawTransaction: jest.fn(async () => "test-signature"),
+          getAccountInfo: mockGetAccountInfo,
+          getLatestBlockhash: mockGetLatestBlockhash,
+          sendRawTransaction: mockSendRawTransaction,
+          confirmTransaction: mockConfirmTransaction,
         },
       },
       account: {
@@ -107,15 +120,43 @@ describe("castVoteOverride", () => {
     };
   }
 
+  function buildFakeGovV1Program() {
+    const fakeIx = new TransactionInstruction({
+      keys: [],
+      programId: new PublicKey(keyFromByte(11)),
+      data: Buffer.alloc(0),
+    });
+    const instruction = jest.fn(async () => fakeIx);
+    const accountsStrict = jest.fn(() => ({ instruction }));
+    const initMetaMerkleProofMethod = jest.fn(() => ({ accountsStrict }));
+
+    return {
+      methods: { initMetaMerkleProof: initMetaMerkleProofMethod },
+    };
+  }
+
+  const mockSignTransaction = jest.fn(async (transaction: Transaction) => {
+    void transaction;
+    return { serialize: () => Buffer.alloc(0) };
+  });
   const wallet = {
     publicKey: new PublicKey(SIGNER),
-    signTransaction: jest.fn(async () => ({ serialize: () => Buffer.alloc(0) })),
+    signTransaction: mockSignTransaction,
     signAllTransactions: jest.fn(),
   } as unknown as AnchorWallet;
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockCreateProgramWithWallet.mockReturnValue(buildFakeProgram());
+    mockCreateGovV1ProgramWithWallet.mockReturnValue(buildFakeGovV1Program());
+    mockComputeProofCloseTimestamp.mockResolvedValue(2_000_000_000);
+    mockGetAccountInfo.mockResolvedValue({ data: Buffer.alloc(0) });
+    mockGetLatestBlockhash.mockResolvedValue({
+      blockhash: BLOCKHASH,
+      lastValidBlockHeight: 123,
+    });
+    mockSendRawTransaction.mockResolvedValue("test-signature");
+    mockConfirmTransaction.mockResolvedValue({ value: { err: null } });
     mockGetMetaMerkleProofPda.mockReturnValue(META_MERKLE_PROOF_PDA);
     mockDeriveVotePda.mockReturnValue(VALIDATOR_VOTE_PDA);
     mockDeriveVoteOverridePda.mockReturnValue(VOTE_OVERRIDE_PDA);
@@ -275,5 +316,50 @@ describe("castVoteOverride", () => {
       /no snapshot slot/
     );
     expect(mockGetStakeAccountProof).not.toHaveBeenCalled();
+  });
+
+  it("initializes and confirms a missing meta proof in a separate transaction", async () => {
+    mockGetAccountInfo.mockResolvedValue(null);
+    mockSendRawTransaction
+      .mockResolvedValueOnce("init-signature")
+      .mockResolvedValueOnce("vote-signature");
+
+    const result = await castVoteOverride(params, blockchainParams);
+
+    expect(result).toEqual({ signature: "vote-signature", success: true });
+    expect(mockSignTransaction).toHaveBeenCalledTimes(2);
+
+    const initTransaction = mockSignTransaction.mock.calls[0][0];
+    const voteTransaction = mockSignTransaction.mock.calls[1][0];
+    expect(initTransaction.instructions).toHaveLength(1);
+    expect(voteTransaction.instructions).toHaveLength(1);
+    expect(initTransaction.instructions[0]).not.toBe(
+      voteTransaction.instructions[0]
+    );
+    expect(mockConfirmTransaction).toHaveBeenCalledWith(
+      {
+        signature: "init-signature",
+        blockhash: BLOCKHASH,
+        lastValidBlockHeight: 123,
+      },
+      "confirmed"
+    );
+    expect(mockConfirmTransaction.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSignTransaction.mock.invocationCallOrder[1]
+    );
+  });
+
+  it("does not submit the vote when proof initialization fails", async () => {
+    mockGetAccountInfo.mockResolvedValue(null);
+    mockSendRawTransaction.mockResolvedValue("init-signature");
+    mockConfirmTransaction.mockResolvedValue({
+      value: { err: { InstructionError: [0, "Custom"] } },
+    });
+
+    await expect(castVoteOverride(params, blockchainParams)).rejects.toThrow(
+      /Failed to initialize meta merkle proof/
+    );
+    expect(mockSignTransaction).toHaveBeenCalledTimes(1);
+    expect(mockSendRawTransaction).toHaveBeenCalledTimes(1);
   });
 });

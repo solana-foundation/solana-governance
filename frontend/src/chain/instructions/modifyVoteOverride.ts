@@ -2,7 +2,6 @@ import {
   PublicKey,
   SystemProgram,
   Transaction,
-  TransactionInstruction,
 } from "@solana/web3.js";
 import {
   ModifyVoteOverrideParams,
@@ -98,10 +97,6 @@ export async function modifyVoteOverride(
     "confirmed"
   );
 
-  // Instructions are sent in a single atomic transaction so the proof cannot be deleted by an
-  // attacker between creating it and consuming it in the override vote.
-  const instructions: TransactionInstruction[] = [];
-
   if (!merkleAccountInfo) {
     console.log("merkle proof does not exist, initializing");
     const govV1Program = createGovV1ProgramWithWallet(
@@ -151,7 +146,35 @@ export async function modifyVoteOverride(
       })
       .instruction();
 
-    instructions.push(initMerkleInstruction);
+    // The meta proof and stake proof are both large. Combining their instructions can exceed
+    // Solana's 1,232-byte transaction limit, so initialize and confirm the reusable meta proof
+    // before building the override transaction. Its close timestamp is the proposal's vote
+    // expiry, which prevents permissionless deletion between these transactions.
+    const initBlockhash =
+      await program.provider.connection.getLatestBlockhash("confirmed");
+    const initTransaction = new Transaction();
+    initTransaction.add(initMerkleInstruction);
+    initTransaction.feePayer = wallet.publicKey;
+    initTransaction.recentBlockhash = initBlockhash.blockhash;
+
+    const signedInitTransaction =
+      await wallet.signTransaction(initTransaction);
+    const initSignature =
+      await program.provider.connection.sendRawTransaction(
+        signedInitTransaction.serialize(),
+        { preflightCommitment: "confirmed" }
+      );
+    const initConfirmation =
+      await program.provider.connection.confirmTransaction(
+        { signature: initSignature, ...initBlockhash },
+        "confirmed"
+      );
+
+    if (initConfirmation.value.err) {
+      throw new Error(
+        `Failed to initialize meta merkle proof: ${JSON.stringify(initConfirmation.value.err)}`
+      );
+    }
   }
 
   // Convert merkle proof data
@@ -209,10 +232,8 @@ export async function modifyVoteOverride(
     })
     .instruction();
 
-  instructions.push(modifyVoteOverrideInstruction);
-
   const transaction = new Transaction();
-  transaction.add(...instructions);
+  transaction.add(modifyVoteOverrideInstruction);
   transaction.feePayer = wallet.publicKey;
   transaction.recentBlockhash = (
     await program.provider.connection.getLatestBlockhash("confirmed")
