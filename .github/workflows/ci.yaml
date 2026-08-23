@@ -159,7 +159,7 @@ jobs:
           # repo, so pin the current LTS line here.
           node-version: 22
           cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install frontend dependencies
         working-directory: frontend
