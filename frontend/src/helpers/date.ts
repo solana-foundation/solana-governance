@@ -47,12 +47,40 @@ export async function epochToDate(
   // Get the first slot of the target epoch
   const targetSlot = epochSchedule.getFirstSlotInEpoch(targetEpoch);
 
-  // Estimate date based on slot time
-  // Average slot time is ~400ms
-  const SLOT_TIME_MS = 400;
+  // Estimate date from observed recent slot production. This automatically
+  // follows feature-gated slot-time reductions without hardcoding each stage.
+  const FALLBACK_SLOT_TIME_MS = 400;
+  const PERFORMANCE_SAMPLE_LIMIT = 20;
+  let SLOT_TIME_MS = FALLBACK_SLOT_TIME_MS;
+
+  try {
+    const samples = await connection.getRecentPerformanceSamples(
+      PERFORMANCE_SAMPLE_LIMIT
+    );
+
+    const { totalSlots, totalSeconds } = samples.reduce(
+      (totals, sample) => {
+        if (sample.numSlots > 0 && sample.samplePeriodSecs > 0) {
+          totals.totalSlots += sample.numSlots;
+          totals.totalSeconds += sample.samplePeriodSecs;
+        }
+        return totals;
+      },
+      { totalSlots: 0, totalSeconds: 0 }
+    );
+
+    if (totalSlots > 0 && totalSeconds > 0) {
+      SLOT_TIME_MS = (totalSeconds * 1000) / totalSlots;
+    }
+  } catch {
+    console.warn(
+      "Failed to get recent performance samples; using 400ms slot time"
+    );
+  }
+
   const slotsUntilTarget = targetSlot - epochInfo.absoluteSlot;
 
-  // Get current block time to anchor our calculation
+  // Anchor the projection to the current slot's block time.
   let currentBlockTime: number;
   try {
     const blockTime = await connection.getBlockTime(epochInfo.absoluteSlot);
@@ -64,7 +92,7 @@ export async function epochToDate(
     );
     currentBlockTime = Date.now();
   }
-
+  
   // Calculate estimated time: current block time + (slots until target * slot time)
   const estimatedTime = currentBlockTime + slotsUntilTarget * SLOT_TIME_MS;
 
