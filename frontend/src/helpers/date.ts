@@ -1,4 +1,8 @@
 import { Connection, EpochInfo, EpochSchedule } from "@solana/web3.js";
+const performanceSamplesByEndpoint = new Map<
+  string,
+  ReturnType<Connection["getRecentPerformanceSamples"]>
+>();
 
 export const getDaysLeft = (futureDate: Date) => {
   const now = new Date();
@@ -54,9 +58,16 @@ export async function epochToDate(
   let SLOT_TIME_MS = FALLBACK_SLOT_TIME_MS;
 
   try {
-    const samples = await connection.getRecentPerformanceSamples(
-      PERFORMANCE_SAMPLE_LIMIT
-    );
+    let samplesPromise = performanceSamplesByEndpoint.get(endpoint);
+
+    if (!samplesPromise) {
+      samplesPromise = connection.getRecentPerformanceSamples(
+        PERFORMANCE_SAMPLE_LIMIT
+      );
+      performanceSamplesByEndpoint.set(endpoint, samplesPromise);
+    }
+
+    const samples = await samplesPromise;
 
     const { totalSlots, totalSeconds } = samples.reduce(
       (totals, sample) => {
@@ -92,7 +103,7 @@ export async function epochToDate(
     );
     currentBlockTime = Date.now();
   }
-  
+
   // Calculate estimated time: current block time + (slots until target * slot time)
   const estimatedTime = currentBlockTime + slotsUntilTarget * SLOT_TIME_MS;
 
