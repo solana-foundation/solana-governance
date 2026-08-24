@@ -31,9 +31,11 @@ The Merkle proof system ensures that:
 
 ## Two Override Paths
 
-**Path A — Validator has already voted:** Your override immediately adjusts the validator's on-chain vote tallies.
+Your vote is immediately added to the proposal's on-chain tallies, it never depends on whether the validator votes. What differs is how the validator's voting weight is reduced by your overridden stake:
 
-**Path B — Validator hasn't voted yet:** Your preferences are stored in a `VoteOverrideCache`. When the validator eventually calls `cast_vote`, your cached override is applied automatically.
+**Path A — Validator has already voted:** Your override is applied on the spot. The validator's existing vote is recalculated with your stake removed from their weight, and your vote is counted separately at full weight.
+
+**Path B — Validator hasn't voted yet:** Your vote is counted right away, and your overridden stake is recorded in a `VoteOverrideCache`. If the validator later calls `cast_vote`, their vote is cast with the cached stake excluded from their weight, so your stake is never counted twice.
 
 ## Requirements
 
