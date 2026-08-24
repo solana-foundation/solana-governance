@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { findGlobalConfigPda } from "../clients/ts/pdas/globalConfig.ts";
-import { findProposalPda } from "../clients/ts/pdas/proposal.ts";
+import { findGlobalConfigPda } from "../generated/clients/ts/pdas/globalConfig.ts";
+import { findProposalPda } from "../generated/clients/ts/pdas/proposal.ts";
 import {
   getVoteOverrideCacheDecoder,
   getVoteOverrideCacheEncoder,
   getVoteOverrideCacheSize,
-} from "../clients/ts/accounts/voteOverrideCache.ts";
-import { getStakeMerkleLeafEncoder } from "../clients/ts/types/stakeMerkleLeaf.ts";
+} from "../generated/clients/ts/accounts/voteOverrideCache.ts";
+import { getStakeMerkleLeafEncoder } from "../generated/clients/ts/types/stakeMerkleLeaf.ts";
 
 test("derives the governance PDAs from the deployed program and canonical seeds", async () => {
   const [globalConfig] = await findGlobalConfigPda();

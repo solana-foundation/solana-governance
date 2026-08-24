@@ -10,7 +10,7 @@ const codamaIdl = await readFile(resolve(packageDir, "idl/codama.json"), "utf8")
 const codama = createFromJson(codamaIdl);
 
 await codama.accept(
-  renderVisitor(resolve(packageDir, "clients/ts"), {
+  renderVisitor(resolve(packageDir, "generated/clients/ts"), {
     deleteFolderBeforeRendering: true,
     formatCode: true,
     generatedFolder: "",

@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./clients/ts/index.ts"
+    ".": "./generated/clients/ts/index.ts"
   },
   "scripts": {
     "generate:codama-idl": "node scripts/generate-codama-idl.mjs",
