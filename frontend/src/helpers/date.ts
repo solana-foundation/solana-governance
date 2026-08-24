@@ -53,7 +53,7 @@ export async function epochToDate(
 
   // Estimate date from observed recent slot production. This automatically
   // follows feature-gated slot-time reductions without hardcoding each stage.
-  const FALLBACK_SLOT_TIME_MS = 400;
+  const FALLBACK_SLOT_TIME_MS = 350;
   const PERFORMANCE_SAMPLE_LIMIT = 20;
   let SLOT_TIME_MS = FALLBACK_SLOT_TIME_MS;
 
@@ -85,7 +85,7 @@ export async function epochToDate(
     }
   } catch {
     console.warn(
-      "Failed to get recent performance samples; using 400ms slot time"
+      "Failed to get recent performance samples; using 350ms slot time"
     );
   }
 
