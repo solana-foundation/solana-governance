@@ -92,7 +92,9 @@ impl VoteAccountRecord {
         snapshot_slot: u64,
     ) -> Result<Option<VoteAccountRecord>> {
         let row_opt = sqlx::query(
-            "SELECT * FROM vote_accounts \
+            "SELECT network, snapshot_slot, vote_account, voting_wallet, \
+                    stake_merkle_root, active_stake, meta_merkle_proof \
+             FROM vote_accounts \
                    WHERE network = ? AND vote_account = ? AND snapshot_slot = ?",
         )
         .bind(network)
@@ -204,7 +206,9 @@ impl StakeAccountRecord {
         snapshot_slot: u64,
     ) -> Result<Option<StakeAccountRecord>> {
         let row_opt = sqlx::query(
-            "SELECT * FROM stake_accounts \
+            "SELECT network, snapshot_slot, stake_account, vote_account, \
+                    voting_wallet, active_stake, stake_merkle_proof \
+             FROM stake_accounts \
                    WHERE network = ? AND stake_account = ? AND snapshot_slot = ?",
         )
         .bind(network)
@@ -270,7 +274,8 @@ impl SnapshotMetaRecord {
         network: &str,
     ) -> Result<Option<SnapshotMetaRecord>> {
         let row_opt = sqlx::query(
-            "SELECT * FROM snapshot_meta
+            "SELECT network, slot, merkle_root, snapshot_hash, created_at, total_active_stake
+             FROM snapshot_meta
              WHERE network = ? ORDER BY slot DESC LIMIT 1",
         )
         .bind(network)
