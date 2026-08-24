@@ -29,6 +29,9 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<()> {
     if current_version < 2 {
         apply_migration_v2(pool).await?;
     }
+    if current_version < 3 {
+        apply_migration_v3(pool).await?;
+    }
 
     info!("All migrations completed");
     Ok(())
@@ -128,6 +131,53 @@ async fn apply_migration_v2(pool: &SqlitePool) -> Result<()> {
     Ok(())
 }
 
+/// Apply migration version 3: populate totals for snapshots indexed before
+/// `total_active_stake` was recorded at upload time.
+///
+/// Old uploads still indexed one `vote_accounts` row for every meta Merkle
+/// leaf, and each row retains that leaf's `active_stake`. Summing those rows
+/// recreates the immutable snapshot total; it does not consult the live
+/// cluster stake. Leave rows without indexed vote accounts as NULL, since a
+/// zero total would incorrectly claim that their contents are known.
+async fn apply_migration_v3(pool: &SqlitePool) -> Result<()> {
+    info!("Applying migration v3: {}", MIGRATION_DESCRIPTIONS[2]);
+
+    let mut tx = pool.begin().await?;
+
+    sqlx::query(
+        "UPDATE snapshot_meta
+         SET total_active_stake = (
+             SELECT SUM(vote_accounts.active_stake)
+             FROM vote_accounts
+             WHERE vote_accounts.network = snapshot_meta.network
+               AND vote_accounts.snapshot_slot = snapshot_meta.slot
+         )
+         WHERE total_active_stake IS NULL
+           AND EXISTS (
+             SELECT 1
+             FROM vote_accounts
+             WHERE vote_accounts.network = snapshot_meta.network
+               AND vote_accounts.snapshot_slot = snapshot_meta.slot
+         )",
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO schema_migrations (version, applied_at, description) VALUES (?, ?, ?)",
+    )
+    .bind(3)
+    .bind(chrono::Utc::now().to_rfc3339())
+    .bind(MIGRATION_DESCRIPTIONS[2])
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    info!("Migration v3 completed successfully");
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -185,10 +235,10 @@ CREATE TABLE snapshot_meta (
         let pool = legacy_v1_database().await;
         run_migrations(&pool).await.unwrap();
 
-        assert_eq!(get_current_version(&pool).await.unwrap(), 2);
+        assert_eq!(get_current_version(&pool).await.unwrap(), 3);
 
-        // The pre-existing snapshot survives, with an unknown total rather than
-        // a fabricated one — it cannot be back-filled without the upload.
+        // The pre-existing snapshot has no indexed vote accounts, so its total
+        // remains unknown rather than being fabricated as zero.
         let record = SnapshotMetaRecord::get_latest(&pool, "mainnet")
             .await
             .unwrap()
@@ -199,10 +249,10 @@ CREATE TABLE snapshot_meta (
     }
 
     #[tokio::test]
-    async fn a_fresh_database_lands_on_v2_with_the_column_present() {
+    async fn a_fresh_database_lands_on_v3_with_the_column_present() {
         let pool = pool().await;
         run_migrations(&pool).await.unwrap();
-        assert_eq!(get_current_version(&pool).await.unwrap(), 2);
+        assert_eq!(get_current_version(&pool).await.unwrap(), 3);
 
         let record = SnapshotMetaRecord {
             network: "mainnet".to_string(),
@@ -222,12 +272,35 @@ CREATE TABLE snapshot_meta (
     }
 
     #[tokio::test]
+    async fn upgrading_backfills_totals_from_legacy_vote_accounts() {
+        let pool = legacy_v1_database().await;
+        sqlx::query(
+            "INSERT INTO vote_accounts
+             (network, snapshot_slot, vote_account, voting_wallet, stake_merkle_root, active_stake, meta_merkle_proof)
+             VALUES
+             ('mainnet', 100, 'vote-a', 'wallet-a', 'root-a', 400, '[]'),
+             ('mainnet', 100, 'vote-b', 'wallet-b', 'root-b', 600, '[]')",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        run_migrations(&pool).await.unwrap();
+
+        let record = SnapshotMetaRecord::get_latest(&pool, "mainnet")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(record.total_active_stake, Some(1_000));
+    }
+
+    #[tokio::test]
     async fn migrations_are_idempotent() {
         // Startup runs these on every boot; a second pass must be a no-op
         // rather than failing on a duplicate ALTER.
         let pool = legacy_v1_database().await;
         run_migrations(&pool).await.unwrap();
         run_migrations(&pool).await.unwrap();
-        assert_eq!(get_current_version(&pool).await.unwrap(), 2);
+        assert_eq!(get_current_version(&pool).await.unwrap(), 3);
     }
 }

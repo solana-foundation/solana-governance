@@ -39,7 +39,6 @@ export type ProposalRecord = {
   voteCount: number;
 
   // Requirements & Metrics
-  quorumPercent: number; // Required quorum (e.g., 80)
   proposerStakeWeightBp: bigint; // Basis points
 
   // Status

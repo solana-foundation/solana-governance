@@ -41,9 +41,8 @@ CREATE TABLE snapshot_meta (
     merkle_root TEXT NOT NULL,
     snapshot_hash TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    -- Total active stake across every meta leaf in the snapshot. NULL for rows
-    -- written before this column existed; those snapshots cannot be
-    -- back-filled without the original upload.
+    -- Total active stake across every meta leaf in the snapshot. NULL only
+    -- when no indexed vote-account rows are available to derive it.
     total_active_stake INTEGER,
     PRIMARY KEY (network, slot)
 )

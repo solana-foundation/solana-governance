@@ -128,7 +128,6 @@ export function mapProposalDto(
     abstainVotesLamports: raw.abstainVotesLamports ?? 0n,
     voteCount: raw.voteCount,
 
-    quorumPercent: 60, // TODO ?
     proposerStakeWeightBp: raw.proposerStakeWeightBp,
 
     status,

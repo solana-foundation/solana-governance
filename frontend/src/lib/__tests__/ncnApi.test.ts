@@ -2,6 +2,7 @@ import {
   classifyNcnFailure,
   fetchNcnJson,
   isNetworkFailure,
+  isNcnProofNotFound,
   isPermanentNcnFailure,
   NcnApiHttpError,
   NcnApiNetworkError,
@@ -27,8 +28,30 @@ describe("fetchNcnJson", () => {
     }) as unknown as typeof fetch;
 
     await expect(
-      fetchNcnJson(URL_UNDER_TEST, { label: "snapshot meta info" })
+      fetchNcnJson(URL_UNDER_TEST, { label: "snapshot meta info" }),
     ).resolves.toEqual(meta);
+  });
+
+  it("preserves selected u64 fields beyond Number.MAX_SAFE_INTEGER", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        '{"meta_merkle_leaf":{"active_stake":16054077974334921},"snapshot_slot":440641000}',
+    }) as unknown as typeof fetch;
+
+    await expect(
+      fetchNcnJson<{
+        meta_merkle_leaf: { active_stake: string };
+        snapshot_slot: number;
+      }>(URL_UNDER_TEST, {
+        label: "vote account proof",
+        losslessIntegerFields: ["active_stake"],
+      }),
+    ).resolves.toEqual({
+      meta_merkle_leaf: { active_stake: "16054077974334921" },
+      snapshot_slot: 440641000,
+    });
   });
 
   it("throws NcnApiHttpError naming the status, the operator that answered, and its body", async () => {
@@ -46,13 +69,14 @@ describe("fetchNcnJson", () => {
 
     const error = await fetchNcnJson(URL_UNDER_TEST, {
       label: "snapshot meta info",
+      maxRetries: 0,
     }).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(NcnApiHttpError);
     expect((error as NcnApiHttpError).status).toBe(503);
     expect((error as NcnApiHttpError).host).toBe("ncn.brewlabs.so");
     expect((error as NcnApiHttpError).bodySnippet).toBe(
-      '{"error":"snapshot not ready"}'
+      '{"error":"snapshot not ready"}',
     );
     expect((error as Error).message).toContain("503");
     expect((error as Error).message).toContain("ncn.brewlabs.so");
@@ -70,6 +94,7 @@ describe("fetchNcnJson", () => {
 
     const error = await fetchNcnJson(URL_UNDER_TEST, {
       label: "snapshot meta info",
+      maxRetries: 0,
     }).catch((e: unknown) => e);
 
     expect((error as NcnApiHttpError).bodySnippet).toHaveLength(200);
@@ -88,6 +113,7 @@ describe("fetchNcnJson", () => {
 
     const error = await fetchNcnJson(URL_UNDER_TEST, {
       label: "snapshot meta info",
+      maxRetries: 0,
     }).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(NcnApiHttpError);
@@ -106,6 +132,7 @@ describe("fetchNcnJson", () => {
 
     const error = await fetchNcnJson(URL_UNDER_TEST, {
       label: "snapshot meta info",
+      maxRetries: 0,
     }).catch((e: unknown) => e);
 
     expect((error as NcnApiHttpError).host).toBe("ncn-governance.solana.com");
@@ -115,10 +142,13 @@ describe("fetchNcnJson", () => {
     // What Safari actually throws when a cross-origin response fails the CORS check.
     global.fetch = jest
       .fn()
-      .mockRejectedValue(new TypeError("Load failed")) as unknown as typeof fetch;
+      .mockRejectedValue(
+        new TypeError("Load failed"),
+      ) as unknown as typeof fetch;
 
     const error = await fetchNcnJson(URL_UNDER_TEST, {
       label: "snapshot meta info",
+      maxRetries: 0,
     }).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(NcnApiNetworkError);
@@ -133,14 +163,15 @@ describe("fetchNcnJson", () => {
       (_url: unknown, init?: { signal?: AbortSignal }) =>
         new Promise((_resolve, reject) => {
           init?.signal?.addEventListener("abort", () =>
-            reject(new DOMException("Aborted", "AbortError"))
+            reject(new DOMException("Aborted", "AbortError")),
           );
-        })
+        }),
     ) as unknown as typeof fetch;
 
     const pending = fetchNcnJson(URL_UNDER_TEST, {
       label: "snapshot meta info",
       timeoutMs: 50,
+      maxRetries: 0,
     }).catch((e: unknown) => e);
 
     const error = await pending;
@@ -148,11 +179,139 @@ describe("fetchNcnJson", () => {
     expect(error).toBeInstanceOf(NcnApiNetworkError);
     expect((error as Error).message).toContain("Timed out after 50ms");
     expect((error as NcnApiNetworkError).host).toBe(
-      "ncn-governance.solana.com"
+      "ncn-governance.solana.com",
     );
     // The only cause available is our own abort. Attaching it just adds a second, contentless
     // "signal is aborted without reason" exception to the Sentry event.
     expect((error as NcnApiNetworkError).cause).toBeUndefined();
+  });
+
+  it("retries a transient operator response and returns the next successful response", async () => {
+    const meta = { network: "mainnet", slot: 422497000 };
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        statusText: "",
+        url: "https://unhealthy-operator.example/meta?network=mainnet",
+        text: async () => "unavailable",
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => meta,
+      }) as unknown as typeof fetch;
+
+    await expect(
+      fetchNcnJson(URL_UNDER_TEST, {
+        label: "snapshot meta info",
+        retryDelayMs: () => 0,
+      }),
+    ).resolves.toEqual(meta);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries after an attempt times out", async () => {
+    const meta = { network: "mainnet", slot: 422497000 };
+    global.fetch = jest
+      .fn()
+      .mockImplementationOnce(
+        (_url: unknown, init?: { signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () =>
+              reject(new DOMException("Aborted", "AbortError")),
+            );
+          }),
+      )
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => meta,
+      }) as unknown as typeof fetch;
+
+    await expect(
+      fetchNcnJson(URL_UNDER_TEST, {
+        label: "snapshot meta info",
+        timeoutMs: 10,
+        retryDelayMs: () => 0,
+      }),
+    ).resolves.toEqual(meta);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries a network failure three times before returning the final error", async () => {
+    global.fetch = jest
+      .fn()
+      .mockRejectedValue(
+        new TypeError("Load failed"),
+      ) as unknown as typeof fetch;
+
+    const error = await fetchNcnJson(URL_UNDER_TEST, {
+      label: "snapshot meta info",
+      retryDelayMs: () => 0,
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(NcnApiNetworkError);
+    expect(global.fetch).toHaveBeenCalledTimes(4);
+  });
+
+  it("does not retry a definitive request failure", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      url: URL_UNDER_TEST,
+      text: async () => "missing",
+    }) as unknown as typeof fetch;
+
+    const error = await fetchNcnJson(URL_UNDER_TEST, {
+      label: "snapshot meta info",
+      retryDelayMs: () => 0,
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(NcnApiHttpError);
+    expect((error as NcnApiHttpError).status).toBe(404);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks a missing stake proof as an expected snapshot outcome", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      url: URL_UNDER_TEST,
+      text: async () => "missing",
+    }) as unknown as typeof fetch;
+
+    const error = await fetchNcnJson(URL_UNDER_TEST, {
+      label: "stake account proof",
+      resource: "stake-account-proof",
+      retryDelayMs: () => 0,
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(NcnApiHttpError);
+    expect((error as NcnApiHttpError).resource).toBe("stake-account-proof");
+    expect(isNcnProofNotFound(error)).toBe(true);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not treat non-proof 404s as expected snapshot outcomes", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      url: URL_UNDER_TEST,
+      text: async () => "missing",
+    }) as unknown as typeof fetch;
+
+    const error = await fetchNcnJson(URL_UNDER_TEST, {
+      label: "snapshot meta info",
+      resource: "snapshot-meta",
+      retryDelayMs: () => 0,
+    }).catch((e: unknown) => e);
+
+    expect(isNcnProofNotFound(error)).toBe(false);
   });
 
   it("does not start work when the caller's signal is already aborted", async () => {
@@ -164,7 +323,7 @@ describe("fetchNcnJson", () => {
             return;
           }
           resolve({ ok: true, status: 200, json: async () => ({}) });
-        })
+        }),
     ) as unknown as typeof fetch;
 
     const error = await fetchNcnJson(URL_UNDER_TEST, {
@@ -180,9 +339,9 @@ describe("fetchNcnJson", () => {
       (_url: unknown, init?: { signal?: AbortSignal }) =>
         new Promise((_resolve, reject) => {
           init?.signal?.addEventListener("abort", () =>
-            reject(new DOMException("Aborted", "AbortError"))
+            reject(new DOMException("Aborted", "AbortError")),
           );
-        })
+        }),
     ) as unknown as typeof fetch;
 
     const controller = new AbortController();
@@ -212,13 +371,15 @@ describe("isNetworkFailure", () => {
 
   it("classifies NcnApiNetworkError as a network failure", () => {
     expect(
-      isNetworkFailure(new NcnApiNetworkError("unreachable", URL_UNDER_TEST))
+      isNetworkFailure(new NcnApiNetworkError("unreachable", URL_UNDER_TEST)),
     ).toBe(true);
   });
 
   it("does not classify an HTTP error as a network failure", () => {
     expect(
-      isNetworkFailure(new NcnApiHttpError("meta", 503, { url: URL_UNDER_TEST }))
+      isNetworkFailure(
+        new NcnApiHttpError("meta", 503, { url: URL_UNDER_TEST }),
+      ),
     ).toBe(false);
   });
 });
@@ -241,8 +402,8 @@ describe("classifyNcnFailure", () => {
   ])("classifies HTTP %i as %s", (status, expected) => {
     expect(
       classifyNcnFailure(
-        new NcnApiHttpError("meta", status, { url: URL_UNDER_TEST })
-      )
+        new NcnApiHttpError("meta", status, { url: URL_UNDER_TEST }),
+      ),
     ).toBe(expected);
   });
 
@@ -270,8 +431,8 @@ describe("isPermanentNcnFailure", () => {
   ])("HTTP %i => %s", (status, expected) => {
     expect(
       isPermanentNcnFailure(
-        new NcnApiHttpError("meta", status, { url: URL_UNDER_TEST })
-      )
+        new NcnApiHttpError("meta", status, { url: URL_UNDER_TEST }),
+      ),
     ).toBe(expected);
   });
 

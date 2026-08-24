@@ -9,7 +9,7 @@ name: Release Programs
 #     upgrade proposal from them. The CI keypair is fee payer / buffer writer
 #     only and needs no Squads membership.
 #
-# Secrets (DEPLOYER_KEYPAIR, RPC_URL, SQUADS_VAULT) come from Doppler via OIDC.
+# Secrets (DEPLOYER_KEYPAIR, RPC_URL, SQUADS_VAULT, SQUADS_MULTISIG) come from Doppler via OIDC.
 on:
   workflow_dispatch:
     inputs:
@@ -51,14 +51,20 @@ jobs:
     name: Select programs
     runs-on: ubuntu-latest
     outputs:
-      programs: ${{ steps.set.outputs.programs }}
+      include: ${{ steps.set.outputs.include }}
     steps:
       - id: set
         run: |
-          case "${{ inputs.programs }}" in
-            both) echo 'programs=["svmgov_program","ncn_snapshot"]' >> "$GITHUB_OUTPUT" ;;
-            *)    echo 'programs=["${{ inputs.programs }}"]' >> "$GITHUB_OUTPUT" ;;
-          esac
+          ALL='[
+            {"program":"svmgov_program","program-id":"govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU","mount-path":".","base-image":"solanafoundation/solana-verifiable-build:3.1.10","idl-path":"svmgov/cli/idls/svmgov_program.json"},
+            {"program":"ncn_snapshot","program-id":"ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf","mount-path":".","base-image":"solanafoundation/solana-verifiable-build:3.1.10","idl-path":"ncn/idl/ncn_snapshot.json"}
+          ]'
+          if [ "${{ inputs.programs }}" = "both" ]; then
+            SELECTED="$ALL"
+          else
+            SELECTED=$(echo "$ALL" | jq -c --arg p "${{ inputs.programs }}" 'map(select(.program == $p))')
+          fi
+          echo "include=$(echo "$SELECTED" | jq -c .)" >> "$GITHUB_OUTPUT"
 
   release:
     name: Release ${{ matrix.program }} (${{ inputs.network }})
@@ -70,27 +76,7 @@ jobs:
       # Both programs share one deployer key; write buffers sequentially.
       max-parallel: 1
       matrix:
-        program: ${{ fromJSON(needs.plan.outputs.programs) }}
-        # Per-program config. Program IDs are identical on every network
-        # (see networks.toml). Both programs are members of the repo-root
-        # workspace, which is what solana-verify mounts and builds. The base
-        # image is pinned for both: the auto-selected image's toolchain is
-        # too old for this repo (its cargo cannot parse the edition2024
-        # manifests in the lockfile's litesvm dev-dep stack, and its
-        # cargo-build-sbf mishandles the excluded intervening ncn workspace
-        # manifest). The pin is recorded in the verify PDA, so remote
-        # verifiers replay the same image.
-        include:
-          - program: svmgov_program
-            program-id: govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU
-            mount-path: .
-            base-image: solanafoundation/solana-verifiable-build:3.1.10
-            idl-path: svmgov/cli/idls/svmgov_program.json
-          - program: ncn_snapshot
-            program-id: ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf
-            mount-path: .
-            base-image: solanafoundation/solana-verifiable-build:3.1.10
-            idl-path: ncn/idl/ncn_snapshot.json
+        include: ${{ fromJSON(needs.plan.outputs.include) }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
@@ -122,6 +108,12 @@ jobs:
       - name: Install solana-verify
         run: cargo install solana-verify --version "$SOLANA_VERIFY_VERSION" --locked
 
+      - if: inputs.network == 'mainnet'
+        name: Validate Squads config
+        run: |
+          : "${SQUADS_VAULT:?Set SQUADS_VAULT in Doppler prd}"
+          : "${SQUADS_MULTISIG:?Set SQUADS_MULTISIG in Doppler prd}"
+
       - name: Materialize deployer keypair
         run: |
           install -m 600 /dev/null /tmp/deployer.json
@@ -151,10 +143,13 @@ jobs:
               --library-name "${{ matrix.program }}")
           ls -la "target/deploy/${{ matrix.program }}.so"
 
+      # ============================================
+      # devnet: direct upgrade by deployer
+      # ============================================
       - id: write-buffer
         if: inputs.network == 'devnet'
         name: Write program buffer (devnet)
-        uses: solana-foundation/github-actions/write-program-buffer@4dcdecb13d956467088835b1c644b38e0ee1d5d9
+        uses: solana-foundation/github-actions/write-program-buffer@e6ed2eb93c55eca911dbc711fb08683b42926a28 # v0.2.15
         with:
           program: ${{ matrix.program }}
           program-id: ${{ matrix.program-id }}
@@ -163,12 +158,9 @@ jobs:
           buffer-authority-address: ${{ steps.deployer.outputs.pubkey }}
           priority-fee: ${{ inputs.priority-fee }}
 
-      # ============================================
-      # devnet: direct upgrade by deployer
-      # ============================================
       - if: inputs.network == 'devnet'
         name: Upgrade program (devnet)
-        uses: solana-foundation/github-actions/program-upgrade@4dcdecb13d956467088835b1c644b38e0ee1d5d9
+        uses: solana-foundation/github-actions/program-upgrade@e6ed2eb93c55eca911dbc711fb08683b42926a28 # v0.2.15
         with:
           program: ${{ matrix.program }}
           program-id: ${{ matrix.program-id }}
@@ -178,7 +170,7 @@ jobs:
 
       - if: inputs.network == 'devnet'
         name: Upload IDL via program-metadata (devnet)
-        uses: solana-foundation/github-actions/metadata-upload@4dcdecb13d956467088835b1c644b38e0ee1d5d9
+        uses: solana-foundation/github-actions/metadata-upload@e6ed2eb93c55eca911dbc711fb08683b42926a28 # v0.2.15
         with:
           program-id: ${{ matrix.program-id }}
           rpc-url: ${{ env.RPC_URL }}
@@ -192,7 +184,7 @@ jobs:
       - if: inputs.network == 'mainnet'
         id: prepare-squads-release
         name: Prepare Squads release buffers (mainnet)
-        uses: solana-foundation/github-actions/prepare-squads-release@4dcdecb13d956467088835b1c644b38e0ee1d5d9
+        uses: solana-foundation/github-actions/prepare-squads-release@e6ed2eb93c55eca911dbc711fb08683b42926a28 # v0.2.15
         with:
           program: ${{ matrix.program }}
           program-id: ${{ matrix.program-id }}
@@ -201,11 +193,12 @@ jobs:
           squads-vault: ${{ env.SQUADS_VAULT }}
           metadata-path: ${{ matrix.idl-path }}
           priority-fee: ${{ inputs.priority-fee }}
+          prefund-metadata-account: 'true'
 
       - if: inputs.network == 'mainnet'
         id: export-verify-tx
         name: Export verify PDA transaction (mainnet)
-        uses: solana-foundation/github-actions/verify-build@4dcdecb13d956467088835b1c644b38e0ee1d5d9
+        uses: solana-foundation/github-actions/verify-build@e6ed2eb93c55eca911dbc711fb08683b42926a28 # v0.2.15
         with:
           program: ${{ matrix.program }}
           program-id: ${{ matrix.program-id }}
@@ -219,23 +212,20 @@ jobs:
           vault-address: ${{ env.SQUADS_VAULT }}
 
       - if: inputs.network == 'mainnet'
-        id: export-metadata-tx
-        name: Export metadata write transaction (mainnet)
-        uses: solana-foundation/github-actions/metadata-upload@4dcdecb13d956467088835b1c644b38e0ee1d5d9
+        id: export-squads-tx
+        name: Export combined Squads transaction (mainnet)
+        uses: solana-foundation/squads-program-action@572754d0b2e582bfc6bf2339f15d6dd2b9588246 # v0.5.1
         with:
-          program-id: ${{ matrix.program-id }}
-          rpc-url: ${{ env.RPC_URL }}
-          keypair: ${{ env.DEPLOYER_KEYPAIR }}
-          buffer: ${{ steps.prepare-squads-release.outputs.metadata-buffer }}
-          export: ${{ env.SQUADS_VAULT }}
-          priority-fees: ${{ inputs.priority-fee }}
-
-      - if: inputs.network == 'mainnet'
-        name: Confirm mainnet buffer handoff
-        run: |
-          : "${SQUADS_VAULT:?Set SQUADS_VAULT in Doppler prd}"
-          echo "Program buffer authority assigned to Squads vault: $SQUADS_VAULT"
-          echo "IDL metadata buffer authority assigned to Squads vault: $SQUADS_VAULT"
+          rpc: ${{ env.RPC_URL }}
+          program: ${{ matrix.program-id }}
+          buffer: ${{ steps.prepare-squads-release.outputs.buffer }}
+          metadata-buffer: ${{ steps.prepare-squads-release.outputs.metadata-buffer }}
+          multisig: ${{ env.SQUADS_MULTISIG }}
+          # uncomment when we want the action to directly create the squads proposal
+          # via proposer role and remove export: 'true'
+          # keypair: ${{ env.DEPLOYER_KEYPAIR }}
+          pda-tx: ${{ steps.export-verify-tx.outputs.pda_tx }}
+          export: 'true'
 
       - name: Cleanup keypair
         if: always()
@@ -251,15 +241,11 @@ jobs:
             echo "- Buffer: \`${{ steps['prepare-squads-release'].outputs.buffer }}\`" >> $GITHUB_STEP_SUMMARY
             echo "- IDL buffer: \`${{ steps['prepare-squads-release'].outputs['metadata-buffer'] }}\`" >> $GITHUB_STEP_SUMMARY
             echo "- Buffer authority: \`${{ env.SQUADS_VAULT }}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- Verify PDA transaction (base58, import into Squads):" >> $GITHUB_STEP_SUMMARY
+            echo "- Combined transaction (base58, verify PDA + IDL metadata write + program upgrade in one):" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
-            echo "${{ steps['export-verify-tx'].outputs.pda_tx }}" >> $GITHUB_STEP_SUMMARY
+            echo "${{ steps['export-squads-tx'].outputs.tx }}" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
-            echo "- Metadata write transactions (base58, one per line, import into Squads):" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            echo "${{ steps['export-metadata-tx'].outputs.tx }}" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            echo "- **Action required**: create the Squads upgrade proposal using the listed buffers and imported transactions" >> $GITHUB_STEP_SUMMARY
+            echo "- **Action required**: import the combined transaction into the Squads transaction builder, then approve and execute" >> $GITHUB_STEP_SUMMARY
             echo "- CI keypair role: fee payer and buffer writer only; it does not need Squads membership" >> $GITHUB_STEP_SUMMARY
           else
             echo "- Buffer: \`${{ steps['write-buffer'].outputs.buffer }}\`" >> $GITHUB_STEP_SUMMARY

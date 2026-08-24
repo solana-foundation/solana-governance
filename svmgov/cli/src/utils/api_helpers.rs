@@ -1,34 +1,66 @@
 use std::{str::FromStr, time::Duration};
 
 use anchor_lang::prelude::Pubkey;
-use anyhow::{anyhow, Result};
-use log::info;
+use anyhow::{Result, anyhow};
+use log::{info, warn};
 use ncn_snapshot::{MetaMerkleLeaf, MetaMerkleProof, StakeMerkleLeaf};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
+const DEFAULT_MAX_RETRIES: usize = 3;
+const RETRY_BASE_DELAY: Duration = Duration::from_secs(1);
+const RETRY_MAX_DELAY: Duration = Duration::from_secs(8);
+const RETRY_JITTER_MAX_MS: u64 = 250;
+
+#[derive(Clone, Copy)]
+struct RetryPolicy {
+    max_retries: usize,
+    base_delay: Duration,
+    max_delay: Duration,
+    jitter: bool,
+}
+
+const DEFAULT_RETRY_POLICY: RetryPolicy = RetryPolicy {
+    max_retries: DEFAULT_MAX_RETRIES,
+    base_delay: RETRY_BASE_DELAY,
+    max_delay: RETRY_MAX_DELAY,
+    jitter: true,
+};
+
+impl RetryPolicy {
+    fn delay(self, retry_number: usize) -> Duration {
+        let multiplier = 1_u32 << retry_number.min(3);
+        let backoff = self
+            .base_delay
+            .saturating_mul(multiplier)
+            .min(self.max_delay);
+        let jitter = if self.jitter {
+            Duration::from_millis(u64::from(rand::random::<u8>()) % (RETRY_JITTER_MAX_MS + 1))
+        } else {
+            Duration::ZERO
+        };
+        backoff + jitter
+    }
+}
 
 /// Turn a non-success response into an actionable error. A stale operator that
 /// has not uploaded the proposal's snapshot answers 404, which would otherwise
 /// reach `response.json()` and surface as an opaque deserialization failure.
-async fn ensure_ok(
-    response: reqwest::Response,
+fn response_error(
+    status: reqwest::StatusCode,
     what: &str,
     base_url: &str,
-) -> Result<reqwest::Response> {
-    let status = response.status();
-    if status.is_success() {
-        return Ok(response);
-    }
+    attempts: usize,
+) -> anyhow::Error {
     if status == reqwest::StatusCode::NOT_FOUND {
-        return Err(anyhow!(
+        return anyhow!(
             "The operator API at {base_url} has no {what} for this snapshot slot (404). It may not \
              have uploaded this snapshot yet — retry, or point --operator-api-url at another operator."
-        ));
+        );
     }
-    Err(anyhow!(
-        "The operator API at {base_url} returned {status} for the {what}."
-    ))
+    anyhow!(
+        "The operator API at {base_url} returned {status} for the {what} after {attempts} attempt(s)."
+    )
 }
 
 /// The operator fleet is externally operated, and some endpoints have been
@@ -40,6 +72,94 @@ fn http_client() -> Result<reqwest::Client> {
         .timeout(REQUEST_TIMEOUT)
         .build()
         .map_err(|e| anyhow!("Failed to build HTTP client: {}", e))
+}
+
+fn is_retryable_status(status: reqwest::StatusCode) -> bool {
+    status.is_server_error()
+        || matches!(
+            status,
+            reqwest::StatusCode::FORBIDDEN
+                | reqwest::StatusCode::REQUEST_TIMEOUT
+                | reqwest::StatusCode::TOO_MANY_REQUESTS
+        )
+}
+
+fn is_retryable_request_error(error: &reqwest::Error) -> bool {
+    error.is_timeout() || error.is_connect() || error.is_body()
+}
+
+async fn wait_before_retry(
+    policy: RetryPolicy,
+    retry_number: usize,
+    what: &str,
+    base_url: &str,
+    reason: &str,
+) {
+    let delay = policy.delay(retry_number);
+    warn!(
+        "Failed to get {what} from {base_url} ({reason}); retrying attempt {}/{} in {:.2?}",
+        retry_number + 2,
+        policy.max_retries + 1,
+        delay
+    );
+    tokio::time::sleep(delay).await;
+}
+
+/// Fetch and deserialize one NCN resource, retrying only failures that may succeed on another
+/// attempt. The default base URL may route that attempt to another operator, while permanent 4xx
+/// and malformed JSON fail fast.
+async fn fetch_json_with_retry<T: DeserializeOwned>(
+    client: &reqwest::Client,
+    url: &str,
+    what: &str,
+    base_url: &str,
+    policy: RetryPolicy,
+) -> Result<T> {
+    for retry_number in 0..=policy.max_retries {
+        let response = match client.get(url).send().await {
+            Ok(response) => response,
+            Err(error)
+                if retry_number < policy.max_retries && is_retryable_request_error(&error) =>
+            {
+                wait_before_retry(policy, retry_number, what, base_url, &error.to_string()).await;
+                continue;
+            }
+            Err(error) => {
+                return Err(anyhow!(
+                    "Failed to reach the operator API at {} after {} attempt(s): {}",
+                    base_url,
+                    retry_number + 1,
+                    error
+                ));
+            }
+        };
+
+        let status = response.status();
+        if !status.is_success() {
+            if retry_number < policy.max_retries && is_retryable_status(status) {
+                wait_before_retry(policy, retry_number, what, base_url, &status.to_string()).await;
+                continue;
+            }
+            return Err(response_error(status, what, base_url, retry_number + 1));
+        }
+
+        match response.json::<T>().await {
+            Ok(value) => return Ok(value),
+            Err(error)
+                if retry_number < policy.max_retries && is_retryable_request_error(&error) =>
+            {
+                wait_before_retry(policy, retry_number, what, base_url, &error.to_string()).await;
+            }
+            Err(error) => {
+                return Err(anyhow!(
+                    "Malformed {what} from {base_url} after {} attempt(s): {error}",
+                    retry_number + 1
+                ));
+            }
+        }
+    }
+
+    unreachable!("the retry loop always returns after its final attempt")
 }
 
 /// Vote account summary in voter response
@@ -146,16 +266,14 @@ pub async fn get_vote_account_proof(
 
     log::debug!("Fetching vote account proof from: {}", url);
 
-    let response = http_client()?
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| anyhow!("Failed to reach the operator API at {}: {}", base_url, e))?;
-    let response = ensure_ok(response, "vote account proof", &base_url).await?;
-    let proof: VoteAccountProofResponse = response
-        .json()
-        .await
-        .map_err(|e| anyhow!("Malformed vote account proof from {}: {}", base_url, e))?;
+    let proof: VoteAccountProofResponse = fetch_json_with_retry(
+        &http_client()?,
+        &url,
+        "vote account proof",
+        &base_url,
+        DEFAULT_RETRY_POLICY,
+    )
+    .await?;
 
     ensure_vote_account_matches(&proof, vote_account, &base_url)?;
 
@@ -183,16 +301,14 @@ pub async fn get_stake_account_proof(
 
     log::debug!("Fetching stake account proof from: {}", url);
 
-    let response = http_client()?
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| anyhow!("Failed to reach the operator API at {}: {}", base_url, e))?;
-    let response = ensure_ok(response, "stake account proof", &base_url).await?;
-    let proof: StakeAccountProofResponse = response
-        .json()
-        .await
-        .map_err(|e| anyhow!("Malformed stake account proof from {}: {}", base_url, e))?;
+    let proof: StakeAccountProofResponse = fetch_json_with_retry(
+        &http_client()?,
+        &url,
+        "stake account proof",
+        &base_url,
+        DEFAULT_RETRY_POLICY,
+    )
+    .await?;
 
     ensure_stake_account_matches(&proof, stake_account, &base_url)?;
 
@@ -348,6 +464,49 @@ pub fn generate_meta_merkle_proof_pda(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+        task::JoinHandle,
+    };
+
+    fn retry_policy(max_retries: usize) -> RetryPolicy {
+        RetryPolicy {
+            max_retries,
+            base_delay: Duration::ZERO,
+            max_delay: Duration::ZERO,
+            jitter: false,
+        }
+    }
+
+    async fn serve_responses(responses: Vec<(u16, &'static str)>) -> (String, JoinHandle<usize>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let handle = tokio::spawn(async move {
+            let mut request_count = 0;
+            for (status, body) in responses {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0_u8; 2_048];
+                socket.read(&mut request).await.unwrap();
+
+                let reason = match status {
+                    200 => "OK",
+                    404 => "Not Found",
+                    503 => "Service Unavailable",
+                    _ => "Test Response",
+                };
+                let response = format!(
+                    "HTTP/1.1 {status} {reason}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+                request_count += 1;
+            }
+            request_count
+        });
+
+        (format!("http://{address}"), handle)
+    }
 
     fn leaf(stake_merkle_root: &str) -> MetaMerkleLeafData {
         MetaMerkleLeafData {
@@ -467,5 +626,119 @@ mod tests {
         // decoder would silently accept or truncate.
         let short = bs58::encode([0u8; 31]).into_string();
         assert!(convert_merkle_proof_strings(&[short]).is_err());
+    }
+
+    #[tokio::test]
+    async fn a_transient_http_failure_is_retried() {
+        let (base_url, server) = serve_responses(vec![
+            (503, r#"{"error":"unavailable"}"#),
+            (200, r#"{"ok":true}"#),
+        ])
+        .await;
+        let url = format!("{base_url}/proof");
+
+        let response: serde_json::Value = fetch_json_with_retry(
+            &http_client().unwrap(),
+            &url,
+            "test proof",
+            &base_url,
+            retry_policy(1),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(response["ok"], true);
+        assert_eq!(server.await.unwrap(), 2);
+    }
+
+    #[tokio::test]
+    async fn a_timed_out_request_is_retried() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let mut request_count = 0;
+            for attempt in 0..2 {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0_u8; 2_048];
+                socket.read(&mut request).await.unwrap();
+                request_count += 1;
+
+                if attempt == 0 {
+                    tokio::spawn(async move {
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        drop(socket);
+                    });
+                    continue;
+                }
+
+                let body = r#"{"ok":true}"#;
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+            request_count
+        });
+        let base_url = format!("http://{address}");
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_millis(20))
+            .build()
+            .unwrap();
+
+        let response: serde_json::Value = fetch_json_with_retry(
+            &client,
+            &format!("{base_url}/proof"),
+            "test proof",
+            &base_url,
+            retry_policy(1),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(response["ok"], true);
+        assert_eq!(server.await.unwrap(), 2);
+    }
+
+    #[tokio::test]
+    async fn a_definitive_http_failure_is_not_retried() {
+        let (base_url, server) = serve_responses(vec![(404, r#"{"error":"missing"}"#)]).await;
+        let url = format!("{base_url}/proof");
+
+        let error = fetch_json_with_retry::<serde_json::Value>(
+            &http_client().unwrap(),
+            &url,
+            "test proof",
+            &base_url,
+            retry_policy(3),
+        )
+        .await
+        .expect_err("404 must fail without retrying");
+
+        assert!(error.to_string().contains("404"), "{error}");
+        assert_eq!(server.await.unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn transient_http_failures_stop_at_the_retry_limit() {
+        let (base_url, server) = serve_responses(vec![
+            (503, r#"{"error":"unavailable"}"#),
+            (503, r#"{"error":"still unavailable"}"#),
+        ])
+        .await;
+        let url = format!("{base_url}/proof");
+
+        let error = fetch_json_with_retry::<serde_json::Value>(
+            &http_client().unwrap(),
+            &url,
+            "test proof",
+            &base_url,
+            retry_policy(1),
+        )
+        .await
+        .expect_err("the final 503 must be returned");
+
+        assert!(error.to_string().contains("after 2 attempt(s)"), "{error}");
+        assert_eq!(server.await.unwrap(), 2);
     }
 }

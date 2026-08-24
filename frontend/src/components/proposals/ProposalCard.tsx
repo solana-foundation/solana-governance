@@ -203,7 +203,6 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
 
   const {
     status,
-    quorumPercent,
     title,
     proposalRef,
     description,
@@ -217,7 +216,6 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
   const showModifyButton = shouldShowModifyButton(status);
 
   const detailItems: VotingDetailItem[] = [
-    { label: "Quorum", value: `${quorumPercent}%` },
     { label: "Voting Ends", value: votingStatusValue },
   ];
 

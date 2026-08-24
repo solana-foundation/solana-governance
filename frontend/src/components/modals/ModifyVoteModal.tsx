@@ -26,6 +26,14 @@ import { WalletRole } from "@/types";
 import { VotingProposalsDropdown } from "../VotingProposalsDropdown";
 import { FormEvent, useEffect, useState } from "react";
 import { captureException } from "@sentry/nextjs";
+import {
+  isNcnProofNotFound,
+  NCN_PROOF_NOT_FOUND_MESSAGE,
+} from "@/lib/ncnApi";
+import {
+  isWalletSigningCancellation,
+  WALLET_SIGNING_CANCELLED_MESSAGE,
+} from "@/lib/walletSigning";
 
 export interface ModifyVoteModalDataProps {
   proposalId?: string;
@@ -95,6 +103,16 @@ export function ModifyVoteModal({
   };
 
   const handleError = (err: Error) => {
+    if (isNcnProofNotFound(err)) {
+      toast.info(NCN_PROOF_NOT_FOUND_MESSAGE);
+      setIsLoading(false);
+      return;
+    }
+    if (isWalletSigningCancellation(err)) {
+      toast.info(WALLET_SIGNING_CANCELLED_MESSAGE);
+      setIsLoading(false);
+      return;
+    }
     console.log("error mutating modify vote:", err);
     captureException(err);
     toast.error(`Error modifying vote for proposal ${initialProposalId}`);

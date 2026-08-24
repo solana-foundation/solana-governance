@@ -17,5 +17,6 @@ export const getVoterWalletSummary = async (
   return fetchNcnJson<VoterSummaryResponse>(url, {
     signal,
     label: "voter summary",
+    resource: "voter-summary",
   });
 };

@@ -16,6 +16,10 @@ import { toast } from "sonner";
 import { useCreateProposal } from "@/hooks";
 import { useConnector } from "@solana/connector/react";
 import { captureException } from "@sentry/nextjs";
+import {
+  isWalletSigningCancellation,
+  WALLET_SIGNING_CANCELLED_MESSAGE,
+} from "@/lib/walletSigning";
 import { validateProposalUrl } from "@/lib/github";
 
 interface CreateProposalModalProps {
@@ -70,6 +74,11 @@ export function CreateProposalModal({
   };
 
   const handleError = (err: Error) => {
+    if (isWalletSigningCancellation(err)) {
+      toast.info(WALLET_SIGNING_CANCELLED_MESSAGE);
+      setIsLoading(false);
+      return;
+    }
     console.log("error creating proposal:", err);
     captureException(err);
     setError(err instanceof Error ? err.message : "Failed to create proposal");
