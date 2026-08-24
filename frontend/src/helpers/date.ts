@@ -84,6 +84,7 @@ export async function epochToDate(
       SLOT_TIME_MS = (totalSeconds * 1000) / totalSlots;
     }
   } catch {
+    performanceSamplesByEndpoint.delete(endpoint);
     console.warn(
       "Failed to get recent performance samples; using 350ms slot time"
     );
