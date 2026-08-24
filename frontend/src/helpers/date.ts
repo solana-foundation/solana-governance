@@ -1,4 +1,46 @@
-import { Connection, EpochInfo, EpochSchedule } from "@solana/web3.js";
+import {
+  Connection,
+  EpochInfo,
+  EpochSchedule,
+  PerfSample,
+} from "@solana/web3.js";
+
+const DEFAULT_SLOT_TIME_MS = 350;
+const PERFORMANCE_SAMPLE_LIMIT = 60;
+const MIN_PLAUSIBLE_SLOT_TIME_MS = 100;
+const MAX_PLAUSIBLE_SLOT_TIME_MS = 1_000;
+
+/**
+ * Calculates a slot-duration estimate weighted by the number of slots in each RPC sample.
+ * Falls back to the configured 350ms slot time when an RPC omits or returns unusable samples.
+ */
+export function estimateSlotTimeMs(
+  samples: Pick<PerfSample, "numSlots" | "samplePeriodSecs">[],
+): number {
+  const totals = samples.reduce(
+    (acc, sample) => {
+      if (sample.numSlots > 0 && sample.samplePeriodSecs > 0) {
+        acc.slots += sample.numSlots;
+        acc.seconds += sample.samplePeriodSecs;
+      }
+      return acc;
+    },
+    { slots: 0, seconds: 0 },
+  );
+
+  if (totals.slots === 0) return DEFAULT_SLOT_TIME_MS;
+
+  const slotTimeMs = (totals.seconds * 1_000) / totals.slots;
+  if (
+    !Number.isFinite(slotTimeMs) ||
+    slotTimeMs < MIN_PLAUSIBLE_SLOT_TIME_MS ||
+    slotTimeMs > MAX_PLAUSIBLE_SLOT_TIME_MS
+  ) {
+    return DEFAULT_SLOT_TIME_MS;
+  }
+
+  return slotTimeMs;
+}
 
 export const getDaysLeft = (futureDate: Date) => {
   const now = new Date();
@@ -47,26 +89,38 @@ export async function epochToDate(
   // Get the first slot of the target epoch
   const targetSlot = epochSchedule.getFirstSlotInEpoch(targetEpoch);
 
-  // Estimate date based on slot time
-  // Average slot time is ~400ms
-  const SLOT_TIME_MS = 400;
   const slotsUntilTarget = targetSlot - epochInfo.absoluteSlot;
 
-  // Get current block time to anchor our calculation
-  let currentBlockTime: number;
-  try {
-    const blockTime = await connection.getBlockTime(epochInfo.absoluteSlot);
-    currentBlockTime = blockTime ? blockTime * 1000 : Date.now();
-  } catch {
+  // Anchor the projection to chain time and derive the current slot rate from the last hour of
+  // RPC performance samples. Slot production can run materially faster than the 400ms target,
+  // shortening epoch phases by hours; a fixed slot duration makes proposal countdowns stale.
+  const [blockTimeResult, performanceSamplesResult] = await Promise.allSettled([
+    connection.getBlockTime(epochInfo.absoluteSlot),
+    connection.getRecentPerformanceSamples(PERFORMANCE_SAMPLE_LIMIT),
+  ]);
+
+  let currentBlockTime = Date.now();
+  if (blockTimeResult.status === "fulfilled" && blockTimeResult.value !== null) {
+    currentBlockTime = blockTimeResult.value * 1_000;
+  } else {
     console.warn(
       "Failed to get block time for current epoch",
-      epochInfo.absoluteSlot
+      epochInfo.absoluteSlot,
     );
-    currentBlockTime = Date.now();
   }
 
-  // Calculate estimated time: current block time + (slots until target * slot time)
-  const estimatedTime = currentBlockTime + slotsUntilTarget * SLOT_TIME_MS;
+  const slotTimeMs =
+    performanceSamplesResult.status === "fulfilled"
+      ? estimateSlotTimeMs(performanceSamplesResult.value)
+      : DEFAULT_SLOT_TIME_MS;
+
+  if (performanceSamplesResult.status === "rejected") {
+    console.warn(
+      "Failed to get recent performance samples; using the default slot time",
+    );
+  }
+
+  const estimatedTime = currentBlockTime + slotsUntilTarget * slotTimeMs;
 
   return new Date(estimatedTime);
 }
@@ -79,10 +133,13 @@ export const getHoursLeft = (futureDate: Date) => {
   return diffHours;
 };
 
-export function calculateVotingEndsIn(endTime: string | null): string | null {
+export function calculateVotingEndsIn(
+  endTime: string | null,
+  nowMs: number = Date.now(),
+): string | null {
   if (!endTime) return null;
 
-  const now = new Date();
+  const now = new Date(nowMs);
   const end = new Date(endTime);
 
   // Check if the date is valid

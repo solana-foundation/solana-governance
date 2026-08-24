@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment } from "react";
+import { Fragment, useEffect, useState } from "react";
 import type { ProposalRecord } from "@/types";
 import { PHASES } from "./constants";
 import { PhaseNode } from "./PhaseNode";
@@ -44,6 +44,16 @@ export default function PhaseTimeline({
   proposal,
   isLoading,
 }: PhaseTimelineProps) {
+  // Start after hydration so the server and first client render both show the same placeholder,
+  // then update the visible countdown once per minute without additional RPC requests.
+  const [nowMs, setNowMs] = useState<number>();
+  useEffect(() => {
+    const updateNow = () => setNowMs(Date.now());
+    updateNow();
+    const interval = window.setInterval(updateNow, 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   const governanceConfigQuery = useGovernanceConfigContext();
   const { data: epochData } = useEpochInfo();
   const currentPhase = proposal?.status;
@@ -73,8 +83,8 @@ export default function PhaseTimeline({
 
   const { data: activePhaseEndsAt } = useEpochToDate(activePhaseEndEpoch);
   const currentEpoch = epochData?.epochInfo.epoch;
-  const remainingTime = activePhaseEndsAt
-    ? calculateVotingEndsIn(activePhaseEndsAt.toISOString()) ?? "-"
+  const remainingTime = activePhaseEndsAt && nowMs !== undefined
+    ? calculateVotingEndsIn(activePhaseEndsAt.toISOString(), nowMs) ?? "-"
     : "-";
 
   if (isLoading) return <PhaseTimelineSkeleton />;
