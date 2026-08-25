@@ -75,9 +75,6 @@ const VoteBreakdown = ({
     }
 
     const total = quorum.totalActiveStake;
-    if (typeof total !== "bigint") {
-      return undefined;
-    }
 
     return {
       forVotesPercentage: formatBigintPercentage(proposal.forVotesLamports, total),
