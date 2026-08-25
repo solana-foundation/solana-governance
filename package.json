@@ -10,5 +10,9 @@
     "generate:codama-idl": "pnpm -r --if-present run generate:codama-idl",
     "generate:clients": "pnpm -r --if-present run generate:clients",
     "test:clients": "pnpm -r --if-present run test"
+  },
+  "devDependencies": {
+    "@solana-config/oxc": "^0.1.1",
+    "oxfmt": "^0.65.0"
   }
 }
