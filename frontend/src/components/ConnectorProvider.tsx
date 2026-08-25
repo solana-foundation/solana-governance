@@ -24,7 +24,7 @@ export function ConnectorProvider({ children }: { children: ReactNode }) {
         customClusters: [{ id: "solana:custom", label: "Custom", url: endpointUrl }],
         network: endpointType === "custom" ? undefined : endpointType,
         persistClusterSelection: false,
-        walletConnect: true,
+        walletConnect: false,
       }),
     [endpointType, endpointUrl],
   );

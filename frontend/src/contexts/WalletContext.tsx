@@ -1,6 +1,5 @@
 'use client';
 
-import { useConnector } from '@solana/connector/react';
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
 import { useIsMobile } from '@/components/connector-kit/hooks/useIsMobile';
@@ -17,7 +16,6 @@ const WalletContext = createContext<WalletContextValue | null>(null);
 
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { walletConnectUri, clearWalletConnectUri } = useConnector();
   const isMobile = useIsMobile();
 
   const openModal = useCallback(() => {
@@ -26,18 +24,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const closeModal = useCallback(() => {
     setIsModalOpen(false);
-    clearWalletConnectUri();
-  }, [clearWalletConnectUri]);
+  }, []);
 
-  const handleOpenChange = useCallback(
-    (open: boolean) => {
-      setIsModalOpen(open);
-      if (!open) {
-        clearWalletConnectUri();
-      }
-    },
-    [clearWalletConnectUri],
-  );
+  const handleOpenChange = useCallback((open: boolean) => {
+    setIsModalOpen(open);
+  }, []);
 
   const value = useMemo(
     () => ({
@@ -56,15 +47,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         <WalletDrawer
           open={isModalOpen}
           onOpenChange={handleOpenChange}
-          walletConnectUri={walletConnectUri}
-          onClearWalletConnectUri={clearWalletConnectUri}
         />
       ) : (
         <WalletModal
           open={isModalOpen}
           onOpenChange={handleOpenChange}
-          walletConnectUri={walletConnectUri}
-          onClearWalletConnectUri={clearWalletConnectUri}
         />
       )}
     </WalletContext.Provider>

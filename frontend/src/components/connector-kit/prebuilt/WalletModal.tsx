@@ -2,9 +2,9 @@
 
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 
-import { WalletConnectContent, type WalletConnectContentProps } from './WalletConnectContent';
+import { WalletContent, type WalletContentProps } from './WalletContent';
 
-export type WalletModalProps = WalletConnectContentProps;
+export type WalletModalProps = WalletContentProps;
 
 export function WalletModal(props: WalletModalProps) {
   return (
@@ -13,7 +13,7 @@ export function WalletModal(props: WalletModalProps) {
         showCloseButton={false}
         className="max-w-md rounded-[24px] bg-[#15101b] p-6 opacity-100"
       >
-        <WalletConnectContent {...props} />
+        <WalletContent {...props} />
       </DialogContent>
     </Dialog>
   );
