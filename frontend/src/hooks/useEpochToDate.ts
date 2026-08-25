@@ -8,12 +8,17 @@ import { useEpochInfo } from "./useEpochInfo";
  * @param epoch - The epoch number to convert
  * @returns The date when the epoch will start, or null if loading/error
  */
-export function useEpochToDate(epoch: number | undefined) {
+export function useEpochToDate(epoch: bigint | undefined) {
   const { endpointUrl } = useEndpoint();
   const { data: epochData, isLoading: isLoadingEpochInfo } = useEpochInfo();
 
   return useQuery({
-    queryKey: ["epochToDate", epoch, endpointUrl, epochData?.epochInfo.epoch],
+    queryKey: [
+      "epochToDate",
+      epoch?.toString(),
+      endpointUrl,
+      epochData?.epochInfo.epoch.toString(),
+    ],
     queryFn: async () => {
       if (epoch === undefined || !epochData) return null;
       return epochToDate(

@@ -118,13 +118,13 @@ export const topVoterColumns: ColumnDef<TopVoterRecord>[] = [
             />
           </div> */}
           <span className="text-xs font-medium text-primary">
-            <b>{forVotesBp.toNumber() / 100}%</b> {LABELS.for}
+            <b>{(forVotesBp / 100n).toString()}%</b> {LABELS.for}
           </span>
           <span className="text-xs font-medium text-destructive">
-            <b>{againstVotesBp.toNumber() / 100}%</b> {LABELS.against}
+            <b>{(againstVotesBp / 100n).toString()}%</b> {LABELS.against}
           </span>
           <span className="text-xs font-medium text-white/30">
-            <b>{abstainVotesBp.toNumber() / 100}%</b> {LABELS.abstain}
+            <b>{(abstainVotesBp / 100n).toString()}%</b> {LABELS.abstain}
           </span>
         </div>
       );

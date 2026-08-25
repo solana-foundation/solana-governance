@@ -1,14 +1,8 @@
-import { SupportAccount } from "@/chain";
-import { PublicKey } from "@solana/web3.js";
+import type { Address } from "@solana/kit";
 
 export interface SupportAccountData {
-  publicKey: PublicKey;
-  proposal: PublicKey;
-  validator: PublicKey;
+  publicKey: Address;
+  proposal: Address;
+  validator: Address;
   bump: number;
-}
-
-export interface RawSupportAccountDataAccount {
-  account: SupportAccount;
-  publicKey: PublicKey;
 }

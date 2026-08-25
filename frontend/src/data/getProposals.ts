@@ -1,17 +1,18 @@
-import { createProgramWitDummyWallet } from "@/chain";
 import { getProposalRefFromUrl } from "@/lib/github";
+import { fetchProposals, type Proposal } from "@/lib/governance/programAccounts";
 import type { GovernanceConfigDto } from "@/lib/getGovernanceConfig";
 import {
   epochConstantsFromGovernanceConfig,
   getProposalStatus,
   type EpochConstants,
 } from "@/lib/proposals";
-import type { ProposalRecord, RawProposalAccount } from "@/types";
-import { EpochInfo, VoteAccountInfo } from "@solana/web3.js";
+import type { RawVoteAccountsData } from "@/lib/rpcVoteAccounts";
+import type { ProposalRecord } from "@/types";
+import { createSolanaRpc, type Address, unwrapOption } from "@solana/kit";
 
-export interface RawVoteAccountsData {
-  current: VoteAccountInfo[];
-  delinquent: VoteAccountInfo[];
+export interface EpochInfoData {
+  absoluteSlot: bigint;
+  epoch: bigint;
 }
 
 export const getProposals = async (
@@ -22,15 +23,12 @@ export const getProposals = async (
       finalized?: boolean;
     }
     | undefined,
-  epochInfo: EpochInfo,
+  epochInfo: EpochInfoData,
   voteAccountsData: RawVoteAccountsData,
   governanceConfig: GovernanceConfigDto,
 ): Promise<ProposalRecord[]> => {
-  const program = createProgramWitDummyWallet(endpoint);
   const epochConstants = epochConstantsFromGovernanceConfig(governanceConfig);
-
-  // Fetch proposals
-  const proposalAccs = await program.account.proposal.all();
+  const proposalAccs = await fetchProposals(createSolanaRpc(endpoint));
 
   // Calculate total staked lamports from all vote accounts
   const allVotes = [
@@ -38,15 +36,16 @@ export const getProposals = async (
     // ...voteAccountsData.delinquent,
   ];
   const totalStakedLamports = allVotes.reduce(
-    (sum, vote) => sum + (vote.activatedStake || 0),
-    0,
+    (sum, vote) => sum + vote.activatedStake,
+    0n,
   );
 
   const currentEpoch = epochInfo.epoch;
 
   let data = proposalAccs.map((acc, index) =>
     mapProposalDto(
-      acc,
+      acc.data,
+      acc.address,
       index,
       currentEpoch,
       totalStakedLamports,
@@ -66,25 +65,32 @@ export const getProposals = async (
     }
   }
 
-  data = data.sort((a, b) => b.creationTimestamp - a.creationTimestamp);
+  data = data.sort((a, b) =>
+    a.creationTimestamp === b.creationTimestamp
+      ? 0
+      : a.creationTimestamp > b.creationTimestamp
+        ? -1
+        : 1,
+  );
 
   return data;
 };
 
 export function mapProposalDto(
-  rawAccount: RawProposalAccount,
+  raw: Proposal,
+  address: Address,
   index: number,
-  currentEpoch: number,
-  totalStakedLamports: number,
+  currentEpoch: bigint,
+  totalStakedLamports: bigint,
   epochConstants: EpochConstants,
-  clusterSupportPctMinBps: number,
+  clusterSupportPctMinBps: bigint,
 ): ProposalRecord {
-  const raw = rawAccount.account;
-  const creationEpoch = raw.creationEpoch.toNumber();
-  const startEpoch = raw.startEpoch.toNumber();
-  const endEpoch = raw.endEpoch.toNumber();
-  const clusterSupportLamports = +raw.clusterSupportLamports?.toString() || 0;
-  const consensusResult = rawAccount.account.consensusResult || undefined;
+  const creationEpoch = raw.creationEpoch;
+  const startEpoch = raw.startEpoch;
+  const endEpoch = raw.endEpoch;
+  const clusterSupportLamports = raw.clusterSupportLamports;
+  const consensusResult = unwrapOption(raw.consensusResult);
+  const consensusResultPublicKey = consensusResult ?? undefined;
   const finalized = raw.finalized;
 
   const status = getProposalStatus({
@@ -95,7 +101,7 @@ export function mapProposalDto(
     clusterSupportLamports,
     totalStakedLamports,
     clusterSupportPctMinBps,
-    consensusResult,
+    consensusResult: consensusResultPublicKey,
     finalized,
     voting: raw.voting,
     epochConstants,
@@ -104,38 +110,32 @@ export function mapProposalDto(
   const proposalRef = getProposalRefFromUrl(raw.description);
 
   return {
-    publicKey: rawAccount.publicKey,
+    publicKey: address,
     id: index.toString(),
     proposalRef,
     title: raw.title,
     description: raw.description,
-    author: raw.author.toBase58(),
+    author: raw.author,
 
     creationEpoch,
     startEpoch,
     endEpoch,
-    creationTimestamp: raw.creationTimestamp?.toNumber() || 0,
+    creationTimestamp: raw.creationTimestamp,
 
     clusterSupportLamports,
-    forVotesLamports: raw.forVotesLamports
-      ? +raw.forVotesLamports.toString()
-      : 0,
-    againstVotesLamports: raw.againstVotesLamports
-      ? +raw.againstVotesLamports.toString()
-      : 0,
-    abstainVotesLamports: raw.abstainVotesLamports
-      ? +raw.abstainVotesLamports.toString()
-      : 0,
+    forVotesLamports: raw.forVotesLamports ?? 0n,
+    againstVotesLamports: raw.againstVotesLamports ?? 0n,
+    abstainVotesLamports: raw.abstainVotesLamports ?? 0n,
     voteCount: raw.voteCount,
 
-    proposerStakeWeightBp: raw.proposerStakeWeightBp?.toNumber() || 0,
+    proposerStakeWeightBp: raw.proposerStakeWeightBp,
 
     status,
     voting: raw.voting,
     finalized,
 
-    consensusResult,
-    snapshotSlot: raw.snapshotSlot.toNumber(),
+    consensusResult: consensusResultPublicKey,
+    snapshotSlot: raw.snapshotSlot,
 
     proposalBump: raw.proposalBump,
     index: raw.index,

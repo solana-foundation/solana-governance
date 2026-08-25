@@ -84,21 +84,41 @@ jobs:
         with:
           workspaces: .
 
-      # cargo-build-sbf ships with the Agave release and downloads its own
-      # pinned platform-tools (SBF rustc) on first use, independent of the
-      # host toolchain installed above.
+      # Anchor uses the Agave SBF tools and their pinned platform-tools (SBF
+      # rustc), independently of the host toolchain installed above.
       - name: Install Agave toolchain
         run: |
           sh -c "$(curl -sSfL https://release.anza.xyz/v${AGAVE_VERSION}/install)"
           echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
 
-      # Both programs live in the repo-root workspace; artifacts land in
-      # target/deploy/ at the repo root, where the LiteSVM suites load them.
+      - name: Install Anchor CLI
+        run: cargo install --git https://github.com/coral-xyz/anchor --tag v0.31.1 anchor-cli --locked
+
       - name: Build ncn-snapshot program
-        run: cargo-build-sbf --manifest-path ncn/programs/ncn-snapshot/Cargo.toml -- --locked
+        working-directory: ncn
+        run: anchor build
 
       - name: Build svmgov program
-        run: cargo-build-sbf --manifest-path svmgov/program/programs/svmgov_program/Cargo.toml -- --locked
+        working-directory: svmgov/program
+        run: anchor build
+
+      - uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install Codama dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Check if generated files drifted from committed versions
+      - name: Verify generated Codama IDLs and clients are current
+        run: |
+          pnpm run generate:codama-idl
+          pnpm run generate:clients
+          git diff --exit-code
 
       # ncn-merkle-tree is a root-workspace member both programs' proof
       # verification depends on, so its unit tests ride along here.
@@ -159,7 +179,7 @@ jobs:
           # repo, so pin the current LTS line here.
           node-version: 22
           cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install frontend dependencies
         working-directory: frontend

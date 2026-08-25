@@ -12,15 +12,15 @@ export const QUORUM_DENOMINATOR = 3;
 export const QUORUM_FRACTION = QUORUM_NUMERATOR / QUORUM_DENOMINATOR;
 
 export interface QuorumInput {
-  forLamports: number;
-  againstLamports: number;
-  abstainLamports: number;
+  forLamports: bigint;
+  againstLamports: bigint;
+  abstainLamports: bigint;
   /**
    * Total active stake in the proposal's snapshot. Art. IV.2 fixes the stake
    * distribution for the whole voting period, so a live cluster total is not a
    * substitute — it drifts as stake moves.
    */
-  totalActiveStake: number | undefined;
+  totalActiveStake: bigint | undefined;
 }
 
 /**
@@ -31,7 +31,7 @@ export type QuorumStatus =
   | { known: false }
   | {
       known: true;
-      totalActiveStake: number;
+      totalActiveStake: bigint;
       /** 0–100. */
       participationPercent: number;
       isMet: boolean;
@@ -52,21 +52,21 @@ export function computeQuorum({
   return {
     known: true,
     totalActiveStake,
-    participationPercent: (participatingLamports / totalActiveStake) * 100,
-    // Compared in lamports, not on the rounded percentage, so display precision
-    // cannot decide a borderline vote. Totals at mainnet scale exceed
-    // Number.MAX_SAFE_INTEGER, leaving ~64 lamports of resolution — the
-    // precision every other *Lamports field here already carries.
+    // Convert only the bounded percentage, never a lamport balance.
+    participationPercent:
+      Number((participatingLamports * 100_000_000n) / totalActiveStake) /
+      1_000_000,
     isMet:
       participatingLamports >=
-      (totalActiveStake * QUORUM_NUMERATOR) / QUORUM_DENOMINATOR,
+      (totalActiveStake * BigInt(QUORUM_NUMERATOR)) /
+        BigInt(QUORUM_DENOMINATOR),
   };
 }
 
 /** The `/meta` fields quorum needs. */
 export interface SnapshotTotalSource {
-  slot: number;
-  total_active_stake?: number | null;
+  slot: bigint;
+  total_active_stake?: bigint | null;
 }
 
 /**
@@ -81,8 +81,8 @@ export interface SnapshotTotalSource {
  */
 export function resolveQuorumDenominator(
   meta: SnapshotTotalSource | undefined,
-  proposalSnapshotSlot: number | undefined,
-): number | undefined {
+  proposalSnapshotSlot: bigint | undefined,
+): bigint | undefined {
   if (!meta || !proposalSnapshotSlot) return undefined;
   if (meta.slot !== proposalSnapshotSlot) return undefined;
   return meta.total_active_stake ?? undefined;

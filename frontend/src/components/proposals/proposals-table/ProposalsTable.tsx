@@ -93,7 +93,7 @@ export default function ProposalsTable({ title }: { title: string }) {
       return {};
     }
 
-    return { [data[0].publicKey.toBase58()]: true } satisfies ExpandedState;
+    return { [data[0].publicKey]: true } satisfies ExpandedState;
   }, [data]);
 
   // Expand the first row once, when the data first arrives on the client.
@@ -122,7 +122,7 @@ export default function ProposalsTable({ title }: { title: string }) {
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onExpandedChange: setExpanded,
-    getRowId: (row) => row.publicKey.toBase58(),
+    getRowId: (row) => row.publicKey,
     initialState: {
       pagination: {
         pageSize: 5,

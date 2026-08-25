@@ -7,7 +7,7 @@ export type StakeAccountState =
 export interface StakeAccountData {
   id: string;
   stakeAccount: string;
-  activeStake: number;
+  activeStake: bigint;
   voteAccount: string | undefined;
   state?: StakeAccountState;
 }

@@ -1,10 +1,20 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
-import path from "path";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   cacheComponents: true,
+  turbopack: {
+    resolveAlias: {
+      "@solana/web3.js": "./src/lib/empty-solana-web3js.ts",
+    },
+  },
+  webpack: (config) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "@solana/web3.js": false,
+    };
+    return config;
+  },
 };
 
 export default withSentryConfig(nextConfig, {

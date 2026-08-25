@@ -1,6 +1,5 @@
-import { ProposalAccount } from "@/chain";
 import type { ProposalRef } from "@/lib/github";
-import { PublicKey } from "@solana/web3.js";
+import type { Address } from "@solana/kit";
 
 export type ProposalStatus =
   | "supporting"
@@ -10,7 +9,7 @@ export type ProposalStatus =
   | "failed";
 
 export type ProposalRecord = {
-  publicKey: PublicKey;
+  publicKey: Address;
   id: string; // used for table
   // Identity
   /**
@@ -27,28 +26,28 @@ export type ProposalRecord = {
   author: string; // Pubkey
 
   // Epochs & Timestamps
-  creationEpoch: number;
-  startEpoch: number;
-  endEpoch: number;
-  creationTimestamp: number; // Unix timestamp
+  creationEpoch: bigint;
+  startEpoch: bigint;
+  endEpoch: bigint;
+  creationTimestamp: bigint; // Unix timestamp
 
   // Vote Data (in lamports)
-  clusterSupportLamports: number;
-  forVotesLamports: number;
-  againstVotesLamports: number;
-  abstainVotesLamports: number;
+  clusterSupportLamports: bigint;
+  forVotesLamports: bigint;
+  againstVotesLamports: bigint;
+  abstainVotesLamports: bigint;
   voteCount: number;
 
   // Requirements & Metrics
-  proposerStakeWeightBp: number; // Basis points
+  proposerStakeWeightBp: bigint; // Basis points
 
   // Status
   status: ProposalStatus;
   voting: boolean; // Is currently voting
   finalized: boolean; // Is finalized
 
-  consensusResult: PublicKey | undefined;
-  snapshotSlot: number;
+  consensusResult: Address | undefined;
+  snapshotSlot: bigint;
 
   // Technical
   proposalBump: number;
@@ -65,10 +64,6 @@ export type ProposalRecord = {
 
 // Input type depends on your data source
 
-export interface RawProposalAccount {
-  account: ProposalAccount;
-  publicKey: PublicKey;
-}
 export interface RawProposal {
   simd: string;
   title: string;

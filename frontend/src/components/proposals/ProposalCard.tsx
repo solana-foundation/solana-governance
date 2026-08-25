@@ -9,7 +9,7 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import { useRouter } from "next/navigation";
 import { useModal } from "@/contexts/ModalContext";
 import { motion } from "framer-motion";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnector } from "@solana/connector/react";
 import { useChainVoteAccount, useWalletRole } from "@/hooks";
 import { toast } from "sonner";
 import { getProposalDetailPagePath } from "@/helpers/proposalPage";
@@ -195,12 +195,11 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
   const router = useRouter();
   const { openModal } = useModal();
 
-  const { publicKey: walletPubKey, connected } = useWallet();
-  const { walletRole, isLoading: isLoadingWalletRole } = useWalletRole(
-    walletPubKey?.toBase58()
-  );
+  const { account, isConnected: connected } = useConnector();
+  const walletPubKey = account ?? undefined;
+  const { walletRole, isLoading: isLoadingWalletRole } = useWalletRole(walletPubKey);
   const { data: chainVoteAccount, isLoading: isLoadingChainVoteAccount } =
-    useChainVoteAccount(walletPubKey?.toBase58());
+    useChainVoteAccount(walletPubKey);
 
   const {
     status,
@@ -230,7 +229,7 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
   };
 
   const handleAction = (action: ProposalAction) => {
-    const proposalId = publicKey.toBase58();
+    const proposalId = publicKey;
 
     if (action === "view-details") {
       router.push(getProposalDetailPagePath(proposalId));

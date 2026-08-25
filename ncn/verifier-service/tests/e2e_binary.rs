@@ -97,11 +97,11 @@ async fn e2e_binary_endpoints() -> anyhow::Result<()> {
         .sum();
     let expected_meta = serde_json::json!({
         "network": "testnet",
-        "slot": slot,
+        "slot": slot.to_string(),
         "merkle_root": merkle_root,
         "snapshot_hash": encoded_hash,
         "created_at": meta["created_at"],
-        "total_active_stake": expected_total_active_stake,
+        "total_active_stake": expected_total_active_stake.to_string(),
     });
     assert_eq!(meta, expected_meta);
 

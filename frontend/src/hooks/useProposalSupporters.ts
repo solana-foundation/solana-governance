@@ -1,10 +1,11 @@
 import { useMemo } from "react";
-import { PublicKey } from "@solana/web3.js";
+import type { Address } from "@solana/kit";
 import { TopSupporterRecord, Validator } from "@/types";
 import { accentColors } from "@/types/topVoters";
 import { buildSupportFilters, useSupportAccounts } from "./useSupportAccounts";
 import { useGetValidators } from "./useGetValidators";
 import { useValidatorsTotalStakedLamports } from "./useValidatorsTotalStakedLamports";
+import { formatBigintPercentage } from "@/helpers/bigint";
 
 const getColorFromString = (str: string): string => {
   let hash = 0;
@@ -22,10 +23,10 @@ const getColorFromString = (str: string): string => {
  * metadata (name, image, stake) so they can be rendered like top voters.
  */
 export const useProposalSupporters = (
-  proposalPublicKey: PublicKey | undefined,
+  proposalPublicKey: Address | undefined,
 ) => {
   const supportFilters = buildSupportFilters(
-    proposalPublicKey?.toBase58(),
+    proposalPublicKey,
     null,
   );
 
@@ -57,17 +58,17 @@ export const useProposalSupporters = (
     }
 
     return supportAccounts.map((support) => {
-      const identity = support.validator.toBase58();
+      const identity = support.validator;
       const validator = validatorMap[identity];
       const validatorName = validator?.name || "Unknown Validator";
       const stakedLamports = validator?.activated_stake;
       const stakePercentage =
         totalStakedLamports && stakedLamports !== undefined
-          ? (stakedLamports / totalStakedLamports) * 100
+          ? Number(formatBigintPercentage(stakedLamports, totalStakedLamports))
           : undefined;
 
       return {
-        id: support.publicKey.toBase58(),
+        id: support.publicKey,
         validatorName,
         validatorIdentity: identity,
         validatorImage: validator?.image ?? null,

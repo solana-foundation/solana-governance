@@ -1,0 +1,23 @@
+{
+  "name": "@solana/ncn-snapshot",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./generated/clients/ts/index.ts"
+  },
+  "scripts": {
+    "generate:codama-idl": "node scripts/generate-codama-idl.mjs",
+    "generate:clients": "node scripts/generate-clients.mjs",
+    "test": "node --test tests/generated.test.mjs"
+  },
+  "dependencies": {
+    "@solana/kit": "^7.0.0",
+    "@solana/program-client-core": "^7.0.0"
+  },
+  "devDependencies": {
+    "@codama/nodes-from-anchor": "^1.5.2",
+    "@codama/renderers-js": "^2.3.1",
+    "@types/node": "^22.19.9",
+    "codama": "^1.9.0"
+  }
+}

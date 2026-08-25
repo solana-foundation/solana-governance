@@ -20,8 +20,8 @@ import {
   VoteDistribution,
 } from "@/hooks";
 import { toast } from "sonner";
-import { useAnchorWallet } from "@solana/wallet-adapter-react";
-import { PublicKey } from "@solana/web3.js";
+import { useConnector } from "@solana/connector/react";
+import type { Address } from "@solana/kit";
 import { WalletRole } from "@/types";
 import { VotingProposalsDropdown } from "../VotingProposalsDropdown";
 import { FormEvent, useEffect, useState } from "react";
@@ -37,7 +37,7 @@ import {
 
 export interface ModifyVoteModalDataProps {
   proposalId?: string;
-  consensusResult?: PublicKey;
+  consensusResult?: Address;
   initialVoteDist?: VoteDistribution;
 }
 
@@ -69,9 +69,10 @@ export function ModifyVoteModal({
     resetDistribution,
   } = useVoteDistribution(initialVoteDist);
 
-  const wallet = useAnchorWallet();
+  const { account } = useConnector();
+  const publicKey = account ?? undefined;
 
-  const { walletRole } = useWalletRole(wallet?.publicKey?.toBase58());
+  const { walletRole } = useWalletRole(publicKey);
 
   const { mutate: modifyVote } = useModifyVote();
 
@@ -90,7 +91,7 @@ export function ModifyVoteModal({
 
   const handleProposalChange = (
     proposalId: string,
-    consensusResult: PublicKey
+    consensusResult: Address
   ) => {
     setSelectedProposal({ id: proposalId, consensusResult });
   };
@@ -120,7 +121,7 @@ export function ModifyVoteModal({
   };
 
   const handleModifyVote = (voteDistribution: VoteDistribution) => {
-    if (!wallet) {
+    if (!publicKey) {
       toast.error("Wallet not connected");
       return;
     }
@@ -142,7 +143,7 @@ export function ModifyVoteModal({
     ) {
       modifyVote(
         {
-          wallet,
+          publicKey,
           proposalId: selectedProposal.id,
           // convert basis points to BN, not %
           forVotesBp: voteDistribution.for * 100,

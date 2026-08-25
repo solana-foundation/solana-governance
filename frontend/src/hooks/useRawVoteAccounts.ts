@@ -1,12 +1,12 @@
 import { useEndpoint } from "@/contexts/EndpointContext";
-import { Connection, VoteAccountInfo } from "@solana/web3.js";
+import {
+  fetchRawVoteAccounts,
+  type RawVoteAccountsData,
+} from "@/lib/rpcVoteAccounts";
 import { useQuery } from "@tanstack/react-query";
 import { GET_VOTE_ACCOUNTS } from "@/helpers";
 
-export interface RawVoteAccountsData {
-  current: VoteAccountInfo[];
-  delinquent: VoteAccountInfo[];
-}
+export type { RawVoteAccountsData } from "@/lib/rpcVoteAccounts";
 
 /**
  * Hook to fetch raw Solana vote accounts (current and delinquent)
@@ -19,16 +19,9 @@ export function useRawVoteAccounts() {
   return useQuery<RawVoteAccountsData>({
     queryKey: [GET_VOTE_ACCOUNTS, endpointUrl],
     queryFn: async () => {
-      const connection = new Connection(endpointUrl, "confirmed");
-      const voteAccounts = await connection.getVoteAccounts();
-
-      return {
-        current: voteAccounts.current,
-        delinquent: voteAccounts.delinquent,
-      };
+      return fetchRawVoteAccounts(endpointUrl);
     },
     staleTime: 1000 * 120, // 2 minutes
     refetchOnWindowFocus: false,
   });
 }
-

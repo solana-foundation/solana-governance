@@ -8,7 +8,7 @@ const findProposalByPubKey = (
 ) =>
   proposals.find(
     (proposal) =>
-      proposal.publicKey.toBase58().toLowerCase() ===
+      proposal.publicKey.toLowerCase() ===
       proposalPublicKey.toLowerCase()
   );
 

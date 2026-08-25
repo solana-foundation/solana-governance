@@ -1,4 +1,3 @@
-import { VoteAccount } from "@/chain";
 import { RawStakeAccountData } from "@/types/stakeAccounts";
 
 export interface ProposalStats {
@@ -10,7 +9,7 @@ export interface ProposalStats {
 export interface WalletData {
   snapshot_slot: number;
   voting_wallet: string;
-  vote_accounts: VoteAccount[];
+  vote_accounts: unknown[];
   stake_accounts: RawStakeAccountData[];
   proposalStats: ProposalStats;
 }
