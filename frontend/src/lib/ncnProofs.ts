@@ -10,7 +10,35 @@ export type StakeAccountProof = {
   vote_account: string;
 };
 
-export type NetworkMetaResponse = { network: string; slot: number; merkle_root: string; snapshot_hash: string; created_at: string };
+export type NetworkMetaResponse = {
+  network: string;
+  slot: bigint;
+  merkle_root: string;
+  snapshot_hash: string;
+  created_at: string;
+  total_active_stake: bigint | null;
+};
+
+export type NetworkMetaWireResponse = Omit<
+  NetworkMetaResponse,
+  "slot" | "total_active_stake"
+> & {
+  slot: string;
+  total_active_stake: string | null;
+};
+
+export function deserializeNetworkMeta(
+  meta: NetworkMetaWireResponse,
+): NetworkMetaResponse {
+  return {
+    ...meta,
+    slot: BigInt(meta.slot),
+    total_active_stake:
+      meta.total_active_stake === null
+        ? null
+        : BigInt(meta.total_active_stake),
+  };
+}
 export type VoterSummaryResponse = {
   network: string; snapshot_slot: number; voting_wallet: string;
   stake_accounts: { active_stake: number; stake_account: string; vote_account: string }[];

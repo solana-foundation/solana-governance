@@ -1,4 +1,8 @@
-import type { NetworkMetaResponse } from "@/lib/ncnProofs";
+import {
+  deserializeNetworkMeta,
+  type NetworkMetaResponse,
+  type NetworkMetaWireResponse,
+} from "@/lib/ncnProofs";
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { useNcnApi } from "@/contexts/NcnApiContext";
 import { fetchNcnJson } from "@/lib/ncnApi";
@@ -22,11 +26,11 @@ export const useSnapshotMeta = () => {
       requireKnownSnapshotNetwork(network);
       const url = `${ncnApiUrl}/meta?network=${network}`;
 
-      return fetchNcnJson<NetworkMetaResponse>(url, {
+      return fetchNcnJson<NetworkMetaWireResponse>(url, {
         signal,
         label: "snapshot meta info",
         resource: "snapshot-meta",
-      });
+      }).then(deserializeNetworkMeta);
     },
   });
 };

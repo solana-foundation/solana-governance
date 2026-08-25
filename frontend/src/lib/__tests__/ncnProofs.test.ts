@@ -1,5 +1,6 @@
 import {
   assertOverrideProofLineage,
+  deserializeNetworkMeta,
   getStakeAccountProof,
   getVoteAccountProof,
   requireProposalSnapshotSlot,
@@ -71,5 +72,23 @@ describe("proposal snapshot proof invariants", () => {
         },
       ),
     ).toThrow("different snapshots");
+  });
+});
+
+describe("deserializeNetworkMeta", () => {
+  it("preserves u64 slot and stake values as bigint", () => {
+    expect(
+      deserializeNetworkMeta({
+        network: "mainnet",
+        slot: "18446744073709551615",
+        merkle_root: "root",
+        snapshot_hash: "hash",
+        created_at: "2026-08-25T00:00:00Z",
+        total_active_stake: "16054077974334921",
+      }),
+    ).toMatchObject({
+      slot: 18_446_744_073_709_551_615n,
+      total_active_stake: 16_054_077_974_334_921n,
+    });
   });
 });

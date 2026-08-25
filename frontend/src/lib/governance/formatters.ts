@@ -44,9 +44,9 @@ export function formatCommission(commission: number | undefined): string {
 }
 
 export function formatOptionalSlot(
-  slot: number | null | undefined,
-): string | number {
-  return isValidNumber(slot) ? slot : "-";
+  slot: bigint | null | undefined,
+): string {
+  return slot === null || slot === undefined ? "-" : slot.toString();
 }
 
 export function formatOptionalCount(
