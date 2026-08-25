@@ -187,13 +187,7 @@ export default function Navbar() {
               className="text-muted rounded-full hidden lg:flex"
               onClick={() => openModal("settings")}
             />
-            <ConnectButton
-              className="rounded-full font-plus-jakarta-sans font-bold lg:h-9 lg:px-6"
-              showCluster={false}
-              showBalance={false}
-              showTokenList={false}
-              showTransactionHistory={false}
-            />
+            <ConnectButton className="rounded-full font-plus-jakarta-sans font-bold lg:h-9 lg:px-6" />
           </div>
         </div>
       </div>

@@ -15,21 +15,14 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 
-import { WalletDropdownContent, type WalletDropdownContentProps } from './WalletDropdownContent';
+import { WalletDropdownContent } from './WalletDropdownContent';
 
-interface ConnectButtonProps extends Pick<
-  WalletDropdownContentProps,
-  'showCluster' | 'showBalance' | 'showTokenList' | 'showTransactionHistory'
-> {
+interface ConnectButtonProps {
   className?: string;
 }
 
 export function ConnectButton({
   className,
-  showCluster,
-  showBalance,
-  showTokenList,
-  showTransactionHistory,
 }: ConnectButtonProps) {
   const { openModal } = useWallet();
   const { isConnected, isConnecting, account, connector } = useConnector();
@@ -60,10 +53,6 @@ export function ConnectButton({
             selectedAccount={account}
             walletIcon={walletIcon}
             walletName={connector.name}
-            showCluster={showCluster}
-            showBalance={showBalance}
-            showTokenList={showTokenList}
-            showTransactionHistory={showTransactionHistory}
           />
         </DropdownMenuContent>
       </DropdownMenu>
