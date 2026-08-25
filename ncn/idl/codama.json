@@ -1,1 +1,1478 @@
-{"kind":"rootNode","standard":"codama","version":"1.8.0","program":{"kind":"programNode","name":"ncnSnapshot","publicKey":"ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf","version":"0.4.0-40100","origin":"anchor","accounts":[{"kind":"accountNode","name":"ballotBox","data":{"kind":"structTypeNode","fields":[{"kind":"structFieldTypeNode","name":"discriminator","defaultValueStrategy":"omitted","type":{"kind":"fixedSizeTypeNode","size":8,"type":{"kind":"bytesTypeNode"}},"defaultValue":{"kind":"bytesValueNode","data":"9ba99c085c0e1865","encoding":"base16"}},{"kind":"structFieldTypeNode","name":"bump","docs":["Bump seed for the PDA"],"type":{"kind":"numberTypeNode","format":"u8","endian":"le"}},{"kind":"structFieldTypeNode","name":"epoch","docs":["The epoch this ballot box is for"],"type":{"kind":"numberTypeNode","format":"u64","endian":"le"}},{"kind":"structFieldTypeNode","name":"slotCreated","docs":["Slot when this ballot box was created"],"type":{"kind":"numberTypeNode","format":"u64","endian":"le"}},{"kind":"structFieldTypeNode","name":"slotConsensusReached","docs":["Slot when consensus was reached"],"type":{"kind":"numberTypeNode","format":"u64","endian":"le"}},{"kind":"structFieldTypeNode","name":"minConsensusThresholdBps","docs":["Min. percentage of votes required to finalize for this ballot box."],"type":{"kind":"numberTypeNode","format":"u16","endian":"le"}},{"kind":"structFieldTypeNode","name":"winningBallot","docs":["The ballot that got at least min_consensus_threshold of votes"],"type":{"kind":"definedTypeLinkNode","name":"ballot"}},{"kind":"structFieldTypeNode","name":"operatorVotes","docs":["Operator votes"],"type":{"kind":"arrayTypeNode","item":{"kind":"definedTypeLinkNode","name":"operatorVote"},"count":{"kind":"prefixedCountNode","prefix":{"kind":"numberTypeNode","format":"u32","endian":"le"}}}},{"kind":"structFieldTypeNode","name":"ballotTallies","docs":["Vote counts per distinct ballot. Each whitelisted operator contributes","one vote; tallies are not stake-weighted."],"type":{"kind":"arrayTypeNode","item":{"kind":"definedTypeLinkNode","name":"ballotTally"},"count":{"kind":"prefixedCountNode","prefix":{"kind":"numberTypeNode","format":"u32","endian":"le"}}}},{"kind":"structFieldTypeNode","name":"voteExpiryTimestamp","docs":["Timestamp when voting ends. Tie breaker admin will decide the results","if no consensus is reached by then."],"type":{"kind":"numberTypeNode","format":"i64","endian":"le"}},{"kind":"structFieldTypeNode","name":"snapshotSlot","docs":["Slot for which the snapshot is taken"],"type":{"kind":"numberTypeNode","format":"u64","endian":"le"}},{"kind":"structFieldTypeNode","name":"voterList","docs":["Snapshot of whitelisted operators at BallotBox creation"],"type":{"kind":"arrayTypeNode","item":{"kind":"publicKeyTypeNode"},"count":{"kind":"prefixedCountNode","prefix":{"kind":"numberTypeNode","format":"u32","endian":"le"}}}},{"kind":"structFieldTypeNode","name":"tieBreakerConsensus","docs":["Whether consensus was reached via tie breaker"],"type":{"kind":"booleanTypeNode","size":{"kind":"numberTypeNode","format":"u8","endian":"le"}}}]},"discriminators":[{"kind":"fieldDiscriminatorNode","name":"discriminator","offset":0}]},{"kind":"accountNode","name":"consensusResult","size":81,"data":{"kind":"structTypeNode","fields":[{"kind":"structFieldTypeNode","name":"discriminator","defaultValueStrategy":"omitted","type":{"kind":"fixedSizeTypeNode","size":8,"type":{"kind":"bytesTypeNode"}},"defaultValue":{"kind":"bytesValueNode","data":"69797af3643a5da1","encoding":"base16"}},{"kind":"structFieldTypeNode","name":"snapshotSlot","docs":["Snapshot slot used for the ballot box"],"type":{"kind":"numberTypeNode","format":"u64","endian":"le"}},{"kind":"structFieldTypeNode","name":"ballot","docs":["Ballot"],"type":{"kind":"definedTypeLinkNode","name":"ballot"}},{"kind":"structFieldTypeNode","name":"tieBreakerConsensus","docs":["Whether consensus was reached via tie breaker"],"type":{"kind":"booleanTypeNode","size":{"kind":"numberTypeNode","format":"u8","endian":"le"}}}]},"discriminators":[{"kind":"fieldDiscriminatorNode","name":"discriminator","offset":0}]},{"kind":"accountNode","name":"metaMerkleProof","data":{"kind":"structTypeNode","fields":[{"kind":"structFieldTypeNode","name":"discriminator","defaultValueStrategy":"omitted","type":{"kind":"fixedSizeTypeNode","size":8,"type":{"kind":"bytesTypeNode"}},"defaultValue":{"kind":"bytesValueNode","data":"82378d1ac33a12b2","encoding":"base16"}},{"kind":"structFieldTypeNode","name":"payer","docs":["Payer wallet"],"type":{"kind":"publicKeyTypeNode"}},{"kind":"structFieldTypeNode","name":"consensusResult","docs":["ConsensusResult proof is created for."],"type":{"kind":"publicKeyTypeNode"}},{"kind":"structFieldTypeNode","name":"metaMerkleLeaf","docs":["Meta merkle leaf"],"type":{"kind":"definedTypeLinkNode","name":"metaMerkleLeaf"}},{"kind":"structFieldTypeNode","name":"metaMerkleProof","docs":["Meta merkle proof"],"type":{"kind":"arrayTypeNode","item":{"kind":"fixedSizeTypeNode","size":32,"type":{"kind":"bytesTypeNode"}},"count":{"kind":"prefixedCountNode","prefix":{"kind":"numberTypeNode","format":"u32","endian":"le"}}}},{"kind":"structFieldTypeNode","name":"closeTimestamp","docs":["Timestamp after which MetaMerkleProof can be closed permissionlessly.","This is selected by the payer but our recommendation is to set to vote expiry time."],"type":{"kind":"numberTypeNode","format":"i64","endian":"le"}}]},"discriminators":[{"kind":"fieldDiscriminatorNode","name":"discriminator","offset":0}]},{"kind":"accountNode","name":"programConfig","data":{"kind":"structTypeNode","fields":[{"kind":"structFieldTypeNode","name":"discriminator","defaultValueStrategy":"omitted","type":{"kind":"fixedSizeTypeNode","size":8,"type":{"kind":"bytesTypeNode"}},"defaultValue":{"kind":"bytesValueNode","data":"c4d25ae790958c3f","encoding":"base16"}},{"kind":"structFieldTypeNode","name":"authority","docs":["Authority allowed to update the config."],"type":{"kind":"publicKeyTypeNode"}},{"kind":"structFieldTypeNode","name":"proposedAuthority","docs":["Authority to be set to upon finalization of proposal."],"type":{"kind":"optionTypeNode","fixed":false,"item":{"kind":"publicKeyTypeNode"},"prefix":{"kind":"numberTypeNode","format":"u8","endian":"le"}}},{"kind":"structFieldTypeNode","name":"whitelistedOperators","docs":["Operators whitelisted to participate in voting.","A snapshot of this list will be taken at the time of BallotBox creation."],"type":{"kind":"arrayTypeNode","item":{"kind":"publicKeyTypeNode"},"count":{"kind":"prefixedCountNode","prefix":{"kind":"numberTypeNode","format":"u32","endian":"le"}}}},{"kind":"structFieldTypeNode","name":"minConsensusThresholdBps","docs":["Min. percentage of votes required to finalize a ballot. Used during BallotBox creation."],"type":{"kind":"numberTypeNode","format":"u16","endian":"le"}},{"kind":"structFieldTypeNode","name":"tieBreakerAdmin","docs":["Admin allowed to decide the winning ballot if vote expires before consensus."],"type":{"kind":"publicKeyTypeNode"}},{"kind":"structFieldTypeNode","name":"voteDuration","docs":["Duration for which ballot box will be opened for voting."],"type":{"kind":"numberTypeNode","format":"i64","endian":"le"}},{"kind":"structFieldTypeNode","name":"svmgovProgramPubkey","docs":["The svmgov governance program whose Proposal PDAs are authorized to open","ballot boxes. Checked in `init_ballot_box`; updatable by the authority so","the program can be retargeted at a new svmgov deployment without a redeploy."],"type":{"kind":"publicKeyTypeNode"}}]},"discriminators":[{"kind":"fieldDiscriminatorNode","name":"discriminator","offset":0}]}],"instructions":[{"kind":"instructionNode","name":"castVote","optionalAccountStrategy":"programId","accounts":[{"kind":"instructionAccountNode","name":"operator","isWritable":false,"isSigner":true,"isOptional":false},{"kind":"instructionAccountNode","name":"ballotBox","isWritable":true,"isSigner":false,"isOptional":false}],"arguments":[{"kind":"instructionArgumentNode","name":"discriminator","defaultValueStrategy":"omitted","type":{"kind":"fixedSizeTypeNode","size":8,"type":{"kind":"bytesTypeNode"}},"defaultValue":{"kind":"bytesValueNode","data":"14d40fbd45b44597","encoding":"base16"}},{"kind":"instructionArgumentNode","name":"ballot","type":{"kind":"definedTypeLinkNode","name":"ballot"}}],"discriminators":[{"kind":"fieldDiscriminatorNode","name":"discriminator","offset":0}]},{"kind":"instructionNode","name":"closeMetaMerkleProof","optionalAccountStrategy":"programId","accounts":[{"kind":"instructionAccountNode","name":"payer","isWritable":true,"isSigner":false,"isOptional":false,"docs":["Account to receive the reclaimed rent from StakingRecord"],"defaultValue":{"kind":"payerValueNode"}},{"kind":"instructionAccountNode","name":"metaMerkleProof","isWritable":true,"isSigner":false,"isOptional":false},{"kind":"instructionAccountNode","name":"systemProgram","isWritable":false,"isSigner":false,"isOptional":false,"defaultValue":{"kind":"publicKeyValueNode","publicKey":"11111111111111111111111111111111","identifier":"systemProgram"}}],"arguments":[{"kind":"instructionArgumentNode","name":"discriminator","defaultValueStrategy":"omitted","type":{"kind":"fixedSizeTypeNode","size":8,"type":{"kind":"bytesTypeNode"}},"defaultValue":{"kind":"bytesValueNode","data":"f8efb69217d7ac03","encoding":"base16"}}],"discriminators":[{"kind":"fieldDiscriminatorNode","name":"discriminator","offset":0}]},{"kind":"instructionNode","name":"finalizeBallot","optionalAccountStrategy":"programId","accounts":[{"kind":"instructionAccountNode","name":"payer","isWritable":true,"isSigner":true,"isOptional":false,"defaultValue":{"kind":"payerValueNode"}},{"kind":"instructionAccountNode","name":"ballotBox","isWritable":false,"isSigner":false,"isOptional":false},{"kind":"instructionAccountNode","name":"consensusResult","isWritable":true,"isSigner":false,"isOptional":false},{"kind":"instructionAccountNode","name":"systemProgram","isWritable":false,"isSigner":false,"isOptional":false,"defaultValue":{"kind":"publicKeyValueNode","publicKey":"11111111111111111111111111111111","identifier":"systemProgram"}}],"arguments":[{"kind":"instructionArgumentNode","name":"discriminator","defaultValueStrategy":"omitted","type":{"kind":"fixedSizeTypeNode","size":8,"type":{"kind":"bytesTypeNode"}},"defaultValue":{"kind":"bytesValueNode","data":"d42b553a9e22292a","encoding":"base16"}}],"discriminators":[{"kind":"fieldDiscriminatorNode","name":"discriminator","offset":0}]},{"kind":"instructionNode","name":"finalizeProposedAuthority","optionalAccountStrategy":"programId","accounts":[{"kind":"instructionAccountNode","name":"authority","isWritable":false,"isSigner":true,"isOptional":false,"defaultValue":{"kind":"identityValueNode"}},{"kind":"instructionAccountNode","name":"programConfig","isWritable":true,"isSigner":false,"isOptional":false}],"arguments":[{"kind":"instructionArgumentNode","name":"discriminator","defaultValueStrategy":"omitted","type":{"kind":"fixedSizeTypeNode","size":8,"type":{"kind":"bytesTypeNode"}},"defaultValue":{"kind":"bytesValueNode","data":"59606c82dfdfd566","encoding":"base16"}}],"discriminators":[{"kind":"fieldDiscriminatorNode","name":"discriminator","offset":0}]},{"kind":"instructionNode","name":"initBallotBox","optionalAccountStrategy":"programId","accounts":[{"kind":"instructionAccountNode","name":"payer","isWritable":true,"isSigner":true,"isOptional":false,"defaultValue":{"kind":"payerValueNode"}},{"kind":"instructionAccountNode","name":"proposal","isWritable":false,"isSigner":true,"isOptional":false,"docs":["Verifies the signer is a Proposal PDA from the svmgov program recorded in","`ProgramConfig.svmgov_program_pubkey` — only that program (via CPI with","the proposal's seeds) can open a ballot box."]},{"kind":"instructionAccountNode","name":"ballotBox","isWritable":true,"isSigner":false,"isOptional":false,"defaultValue":{"kind":"pdaValueNode","pda":{"kind":"pdaLinkNode","name":"ballotBox"},"seeds":[{"kind":"pdaSeedValueNode","name":"snapshotSlot","value":{"kind":"argumentValueNode","name":"snapshotSlot"}}]}},{"kind":"instructionAccountNode","name":"programConfig","isWritable":false,"isSigner":false,"isOptional":false},{"kind":"instructionAccountNode","name":"systemProgram","isWritable":false,"isSigner":false,"isOptional":false,"defaultValue":{"kind":"publicKeyValueNode","publicKey":"11111111111111111111111111111111","identifier":"systemProgram"}}],"arguments":[{"kind":"instructionArgumentNode","name":"discriminator","defaultValueStrategy":"omitted","type":{"kind":"fixedSizeTypeNode","size":8,"type":{"kind":"bytesTypeNode"}},"defaultValue":{"kind":"bytesValueNode","data":"a4142dd5432bc1d4","encoding":"base16"}},{"kind":"instructionArgumentNode","name":"snapshotSlot","type":{"kind":"numberTypeNode","format":"u64","endian":"le"}},{"kind":"instructionArgumentNode","name":"proposalSeed","type":{"kind":"numberTypeNode","format":"u64","endian":"le"}},{"kind":"instructionArgumentNode","name":"splVoteAccount","type":{"kind":"publicKeyTypeNode"}}],"discriminators":[{"kind":"fieldDiscriminatorNode","name":"discriminator","offset":0}]},{"kind":"instructionNode","name":"initMetaMerkleProof","optionalAccountStrategy":"programId","accounts":[{"kind":"instructionAccountNode","name":"payer","isWritable":true,"isSigner":true,"isOptional":false,"defaultValue":{"kind":"payerValueNode"}},{"kind":"instructionAccountNode","name":"merkleProof","isWritable":true,"isSigner":false,"isOptional":false},{"kind":"instructionAccountNode","name":"consensusResult","isWritable":false,"isSigner":false,"isOptional":false},{"kind":"instructionAccountNode","name":"systemProgram","isWritable":false,"isSigner":false,"isOptional":false,"defaultValue":{"kind":"publicKeyValueNode","publicKey":"11111111111111111111111111111111","identifier":"systemProgram"}}],"arguments":[{"kind":"instructionArgumentNode","name":"discriminator","defaultValueStrategy":"omitted","type":{"kind":"fixedSizeTypeNode","size":8,"type":{"kind":"bytesTypeNode"}},"defaultValue":{"kind":"bytesValueNode","data":"bed284a5cc586e54","encoding":"base16"}},{"kind":"instructionArgumentNode","name":"metaMerkleLeaf","type":{"kind":"definedTypeLinkNode","name":"metaMerkleLeaf"}},{"kind":"instructionArgumentNode","name":"metaMerkleProof","type":{"kind":"arrayTypeNode","item":{"kind":"fixedSizeTypeNode","size":32,"type":{"kind":"bytesTypeNode"}},"count":{"kind":"prefixedCountNode","prefix":{"kind":"numberTypeNode","format":"u32","endian":"le"}}}},{"kind":"instructionArgumentNode","name":"closeTimestamp","type":{"kind":"numberTypeNode","format":"i64","endian":"le"}}],"discriminators":[{"kind":"fieldDiscriminatorNode","name":"discriminator","offset":0}]},{"kind":"instructionNode","name":"initProgramConfig","optionalAccountStrategy":"programId","accounts":[{"kind":"instructionAccountNode","name":"payer","isWritable":true,"isSigner":true,"isOptional":false,"defaultValue":{"kind":"payerValueNode"}},{"kind":"instructionAccountNode","name":"authority","isWritable":false,"isSigner":true,"isOptional":false,"defaultValue":{"kind":"identityValueNode"}},{"kind":"instructionAccountNode","name":"programConfig","isWritable":true,"isSigner":false,"isOptional":false,"defaultValue":{"kind":"pdaValueNode","pda":{"kind":"pdaLinkNode","name":"programConfig"}}},{"kind":"instructionAccountNode","name":"systemProgram","isWritable":false,"isSigner":false,"isOptional":false,"defaultValue":{"kind":"publicKeyValueNode","publicKey":"11111111111111111111111111111111","identifier":"systemProgram"}}],"arguments":[{"kind":"instructionArgumentNode","name":"discriminator","defaultValueStrategy":"omitted","type":{"kind":"fixedSizeTypeNode","size":8,"type":{"kind":"bytesTypeNode"}},"defaultValue":{"kind":"bytesValueNode","data":"b936ede5dbb36d14","encoding":"base16"}},{"kind":"instructionArgumentNode","name":"svmgovProgramPubkey","type":{"kind":"publicKeyTypeNode"}}],"discriminators":[{"kind":"fieldDiscriminatorNode","name":"discriminator","offset":0}]},{"kind":"instructionNode","name":"removeVote","optionalAccountStrategy":"programId","accounts":[{"kind":"instructionAccountNode","name":"operator","isWritable":false,"isSigner":true,"isOptional":false},{"kind":"instructionAccountNode","name":"ballotBox","isWritable":true,"isSigner":false,"isOptional":false}],"arguments":[{"kind":"instructionArgumentNode","name":"discriminator","defaultValueStrategy":"omitted","type":{"kind":"fixedSizeTypeNode","size":8,"type":{"kind":"bytesTypeNode"}},"defaultValue":{"kind":"bytesValueNode","data":"20bb17039ce837b1","encoding":"base16"}}],"discriminators":[{"kind":"fieldDiscriminatorNode","name":"discriminator","offset":0}]},{"kind":"instructionNode","name":"resetBallotBox","optionalAccountStrategy":"programId","accounts":[{"kind":"instructionAccountNode","name":"tieBreakerAdmin","isWritable":false,"isSigner":true,"isOptional":false},{"kind":"instructionAccountNode","name":"ballotBox","isWritable":true,"isSigner":false,"isOptional":false},{"kind":"instructionAccountNode","name":"programConfig","isWritable":false,"isSigner":false,"isOptional":false}],"arguments":[{"kind":"instructionArgumentNode","name":"discriminator","defaultValueStrategy":"omitted","type":{"kind":"fixedSizeTypeNode","size":8,"type":{"kind":"bytesTypeNode"}},"defaultValue":{"kind":"bytesValueNode","data":"6c7f83abe2db43a3","encoding":"base16"}}],"discriminators":[{"kind":"fieldDiscriminatorNode","name":"discriminator","offset":0}]},{"kind":"instructionNode","name":"setTieBreaker","optionalAccountStrategy":"programId","accounts":[{"kind":"instructionAccountNode","name":"tieBreakerAdmin","isWritable":false,"isSigner":true,"isOptional":false},{"kind":"instructionAccountNode","name":"ballotBox","isWritable":true,"isSigner":false,"isOptional":false},{"kind":"instructionAccountNode","name":"programConfig","isWritable":false,"isSigner":false,"isOptional":false}],"arguments":[{"kind":"instructionArgumentNode","name":"discriminator","defaultValueStrategy":"omitted","type":{"kind":"fixedSizeTypeNode","size":8,"type":{"kind":"bytesTypeNode"}},"defaultValue":{"kind":"bytesValueNode","data":"e40af082c13a67b5","encoding":"base16"}},{"kind":"instructionArgumentNode","name":"ballot","type":{"kind":"definedTypeLinkNode","name":"ballot"}}],"discriminators":[{"kind":"fieldDiscriminatorNode","name":"discriminator","offset":0}]},{"kind":"instructionNode","name":"updateOperatorWhitelist","optionalAccountStrategy":"programId","accounts":[{"kind":"instructionAccountNode","name":"authority","isWritable":false,"isSigner":true,"isOptional":false,"defaultValue":{"kind":"identityValueNode"}},{"kind":"instructionAccountNode","name":"programConfig","isWritable":true,"isSigner":false,"isOptional":false}],"arguments":[{"kind":"instructionArgumentNode","name":"discriminator","defaultValueStrategy":"omitted","type":{"kind":"fixedSizeTypeNode","size":8,"type":{"kind":"bytesTypeNode"}},"defaultValue":{"kind":"bytesValueNode","data":"19419096c8f59c5c","encoding":"base16"}},{"kind":"instructionArgumentNode","name":"operatorsToAdd","type":{"kind":"optionTypeNode","fixed":false,"item":{"kind":"arrayTypeNode","item":{"kind":"publicKeyTypeNode"},"count":{"kind":"prefixedCountNode","prefix":{"kind":"numberTypeNode","format":"u32","endian":"le"}}},"prefix":{"kind":"numberTypeNode","format":"u8","endian":"le"}}},{"kind":"instructionArgumentNode","name":"operatorsToRemove","type":{"kind":"optionTypeNode","fixed":false,"item":{"kind":"arrayTypeNode","item":{"kind":"publicKeyTypeNode"},"count":{"kind":"prefixedCountNode","prefix":{"kind":"numberTypeNode","format":"u32","endian":"le"}}},"prefix":{"kind":"numberTypeNode","format":"u8","endian":"le"}}}],"discriminators":[{"kind":"fieldDiscriminatorNode","name":"discriminator","offset":0}]},{"kind":"instructionNode","name":"updateProgramConfig","optionalAccountStrategy":"programId","accounts":[{"kind":"instructionAccountNode","name":"authority","isWritable":false,"isSigner":true,"isOptional":false,"defaultValue":{"kind":"identityValueNode"}},{"kind":"instructionAccountNode","name":"programConfig","isWritable":true,"isSigner":false,"isOptional":false}],"arguments":[{"kind":"instructionArgumentNode","name":"discriminator","defaultValueStrategy":"omitted","type":{"kind":"fixedSizeTypeNode","size":8,"type":{"kind":"bytesTypeNode"}},"defaultValue":{"kind":"bytesValueNode","data":"d603bb62aa6a212d","encoding":"base16"}},{"kind":"instructionArgumentNode","name":"proposedAuthority","type":{"kind":"optionTypeNode","fixed":false,"item":{"kind":"publicKeyTypeNode"},"prefix":{"kind":"numberTypeNode","format":"u8","endian":"le"}}},{"kind":"instructionArgumentNode","name":"minConsensusThresholdBps","type":{"kind":"optionTypeNode","fixed":false,"item":{"kind":"numberTypeNode","format":"u16","endian":"le"},"prefix":{"kind":"numberTypeNode","format":"u8","endian":"le"}}},{"kind":"instructionArgumentNode","name":"tieBreakerAdmin","type":{"kind":"optionTypeNode","fixed":false,"item":{"kind":"publicKeyTypeNode"},"prefix":{"kind":"numberTypeNode","format":"u8","endian":"le"}}},{"kind":"instructionArgumentNode","name":"voteDuration","type":{"kind":"optionTypeNode","fixed":false,"item":{"kind":"numberTypeNode","format":"i64","endian":"le"},"prefix":{"kind":"numberTypeNode","format":"u8","endian":"le"}}},{"kind":"instructionArgumentNode","name":"svmgovProgramPubkey","type":{"kind":"optionTypeNode","fixed":false,"item":{"kind":"publicKeyTypeNode"},"prefix":{"kind":"numberTypeNode","format":"u8","endian":"le"}}}],"discriminators":[{"kind":"fieldDiscriminatorNode","name":"discriminator","offset":0}]},{"kind":"instructionNode","name":"verifyMerkleProof","optionalAccountStrategy":"programId","accounts":[{"kind":"instructionAccountNode","name":"metaMerkleProof","isWritable":false,"isSigner":false,"isOptional":false},{"kind":"instructionAccountNode","name":"consensusResult","isWritable":false,"isSigner":false,"isOptional":false}],"arguments":[{"kind":"instructionArgumentNode","name":"discriminator","defaultValueStrategy":"omitted","type":{"kind":"fixedSizeTypeNode","size":8,"type":{"kind":"bytesTypeNode"}},"defaultValue":{"kind":"bytesValueNode","data":"33bf25a94acfc966","encoding":"base16"}},{"kind":"instructionArgumentNode","name":"stakeMerkleProof","type":{"kind":"optionTypeNode","fixed":false,"item":{"kind":"arrayTypeNode","item":{"kind":"fixedSizeTypeNode","size":32,"type":{"kind":"bytesTypeNode"}},"count":{"kind":"prefixedCountNode","prefix":{"kind":"numberTypeNode","format":"u32","endian":"le"}}},"prefix":{"kind":"numberTypeNode","format":"u8","endian":"le"}}},{"kind":"instructionArgumentNode","name":"stakeMerkleLeaf","type":{"kind":"optionTypeNode","fixed":false,"item":{"kind":"definedTypeLinkNode","name":"stakeMerkleLeaf"},"prefix":{"kind":"numberTypeNode","format":"u8","endian":"le"}}}],"discriminators":[{"kind":"fieldDiscriminatorNode","name":"discriminator","offset":0}]}],"definedTypes":[{"kind":"definedTypeNode","name":"ballot","docs":["Inner struct of BallotBox"],"type":{"kind":"structTypeNode","fields":[{"kind":"structFieldTypeNode","name":"metaMerkleRoot","docs":["The merkle root of the meta merkle tree"],"type":{"kind":"fixedSizeTypeNode","size":32,"type":{"kind":"bytesTypeNode"}}},{"kind":"structFieldTypeNode","name":"snapshotHash","docs":["SHA256 hash of borsh serialized snapshot. Optional."],"type":{"kind":"fixedSizeTypeNode","size":32,"type":{"kind":"bytesTypeNode"}}}]}},{"kind":"definedTypeNode","name":"ballotTally","docs":["Inner struct of BallotBox"],"type":{"kind":"structTypeNode","fields":[{"kind":"structFieldTypeNode","name":"index","docs":["Index of the tally within the ballot_tallies"],"type":{"kind":"numberTypeNode","format":"u8","endian":"le"}},{"kind":"structFieldTypeNode","name":"ballot","docs":["The ballot being tallied"],"type":{"kind":"definedTypeLinkNode","name":"ballot"}},{"kind":"structFieldTypeNode","name":"tally","docs":["The number of votes for this ballot. Each vote is equally weighted."],"type":{"kind":"numberTypeNode","format":"u8","endian":"le"}}]}},{"kind":"definedTypeNode","name":"metaMerkleLeaf","type":{"kind":"structTypeNode","fields":[{"kind":"structFieldTypeNode","name":"votingWallet","docs":["Wallet designated for governance voting for the vote account."],"type":{"kind":"publicKeyTypeNode"}},{"kind":"structFieldTypeNode","name":"voteAccount","docs":["Validator's vote account."],"type":{"kind":"publicKeyTypeNode"}},{"kind":"structFieldTypeNode","name":"stakeMerkleRoot","docs":["Root hash of the StakeMerkleTree, representing all active stake accounts","delegated to the current vote account."],"type":{"kind":"fixedSizeTypeNode","size":32,"type":{"kind":"bytesTypeNode"}}},{"kind":"structFieldTypeNode","name":"activeStake","docs":["Total active delegated stake under this vote account."],"type":{"kind":"numberTypeNode","format":"u64","endian":"le"}}]}},{"kind":"definedTypeNode","name":"operatorVote","docs":["Inner struct of BallotBox"],"type":{"kind":"structTypeNode","fields":[{"kind":"structFieldTypeNode","name":"operator","docs":["The operator that cast the vote"],"type":{"kind":"publicKeyTypeNode"}},{"kind":"structFieldTypeNode","name":"slotVoted","docs":["The slot the operator voted"],"type":{"kind":"numberTypeNode","format":"u64","endian":"le"}},{"kind":"structFieldTypeNode","name":"ballotIndex","docs":["The index of the ballot in the ballot_tallies"],"type":{"kind":"numberTypeNode","format":"u8","endian":"le"}}]}},{"kind":"definedTypeNode","name":"stakeMerkleLeaf","type":{"kind":"structTypeNode","fields":[{"kind":"structFieldTypeNode","name":"votingWallet","docs":["Wallet designated for governance voting for the stake account."],"type":{"kind":"publicKeyTypeNode"}},{"kind":"structFieldTypeNode","name":"stakeAccount","docs":["The stake account address."],"type":{"kind":"publicKeyTypeNode"}},{"kind":"structFieldTypeNode","name":"activeStake","docs":["Active delegated stake amount."],"type":{"kind":"numberTypeNode","format":"u64","endian":"le"}}]}}],"pdas":[{"kind":"pdaNode","name":"ballotBox","seeds":[{"kind":"constantPdaSeedNode","type":{"kind":"bytesTypeNode"},"value":{"kind":"bytesValueNode","data":"r1NViPybctfR","encoding":"base58"}},{"kind":"variablePdaSeedNode","name":"snapshotSlot","type":{"kind":"numberTypeNode","format":"u64","endian":"le"}}]},{"kind":"pdaNode","name":"programConfig","seeds":[{"kind":"constantPdaSeedNode","type":{"kind":"bytesTypeNode"},"value":{"kind":"bytesValueNode","data":"7hdpEB5Enzra4PCxXg","encoding":"base58"}}]},{"kind":"pdaNode","name":"metaMerkleProof","seeds":[{"kind":"constantPdaSeedNode","type":{"kind":"stringTypeNode","encoding":"utf8"},"value":{"kind":"stringValueNode","string":"MetaMerkleProof"}},{"kind":"variablePdaSeedNode","name":"consensusResult","type":{"kind":"publicKeyTypeNode"}},{"kind":"variablePdaSeedNode","name":"voteAccount","type":{"kind":"publicKeyTypeNode"}}]}],"errors":[{"kind":"errorNode","name":"operatorNotWhitelisted","code":6000,"message":"Operator not whitelisted","docs":["OperatorNotWhitelisted: Operator not whitelisted"]},{"kind":"errorNode","name":"operatorHasVoted","code":6001,"message":"Operator has voted","docs":["OperatorHasVoted: Operator has voted"]},{"kind":"errorNode","name":"operatorHasNotVoted","code":6002,"message":"Operator has not voted","docs":["OperatorHasNotVoted: Operator has not voted"]},{"kind":"errorNode","name":"votingExpired","code":6003,"message":"Voting has expired","docs":["VotingExpired: Voting has expired"]},{"kind":"errorNode","name":"votingNotExpired","code":6004,"message":"Voting not expired","docs":["VotingNotExpired: Voting not expired"]},{"kind":"errorNode","name":"consensusReached","code":6005,"message":"Consensus has reached","docs":["ConsensusReached: Consensus has reached"]},{"kind":"errorNode","name":"consensusNotReached","code":6006,"message":"Consensus not reached","docs":["ConsensusNotReached: Consensus not reached"]},{"kind":"errorNode","name":"invalidBallot","code":6007,"message":"Invalid ballot","docs":["InvalidBallot: Invalid ballot"]},{"kind":"errorNode","name":"invalidMerkleInputs","code":6008,"message":"Invalid merkle inputs","docs":["InvalidMerkleInputs: Invalid merkle inputs"]},{"kind":"errorNode","name":"invalidMerkleProof","code":6009,"message":"Invalid merkle proof","docs":["InvalidMerkleProof: Invalid merkle proof"]},{"kind":"errorNode","name":"vecFull","code":6010,"message":"Vector size exceeded","docs":["VecFull: Vector size exceeded"]},{"kind":"errorNode","name":"overlappingWhitelistEntries","code":6011,"message":"Overlapping operators in add and remove lists","docs":["OverlappingWhitelistEntries: Overlapping operators in add and remove lists"]},{"kind":"errorNode","name":"invalidBallotIndex","code":6012,"message":"Invalid ballot index","docs":["InvalidBallotIndex: Invalid ballot index"]},{"kind":"errorNode","name":"invalidSnapshotSlot","code":6013,"message":"Snapshot slot must be greater than current slot","docs":["InvalidSnapshotSlot: Snapshot slot must be greater than current slot"]},{"kind":"errorNode","name":"ballotTalliesNotMaxLength","code":6014,"message":"Ballot tallies not at max length","docs":["BallotTalliesNotMaxLength: Ballot tallies not at max length"]},{"kind":"errorNode","name":"invalidProposal","code":6015,"message":"Invalid proposal","docs":["InvalidProposal: Invalid proposal"]},{"kind":"errorNode","name":"snapshotSlotNotReached","code":6016,"message":"Current slot must be greater than snapshot slot","docs":["SnapshotSlotNotReached: Current slot must be greater than snapshot slot"]}]}}
+{
+  "kind": "rootNode",
+  "standard": "codama",
+  "version": "1.8.0",
+  "program": {
+    "kind": "programNode",
+    "name": "ncnSnapshot",
+    "publicKey": "ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf",
+    "version": "0.4.0-40100",
+    "origin": "anchor",
+    "accounts": [
+      {
+        "kind": "accountNode",
+        "name": "ballotBox",
+        "data": {
+          "kind": "structTypeNode",
+          "fields": [
+            {
+              "kind": "structFieldTypeNode",
+              "name": "discriminator",
+              "defaultValueStrategy": "omitted",
+              "type": {
+                "kind": "fixedSizeTypeNode",
+                "size": 8,
+                "type": { "kind": "bytesTypeNode" }
+              },
+              "defaultValue": {
+                "kind": "bytesValueNode",
+                "data": "9ba99c085c0e1865",
+                "encoding": "base16"
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "bump",
+              "docs": ["Bump seed for the PDA"],
+              "type": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "epoch",
+              "docs": ["The epoch this ballot box is for"],
+              "type": { "kind": "numberTypeNode", "format": "u64", "endian": "le" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "slotCreated",
+              "docs": ["Slot when this ballot box was created"],
+              "type": { "kind": "numberTypeNode", "format": "u64", "endian": "le" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "slotConsensusReached",
+              "docs": ["Slot when consensus was reached"],
+              "type": { "kind": "numberTypeNode", "format": "u64", "endian": "le" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "minConsensusThresholdBps",
+              "docs": ["Min. percentage of votes required to finalize for this ballot box."],
+              "type": { "kind": "numberTypeNode", "format": "u16", "endian": "le" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "winningBallot",
+              "docs": ["The ballot that got at least min_consensus_threshold of votes"],
+              "type": { "kind": "definedTypeLinkNode", "name": "ballot" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "operatorVotes",
+              "docs": ["Operator votes"],
+              "type": {
+                "kind": "arrayTypeNode",
+                "item": { "kind": "definedTypeLinkNode", "name": "operatorVote" },
+                "count": {
+                  "kind": "prefixedCountNode",
+                  "prefix": { "kind": "numberTypeNode", "format": "u32", "endian": "le" }
+                }
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "ballotTallies",
+              "docs": [
+                "Vote counts per distinct ballot. Each whitelisted operator contributes",
+                "one vote; tallies are not stake-weighted."
+              ],
+              "type": {
+                "kind": "arrayTypeNode",
+                "item": { "kind": "definedTypeLinkNode", "name": "ballotTally" },
+                "count": {
+                  "kind": "prefixedCountNode",
+                  "prefix": { "kind": "numberTypeNode", "format": "u32", "endian": "le" }
+                }
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "voteExpiryTimestamp",
+              "docs": [
+                "Timestamp when voting ends. Tie breaker admin will decide the results",
+                "if no consensus is reached by then."
+              ],
+              "type": { "kind": "numberTypeNode", "format": "i64", "endian": "le" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "snapshotSlot",
+              "docs": ["Slot for which the snapshot is taken"],
+              "type": { "kind": "numberTypeNode", "format": "u64", "endian": "le" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "voterList",
+              "docs": ["Snapshot of whitelisted operators at BallotBox creation"],
+              "type": {
+                "kind": "arrayTypeNode",
+                "item": { "kind": "publicKeyTypeNode" },
+                "count": {
+                  "kind": "prefixedCountNode",
+                  "prefix": { "kind": "numberTypeNode", "format": "u32", "endian": "le" }
+                }
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "tieBreakerConsensus",
+              "docs": ["Whether consensus was reached via tie breaker"],
+              "type": {
+                "kind": "booleanTypeNode",
+                "size": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+              }
+            }
+          ]
+        },
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      },
+      {
+        "kind": "accountNode",
+        "name": "consensusResult",
+        "size": 81,
+        "data": {
+          "kind": "structTypeNode",
+          "fields": [
+            {
+              "kind": "structFieldTypeNode",
+              "name": "discriminator",
+              "defaultValueStrategy": "omitted",
+              "type": {
+                "kind": "fixedSizeTypeNode",
+                "size": 8,
+                "type": { "kind": "bytesTypeNode" }
+              },
+              "defaultValue": {
+                "kind": "bytesValueNode",
+                "data": "69797af3643a5da1",
+                "encoding": "base16"
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "snapshotSlot",
+              "docs": ["Snapshot slot used for the ballot box"],
+              "type": { "kind": "numberTypeNode", "format": "u64", "endian": "le" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "ballot",
+              "docs": ["Ballot"],
+              "type": { "kind": "definedTypeLinkNode", "name": "ballot" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "tieBreakerConsensus",
+              "docs": ["Whether consensus was reached via tie breaker"],
+              "type": {
+                "kind": "booleanTypeNode",
+                "size": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+              }
+            }
+          ]
+        },
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      },
+      {
+        "kind": "accountNode",
+        "name": "metaMerkleProof",
+        "data": {
+          "kind": "structTypeNode",
+          "fields": [
+            {
+              "kind": "structFieldTypeNode",
+              "name": "discriminator",
+              "defaultValueStrategy": "omitted",
+              "type": {
+                "kind": "fixedSizeTypeNode",
+                "size": 8,
+                "type": { "kind": "bytesTypeNode" }
+              },
+              "defaultValue": {
+                "kind": "bytesValueNode",
+                "data": "82378d1ac33a12b2",
+                "encoding": "base16"
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "payer",
+              "docs": ["Payer wallet"],
+              "type": { "kind": "publicKeyTypeNode" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "consensusResult",
+              "docs": ["ConsensusResult proof is created for."],
+              "type": { "kind": "publicKeyTypeNode" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "metaMerkleLeaf",
+              "docs": ["Meta merkle leaf"],
+              "type": { "kind": "definedTypeLinkNode", "name": "metaMerkleLeaf" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "metaMerkleProof",
+              "docs": ["Meta merkle proof"],
+              "type": {
+                "kind": "arrayTypeNode",
+                "item": {
+                  "kind": "fixedSizeTypeNode",
+                  "size": 32,
+                  "type": { "kind": "bytesTypeNode" }
+                },
+                "count": {
+                  "kind": "prefixedCountNode",
+                  "prefix": { "kind": "numberTypeNode", "format": "u32", "endian": "le" }
+                }
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "closeTimestamp",
+              "docs": [
+                "Timestamp after which MetaMerkleProof can be closed permissionlessly.",
+                "This is selected by the payer but our recommendation is to set to vote expiry time."
+              ],
+              "type": { "kind": "numberTypeNode", "format": "i64", "endian": "le" }
+            }
+          ]
+        },
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      },
+      {
+        "kind": "accountNode",
+        "name": "programConfig",
+        "data": {
+          "kind": "structTypeNode",
+          "fields": [
+            {
+              "kind": "structFieldTypeNode",
+              "name": "discriminator",
+              "defaultValueStrategy": "omitted",
+              "type": {
+                "kind": "fixedSizeTypeNode",
+                "size": 8,
+                "type": { "kind": "bytesTypeNode" }
+              },
+              "defaultValue": {
+                "kind": "bytesValueNode",
+                "data": "c4d25ae790958c3f",
+                "encoding": "base16"
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "authority",
+              "docs": ["Authority allowed to update the config."],
+              "type": { "kind": "publicKeyTypeNode" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "proposedAuthority",
+              "docs": ["Authority to be set to upon finalization of proposal."],
+              "type": {
+                "kind": "optionTypeNode",
+                "fixed": false,
+                "item": { "kind": "publicKeyTypeNode" },
+                "prefix": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "whitelistedOperators",
+              "docs": [
+                "Operators whitelisted to participate in voting.",
+                "A snapshot of this list will be taken at the time of BallotBox creation."
+              ],
+              "type": {
+                "kind": "arrayTypeNode",
+                "item": { "kind": "publicKeyTypeNode" },
+                "count": {
+                  "kind": "prefixedCountNode",
+                  "prefix": { "kind": "numberTypeNode", "format": "u32", "endian": "le" }
+                }
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "minConsensusThresholdBps",
+              "docs": [
+                "Min. percentage of votes required to finalize a ballot. Used during BallotBox creation."
+              ],
+              "type": { "kind": "numberTypeNode", "format": "u16", "endian": "le" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "tieBreakerAdmin",
+              "docs": [
+                "Admin allowed to decide the winning ballot if vote expires before consensus."
+              ],
+              "type": { "kind": "publicKeyTypeNode" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "voteDuration",
+              "docs": ["Duration for which ballot box will be opened for voting."],
+              "type": { "kind": "numberTypeNode", "format": "i64", "endian": "le" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "svmgovProgramPubkey",
+              "docs": [
+                "The svmgov governance program whose Proposal PDAs are authorized to open",
+                "ballot boxes. Checked in `init_ballot_box`; updatable by the authority so",
+                "the program can be retargeted at a new svmgov deployment without a redeploy."
+              ],
+              "type": { "kind": "publicKeyTypeNode" }
+            }
+          ]
+        },
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      }
+    ],
+    "instructions": [
+      {
+        "kind": "instructionNode",
+        "name": "castVote",
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "operator",
+            "isWritable": false,
+            "isSigner": true,
+            "isOptional": false
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "ballotBox",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "type": { "kind": "fixedSizeTypeNode", "size": 8, "type": { "kind": "bytesTypeNode" } },
+            "defaultValue": {
+              "kind": "bytesValueNode",
+              "data": "14d40fbd45b44597",
+              "encoding": "base16"
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "ballot",
+            "type": { "kind": "definedTypeLinkNode", "name": "ballot" }
+          }
+        ],
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      },
+      {
+        "kind": "instructionNode",
+        "name": "closeMetaMerkleProof",
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "payer",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": ["Account to receive the reclaimed rent from StakingRecord"],
+            "defaultValue": { "kind": "payerValueNode" }
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "metaMerkleProof",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "systemProgram",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "defaultValue": {
+              "kind": "publicKeyValueNode",
+              "publicKey": "11111111111111111111111111111111",
+              "identifier": "systemProgram"
+            }
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "type": { "kind": "fixedSizeTypeNode", "size": 8, "type": { "kind": "bytesTypeNode" } },
+            "defaultValue": {
+              "kind": "bytesValueNode",
+              "data": "f8efb69217d7ac03",
+              "encoding": "base16"
+            }
+          }
+        ],
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      },
+      {
+        "kind": "instructionNode",
+        "name": "finalizeBallot",
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "payer",
+            "isWritable": true,
+            "isSigner": true,
+            "isOptional": false,
+            "defaultValue": { "kind": "payerValueNode" }
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "ballotBox",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "consensusResult",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "systemProgram",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "defaultValue": {
+              "kind": "publicKeyValueNode",
+              "publicKey": "11111111111111111111111111111111",
+              "identifier": "systemProgram"
+            }
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "type": { "kind": "fixedSizeTypeNode", "size": 8, "type": { "kind": "bytesTypeNode" } },
+            "defaultValue": {
+              "kind": "bytesValueNode",
+              "data": "d42b553a9e22292a",
+              "encoding": "base16"
+            }
+          }
+        ],
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      },
+      {
+        "kind": "instructionNode",
+        "name": "finalizeProposedAuthority",
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "authority",
+            "isWritable": false,
+            "isSigner": true,
+            "isOptional": false,
+            "defaultValue": { "kind": "identityValueNode" }
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "programConfig",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "type": { "kind": "fixedSizeTypeNode", "size": 8, "type": { "kind": "bytesTypeNode" } },
+            "defaultValue": {
+              "kind": "bytesValueNode",
+              "data": "59606c82dfdfd566",
+              "encoding": "base16"
+            }
+          }
+        ],
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      },
+      {
+        "kind": "instructionNode",
+        "name": "initBallotBox",
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "payer",
+            "isWritable": true,
+            "isSigner": true,
+            "isOptional": false,
+            "defaultValue": { "kind": "payerValueNode" }
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "proposal",
+            "isWritable": false,
+            "isSigner": true,
+            "isOptional": false,
+            "docs": [
+              "Verifies the signer is a Proposal PDA from the svmgov program recorded in",
+              "`ProgramConfig.svmgov_program_pubkey` — only that program (via CPI with",
+              "the proposal's seeds) can open a ballot box."
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "ballotBox",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false,
+            "defaultValue": {
+              "kind": "pdaValueNode",
+              "pda": { "kind": "pdaLinkNode", "name": "ballotBox" },
+              "seeds": [
+                {
+                  "kind": "pdaSeedValueNode",
+                  "name": "snapshotSlot",
+                  "value": { "kind": "argumentValueNode", "name": "snapshotSlot" }
+                }
+              ]
+            }
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "programConfig",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "systemProgram",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "defaultValue": {
+              "kind": "publicKeyValueNode",
+              "publicKey": "11111111111111111111111111111111",
+              "identifier": "systemProgram"
+            }
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "type": { "kind": "fixedSizeTypeNode", "size": 8, "type": { "kind": "bytesTypeNode" } },
+            "defaultValue": {
+              "kind": "bytesValueNode",
+              "data": "a4142dd5432bc1d4",
+              "encoding": "base16"
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "snapshotSlot",
+            "type": { "kind": "numberTypeNode", "format": "u64", "endian": "le" }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "proposalSeed",
+            "type": { "kind": "numberTypeNode", "format": "u64", "endian": "le" }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "splVoteAccount",
+            "type": { "kind": "publicKeyTypeNode" }
+          }
+        ],
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      },
+      {
+        "kind": "instructionNode",
+        "name": "initMetaMerkleProof",
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "payer",
+            "isWritable": true,
+            "isSigner": true,
+            "isOptional": false,
+            "defaultValue": { "kind": "payerValueNode" }
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "merkleProof",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "consensusResult",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "systemProgram",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "defaultValue": {
+              "kind": "publicKeyValueNode",
+              "publicKey": "11111111111111111111111111111111",
+              "identifier": "systemProgram"
+            }
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "type": { "kind": "fixedSizeTypeNode", "size": 8, "type": { "kind": "bytesTypeNode" } },
+            "defaultValue": {
+              "kind": "bytesValueNode",
+              "data": "bed284a5cc586e54",
+              "encoding": "base16"
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "metaMerkleLeaf",
+            "type": { "kind": "definedTypeLinkNode", "name": "metaMerkleLeaf" }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "metaMerkleProof",
+            "type": {
+              "kind": "arrayTypeNode",
+              "item": {
+                "kind": "fixedSizeTypeNode",
+                "size": 32,
+                "type": { "kind": "bytesTypeNode" }
+              },
+              "count": {
+                "kind": "prefixedCountNode",
+                "prefix": { "kind": "numberTypeNode", "format": "u32", "endian": "le" }
+              }
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "closeTimestamp",
+            "type": { "kind": "numberTypeNode", "format": "i64", "endian": "le" }
+          }
+        ],
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      },
+      {
+        "kind": "instructionNode",
+        "name": "initProgramConfig",
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "payer",
+            "isWritable": true,
+            "isSigner": true,
+            "isOptional": false,
+            "defaultValue": { "kind": "payerValueNode" }
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "authority",
+            "isWritable": false,
+            "isSigner": true,
+            "isOptional": false,
+            "defaultValue": { "kind": "identityValueNode" }
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "programConfig",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false,
+            "defaultValue": {
+              "kind": "pdaValueNode",
+              "pda": { "kind": "pdaLinkNode", "name": "programConfig" }
+            }
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "systemProgram",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "defaultValue": {
+              "kind": "publicKeyValueNode",
+              "publicKey": "11111111111111111111111111111111",
+              "identifier": "systemProgram"
+            }
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "type": { "kind": "fixedSizeTypeNode", "size": 8, "type": { "kind": "bytesTypeNode" } },
+            "defaultValue": {
+              "kind": "bytesValueNode",
+              "data": "b936ede5dbb36d14",
+              "encoding": "base16"
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "svmgovProgramPubkey",
+            "type": { "kind": "publicKeyTypeNode" }
+          }
+        ],
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      },
+      {
+        "kind": "instructionNode",
+        "name": "removeVote",
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "operator",
+            "isWritable": false,
+            "isSigner": true,
+            "isOptional": false
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "ballotBox",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "type": { "kind": "fixedSizeTypeNode", "size": 8, "type": { "kind": "bytesTypeNode" } },
+            "defaultValue": {
+              "kind": "bytesValueNode",
+              "data": "20bb17039ce837b1",
+              "encoding": "base16"
+            }
+          }
+        ],
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      },
+      {
+        "kind": "instructionNode",
+        "name": "resetBallotBox",
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "tieBreakerAdmin",
+            "isWritable": false,
+            "isSigner": true,
+            "isOptional": false
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "ballotBox",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "programConfig",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "type": { "kind": "fixedSizeTypeNode", "size": 8, "type": { "kind": "bytesTypeNode" } },
+            "defaultValue": {
+              "kind": "bytesValueNode",
+              "data": "6c7f83abe2db43a3",
+              "encoding": "base16"
+            }
+          }
+        ],
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      },
+      {
+        "kind": "instructionNode",
+        "name": "setTieBreaker",
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "tieBreakerAdmin",
+            "isWritable": false,
+            "isSigner": true,
+            "isOptional": false
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "ballotBox",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "programConfig",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "type": { "kind": "fixedSizeTypeNode", "size": 8, "type": { "kind": "bytesTypeNode" } },
+            "defaultValue": {
+              "kind": "bytesValueNode",
+              "data": "e40af082c13a67b5",
+              "encoding": "base16"
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "ballot",
+            "type": { "kind": "definedTypeLinkNode", "name": "ballot" }
+          }
+        ],
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      },
+      {
+        "kind": "instructionNode",
+        "name": "updateOperatorWhitelist",
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "authority",
+            "isWritable": false,
+            "isSigner": true,
+            "isOptional": false,
+            "defaultValue": { "kind": "identityValueNode" }
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "programConfig",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "type": { "kind": "fixedSizeTypeNode", "size": 8, "type": { "kind": "bytesTypeNode" } },
+            "defaultValue": {
+              "kind": "bytesValueNode",
+              "data": "19419096c8f59c5c",
+              "encoding": "base16"
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "operatorsToAdd",
+            "type": {
+              "kind": "optionTypeNode",
+              "fixed": false,
+              "item": {
+                "kind": "arrayTypeNode",
+                "item": { "kind": "publicKeyTypeNode" },
+                "count": {
+                  "kind": "prefixedCountNode",
+                  "prefix": { "kind": "numberTypeNode", "format": "u32", "endian": "le" }
+                }
+              },
+              "prefix": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "operatorsToRemove",
+            "type": {
+              "kind": "optionTypeNode",
+              "fixed": false,
+              "item": {
+                "kind": "arrayTypeNode",
+                "item": { "kind": "publicKeyTypeNode" },
+                "count": {
+                  "kind": "prefixedCountNode",
+                  "prefix": { "kind": "numberTypeNode", "format": "u32", "endian": "le" }
+                }
+              },
+              "prefix": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+            }
+          }
+        ],
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      },
+      {
+        "kind": "instructionNode",
+        "name": "updateProgramConfig",
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "authority",
+            "isWritable": false,
+            "isSigner": true,
+            "isOptional": false,
+            "defaultValue": { "kind": "identityValueNode" }
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "programConfig",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "type": { "kind": "fixedSizeTypeNode", "size": 8, "type": { "kind": "bytesTypeNode" } },
+            "defaultValue": {
+              "kind": "bytesValueNode",
+              "data": "d603bb62aa6a212d",
+              "encoding": "base16"
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "proposedAuthority",
+            "type": {
+              "kind": "optionTypeNode",
+              "fixed": false,
+              "item": { "kind": "publicKeyTypeNode" },
+              "prefix": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "minConsensusThresholdBps",
+            "type": {
+              "kind": "optionTypeNode",
+              "fixed": false,
+              "item": { "kind": "numberTypeNode", "format": "u16", "endian": "le" },
+              "prefix": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "tieBreakerAdmin",
+            "type": {
+              "kind": "optionTypeNode",
+              "fixed": false,
+              "item": { "kind": "publicKeyTypeNode" },
+              "prefix": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "voteDuration",
+            "type": {
+              "kind": "optionTypeNode",
+              "fixed": false,
+              "item": { "kind": "numberTypeNode", "format": "i64", "endian": "le" },
+              "prefix": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "svmgovProgramPubkey",
+            "type": {
+              "kind": "optionTypeNode",
+              "fixed": false,
+              "item": { "kind": "publicKeyTypeNode" },
+              "prefix": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+            }
+          }
+        ],
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      },
+      {
+        "kind": "instructionNode",
+        "name": "verifyMerkleProof",
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "metaMerkleProof",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "consensusResult",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "type": { "kind": "fixedSizeTypeNode", "size": 8, "type": { "kind": "bytesTypeNode" } },
+            "defaultValue": {
+              "kind": "bytesValueNode",
+              "data": "33bf25a94acfc966",
+              "encoding": "base16"
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "stakeMerkleProof",
+            "type": {
+              "kind": "optionTypeNode",
+              "fixed": false,
+              "item": {
+                "kind": "arrayTypeNode",
+                "item": {
+                  "kind": "fixedSizeTypeNode",
+                  "size": 32,
+                  "type": { "kind": "bytesTypeNode" }
+                },
+                "count": {
+                  "kind": "prefixedCountNode",
+                  "prefix": { "kind": "numberTypeNode", "format": "u32", "endian": "le" }
+                }
+              },
+              "prefix": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "stakeMerkleLeaf",
+            "type": {
+              "kind": "optionTypeNode",
+              "fixed": false,
+              "item": { "kind": "definedTypeLinkNode", "name": "stakeMerkleLeaf" },
+              "prefix": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+            }
+          }
+        ],
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      }
+    ],
+    "definedTypes": [
+      {
+        "kind": "definedTypeNode",
+        "name": "ballot",
+        "docs": ["Inner struct of BallotBox"],
+        "type": {
+          "kind": "structTypeNode",
+          "fields": [
+            {
+              "kind": "structFieldTypeNode",
+              "name": "metaMerkleRoot",
+              "docs": ["The merkle root of the meta merkle tree"],
+              "type": {
+                "kind": "fixedSizeTypeNode",
+                "size": 32,
+                "type": { "kind": "bytesTypeNode" }
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "snapshotHash",
+              "docs": ["SHA256 hash of borsh serialized snapshot. Optional."],
+              "type": {
+                "kind": "fixedSizeTypeNode",
+                "size": 32,
+                "type": { "kind": "bytesTypeNode" }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "kind": "definedTypeNode",
+        "name": "ballotTally",
+        "docs": ["Inner struct of BallotBox"],
+        "type": {
+          "kind": "structTypeNode",
+          "fields": [
+            {
+              "kind": "structFieldTypeNode",
+              "name": "index",
+              "docs": ["Index of the tally within the ballot_tallies"],
+              "type": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "ballot",
+              "docs": ["The ballot being tallied"],
+              "type": { "kind": "definedTypeLinkNode", "name": "ballot" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "tally",
+              "docs": ["The number of votes for this ballot. Each vote is equally weighted."],
+              "type": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+            }
+          ]
+        }
+      },
+      {
+        "kind": "definedTypeNode",
+        "name": "metaMerkleLeaf",
+        "type": {
+          "kind": "structTypeNode",
+          "fields": [
+            {
+              "kind": "structFieldTypeNode",
+              "name": "votingWallet",
+              "docs": ["Wallet designated for governance voting for the vote account."],
+              "type": { "kind": "publicKeyTypeNode" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "voteAccount",
+              "docs": ["Validator's vote account."],
+              "type": { "kind": "publicKeyTypeNode" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "stakeMerkleRoot",
+              "docs": [
+                "Root hash of the StakeMerkleTree, representing all active stake accounts",
+                "delegated to the current vote account."
+              ],
+              "type": {
+                "kind": "fixedSizeTypeNode",
+                "size": 32,
+                "type": { "kind": "bytesTypeNode" }
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "activeStake",
+              "docs": ["Total active delegated stake under this vote account."],
+              "type": { "kind": "numberTypeNode", "format": "u64", "endian": "le" }
+            }
+          ]
+        }
+      },
+      {
+        "kind": "definedTypeNode",
+        "name": "operatorVote",
+        "docs": ["Inner struct of BallotBox"],
+        "type": {
+          "kind": "structTypeNode",
+          "fields": [
+            {
+              "kind": "structFieldTypeNode",
+              "name": "operator",
+              "docs": ["The operator that cast the vote"],
+              "type": { "kind": "publicKeyTypeNode" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "slotVoted",
+              "docs": ["The slot the operator voted"],
+              "type": { "kind": "numberTypeNode", "format": "u64", "endian": "le" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "ballotIndex",
+              "docs": ["The index of the ballot in the ballot_tallies"],
+              "type": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+            }
+          ]
+        }
+      },
+      {
+        "kind": "definedTypeNode",
+        "name": "stakeMerkleLeaf",
+        "type": {
+          "kind": "structTypeNode",
+          "fields": [
+            {
+              "kind": "structFieldTypeNode",
+              "name": "votingWallet",
+              "docs": ["Wallet designated for governance voting for the stake account."],
+              "type": { "kind": "publicKeyTypeNode" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "stakeAccount",
+              "docs": ["The stake account address."],
+              "type": { "kind": "publicKeyTypeNode" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "activeStake",
+              "docs": ["Active delegated stake amount."],
+              "type": { "kind": "numberTypeNode", "format": "u64", "endian": "le" }
+            }
+          ]
+        }
+      }
+    ],
+    "pdas": [
+      {
+        "kind": "pdaNode",
+        "name": "ballotBox",
+        "seeds": [
+          {
+            "kind": "constantPdaSeedNode",
+            "type": { "kind": "bytesTypeNode" },
+            "value": { "kind": "bytesValueNode", "data": "r1NViPybctfR", "encoding": "base58" }
+          },
+          {
+            "kind": "variablePdaSeedNode",
+            "name": "snapshotSlot",
+            "type": { "kind": "numberTypeNode", "format": "u64", "endian": "le" }
+          }
+        ]
+      },
+      {
+        "kind": "pdaNode",
+        "name": "programConfig",
+        "seeds": [
+          {
+            "kind": "constantPdaSeedNode",
+            "type": { "kind": "bytesTypeNode" },
+            "value": {
+              "kind": "bytesValueNode",
+              "data": "7hdpEB5Enzra4PCxXg",
+              "encoding": "base58"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "pdaNode",
+        "name": "metaMerkleProof",
+        "seeds": [
+          {
+            "kind": "constantPdaSeedNode",
+            "type": { "kind": "stringTypeNode", "encoding": "utf8" },
+            "value": { "kind": "stringValueNode", "string": "MetaMerkleProof" }
+          },
+          {
+            "kind": "variablePdaSeedNode",
+            "name": "consensusResult",
+            "type": { "kind": "publicKeyTypeNode" }
+          },
+          {
+            "kind": "variablePdaSeedNode",
+            "name": "voteAccount",
+            "type": { "kind": "publicKeyTypeNode" }
+          }
+        ]
+      }
+    ],
+    "errors": [
+      {
+        "kind": "errorNode",
+        "name": "operatorNotWhitelisted",
+        "code": 6000,
+        "message": "Operator not whitelisted",
+        "docs": ["OperatorNotWhitelisted: Operator not whitelisted"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "operatorHasVoted",
+        "code": 6001,
+        "message": "Operator has voted",
+        "docs": ["OperatorHasVoted: Operator has voted"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "operatorHasNotVoted",
+        "code": 6002,
+        "message": "Operator has not voted",
+        "docs": ["OperatorHasNotVoted: Operator has not voted"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "votingExpired",
+        "code": 6003,
+        "message": "Voting has expired",
+        "docs": ["VotingExpired: Voting has expired"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "votingNotExpired",
+        "code": 6004,
+        "message": "Voting not expired",
+        "docs": ["VotingNotExpired: Voting not expired"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "consensusReached",
+        "code": 6005,
+        "message": "Consensus has reached",
+        "docs": ["ConsensusReached: Consensus has reached"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "consensusNotReached",
+        "code": 6006,
+        "message": "Consensus not reached",
+        "docs": ["ConsensusNotReached: Consensus not reached"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidBallot",
+        "code": 6007,
+        "message": "Invalid ballot",
+        "docs": ["InvalidBallot: Invalid ballot"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidMerkleInputs",
+        "code": 6008,
+        "message": "Invalid merkle inputs",
+        "docs": ["InvalidMerkleInputs: Invalid merkle inputs"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidMerkleProof",
+        "code": 6009,
+        "message": "Invalid merkle proof",
+        "docs": ["InvalidMerkleProof: Invalid merkle proof"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "vecFull",
+        "code": 6010,
+        "message": "Vector size exceeded",
+        "docs": ["VecFull: Vector size exceeded"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "overlappingWhitelistEntries",
+        "code": 6011,
+        "message": "Overlapping operators in add and remove lists",
+        "docs": ["OverlappingWhitelistEntries: Overlapping operators in add and remove lists"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidBallotIndex",
+        "code": 6012,
+        "message": "Invalid ballot index",
+        "docs": ["InvalidBallotIndex: Invalid ballot index"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidSnapshotSlot",
+        "code": 6013,
+        "message": "Snapshot slot must be greater than current slot",
+        "docs": ["InvalidSnapshotSlot: Snapshot slot must be greater than current slot"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "ballotTalliesNotMaxLength",
+        "code": 6014,
+        "message": "Ballot tallies not at max length",
+        "docs": ["BallotTalliesNotMaxLength: Ballot tallies not at max length"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidProposal",
+        "code": 6015,
+        "message": "Invalid proposal",
+        "docs": ["InvalidProposal: Invalid proposal"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "snapshotSlotNotReached",
+        "code": 6016,
+        "message": "Current slot must be greater than snapshot slot",
+        "docs": ["SnapshotSlotNotReached: Current slot must be greater than snapshot slot"]
+      }
+    ]
+  }
+}

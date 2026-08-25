@@ -10,6 +10,7 @@ import {
   publicKeyTypeNode,
   variablePdaSeedNode,
 } from "codama";
+import { format } from "oxfmt";
 
 const packageDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const anchorIdlPath = resolve(packageDir, "target/idl/ncn_snapshot.json");
@@ -34,5 +35,9 @@ codama.update(
 );
 
 await mkdir(dirname(codamaIdlPath), { recursive: true });
-await writeFile(codamaIdlPath, `${codama.getJson()}\n`);
+const { code, errors } = await format(codamaIdlPath, `${codama.getJson()}\n`);
+if (errors.length > 0) {
+  throw new Error(errors.map(({ message }) => message).join("\n"));
+}
+await writeFile(codamaIdlPath, code);
 console.log(`Wrote ${codamaIdlPath}`);
