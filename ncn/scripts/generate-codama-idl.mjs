@@ -17,6 +17,7 @@ const codamaIdlPath = resolve(packageDir, "idl/codama.json");
 const anchorIdl = await readFile(anchorIdlPath, "utf8");
 const codama = createFromRoot(rootNodeFromAnchor(JSON.parse(anchorIdl)));
 
+// Codama cannot infer the MetaMerkleProof PDA, due to the voteAccount seed being nested inside of a MetaMerkleLeaf, which is passed as an instruction argument
 codama.update(
   addPdasVisitor({
     ncnSnapshot: [
