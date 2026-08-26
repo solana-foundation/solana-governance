@@ -12,7 +12,7 @@ import {
   formatOptionalSlot,
 } from "@/lib/governance/formatters";
 import type { ViewType } from "@/types/governance";
-import { useAnchorWallet } from "@solana/wallet-adapter-react";
+import { useConnector } from "@solana/connector/react";
 
 interface DashboardStatsProps {
   currentView: ViewType;
@@ -42,13 +42,14 @@ export function DashboardStats({
   const { data: validators, isLoading: isLoadingValidators } =
     useGetValidators();
 
-  const wallet = useAnchorWallet();
+  const { account } = useConnector();
+  const publicKey = account ?? undefined;
 
   const { data: stakeAccounts, isLoading: isLoadingStakeAccounts } =
-    useWalletStakeAccounts(wallet?.publicKey?.toBase58());
+    useWalletStakeAccounts(publicKey);
 
   const { votingPower, isLoading: isLoadingVotingPower } =
-    useValidatorVotingPower(wallet?.publicKey?.toBase58());
+    useValidatorVotingPower(publicKey);
 
   const isLoading =
     isLoadingSnapshotMeta ||
@@ -67,7 +68,7 @@ export function DashboardStats({
   const voteAccountsCount = 321;
 
   const totalStaked =
-    stakeAccounts?.reduce((acc, curr) => acc + curr.activeStake, 0) || 0;
+    stakeAccounts?.reduce((acc, curr) => acc + curr.activeStake, 0n) || 0n;
   // Left undefined when the validator query has not resolved; formatOptionalCount
   // renders "-" rather than a "0" that reads as a real count.
   const activeValidators = validators?.length;

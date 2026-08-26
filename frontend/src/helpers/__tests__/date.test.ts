@@ -1,32 +1,50 @@
-import { calculateVotingEndsIn, estimateSlotTimeMs } from "../date";
+import { calculateVotingEndsIn, getLiveSlotTimeMs } from "../date";
 
-describe("estimateSlotTimeMs", () => {
-  it("uses the slot-weighted duration from recent performance samples", () => {
+const FEATURE_OWNER = "Feature111111111111111111111111111111111111";
+
+function featureAccount(activatedAt: bigint | null) {
+  const data = new Uint8Array(9);
+  if (activatedAt !== null) {
+    data[0] = 1;
+    new DataView(data.buffer).setBigUint64(1, activatedAt, true);
+  }
+  return { data, owner: FEATURE_OWNER };
+}
+
+describe("getLiveSlotTimeMs", () => {
+  it("uses the active 350ms gate after its one-epoch warmup", () => {
+    const activationSlot = 440_208_000n;
     expect(
-      estimateSlotTimeMs([
-        { numSlots: 170, samplePeriodSecs: 60 },
-        { numSlots: 160, samplePeriodSecs: 60 },
+      getLiveSlotTimeMs(activationSlot + 432_000n, [
+        featureAccount(activationSlot),
+        featureAccount(null),
+        featureAccount(null),
+        featureAccount(null),
       ]),
-    ).toBeCloseTo(120_000 / 330);
+    ).toBe(350);
   });
 
-  it("ignores empty samples", () => {
+  it("keeps the 400ms baseline during a later gate's warmup epoch", () => {
+    const activationSlot = 440_208_000n;
     expect(
-      estimateSlotTimeMs([
-        { numSlots: 0, samplePeriodSecs: 60 },
-        { numSlots: 165, samplePeriodSecs: 60 },
+      getLiveSlotTimeMs(activationSlot + 431_999n, [
+        featureAccount(null),
+        featureAccount(activationSlot),
+        featureAccount(null),
+        featureAccount(null),
       ]),
-    ).toBeCloseTo(60_000 / 165);
+    ).toBe(400);
   });
 
-  it("falls back to 350ms for missing or implausible samples", () => {
-    expect(estimateSlotTimeMs([])).toBe(350);
-    expect(
-      estimateSlotTimeMs([{ numSlots: 0, samplePeriodSecs: 0 }]),
-    ).toBe(350);
-    expect(
-      estimateSlotTimeMs([{ numSlots: 1, samplePeriodSecs: 60 }]),
-    ).toBe(350);
+  it("rejects invalid feature accounts", () => {
+    expect(() =>
+      getLiveSlotTimeMs(1_000_000n, [
+        featureAccount(1n),
+        featureAccount(1n),
+        { data: featureAccount(1n).data, owner: "NotAFeatureProgram" },
+        featureAccount(null),
+      ]),
+    ).toThrow("Invalid feature gate account");
   });
 });
 

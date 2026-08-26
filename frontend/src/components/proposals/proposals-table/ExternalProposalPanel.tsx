@@ -10,13 +10,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnector } from "@solana/connector/react";
 import { ProposalDescription } from "../ProposalDescription";
 import { ProposalHeading } from "../ProposalHeading";
 import { ProposalRecord, ProposalStatus } from "@/types";
 import { useChainVoteAccount, useWalletRole } from "@/hooks";
 import { SupportButton } from "../SupportButton";
-import { PublicKey } from "@solana/web3.js";
+import type { Address } from "@solana/kit";
 import { toast } from "sonner";
 import { getProposalDetailPagePath } from "@/helpers/proposalPage";
 import { getVoteModalNames } from "@/lib/governance/role-detection";
@@ -113,16 +113,15 @@ function VoteActions({
 }: {
   state: ProposalStatus;
   proposalId?: string;
-  consensusResult?: PublicKey;
+  consensusResult?: Address;
   disabled?: boolean;
 }) {
   const { openModal } = useModal();
-  const { publicKey } = useWallet();
-  const { isLoading: isLoadingWalletRole } = useWalletRole(
-    publicKey?.toBase58()
-  );
+  const { account } = useConnector();
+  const publicKey = account ?? undefined;
+  const { isLoading: isLoadingWalletRole } = useWalletRole(publicKey);
   const { data: chainVoteAccount, isLoading: isLoadingChainVoteAccount } =
-    useChainVoteAccount(publicKey?.toBase58());
+    useChainVoteAccount(publicKey);
 
   const isLoadingVoteIdentity =
     isLoadingWalletRole || isLoadingChainVoteAccount;
@@ -202,7 +201,7 @@ function DiscussionMessage({ proposalId }: { proposalId: string }) {
 }
 
 function VotingPanel({ proposal }: { proposal: ProposalRecord }) {
-  const { connected } = useWallet();
+  const { isConnected: connected } = useConnector();
 
   const isVoting = proposal.status === "voting";
   const isSupporting = proposal.status === "supporting";
@@ -227,12 +226,12 @@ function VotingPanel({ proposal }: { proposal: ProposalRecord }) {
       {/* Discussion is read-only (View Details navigation) — always shown,
           wallet or not. Only transaction actions are wallet-gated. */}
       {isDiscussion ? (
-        <DiscussionMessage proposalId={proposal.publicKey.toBase58()} />
+        <DiscussionMessage proposalId={proposal.publicKey} />
       ) : connected ? (
         (isSupporting || isVoting) && (
           <VoteActions
             state={proposal.status}
-            proposalId={proposal.publicKey.toBase58()}
+            proposalId={proposal.publicKey}
             consensusResult={proposal.consensusResult}
           />
         )

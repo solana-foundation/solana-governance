@@ -55,7 +55,7 @@ export function SupportPhaseProgress({ proposal }: SupportPhaseProgressProps) {
     useEpochToDate(phaseEpochs?.discussionEndEpoch);
 
   const supportFilters = buildSupportFilters(
-    proposal.publicKey.toBase58(),
+    proposal.publicKey,
     null,
   );
 
@@ -69,7 +69,7 @@ export function SupportPhaseProgress({ proposal }: SupportPhaseProgressProps) {
 
   const numOfValidators = useMemo(() => validators?.length || 0, [validators]);
   const validatorsStake = useMemo(
-    () => validators?.reduce((acc, curr) => acc + curr.activated_stake, 0) || 0,
+    () => validators?.reduce((acc, curr) => acc + curr.activated_stake, 0n) || 0n,
     [validators],
   );
 

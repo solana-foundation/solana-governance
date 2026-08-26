@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { AppButton } from "@/components/ui/AppButton";
-import { Settings, Menu, LogOut } from "lucide-react";
+import { Settings, Menu } from "lucide-react";
 import { useState, useEffect } from "react";
 import {
   Drawer,
@@ -15,10 +15,8 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
-import { formatAddress } from "@/lib/governance/formatters";
 import { useModal } from "@/contexts/ModalContext";
-import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { ConnectButton } from "@/components/connector-kit/prebuilt";
 
 type NavLink = {
   href: string;
@@ -46,10 +44,6 @@ export default function Navbar() {
   const pathname = usePathname();
   const { openModal } = useModal();
   const [isOpen, setIsOpen] = useState(false);
-
-  const { publicKey: walletAddress, connected, disconnect } = useWallet();
-
-  const { setVisible } = useWalletModal();
 
   useEffect(() => {
     setIsOpen(false);
@@ -193,38 +187,7 @@ export default function Navbar() {
               className="text-muted rounded-full hidden lg:flex"
               onClick={() => openModal("settings")}
             />
-            {connected && walletAddress ? (
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-4 flex-row-reverse">
-                  <span className="size-2 rounded-full bg-emerald-400" />
-                  <div className="flex flex-col items-end">
-                    <span className="text-sm font-medium font-mono text-foreground">
-                      {formatAddress(walletAddress.toString(), 4)}
-                    </span>
-                    <span className="text-xs text-emerald-400">Connected</span>
-                  </div>
-                </div>
-                <AppButton
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  aria-label="Disconnect"
-                  icon={<LogOut className="size-5" />}
-                  className="text-muted border-none"
-                  onClick={disconnect}
-                />
-              </div>
-            ) : (
-              <AppButton
-                type="button"
-                aria-label="Connect Wallet"
-                variant="gradient"
-                size="lg"
-                className="rounded-full font-plus-jakarta-sans font-bold lg:h-9 lg:px-6"
-                text="Connect Wallet"
-                onClick={() => setVisible(true)}
-              />
-            )}
+            <ConnectButton className="rounded-full font-plus-jakarta-sans font-bold lg:h-9 lg:px-6" />
           </div>
         </div>
       </div>

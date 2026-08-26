@@ -13,20 +13,20 @@ export const getVoteProposals = (
 ): VoteProposalData[] => {
   // Create a map of proposal public keys to proposal data
   const proposalMap = new Map(
-    proposals.map((proposal) => [proposal.publicKey.toBase58(), proposal])
+    proposals.map((proposal) => [proposal.publicKey, proposal])
   );
 
   // Combine vote and proposal data
   const result: VoteProposalData[] = [];
 
   for (const voteAccount of voteAccounts) {
-    const proposal = proposalMap.get(voteAccount.proposal.toBase58());
+    const proposal = proposalMap.get(voteAccount.proposal);
 
     if (proposal) {
       result.push({
         voteAccount,
         proposal,
-        votePublicKey: voteAccount.publicKey.toBase58(),
+        votePublicKey: voteAccount.publicKey,
       });
     }
   }

@@ -1,12 +1,10 @@
 const mockGetGenesisHash = jest.fn();
-jest.mock("@solana/web3.js", () => ({
-  ...jest.requireActual("@solana/web3.js"),
-  Connection: jest.fn().mockImplementation(() => ({
-    getGenesisHash: () => mockGetGenesisHash(),
-  })),
+const mockCreateSolanaRpc = jest.fn().mockImplementation(() => ({
+  getGenesisHash: () => ({ send: mockGetGenesisHash }),
 }));
-
-import { Connection } from "@solana/web3.js";
+jest.mock("@solana/kit", () => ({
+  createSolanaRpc: (url: string) => mockCreateSolanaRpc(url),
+}));
 
 import {
   CLUSTER_GENESIS_HASHES,
@@ -63,14 +61,14 @@ describe("requireKnownSnapshotNetwork", () => {
 describe("resolveSnapshotNetwork", () => {
   afterEach(() => {
     mockGetGenesisHash.mockReset();
-    jest.mocked(Connection).mockClear();
+    mockCreateSolanaRpc.mockClear();
   });
 
   it("returns a preset endpoint without calling the RPC", async () => {
     await expect(
       resolveSnapshotNetwork("testnet", "https://example.invalid"),
     ).resolves.toBe("testnet");
-    expect(Connection).not.toHaveBeenCalled();
+    expect(mockCreateSolanaRpc).not.toHaveBeenCalled();
   });
 
   it("resolves a custom RPC from its genesis hash", async () => {
@@ -79,10 +77,7 @@ describe("resolveSnapshotNetwork", () => {
     await expect(
       resolveSnapshotNetwork("custom", "https://my-rpc.example"),
     ).resolves.toBe("devnet");
-    expect(Connection).toHaveBeenCalledWith(
-      "https://my-rpc.example",
-      "confirmed",
-    );
+    expect(mockCreateSolanaRpc).toHaveBeenCalledWith("https://my-rpc.example");
   });
 
   it("returns undefined when a custom RPC is not a known cluster", async () => {

@@ -1,7 +1,6 @@
-import { createProgramWitDummyWallet, SupportAccount } from "@/chain";
 import { SupportAccountData } from "@/types";
-import { ProgramAccount } from "@coral-xyz/anchor";
-import { MemcmpFilter } from "@solana/web3.js";
+import { createSolanaRpc, type Address } from "@solana/kit";
+import { fetchSupports } from "@/lib/governance/programAccounts";
 
 interface GetSupportFilter {
   name: "proposal" | "validator";
@@ -9,22 +8,6 @@ interface GetSupportFilter {
 }
 
 export type GetSupportFilters = GetSupportFilter[];
-
-const filterOffsetMap: Record<GetSupportFilter["name"], number> = {
-  proposal: 8, // 8 bytes discriminator
-  validator: 40, // 8 bytes discriminator + 32 bytes proposal
-};
-
-function filtersToMemcmp(filters: GetSupportFilters): MemcmpFilter[] {
-  return filters
-    .filter((f) => typeof f.value === "string" && !!f.value)
-    .map((f) => ({
-      memcmp: {
-        offset: filterOffsetMap[f.name],
-        bytes: f.value,
-      },
-    }));
-}
 
 export const getSupportAccounts = async (
   endpoint: string,
@@ -36,27 +19,15 @@ export const getSupportAccounts = async (
     );
   }
 
-  const program = createProgramWitDummyWallet(endpoint);
-
-  const memcmpFilters = filtersToMemcmp(filters);
-
-  const supportAccs = await program.account.support.all(memcmpFilters);
-
-  return supportAccs.map(mapSupportAccountDto);
+  const values = Object.fromEntries(filters.map(({ name, value }) => [name, value])) as Partial<Record<GetSupportFilter["name"], string>>;
+  const supportAccs = await fetchSupports(createSolanaRpc(endpoint), {
+    proposal: values.proposal as Address | undefined,
+    validator: values.validator as Address | undefined,
+  });
+  return supportAccs.map(({ address, data }) => ({
+    publicKey: address,
+    proposal: data.proposal,
+    validator: data.validator,
+    bump: data.bump,
+  }));
 };
-
-/**
- * Maps raw on-chain support account to internal type.
- */
-function mapSupportAccountDto(
-  rawAccount: ProgramAccount<SupportAccount>
-): SupportAccountData {
-  const raw = rawAccount.account;
-
-  return {
-    publicKey: rawAccount.publicKey,
-    proposal: raw.proposal,
-    validator: raw.validator,
-    bump: raw.bump,
-  };
-}

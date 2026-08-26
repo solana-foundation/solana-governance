@@ -15,7 +15,7 @@ import ErrorMessage from "./shared/ErrorMessage";
 import RequirementItem from "./shared/RequirementItem";
 import { toast } from "sonner";
 import { formatAddress } from "@/lib/governance/formatters";
-import { useAnchorWallet } from "@solana/wallet-adapter-react";
+import { useConnector } from "@solana/connector/react";
 import { useSupportProposal } from "@/hooks";
 import { captureException } from "@sentry/nextjs";
 import {
@@ -39,10 +39,11 @@ export function SupportProposalModal({
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | undefined>();
 
-  const wallet = useAnchorWallet();
+  const { account } = useConnector();
+  const publicKey = account ?? undefined;
 
   const { mutate: supportProposal } = useSupportProposal(
-    wallet?.publicKey?.toBase58(),
+    publicKey,
   );
 
   React.useEffect(() => {
@@ -89,7 +90,7 @@ export function SupportProposalModal({
     supportProposal(
       {
         proposalId,
-        wallet,
+        publicKey,
       },
       {
         onSuccess: handleSuccess,
@@ -158,7 +159,7 @@ export function SupportProposalModal({
                   <span className="text-sm text-white/60">Supporting as:</span>
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs sm:text-sm text-foreground">
-                      {formatAddress(wallet?.publicKey?.toBase58() || "", 6)}
+                      {formatAddress(publicKey || "", 6)}
                     </span>
                     <button
                       type="button"

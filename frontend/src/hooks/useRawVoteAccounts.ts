@@ -1,12 +1,12 @@
 import { useEndpoint } from "@/contexts/EndpointContext";
-import { Connection, type VoteAccountInfo } from "@solana/web3.js";
+import {
+  fetchRawVoteAccounts,
+  type RawVoteAccountsData,
+} from "@/lib/rpcVoteAccounts";
 import { useQuery } from "@tanstack/react-query";
 import { GET_VOTE_ACCOUNTS } from "@/helpers";
 
-export interface RawVoteAccountsData {
-  current: VoteAccountInfo[];
-  delinquent: VoteAccountInfo[];
-}
+export type { RawVoteAccountsData } from "@/lib/rpcVoteAccounts";
 
 /**
  * Hook to fetch raw Solana vote accounts (current and delinquent)
@@ -18,19 +18,8 @@ export function useRawVoteAccounts() {
 
   return useQuery<RawVoteAccountsData>({
     queryKey: [GET_VOTE_ACCOUNTS, endpointUrl],
-    queryFn: async ({ signal }) => {
-      const connection = new Connection(endpointUrl, {
-        commitment: "confirmed",
-        // web3.js does not expose an AbortSignal on getVoteAccounts, but its custom fetch
-        // hook lets React Query cancel the transport on unmount or endpoint changes.
-        fetch: (input, init) => fetch(input, { ...init, signal }),
-      });
-      const voteAccounts = await connection.getVoteAccounts();
-
-      return {
-        current: voteAccounts.current,
-        delinquent: voteAccounts.delinquent,
-      };
+    queryFn: async () => {
+      return fetchRawVoteAccounts(endpointUrl);
     },
     staleTime: 1000 * 120, // 2 minutes
     refetchOnWindowFocus: false,

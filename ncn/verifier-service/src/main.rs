@@ -13,6 +13,7 @@ use axum::{
     Router,
 };
 use database::{constants::DEFAULT_DB_PATH, init_pool, models::*, operations::db_operation};
+use serde::Serialize;
 use serde_json::{json, Value};
 use sqlx::sqlite::SqlitePool;
 use std::net::SocketAddr;
@@ -175,7 +176,7 @@ async fn admin_stats(headers: HeaderMap) -> Result<Json<serde_json::Value>, Stat
 async fn get_meta(
     State(pool): State<SqlitePool>,
     Query(params): Query<NetworkQuery>,
-) -> Result<Json<SnapshotMetaRecord>, StatusCode> {
+) -> Result<Json<SnapshotMetaResponse>, StatusCode> {
     let network = params.network.as_deref().unwrap_or(DEFAULT_NETWORK);
     validate_network(network)?;
 
@@ -186,10 +187,33 @@ async fn get_meta(
     .await?;
 
     if let Some(record) = meta_record_option {
-        Ok(Json(record))
+        Ok(Json(record.into()))
     } else {
         info!("No snapshots found for network: {}", network);
         Err(StatusCode::NOT_FOUND)
+    }
+}
+
+#[derive(Serialize)]
+struct SnapshotMetaResponse {
+    network: String,
+    slot: String,
+    merkle_root: String,
+    snapshot_hash: String,
+    created_at: String,
+    total_active_stake: Option<String>,
+}
+
+impl From<SnapshotMetaRecord> for SnapshotMetaResponse {
+    fn from(record: SnapshotMetaRecord) -> Self {
+        Self {
+            network: record.network,
+            slot: record.slot.to_string(),
+            merkle_root: record.merkle_root,
+            snapshot_hash: record.snapshot_hash,
+            created_at: record.created_at,
+            total_active_stake: record.total_active_stake.map(|stake| stake.to_string()),
+        }
     }
 }
 

@@ -22,13 +22,13 @@ export const columns: ColumnDef<OldVoteAccountData>[] = [
           {/* Mobile: Simple text without copy button */}
           <div className="sm:hidden">
             <p className="font-mono text-white/90 text-xs">
-              {formatAddress(account.toBase58(), 4)}
+              {formatAddress(account, 4)}
             </p>
           </div>
           {/* Desktop: Full CopyableAddress component */}
           <div className="hidden sm:block">
             <CopyableAddress
-              address={account.toBase58()}
+              address={account}
               shortenedLength={4}
               copyLabel="Copy full address"
             />
@@ -41,7 +41,7 @@ export const columns: ColumnDef<OldVoteAccountData>[] = [
     accessorKey: "identity",
     header: () => <span className="hidden sm:inline">IDENTITY</span>,
     cell: ({ row }) => {
-      const identity = row.original.identity?.toBase58();
+      const identity = row.original.identity;
       let cellValue: string | undefined = formatAddress(identity || "", 6);
       if (!identity) {
         cellValue = row.original.name;

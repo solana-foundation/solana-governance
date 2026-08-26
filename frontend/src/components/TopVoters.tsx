@@ -106,8 +106,8 @@ export function TopVoters() {
     downloadCsvData(validators || []);
   };
 
-  const formatNumber = (num: number) => {
-    return num.toLocaleString();
+  const formatBigInt = (num: bigint) => {
+    return num.toString();
   };
 
   const debouncedSearch = useDebounceCallback(setSearchQuery, 500);
@@ -213,7 +213,7 @@ export function TopVoters() {
                     </div>
                   </div>
                 </TableCell>
-                <TableCell>{formatNumber(validator.activated_stake)}</TableCell>
+                <TableCell>{formatBigInt(validator.activated_stake)}</TableCell>
                 <TableCell className="px-1">
                   <div className="flex gap-x-6">
                     <div className="flex flex-col">

@@ -7,9 +7,9 @@ import VoteItem, { VoteItemSkeleton } from "./VoteItem";
 import QuorumDonut, { QuorumDonutSkeleton } from "./QuorumDonut";
 import {
   formatLamportsDisplay,
-  formatPercentage,
 } from "@/lib/governance/formatters";
 import { useHasUserVoted } from "@/hooks";
+import { formatBigintPercentage } from "@/helpers/bigint";
 import { useSnapshotMeta } from "@/hooks/useSnapshotMeta";
 import {
   computeQuorum,
@@ -44,7 +44,7 @@ const VoteBreakdown = ({
   isLoading: isLoadingParent,
 }: VoteBreakdownProps) => {
   const { data: hasUserVoted = false, isLoading: isLoadingHasUserVoted } =
-    useHasUserVoted(proposal?.publicKey?.toBase58());
+    useHasUserVoted(proposal?.publicKey);
 
   // The proposal's own snapshot total, not a live cluster sum: Art. IV.2 fixes
   // the distribution for the voting period, so a live total drifts.
@@ -75,10 +75,17 @@ const VoteBreakdown = ({
     }
 
     const total = quorum.totalActiveStake;
+
     return {
-      forVotesPercentage: (proposal.forVotesLamports / total) * 100,
-      againstVotesPercentage: (proposal.againstVotesLamports / total) * 100,
-      abstainVotesPercentage: (proposal.abstainVotesLamports / total) * 100,
+      forVotesPercentage: formatBigintPercentage(proposal.forVotesLamports, total),
+      againstVotesPercentage: formatBigintPercentage(
+        proposal.againstVotesLamports,
+        total,
+      ),
+      abstainVotesPercentage: formatBigintPercentage(
+        proposal.abstainVotesLamports,
+        total,
+      ),
     };
   }, [proposal, quorum]);
 
@@ -157,7 +164,7 @@ const VoteBreakdown = ({
                   }
                   percentage={
                     votePercentages
-                      ? formatPercentage(votePercentages.forVotesPercentage, 2)
+                      ? `(${votePercentages.forVotesPercentage}%)`
                       : UNKNOWN_PERCENTAGE
                   }
                   color="bg-primary"
@@ -169,10 +176,7 @@ const VoteBreakdown = ({
                   }
                   percentage={
                     votePercentages
-                      ? formatPercentage(
-                          votePercentages.againstVotesPercentage,
-                          2,
-                        )
+                      ? `(${votePercentages.againstVotesPercentage}%)`
                       : UNKNOWN_PERCENTAGE
                   }
                   color="bg-destructive"
@@ -184,10 +188,7 @@ const VoteBreakdown = ({
                   }
                   percentage={
                     votePercentages
-                      ? formatPercentage(
-                          votePercentages.abstainVotesPercentage,
-                          2,
-                        )
+                      ? `(${votePercentages.abstainVotesPercentage}%)`
                       : UNKNOWN_PERCENTAGE
                   }
                   color="bg-white/30"

@@ -11,11 +11,11 @@ jest.mock("@sentry/nextjs", () => ({
 }));
 
 const mockGetGenesisHash = jest.fn();
-jest.mock("@solana/web3.js", () => ({
-  ...jest.requireActual("@solana/web3.js"),
-  Connection: jest.fn().mockImplementation(() => ({
-    getGenesisHash: () => mockGetGenesisHash(),
-  })),
+const mockCreateSolanaRpc = jest.fn().mockImplementation(() => ({
+  getGenesisHash: () => ({ send: mockGetGenesisHash }),
+}));
+jest.mock("@solana/kit", () => ({
+  createSolanaRpc: (url: string) => mockCreateSolanaRpc(url),
 }));
 
 import React, { type ReactNode } from "react";
@@ -47,6 +47,7 @@ describe("EndpointProvider network resolution", () => {
   beforeEach(() => {
     localStorage.clear();
     mockGetGenesisHash.mockReset();
+    mockCreateSolanaRpc.mockClear();
   });
 
   it("uses the preset endpoint type as the network without calling RPC", () => {
@@ -58,6 +59,7 @@ describe("EndpointProvider network resolution", () => {
     expect(result.current.network).toBe("mainnet");
     expect(result.current.isResolvingNetwork).toBe(false);
     expect(mockGetGenesisHash).not.toHaveBeenCalled();
+    expect(mockCreateSolanaRpc).not.toHaveBeenCalled();
   });
 
   it("resolves a custom RPC from its genesis hash", async () => {
@@ -77,6 +79,9 @@ describe("EndpointProvider network resolution", () => {
     await waitFor(() => {
       expect(result.current.network).toBe("devnet");
     });
+    expect(mockCreateSolanaRpc).toHaveBeenCalledWith(
+      "https://my-rpc.example",
+    );
     expect(result.current.isResolvingNetwork).toBe(false);
   });
 

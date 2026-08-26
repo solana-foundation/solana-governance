@@ -5,7 +5,7 @@ export interface Validator {
   /** Validator identity (withdrawal authority). Used by governance votes. */
   identity?: string;
   vote_identity: string;
-  activated_stake: number;
+  activated_stake: bigint;
   image?: string | null;
   version?: string;
   commission: number;
@@ -13,8 +13,8 @@ export interface Validator {
   description?: string;
   stake_weight?: number;
   credits?: number;
-  epoch_credits: number;
-  last_vote: number;
+  epoch_credits: bigint;
+  last_vote: bigint;
 
   // Not used in the frontend but can be mapped if needed in the future
   // rank: number;

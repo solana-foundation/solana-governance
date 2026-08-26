@@ -1,4 +1,4 @@
-import { Connection } from "@solana/web3.js";
+import { createSolanaRpc } from "@solana/kit";
 import type { RPCEndpoint } from "@/types";
 
 export type KnownSnapshotNetwork = Exclude<RPCEndpoint, "custom">;
@@ -36,8 +36,7 @@ export function networkFromGenesisHash(
 }
 
 async function fetchGenesisHash(endpointUrl: string): Promise<string> {
-  const connection = new Connection(endpointUrl, "confirmed");
-  return connection.getGenesisHash();
+  return createSolanaRpc(endpointUrl).getGenesisHash().send();
 }
 
 /**

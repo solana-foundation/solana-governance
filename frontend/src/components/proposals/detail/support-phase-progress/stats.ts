@@ -1,8 +1,10 @@
+import { formatBigintPercentage } from "@/helpers/bigint";
+
 export interface SupportStatsInput {
-  currentSupportLamports: number;
-  totalStakedLamports: number;
+  currentSupportLamports: bigint;
+  totalStakedLamports: bigint;
   /** Already resolved via `supportThresholdPercentFromConfig`. */
-  thresholdPercent: number;
+  thresholdPercent: string;
   validatorCount: number;
   numOfValidators: number;
   /**
@@ -16,17 +18,17 @@ export interface SupportStatsInput {
 }
 
 export interface SupportStats {
-  currentSupportLamports: number;
-  totalStakedLamports: number;
-  requiredThresholdLamports: number;
-  thresholdPercent: number;
+  currentSupportLamports: bigint;
+  totalStakedLamports: bigint;
+  requiredThresholdLamports: bigint;
+  thresholdPercent: string;
   progressPercent: number;
   supportPercentOfTotal: number;
-  remainingLamports: number;
+  remainingLamports: bigint;
   isThresholdMet: boolean;
   validatorCount: number;
   participationPercent: number;
-  avgStakePerValidator: number;
+  avgStakePerValidator: bigint;
 }
 
 /**
@@ -42,12 +44,13 @@ export function computeSupportStats({
   numOfValidators,
   thresholdCrossed = false,
 }: SupportStatsInput): SupportStats {
+  const thresholdBasisPoints = BigInt(thresholdPercent.replace(".", "").padEnd(4, "0"));
   const requiredThresholdLamports =
-    totalStakedLamports * (thresholdPercent / 100);
+    (totalStakedLamports * thresholdBasisPoints) / 10_000n;
 
   const liveProgressPercent =
-    requiredThresholdLamports > 0
-      ? (currentSupportLamports / requiredThresholdLamports) * 100
+    requiredThresholdLamports > 0n
+      ? Number(formatBigintPercentage(currentSupportLamports, requiredThresholdLamports, 4))
       : 0;
 
   // A crossed proposal is never shown below 100%, even when the live estimate
@@ -57,13 +60,15 @@ export function computeSupportStats({
     : liveProgressPercent;
 
   const supportPercentOfTotal =
-    totalStakedLamports > 0
-      ? (currentSupportLamports / totalStakedLamports) * 100
+    totalStakedLamports > 0n
+      ? Number(formatBigintPercentage(currentSupportLamports, totalStakedLamports, 4))
       : 0;
 
   const remainingLamports = thresholdCrossed
-    ? 0
-    : Math.max(0, requiredThresholdLamports - currentSupportLamports);
+    ? 0n
+    : requiredThresholdLamports > currentSupportLamports
+      ? requiredThresholdLamports - currentSupportLamports
+      : 0n;
 
   // Gate on total stake, not on the derived threshold: a zero threshold has two
   // very different causes. Stake not loaded yet means nothing is known, and
@@ -72,13 +77,13 @@ export function computeSupportStats({
   // is what the on-chain check does, so it must still report met.
   const isThresholdMet =
     thresholdCrossed ||
-    (totalStakedLamports > 0 &&
+    (totalStakedLamports > 0n &&
       currentSupportLamports >= requiredThresholdLamports);
 
   const participationPercent =
     numOfValidators > 0 ? (validatorCount / numOfValidators) * 100 : 0;
   const avgStakePerValidator =
-    validatorCount > 0 ? currentSupportLamports / validatorCount : 0;
+    validatorCount > 0 ? currentSupportLamports / BigInt(validatorCount) : 0n;
 
   return {
     currentSupportLamports,

@@ -85,7 +85,7 @@ export function StakeAccountVoteProposals({
               <div className="flex items-start justify-between">
                 <Link
                   href={getProposalDetailPagePath(
-                    voteProposal.proposal.publicKey.toBase58()
+                    voteProposal.proposal.publicKey
                   )}
                   className="space-y-3 block"
                 >
@@ -121,21 +121,21 @@ export function StakeAccountVoteProposals({
                   <div className="flex items-center space-x-1">
                     <span className="text-green-400">●</span>
                     <span className="text-white/70">
-                      {voteProposal.voteAccount.forVotesBp.toNumber() / 100}%
+                      {(voteProposal.voteAccount.forVotesBp / 100n).toString()}%
                       For
                     </span>
                   </div>
                   <div className="flex items-center space-x-1">
                     <span className="text-red-400">●</span>
                     <span className="text-white/70">
-                      {voteProposal.voteAccount.againstVotesBp.toNumber() / 100}
+                      {(voteProposal.voteAccount.againstVotesBp / 100n).toString()}
                       % Against
                     </span>
                   </div>
                   <div className="flex items-center space-x-1">
                     <span className="text-gray-400">●</span>
                     <span className="text-white/70">
-                      {voteProposal.voteAccount.abstainVotesBp.toNumber() / 100}
+                      {(voteProposal.voteAccount.abstainVotesBp / 100n).toString()}
                       % Abstain
                     </span>
                   </div>
@@ -146,7 +146,7 @@ export function StakeAccountVoteProposals({
                   Total:{" "}
                   {
                     formatLamportsDisplay(
-                      voteProposal.voteAccount.stakeAmount?.toNumber() || 0
+                      voteProposal.voteAccount.stakeAmount ?? 0n
                     ).value
                   }
                 </div>
@@ -160,7 +160,7 @@ export function StakeAccountVoteProposals({
               {/* Proposal Link */}
               <div className="flex items-center justify-between pt-1">
                 <CopyableAddress
-                  address={voteProposal.proposal.publicKey.toBase58()}
+                  address={voteProposal.proposal.publicKey}
                   shortenedLength={8}
                   copyLabel="Copy proposal address"
                 />

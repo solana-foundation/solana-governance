@@ -3,6 +3,7 @@
 import React, { useMemo } from "react";
 import { useSpring, animated, to } from "@react-spring/web";
 import { formatSOL } from "@/lib/governance/formatters";
+import { formatBigintPercentage } from "@/helpers/bigint";
 import {
   Tooltip,
   TooltipContent,
@@ -21,11 +22,11 @@ const defaultColors = {
 };
 
 interface QuorumDonutProps {
-  forLamports: number;
-  againstLamports: number;
-  abstainLamports: number;
+  forLamports: bigint | number;
+  againstLamports: bigint | number;
+  abstainLamports: bigint | number;
   /** Snapshot total; `undefined` when the snapshot did not record it. */
-  totalLamports: number | undefined;
+  totalLamports: bigint | number | undefined;
 }
 
 /** Shown in the donut centre when total network stake could not be loaded. */
@@ -89,9 +90,17 @@ export default function QuorumDonut({
   // No arcs when the denominator is unknown: an empty ring is the honest
   // rendering, and it matches the "—" in the centre.
   const hasTotal = totalLamports !== undefined && totalLamports > 0;
-  const forPercent = hasTotal ? chartData[0].value / totalLamports : 0;
-  const againstPercent = hasTotal ? chartData[1].value / totalLamports : 0;
-  const abstainPercent = hasTotal ? chartData[2].value / totalLamports : 0;
+  // SVG needs bounded floating-point ratios; derive them from a decimal string,
+  // never by coercing a lamport bigint itself.
+  const ratio = (value: bigint | number) => {
+    if (!hasTotal || totalLamports === undefined || typeof value !== typeof totalLamports) return 0;
+    return typeof value === "bigint" && typeof totalLamports === "bigint"
+      ? Number(formatBigintPercentage(value, totalLamports, 6)) / 100
+      : (value as number) / (totalLamports as number);
+  };
+  const forPercent = ratio(chartData[0].value);
+  const againstPercent = ratio(chartData[1].value);
+  const abstainPercent = ratio(chartData[2].value);
 
   // Animation spring for the percentages
   const { forP, againstP, abstainP } = useSpring({
@@ -117,7 +126,7 @@ export default function QuorumDonut({
   const againstOffset = to([forP], (fp) => -fp * circumference);
   const abstainOffset = to(
     [forP, againstP],
-    (fp, ap) => -(fp + ap) * circumference,
+    (fp, ap) => -(fp + ap) * circumference
   );
 
   // Static angles for gradients
@@ -200,7 +209,7 @@ export default function QuorumDonut({
             strokeLinecap="round"
             strokeDasharray={to(
               [abstainLength],
-              (l) => `${l} ${circumference}`,
+              (l) => `${l} ${circumference}`
             )}
             style={{ strokeDashoffset: abstainOffset }}
           />
@@ -215,7 +224,7 @@ export default function QuorumDonut({
             strokeLinecap="round"
             strokeDasharray={to(
               [againstLength],
-              (l) => `${l} ${circumference}`,
+              (l) => `${l} ${circumference}`
             )}
             style={{ strokeDashoffset: againstOffset }}
           />

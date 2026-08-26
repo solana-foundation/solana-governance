@@ -9,6 +9,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { AppButton } from "@/components/ui/AppButton";
+import { bigintToSafeNumber } from "@/helpers/bigint";
 import ErrorMessage from "./shared/ErrorMessage";
 import { VoteDistributionControls } from "./shared/VoteDistributionControls";
 import {
@@ -20,11 +21,11 @@ import {
 } from "@/hooks";
 import { toast } from "sonner";
 import { WalletRole } from "@/types";
-import { useAnchorWallet } from "@solana/wallet-adapter-react";
+import { useConnector } from "@solana/connector/react";
 import { FormEvent, useEffect, useState } from "react";
 import { useModifyVoteOverride } from "@/hooks";
 import { GetVoteOverrideFilters } from "@/data";
-import { PublicKey } from "@solana/web3.js";
+import type { Address } from "@solana/kit";
 import { StakeAccountsDropdown } from "../StakeAccountsDropdown";
 import { VotingProposalsDropdown } from "../VotingProposalsDropdown";
 import { captureException } from "@sentry/nextjs";
@@ -39,7 +40,7 @@ import {
 
 interface OverrideVoteModalProps {
   proposalId?: string;
-  consensusResult?: PublicKey;
+  consensusResult?: Address;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -49,7 +50,7 @@ interface OverrideVoteModalProps {
  */
 function buildVoteOverrideFilters(
   proposalPublicKey: string | undefined,
-  delegatorPublicKey: PublicKey | null
+  delegatorPublicKey: string | null
 ): GetVoteOverrideFilters {
   const filters: GetVoteOverrideFilters = [];
 
@@ -63,7 +64,7 @@ function buildVoteOverrideFilters(
   if (delegatorPublicKey) {
     filters.push({
       name: "delegator" as const,
-      value: delegatorPublicKey.toBase58(),
+      value: delegatorPublicKey,
     });
   }
 
@@ -99,17 +100,18 @@ export function ModifyOverrideVoteModal({
     resetDistribution,
   } = useVoteDistribution(initialVoteDist);
 
-  const wallet = useAnchorWallet();
+  const { account } = useConnector();
+  const publicKey = account ?? undefined;
 
   const { data: stakeAccounts } = useWalletStakeAccounts(
-    wallet?.publicKey?.toBase58()
+    publicKey
   );
 
-  const { walletRole } = useWalletRole(wallet?.publicKey?.toBase58());
+  const { walletRole } = useWalletRole(publicKey);
 
   const voteOverrideFilters = buildVoteOverrideFilters(
     selectedProposal.id,
-    wallet?.publicKey ?? null
+    publicKey ?? null
   );
 
   const { data: voteOverrideAccounts = [] } = useVoteOverrideAccounts(
@@ -124,13 +126,15 @@ export function ModifyOverrideVoteModal({
   useEffect(() => {
     if (selectedStakeAccount) {
       const selectedStakeAccountVote = voteOverrideAccounts.find(
-        (voa) => voa.stakeAccount.toBase58() === selectedStakeAccount
+        (voa) => voa.stakeAccount === selectedStakeAccount
       );
       if (selectedStakeAccountVote) {
         const voteDistribution: VoteDistribution = {
-          for: selectedStakeAccountVote.forVotesBp.toNumber() / 100,
-          against: selectedStakeAccountVote.againstVotesBp.toNumber() / 100,
-          abstain: selectedStakeAccountVote.abstainVotesBp.toNumber() / 100,
+          // Form controls require numbers; protocol-bounded basis points are
+          // checked before crossing this presentation-only boundary.
+          for: bigintToSafeNumber(selectedStakeAccountVote.forVotesBp, "for vote basis points") / 100,
+          against: bigintToSafeNumber(selectedStakeAccountVote.againstVotesBp, "against vote basis points") / 100,
+          abstain: bigintToSafeNumber(selectedStakeAccountVote.abstainVotesBp, "abstain vote basis points") / 100,
         };
         setInitialVoteDist(voteDistribution);
       }
@@ -148,7 +152,7 @@ export function ModifyOverrideVoteModal({
 
   const handleProposalChange = (
     proposalId: string,
-    consensusResult: PublicKey
+    consensusResult: Address
   ) => {
     setSelectedProposal({ id: proposalId, consensusResult });
   };
@@ -178,7 +182,7 @@ export function ModifyOverrideVoteModal({
   };
 
   const handleVote = (voteDistribution: VoteDistribution) => {
-    if (!wallet) {
+    if (!publicKey) {
       toast.error("Wallet not connected");
       setIsLoading(false);
       return;
@@ -218,7 +222,7 @@ export function ModifyOverrideVoteModal({
       // redelegated stake account can still override using its snapshot-time validator.
       modifyVoteOverride(
         {
-          wallet,
+          publicKey,
           proposalId: selectedProposal.id,
           forVotesBp: voteDistribution.for * 100,
           againstVotesBp: voteDistribution.against * 100,
@@ -313,7 +317,7 @@ export function ModifyOverrideVoteModal({
                       (sa) =>
                         !voteOverrideAccounts.some(
                           (voa) =>
-                            voa.stakeAccount.toBase58() === sa.stakeAccount
+                            voa.stakeAccount === sa.stakeAccount
                         )
                     )
                     .map((sa) => sa.stakeAccount)}

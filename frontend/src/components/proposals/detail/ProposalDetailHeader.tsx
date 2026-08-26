@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { calculateTimeAgo } from "@/helpers";
+import { bigintToSafeNumber } from "@/helpers/bigint";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { CheckIcon, CopyIcon, Github } from "lucide-react";
 import { useCopyToClipboard } from "@/hooks";
@@ -41,9 +42,9 @@ export default function ProposalDetailHeader({
   if (isLoading) return <ProposalDetailSkeleton />;
   if (!proposal) return <div>No proposal data...</div>;
 
-  const createdAgo = calculateTimeAgo(proposal.creationTimestamp);
+  const createdAgo = calculateTimeAgo(bigintToSafeNumber(proposal.creationTimestamp, "proposal creation timestamp"));
   const votingThrough =
-    proposal.endEpoch > 0 ? proposal.endEpoch - 1 : "-";
+    proposal.endEpoch > 0n ? proposal.endEpoch - 1n : "-";
 
   return (
     <div className="glass-card space-y-6 p-6">

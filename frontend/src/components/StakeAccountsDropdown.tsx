@@ -11,7 +11,7 @@ import {
   formatLamportsDisplay,
 } from "@/lib/governance/formatters";
 import { Loader2 } from "lucide-react";
-import { useAnchorWallet } from "@solana/wallet-adapter-react";
+import { useConnector } from "@solana/connector/react";
 import { StakeAccountData } from "@/types";
 
 interface VotingProposalsDropdownProps {
@@ -27,15 +27,16 @@ export const StakeAccountsDropdown = ({
   disabled,
   disabledAccounts,
 }: VotingProposalsDropdownProps) => {
-  const wallet = useAnchorWallet();
+  const { account } = useConnector();
+  const publicKey = account ?? undefined;
 
   const { data: stakeAccounts, isLoading } = useWalletStakeAccounts(
-    wallet?.publicKey?.toBase58()
+    publicKey
   );
 
   const isAccountValid = (stakeAcc: StakeAccountData) =>
     !disabledAccounts?.includes(stakeAcc.stakeAccount) &&
-    stakeAcc.activeStake > 0;
+    stakeAcc.activeStake > 0n;
 
   const validStakeAccounts = stakeAccounts?.filter(isAccountValid);
 
@@ -67,7 +68,7 @@ export const StakeAccountsDropdown = ({
             >
               {formatAddress(stakeAcc.stakeAccount)} -&nbsp;
               {formatLamportsDisplay(stakeAcc.activeStake).value}
-              {stakeAcc.activeStake === 0 && (
+              {stakeAcc.activeStake === 0n && (
                 <span className="text-white/40">
                   &nbsp;(Insufficient balance)
                 </span>

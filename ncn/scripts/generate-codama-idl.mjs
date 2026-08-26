@@ -1,0 +1,43 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { rootNodeFromAnchor } from "@codama/nodes-from-anchor";
+import {
+  addPdasVisitor,
+  constantPdaSeedNodeFromString,
+  createFromRoot,
+  publicKeyTypeNode,
+  variablePdaSeedNode,
+} from "codama";
+import { format } from "oxfmt";
+
+const packageDir = dirname(dirname(fileURLToPath(import.meta.url)));
+const anchorIdlPath = resolve(packageDir, "target/idl/ncn_snapshot.json");
+const codamaIdlPath = resolve(packageDir, "idl/codama.json");
+const anchorIdl = await readFile(anchorIdlPath, "utf8");
+const codama = createFromRoot(rootNodeFromAnchor(JSON.parse(anchorIdl)));
+
+// Codama cannot infer the MetaMerkleProof PDA, due to the voteAccount seed being nested inside of a MetaMerkleLeaf, which is passed as an instruction argument
+codama.update(
+  addPdasVisitor({
+    ncnSnapshot: [
+      {
+        name: "metaMerkleProof",
+        seeds: [
+          constantPdaSeedNodeFromString("utf8", "MetaMerkleProof"),
+          variablePdaSeedNode("consensusResult", publicKeyTypeNode()),
+          variablePdaSeedNode("voteAccount", publicKeyTypeNode()),
+        ],
+      },
+    ],
+  }),
+);
+
+await mkdir(dirname(codamaIdlPath), { recursive: true });
+const { code, errors } = await format(codamaIdlPath, `${codama.getJson()}\n`);
+if (errors.length > 0) {
+  throw new Error(errors.map(({ message }) => message).join("\n"));
+}
+await writeFile(codamaIdlPath, code);
+console.log(`Wrote ${codamaIdlPath}`);

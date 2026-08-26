@@ -9,21 +9,22 @@ export type LamportsDisplay = {
   showRaw: boolean;
 };
 
-export function formatSOL(lamports: number): string {
-  const sol = lamports / LAMPORTS_PER_SOL;
+export function formatSOL(lamports: bigint | number): string {
+  if (typeof lamports === "number") {
+    const sol = lamports / LAMPORTS_PER_SOL;
+    return sol.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  const whole = lamports / 1_000_000_000n;
+  const fraction = (lamports % 1_000_000_000n).toString().padStart(9, "0").slice(0, 2);
 
   // Only use compact notation for amounts >= 10M
-  if (sol >= 1e9) {
-    return `${(sol / 1e9).toFixed(2)}B`;
-  } else if (sol >= 1e7) {
-    return `${(sol / 1e6).toFixed(2)}M`;
+  if (whole >= 1_000_000_000n) {
+    return `${whole / 1_000_000_000n}.${((whole % 1_000_000_000n) / 10_000_000n).toString().padStart(2, "0")}B`;
+  } else if (whole >= 10_000_000n) {
+    return `${whole / 1_000_000n}.${((whole % 1_000_000n) / 10_000n).toString().padStart(2, "0")}M`;
   }
 
-  // For amounts less than 10M, use regular formatting
-  return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(sol);
+  return `${whole}.${fraction}`;
 }
 
 export function formatPercentage(percentage: number, decimals?: number) {
@@ -43,37 +44,36 @@ export function formatCommission(commission: number | undefined): string {
 }
 
 export function formatOptionalSlot(
-  slot: number | null | undefined,
-): string | number {
-  return isValidNumber(slot) ? slot : "-";
+  slot: bigint | null | undefined,
+): string {
+  return slot === null || slot === undefined ? "-" : slot.toString();
 }
 
 export function formatOptionalCount(
-  count: number | null | undefined,
+  count: number | bigint | null | undefined,
 ): string | number {
+  if (typeof count === "bigint") return count.toString();
   return isValidNumber(count) ? count : "-";
 }
 
 export function formatLamportsDisplay(
-  lamports: number | null | undefined,
+  lamports: bigint | number | null | undefined,
 ): LamportsDisplay {
-  if (!isValidNumber(lamports)) {
+  if (lamports === null || lamports === undefined) {
     return {
       value: "-",
       showRaw: false,
     };
   }
 
-  const sol = lamports / LAMPORTS_PER_SOL;
   const compact = formatSOL(lamports);
   const value = compact.includes("SOL") ? compact : `${compact} SOL`;
 
-  const rawValue = new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(sol);
+  const rawValue = formatSOL(lamports);
 
-  const showRaw = sol >= 10_000_000;
+  const showRaw = typeof lamports === "bigint"
+    ? lamports >= 10_000_000n * 1_000_000_000n
+    : lamports >= 10_000_000 * LAMPORTS_PER_SOL;
 
   return {
     value,

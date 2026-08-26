@@ -21,7 +21,7 @@ interface SupportDonutProps {
    * chain already advanced.
    */
   isThresholdMet: boolean;
-  remainingLamports: number;
+  remainingLamports: bigint;
 }
 
 export function SupportDonut({

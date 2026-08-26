@@ -109,6 +109,21 @@ export const queryClient = new QueryClient({
 const governanceConfigPersister = createAsyncStoragePersister({
   storage: typeof window === "undefined" ? undefined : window.localStorage,
   key: "REACT_QUERY_GOVERNANCE_CONFIG",
+  // GovernanceConfigDto deliberately retains Kit bigint values. TanStack's
+  // persisted cache is JSON, so tag and revive only bigints instead of losing
+  // precision by coercing them to numbers or leaving them as plain strings.
+  serialize: (client) =>
+    JSON.stringify(client, (_key, value) =>
+      typeof value === "bigint"
+        ? { __solanaGovernanceBigint: value.toString() }
+        : value,
+    ),
+  deserialize: (cached) =>
+    JSON.parse(cached, (_key, value) =>
+      value && typeof value === "object" && "__solanaGovernanceBigint" in value
+        ? BigInt(value.__solanaGovernanceBigint)
+        : value,
+    ),
 });
 
 export default function Providers({ children }: { children: React.ReactNode }) {

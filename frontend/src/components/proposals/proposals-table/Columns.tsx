@@ -66,7 +66,7 @@ export const columns: ColumnDef<ProposalRecord>[] = [
     ),
     cell: ({ row }) => {
       const value =
-        row.original.endEpoch > 0 ? row.original.endEpoch - 1 : null;
+        row.original.endEpoch > 0 ? row.original.endEpoch - 1n : null;
       return (
         <span className="text-sm font-medium text-white/60">
           {value ?? "-"}
