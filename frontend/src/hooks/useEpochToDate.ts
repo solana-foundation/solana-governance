@@ -15,9 +15,9 @@ export function useEpochToDate(epoch: bigint | undefined) {
   return useQuery({
     queryKey: [
       "epochToDate",
-      epoch,
+      epoch?.toString(),
       endpointUrl,
-      epochData?.epochInfo.absoluteSlot,
+      epochData?.epochInfo.absoluteSlot.toString(),
     ],
     queryFn: async () => {
       if (epoch === undefined || !epochData) return null;
