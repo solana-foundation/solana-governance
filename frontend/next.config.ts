@@ -3,11 +3,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
-  turbopack: {
-    resolveAlias: {
-      "@solana/web3.js": "./src/lib/empty-solana-web3js.ts",
-    },
-  },
   webpack: (config) => {
     config.resolve.alias = {
       ...config.resolve.alias,

@@ -9,11 +9,6 @@ interface GetSupportFilter {
 
 export type GetSupportFilters = GetSupportFilter[];
 
-const filterOffsetMap: Record<GetSupportFilter["name"], number> = {
-  proposal: 8, // 8 bytes discriminator
-  validator: 40, // 8 bytes discriminator + 32 bytes proposal
-};
-
 export const getSupportAccounts = async (
   endpoint: string,
   filters: GetSupportFilters
