@@ -1,51 +1,53 @@
 import {
+  address,
   createSolanaRpc,
-  type GetRecentPerformanceSamplesApi,
+  parseBase64RpcAccount,
+  type ReadonlyUint8Array,
 } from "@solana/kit";
 import type { EpochInfoData } from "@/hooks/useEpochInfo";
 import { bigintToSafeNumber } from "./bigint";
 
-type PerfSample = ReturnType<
-  GetRecentPerformanceSamplesApi["getRecentPerformanceSamples"]
->[number];
+const FEATURE_GATE_PROGRAM = address(
+  "Feature111111111111111111111111111111111111",
+);
 
-const DEFAULT_SLOT_TIME_MS = 350;
-const PERFORMANCE_SAMPLE_LIMIT = 60;
-const MIN_PLAUSIBLE_SLOT_TIME_MS = 100;
-const MAX_PLAUSIBLE_SLOT_TIME_MS = 1_000;
+const DEFAULT_SLOT_TIME_MS = 400;
+const SLOTS_PER_EPOCH = 432_000n;
+
+// In order of decreasing slot time
+const FEATURE_GATES = [
+  { address: address("iBRL5RuWhw4yqaAZu96RUULHckHTZAoe2b77qaV38JZ"), slotTimeMs: 350 },
+  { address: address("iBRLL3k18HST852F1Mf3Lv83waTNQmmqvKDxvYGwQFL"), slotTimeMs: 300 },
+  { address: address("iBRLMc81UjRa8fn8A6eE8bJTnRbgQoPTynM51akENCV"), slotTimeMs: 250 },
+  { address: address("iBRLjhJnkmDZgNoZRDMW11d8ZV7HvsL3vAyRjZB5npW"), slotTimeMs: 200 },
+] as const;
 
 /**
- * Calculates a slot-duration estimate weighted by the number of slots in each RPC sample.
- * Falls back to the configured 350ms slot time when an RPC omits or returns unusable samples.
+ * Returns the configured slot time after applying SIMD-0525's feature-gate warmup.
  */
-export function estimateSlotTimeMs(
-  samples: ReadonlyArray<Pick<PerfSample, "numSlots" | "samplePeriodSecs">>,
+export function getLiveSlotTimeMs(
+  currentSlot: bigint,
+  accounts: ReadonlyArray<{ owner: string; data: ReadonlyUint8Array } | null>,
 ): number {
-  const totals = samples.reduce(
-    (acc, sample) => {
-      if (sample.numSlots > 0n && sample.samplePeriodSecs > 0) {
-        acc.slots += sample.numSlots;
-        acc.seconds += sample.samplePeriodSecs;
-      }
-      return acc;
-    },
-    { slots: 0n, seconds: 0 },
-  );
+  for (let index = FEATURE_GATES.length - 1; index >= 0; index--) {
+    const account = accounts[index];
+    if (!account || account.owner !== FEATURE_GATE_PROGRAM || account.data.length !== 9) {
+      // unreachable
+      throw new Error(`Invalid feature gate account: ${account}`);
+    }
 
-  if (totals.slots === 0n) return DEFAULT_SLOT_TIME_MS;
-
-  const slotTimeMs =
-    (totals.seconds * 1_000) /
-    bigintToSafeNumber(totals.slots, "performance sample slot count");
-  if (
-    !Number.isFinite(slotTimeMs) ||
-    slotTimeMs < MIN_PLAUSIBLE_SLOT_TIME_MS ||
-    slotTimeMs > MAX_PLAUSIBLE_SLOT_TIME_MS
-  ) {
-    return DEFAULT_SLOT_TIME_MS;
+    if (account.data[0] !== 1) continue;
+    const activatedAt = new DataView(
+      account.data.buffer,
+      account.data.byteOffset,
+      account.data.byteLength,
+    ).getBigUint64(1, true);
+    if (currentSlot >= activatedAt + SLOTS_PER_EPOCH) {
+      return FEATURE_GATES[index].slotTimeMs;
+    }
   }
 
-  return slotTimeMs;
+  return DEFAULT_SLOT_TIME_MS;
 }
 
 export const getDaysLeft = (futureDate: Date) => {
@@ -97,12 +99,15 @@ export async function epochToDate(
 
   const slotsUntilTarget = targetSlot - epochInfo.absoluteSlot;
 
-  // Anchor the projection to chain time and derive the current slot rate from the last hour of
-  // RPC performance samples. Slot production can run materially faster than the 400ms target,
-  // shortening epoch phases by hours; a fixed slot duration makes proposal countdowns stale.
-  const [blockTimeResult, performanceSamplesResult] = await Promise.allSettled([
+  // Anchor the projection to chain time and use the protocol's feature-gated slot target.
+  const [blockTimeResult, featureAccountsResult] = await Promise.allSettled([
     rpc.getBlockTime(epochInfo.absoluteSlot).send(),
-    rpc.getRecentPerformanceSamples(PERFORMANCE_SAMPLE_LIMIT).send(),
+    rpc
+      .getMultipleAccounts(
+        FEATURE_GATES.map((feature) => feature.address),
+        { encoding: "base64" },
+      )
+      .send(),
   ]);
 
   let currentBlockTime = Date.now();
@@ -117,13 +122,21 @@ export async function epochToDate(
   }
 
   const slotTimeMs =
-    performanceSamplesResult.status === "fulfilled"
-      ? estimateSlotTimeMs(performanceSamplesResult.value)
+    featureAccountsResult.status === "fulfilled"
+      ? getLiveSlotTimeMs(
+          epochInfo.absoluteSlot,
+          featureAccountsResult.value.value.map((account, index) => {
+            const parsed = parseBase64RpcAccount(FEATURE_GATES[index].address, account);
+            return parsed.exists
+              ? { data: parsed.data, owner: parsed.programAddress }
+              : null;
+          }),
+        )
       : DEFAULT_SLOT_TIME_MS;
 
-  if (performanceSamplesResult.status === "rejected") {
+  if (featureAccountsResult.status === "rejected") {
     console.warn(
-      "Failed to get recent performance samples; using the default slot time",
+      `Failed to fetch slot-time feature gates; using the ${DEFAULT_SLOT_TIME_MS}ms baseline`,
     );
   }
 
