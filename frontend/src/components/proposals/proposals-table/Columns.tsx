@@ -62,13 +62,14 @@ export const columns: ColumnDef<ProposalRecord>[] = [
   {
     accessorKey: "endEpoch",
     header: ({ column }) => (
-      <SortableHeaderButton column={column} label="Voting End" />
+      <SortableHeaderButton column={column} label="Voting Through" />
     ),
     cell: ({ row }) => {
-      const value = row.original.endEpoch;
+      const value =
+        row.original.endEpoch > 0 ? row.original.endEpoch - 1 : null;
       return (
         <span className="text-sm font-medium text-white/60">
-          {value || "-"}
+          {value ?? "-"}
         </span>
       );
     },

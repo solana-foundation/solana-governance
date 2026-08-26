@@ -27,7 +27,7 @@ export function useGovernanceConfig() {
     queryKey: isPresetEndpoint(endpointType)
       ? [GET_GOVERNANCE_CONFIG, endpointType]
       : [GET_GOVERNANCE_CONFIG, endpointType, endpointUrl],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const params = new URLSearchParams();
       if (isPresetEndpoint(endpointType)) {
         params.set("endpoint", endpointType);
@@ -35,7 +35,9 @@ export function useGovernanceConfig() {
         params.set("endpoint", "custom");
         params.set("rpcUrl", endpointUrl);
       }
-      const res = await fetch(`/api/governance/config?${params.toString()}`);
+      const res = await fetch(`/api/governance/config?${params.toString()}`, {
+        signal,
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         const message =

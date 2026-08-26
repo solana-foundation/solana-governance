@@ -49,6 +49,18 @@ const SSE_ERROR_FRAMES = frames(
 );
 
 describe("isThirdPartyScriptError", () => {
+  it("drops the normalized Urban VPN executor crash seen in production", () => {
+    const event = eventOf(
+      exception(
+        "Cannot read properties of undefined (reading 'M_ID')",
+        UNHANDLED,
+        frames("app:///executors/200.js", "app:///executors/200.js")
+      )
+    );
+
+    expect(isThirdPartyScriptError(event)).toBe(true);
+  });
+
   it("drops the unhandled wallet provider crash we see in production", () => {
     const event = eventOf(
       exception("func sseError not found", UNHANDLED, SSE_ERROR_FRAMES)
@@ -132,6 +144,18 @@ describe("isThirdPartyScriptError", () => {
           "app:///_next/static/chunks/main-app-0a1b2c3d.js",
           "app:///_next/static/chunks/app/proposal/[proposalPk]/page-abc123.js"
         )
+      )
+    );
+
+    expect(isThirdPartyScriptError(event)).toBe(false);
+  });
+
+  it("keeps a non-numeric script under an executors path", () => {
+    const event = eventOf(
+      exception(
+        "boom",
+        UNHANDLED,
+        frames("app:///executors/application.js")
       )
     );
 

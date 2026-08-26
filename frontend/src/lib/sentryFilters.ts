@@ -24,6 +24,10 @@ const THIRD_PARTY_FILENAME_PATTERNS = [
   // filename directly under `app:///` is never ours. Serving a root-level `.js` from
   // `public/` would mean revisiting this.
   /^app:\/\/\/[^/]+\.js$/i,
+  // Urban VPN injects numeric scripts under `executors/`. Sentry strips the extension origin,
+  // leaving paths such as `app:///executors/200.js`. This app has no such public directory;
+  // keep the numeric filename constraint so an unrelated future route is not hidden.
+  /^app:\/\/\/executors\/\d+\.js$/i,
   // Extension schemes survive the rewrite above in browsers that report an opaque origin for
   // them, since there is then no origin substring to replace.
   /^(chrome|moz|safari-web|safari|ms-browser|opera)-extension:\/\//i,

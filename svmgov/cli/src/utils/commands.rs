@@ -174,8 +174,8 @@ fn print_proposal_detail(proposal_id: &str, proposal: &Proposal, current_epoch: 
         Cell::new(proposal.start_epoch.to_string()),
     ]);
     table.add_row(vec![
-        Cell::new("End Epoch"),
-        Cell::new(proposal.end_epoch.to_string()),
+        Cell::new("Voting Available Through"),
+        Cell::new(proposal.end_epoch.saturating_sub(1).to_string()),
     ]);
     table.add_row(vec![
         Cell::new("Snapshot Slot"),

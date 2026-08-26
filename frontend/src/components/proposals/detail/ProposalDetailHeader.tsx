@@ -43,7 +43,8 @@ export default function ProposalDetailHeader({
   if (!proposal) return <div>No proposal data...</div>;
 
   const createdAgo = calculateTimeAgo(bigintToSafeNumber(proposal.creationTimestamp, "proposal creation timestamp"));
-  const endsIn = proposal.endEpoch;
+  const votingThrough =
+    proposal.endEpoch > 0n ? proposal.endEpoch - 1n : "-";
 
   return (
     <div className="glass-card space-y-6 p-6">
@@ -83,8 +84,8 @@ export default function ProposalDetailHeader({
         <InfoItem label="Created:" isLoading={isLoading}>
           <p className="text-white/60 text-xs lg:text-sm">{createdAgo}</p>
         </InfoItem>
-        <InfoItem label="Ends:" isLoading={isLoading}>
-          <p className="text-white/60 text-xs lg:text-sm">{endsIn}</p>
+        <InfoItem label="Voting Available Through:" isLoading={isLoading}>
+          <p className="text-white/60 text-xs lg:text-sm">{votingThrough}</p>
         </InfoItem>
         <InfoItem label="Link to proposal:" isLoading={isLoading}>
           <Link
@@ -136,7 +137,7 @@ function ProposalDetailSkeleton() {
           <div className="h-4 w-20 bg-white/10 animate-pulse rounded" />
         </InfoItem>
 
-        <InfoItem label="Ends:" isLoading>
+        <InfoItem label="Voting Available Through:" isLoading>
           <div className="h-4 w-20 bg-white/10 animate-pulse rounded" />
         </InfoItem>
 

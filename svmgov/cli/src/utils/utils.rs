@@ -266,7 +266,12 @@ impl fmt::Display for Proposal {
         writeln!(f, "{:<25} {}", "Author:", short_author)?;
         writeln!(f, "{:<25} epoch {}", "Created:", self.creation_epoch)?;
         writeln!(f, "{:<25} epoch {}", "Starts:", self.start_epoch)?;
-        writeln!(f, "{:<25} epoch {}", "Ends:", self.end_epoch)?;
+        writeln!(
+            f,
+            "{:<25} epoch {}",
+            "Voting Available Through:",
+            self.end_epoch.saturating_sub(1)
+        )?;
         writeln!(
             f,
             "{:<25} {} bp ({:.2}%)",

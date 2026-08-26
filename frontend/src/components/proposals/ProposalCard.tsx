@@ -40,16 +40,16 @@ interface ProposalCardProps {
 
 const getVotingStatusValue = (
   status: ProposalStatus,
-  votingEndsInText: string | null,
+  votingAvailableThroughText: string | null,
 ) => {
   if (status === "finalized" || status === "failed") {
     return "Ended";
   }
-  if (!votingEndsInText || votingEndsInText === "-") {
+  if (!votingAvailableThroughText || votingAvailableThroughText === "-") {
     return "Not Started Yet";
   }
-  if (votingEndsInText) {
-    return votingEndsInText;
+  if (votingAvailableThroughText) {
+    return votingAvailableThroughText;
   }
   return "Not Started Yet";
 };
@@ -211,12 +211,16 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
     consensusResult,
   } = proposal;
 
-  const votingStatusValue = getVotingStatusValue(status, endEpoch.toString());
+  const votingThroughEpoch = endEpoch > 0n ? endEpoch - 1n : null;
+  const votingStatusValue = getVotingStatusValue(
+    status,
+    votingThroughEpoch?.toString() ?? null,
+  );
   const actionConfig = getProposalAction(status);
   const showModifyButton = shouldShowModifyButton(status);
 
   const detailItems: VotingDetailItem[] = [
-    { label: "Voting Ends", value: votingStatusValue },
+    { label: "Voting Through", value: votingStatusValue },
   ];
 
   const isLoadingVoteIdentity =

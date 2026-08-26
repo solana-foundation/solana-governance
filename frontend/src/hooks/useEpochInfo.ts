@@ -32,7 +32,8 @@ export function useEpochInfo() {
       ]);
       return { epochInfo, epochSchedule };
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes - epoch info doesn't change frequently
+    refetchInterval: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 }

@@ -1,6 +1,52 @@
-import { createSolanaRpc } from "@solana/kit";
+import {
+  createSolanaRpc,
+  type GetRecentPerformanceSamplesApi,
+} from "@solana/kit";
 import type { EpochInfoData } from "@/hooks/useEpochInfo";
 import { bigintToSafeNumber } from "./bigint";
+
+type PerfSample = ReturnType<
+  GetRecentPerformanceSamplesApi["getRecentPerformanceSamples"]
+>[number];
+
+const DEFAULT_SLOT_TIME_MS = 350;
+const PERFORMANCE_SAMPLE_LIMIT = 60;
+const MIN_PLAUSIBLE_SLOT_TIME_MS = 100;
+const MAX_PLAUSIBLE_SLOT_TIME_MS = 1_000;
+
+/**
+ * Calculates a slot-duration estimate weighted by the number of slots in each RPC sample.
+ * Falls back to the configured 350ms slot time when an RPC omits or returns unusable samples.
+ */
+export function estimateSlotTimeMs(
+  samples: ReadonlyArray<Pick<PerfSample, "numSlots" | "samplePeriodSecs">>,
+): number {
+  const totals = samples.reduce(
+    (acc, sample) => {
+      if (sample.numSlots > 0n && sample.samplePeriodSecs > 0) {
+        acc.slots += sample.numSlots;
+        acc.seconds += sample.samplePeriodSecs;
+      }
+      return acc;
+    },
+    { slots: 0n, seconds: 0 },
+  );
+
+  if (totals.slots === 0n) return DEFAULT_SLOT_TIME_MS;
+
+  const slotTimeMs =
+    (totals.seconds * 1_000) /
+    bigintToSafeNumber(totals.slots, "performance sample slot count");
+  if (
+    !Number.isFinite(slotTimeMs) ||
+    slotTimeMs < MIN_PLAUSIBLE_SLOT_TIME_MS ||
+    slotTimeMs > MAX_PLAUSIBLE_SLOT_TIME_MS
+  ) {
+    return DEFAULT_SLOT_TIME_MS;
+  }
+
+  return slotTimeMs;
+}
 
 export const getDaysLeft = (futureDate: Date) => {
   const now = new Date();
@@ -49,26 +95,41 @@ export async function epochToDate(
   // Get the first slot of the target epoch
   const targetSlot = getFirstSlotInEpoch(targetEpoch, epochSchedule);
 
-  // Estimate date based on slot time
-  // Average slot time is ~400ms
-  const SLOT_TIME_MS = 400;
   const slotsUntilTarget = targetSlot - epochInfo.absoluteSlot;
 
-  // Get current block time to anchor our calculation
-  let currentBlockTime: number;
-  try {
-    const blockTime = await rpc.getBlockTime(epochInfo.absoluteSlot).send();
-    currentBlockTime = blockTime ? bigintToSafeNumber(blockTime, "block time") * 1000 : Date.now();
-  } catch {
+  // Anchor the projection to chain time and derive the current slot rate from the last hour of
+  // RPC performance samples. Slot production can run materially faster than the 400ms target,
+  // shortening epoch phases by hours; a fixed slot duration makes proposal countdowns stale.
+  const [blockTimeResult, performanceSamplesResult] = await Promise.allSettled([
+    rpc.getBlockTime(epochInfo.absoluteSlot).send(),
+    rpc.getRecentPerformanceSamples(PERFORMANCE_SAMPLE_LIMIT).send(),
+  ]);
+
+  let currentBlockTime = Date.now();
+  if (blockTimeResult.status === "fulfilled" && blockTimeResult.value !== null) {
+    currentBlockTime =
+      bigintToSafeNumber(blockTimeResult.value, "block time") * 1_000;
+  } else {
     console.warn(
       "Failed to get block time for current epoch",
-      epochInfo.absoluteSlot
+      epochInfo.absoluteSlot,
     );
-    currentBlockTime = Date.now();
   }
 
-  // Calculate estimated time: current block time + (slots until target * slot time)
-  const estimatedTime = currentBlockTime + bigintToSafeNumber(slotsUntilTarget, "slot delta") * SLOT_TIME_MS;
+  const slotTimeMs =
+    performanceSamplesResult.status === "fulfilled"
+      ? estimateSlotTimeMs(performanceSamplesResult.value)
+      : DEFAULT_SLOT_TIME_MS;
+
+  if (performanceSamplesResult.status === "rejected") {
+    console.warn(
+      "Failed to get recent performance samples; using the default slot time",
+    );
+  }
+
+  const estimatedTime =
+    currentBlockTime +
+    bigintToSafeNumber(slotsUntilTarget, "slot delta") * slotTimeMs;
 
   return new Date(estimatedTime);
 }
@@ -99,10 +160,13 @@ export const getHoursLeft = (futureDate: Date) => {
   return diffHours;
 };
 
-export function calculateVotingEndsIn(endTime: string | null): string | null {
+export function calculateVotingEndsIn(
+  endTime: string | null,
+  nowMs: number = Date.now(),
+): string | null {
   if (!endTime) return null;
 
-  const now = new Date();
+  const now = new Date(nowMs);
   const end = new Date(endTime);
 
   // Check if the date is valid

@@ -56,6 +56,13 @@ export const queryClient = new QueryClient({
       const kind = classifyNcnFailure(error);
       const httpError = error instanceof NcnApiHttpError ? error : undefined;
       const tags = { query_key: queryKey, ...ncnFailureTags(error) };
+
+      // This same-origin fetch only rejects at the browser transport layer. The API route
+      // converts its RPC and application failures into HTTP responses, which the hook reports
+      // with their useful message. Raw network failures are client connectivity noise; query
+      // cancellation is handled earlier by passing TanStack's signal to fetch.
+      if (queryKey === GET_GOVERNANCE_CONFIG && kind === "network") return;
+
       // The body is how we tell a router refusal from an operator's, since the status alone
       // never says which hop produced it.
       const extra = httpError?.bodySnippet
