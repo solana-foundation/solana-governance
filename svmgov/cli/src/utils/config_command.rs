@@ -1,7 +1,7 @@
 use anchor_lang::Id;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
-use crate::config::{get_default_rpc_url, Config, UserType};
+use crate::config::{Config, UserType, get_default_rpc_url};
 use crate::constants::DEFAULT_OPERATOR_API_URL;
 use crate::svmgov_program::program::SvmgovProgram;
 

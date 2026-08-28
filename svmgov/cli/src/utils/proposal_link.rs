@@ -524,7 +524,9 @@ mod tests {
             "https://github.com/solana-foundation/solana-governance-proposals/blob/main/proposals/sgp-0001-café.md",
             "https://github.com/solana-foundation/solana-governance-proposals/blob/main/proposals/sgp-0001-测试.md",
         ] {
-            let error = validate_description_structure(link).unwrap_err().to_string();
+            let error = validate_description_structure(link)
+                .unwrap_err()
+                .to_string();
             assert!(error.contains("on-chain program rejects"), "got: {error}");
         }
     }

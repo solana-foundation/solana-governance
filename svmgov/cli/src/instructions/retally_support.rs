@@ -9,7 +9,7 @@ use anyhow::{Result, anyhow};
 use ncn_snapshot::ID as SNAPSHOT_PROGRAM_ID;
 
 use crate::{
-    constants::{support_compute_unit_limit, MAX_SUPPORTERS_LIMIT},
+    constants::{MAX_SUPPORTERS_LIMIT, support_compute_unit_limit},
     svmgov_program::accounts::Proposal,
     svmgov_program::client::{accounts, args},
     utils::utils::{
@@ -17,7 +17,6 @@ use crate::{
         get_epoch_slot_range, setup_signer_and_program,
     },
 };
-
 
 pub async fn retally_support(
     proposal_id: String,

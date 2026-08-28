@@ -124,7 +124,10 @@ enum Commands {
         title: String,
 
         /// Link in solana-foundation/solana-governance-proposals for the proposal description.
-        #[arg(long, help = "Proposal link in https://github.com/solana-foundation/solana-governance-proposals (no .. path segments)")]
+        #[arg(
+            long,
+            help = "Proposal link in https://github.com/solana-foundation/solana-governance-proposals (no .. path segments)"
+        )]
         description: String,
 
         /// Skip the network check that the linked proposal file exists.
@@ -249,8 +252,9 @@ enum Commands {
     },
 
     #[command(
-        about = "Display a proposal and its details",
-        long_about = "This command retrieves and displays a governance proposal and its details from the Solana Validator Governance program. \
+        about = "Display a proposal, its details, and who voted",
+        long_about = "This command retrieves and displays a governance proposal and its details from the Solana Validator Governance program, \
+                      including a table of every validator vote and staker override (who voted, their stake, and the For / Against / Abstain split). \
                       An optional RPC URL can be provided to connect to the chain; otherwise, a default URL is used.\n\n\
                       Examples:\n\
                       $ svmgov --rpc-url https://api.mainnet-beta.solana.com proposal \"4HarXuo8QjE5GSGzuUxHA1cnNM9mFt2th2JQAC5DSNqU\""
@@ -263,6 +267,7 @@ enum Commands {
     #[command(
         about = "List all proposals",
         long_about = "This command retrieves and displays all governance proposals from the Solana Validator Governance program. \
+                      Table rows include status, SGP-0001 outcome (Passing / Failing while voting, Passed / Failed once finalized, or Inconclusive), and For / Against / Abstain stake. \
                       An optional RPC URL can be provided to connect to the chain; otherwise, a default URL is used.\n\n\
                       Examples:\n\
                       $ svmgov list-proposals\n\
@@ -427,7 +432,10 @@ enum Commands {
         #[arg(long, help = "Maximum length for proposal descriptions")]
         max_description_length: u16,
 
-        #[arg(long, help = "Maximum epochs allowed for support phase (0 = same epoch as creation)")]
+        #[arg(
+            long,
+            help = "Maximum epochs allowed for support phase (0 = same epoch as creation)"
+        )]
         max_support_epochs: u64,
 
         #[arg(long, help = "Minimum stake in lamports required to create a proposal")]
@@ -445,10 +453,16 @@ enum Commands {
         #[arg(long, help = "Number of extra epochs for snapshot extension")]
         snapshot_epoch_extension: u64,
 
-        #[arg(long, help = "Slot offset from epoch start for snapshot computation (can be negative)")]
+        #[arg(
+            long,
+            help = "Slot offset from epoch start for snapshot computation (can be negative)"
+        )]
         snapshot_slot_offset: i64,
 
-        #[arg(long, help = "Maximum number of validators allowed to support a proposal (1-2000)")]
+        #[arg(
+            long,
+            help = "Maximum number of validators allowed to support a proposal (1-2000)"
+        )]
         max_supporters: u32,
     },
 
@@ -485,10 +499,16 @@ enum Commands {
         #[arg(long, help = "Number of extra epochs for snapshot extension")]
         snapshot_epoch_extension: Option<u64>,
 
-        #[arg(long, help = "Slot offset from epoch start for snapshot computation (can be negative)")]
+        #[arg(
+            long,
+            help = "Slot offset from epoch start for snapshot computation (can be negative)"
+        )]
         snapshot_slot_offset: Option<i64>,
 
-        #[arg(long, help = "Maximum number of validators allowed to support a proposal (1-2000)")]
+        #[arg(
+            long,
+            help = "Maximum number of validators allowed to support a proposal (1-2000)"
+        )]
         max_supporters: Option<u32>,
     },
 
@@ -554,9 +574,7 @@ enum Commands {
 
 fn merge_cli_with_config(cli: Cli, config: &Config) -> Cli {
     // Merge keypair: CLI arg > config (based on user_type) > None
-    let keypair = cli
-        .keypair
-        .or_else(|| config.get_identity_keypair_path());
+    let keypair = cli.keypair.or_else(|| config.get_identity_keypair_path());
 
     // Merge rpc_url: CLI arg > config rpc_url > config network default > constants default
     let rpc_url = cli.rpc_url.or_else(|| {
@@ -693,9 +711,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
             )
             .await?;
         }
-        Commands::SupportProposal {
-            proposal_id,
-        } => {
+        Commands::SupportProposal { proposal_id } => {
             instructions::support_proposal(
                 proposal_id.to_string(),
                 cli.keypair,
@@ -750,27 +766,27 @@ async fn handle_command(cli: Cli) -> Result<()> {
             .await?;
         }
         Commands::FinalizeProposal { proposal_id } => {
-            instructions::finalize_proposal(
-                proposal_id.to_string(),
-                cli.keypair,
-                cli.rpc_url,
-            )
-            .await?;
+            instructions::finalize_proposal(proposal_id.to_string(), cli.keypair, cli.rpc_url)
+                .await?;
         }
         Commands::Proposal { proposal_id } => {
-            commands::get_proposal(cli.rpc_url.clone(), proposal_id).await?;
+            commands::get_proposal(cli.rpc_url.clone(), proposal_id, network.clone()).await?;
         }
         Commands::ListProposals {
             status,
             limit,
             json,
         } => {
-            let json_bool = json.as_ref().map(|s| s.parse::<bool>().unwrap_or(true)).unwrap_or(false);
+            let json_bool = json
+                .as_ref()
+                .map(|s| s.parse::<bool>().unwrap_or(true))
+                .unwrap_or(false);
             commands::list_proposals(
                 cli.rpc_url.clone(),
                 status.clone(),
                 *limit,
                 json_bool,
+                network.clone(),
             )
             .await?;
         }
@@ -888,18 +904,15 @@ async fn handle_command(cli: Cli) -> Result<()> {
         }
         Commands::NominateAdmin { new_admin } => {
             instructions::nominate_admin(
-                cli.keypair, 
-                new_admin.clone(), 
-                cli.rpc_url, 
-                squads_opts.clone()
-            ).await?;
+                cli.keypair,
+                new_admin.clone(),
+                cli.rpc_url,
+                squads_opts.clone(),
+            )
+            .await?;
         }
         Commands::AcceptAdmin => {
-            instructions::accept_admin(
-                cli.keypair, 
-                cli.rpc_url, 
-                squads_opts.clone()
-            ).await?;
+            instructions::accept_admin(cli.keypair, cli.rpc_url, squads_opts.clone()).await?;
         }
         Commands::Init => {
             init::run_init().await?;

@@ -2,7 +2,7 @@ use std::{str::FromStr, time::Duration};
 
 use anchor_lang::prelude::Pubkey;
 use anyhow::{Result, anyhow};
-use log::{info, warn};
+use log::{debug, warn};
 use ncn_snapshot::{MetaMerkleLeaf, MetaMerkleProof, StakeMerkleLeaf};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
@@ -321,6 +321,45 @@ pub async fn get_stake_account_proof(
     Ok(proof)
 }
 
+/// Snapshot metadata from `GET /meta?network=...` (newest) or
+/// `GET /meta?network=...&slot=...` (that snapshot).
+///
+/// A proposal votes against the slot frozen at activation, so callers must
+/// refuse a total whose `slot` does not match the proposal's `snapshot_slot`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SnapshotMetaResponse {
+    pub network: String,
+    pub slot: u64,
+    pub merkle_root: String,
+    pub snapshot_hash: String,
+    pub created_at: String,
+    /// Lamports across every leaf — the quorum denominator. `null` for
+    /// snapshots uploaded before the verifier recorded it.
+    #[serde(default)]
+    pub total_active_stake: Option<u64>,
+}
+
+/// Fetch snapshot meta for `network`. `slot` selects a historical snapshot;
+/// `None` is the newest.
+pub async fn get_snapshot_meta(network: &str, slot: Option<u64>) -> Result<SnapshotMetaResponse> {
+    let base_url = get_api_base_url()?;
+    let url = match slot {
+        Some(slot) => format!("{base_url}/meta?network={network}&slot={slot}"),
+        None => format!("{base_url}/meta?network={network}"),
+    };
+
+    log::debug!("Fetching snapshot meta from: {}", url);
+
+    fetch_json_with_retry(
+        &http_client()?,
+        &url,
+        "snapshot meta",
+        &base_url,
+        DEFAULT_RETRY_POLICY,
+    )
+    .await
+}
+
 /// Get the base API URL from config
 fn get_api_base_url() -> anyhow::Result<String> {
     let config = crate::config::Config::load()?;
@@ -329,7 +368,7 @@ fn get_api_base_url() -> anyhow::Result<String> {
         return Ok(crate::constants::DEFAULT_OPERATOR_API_URL.to_string());
     }
 
-    info!("API base URL (from config): {}", config.operator_api_url);
+    debug!("API base URL (from config): {}", config.operator_api_url);
     Ok(config.operator_api_url)
 }
 

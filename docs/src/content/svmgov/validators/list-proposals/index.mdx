@@ -60,15 +60,13 @@ svmgov list-proposals --status active --limit 5 --json
 
 | Column | Description |
 |---|---|
-| Index | Sequential proposal number |
-| Title | Proposal title |
-| Author | Validator vote account |
-| Status | `support` / `active` / `finalized` |
-| For | Lamports voted For |
-| Against | Lamports voted Against |
-| Abstain | Lamports voted Abstain |
-| Votes | Total number of votes cast |
-| End Epoch | Epoch when voting closes |
+| ID | Proposal PDA |
+| Title | Proposal title (truncated) |
+| Status | Lifecycle phase (`support` / `voting` / `finalized` / …) |
+| Outcome | SGP-0001 result: `Passing` / `Failing` while voting is open; `Passed` / `Failed` once finalized (or the voting window has closed); `Inconclusive` if quorum is not met; `—` if voting has not started or the snapshot total is unavailable |
+| For / Against / Abstain | Stake voted in each bucket (SOL) |
+
+JSON output includes the same vote totals as lamports plus an `outcome` field: `passing` / `failing` while voting is open, `passed` / `failed` once settled, or `inconclusive` / `unknown`.
 
 ## Related
 

@@ -16,7 +16,7 @@ use crate::{
             self, convert_merkle_proof_strings, convert_stake_merkle_leaf_data_to_idl_type,
             get_stake_account_proof,
         },
-        squads::{effective_signer, SquadsCliOpts},
+        squads::{SquadsCliOpts, effective_signer},
         utils::{
             create_spinner, derive_vote_override_cache_pda, derive_vote_override_pda,
             derive_vote_pda, setup_all_with_staker,

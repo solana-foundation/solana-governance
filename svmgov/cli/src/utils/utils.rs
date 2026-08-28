@@ -72,8 +72,7 @@ pub async fn setup_all(
     Program<Arc<Keypair>>,
 )> {
     // Step 1: Signer, cluster and svmgov program
-    let (identity_keypair_arc, program, client) =
-        setup_signer_and_program(keypair_path, rpc_url)?;
+    let (identity_keypair_arc, program, client) = setup_signer_and_program(keypair_path, rpc_url)?;
 
     // Step 2: The merkle-proof (ncn-snapshot) program
     let merkle_proof_program = client.program(ncn_snapshot::id())?;

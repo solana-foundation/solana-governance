@@ -4,7 +4,7 @@ Display detailed information about a specific governance proposal.
 
 ## Description
 
-Fetches a single `Proposal` account by its PDA address and displays all metadata, vote totals, and lifecycle information.
+Fetches a single `Proposal` account by its PDA address and displays all metadata, vote totals, lifecycle information, and a table of every validator vote and staker override.
 
 ## Usage
 
@@ -55,6 +55,29 @@ The command displays:
 | Vote count | Number of individual votes cast |
 | Snapshot slot | NCN snapshot slot (when active) |
 | Consensus result | NCN ConsensusResult PDA (when active) |
+
+After the proposal fields, the command prints a **Vote breakdown** matching the website card, then a **Votes** table of everyone who has voted, sorted by stake (highest first). Staker overrides appear as their own rows.
+
+### Vote breakdown
+
+| Line | Description |
+|---|---|
+| Snapshot stake | Total active stake in the proposal's snapshot (Art. IV.2). The CLI asks `/meta` for that slot. Omitted if the operator no longer stores it |
+| Participation | `(For + Against + Abstain) / snapshot stake`. Quorum is **1/3** of snapshot stake (SGP-0001 Art. IV.3) |
+| Supermajority | `For / (For + Against + Abstain)`. A pass needs **2/3** of participating stake For (Art. IV.4 as stated in the FAQ) |
+| Outcome | `Passing` / `Failing` while voting is open; `Passed` / `Failed` once finalized; `Inconclusive (quorum not met)`; or `Unknown` if the snapshot total is unavailable |
+| For / Against / Abstain | Stake in SOL, share of votes cast, and share of snapshot stake |
+
+| Column | Description |
+|---|---|
+| Voter | Validator identity (voting wallet) or staker delegator |
+| Type | `Validator` or `Staker` |
+| Stake Account | Stake account used for an override; `—` for validator votes |
+| Stake | Effective voting weight (SOL). For a validator this is snapshot stake minus any staker overrides, so the column does not double-count |
+| For / Against / Abstain | Vote split in percent (basis points / 100) |
+| Date | When the vote (or override) was last written |
+
+If no votes have been cast yet, the table is replaced with `No votes have been cast on this proposal.`
 
 ## Related
 

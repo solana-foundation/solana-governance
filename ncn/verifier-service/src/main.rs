@@ -180,7 +180,7 @@ async fn get_meta(
     validate_network(network)?;
 
     let meta_record_option = db_operation(
-        || SnapshotMetaRecord::get_latest(&pool, network),
+        || SnapshotMetaRecord::lookup(&pool, network, params.slot),
         "Failed to get snapshot meta record",
     )
     .await?;
@@ -188,7 +188,10 @@ async fn get_meta(
     if let Some(record) = meta_record_option {
         Ok(Json(record))
     } else {
-        info!("No snapshots found for network: {}", network);
+        match params.slot {
+            Some(slot) => info!("No snapshot for network {} at slot {}", network, slot),
+            None => info!("No snapshots found for network: {}", network),
+        }
         Err(StatusCode::NOT_FOUND)
     }
 }

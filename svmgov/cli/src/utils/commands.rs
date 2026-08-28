@@ -1,22 +1,28 @@
-use std::{str::FromStr, sync::Arc};
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 
+use anchor_client::solana_account_decoder::UiAccountEncoding;
 use anchor_client::solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
 use anchor_client::solana_client::rpc_filter::{Memcmp, RpcFilterType};
-use anchor_client::solana_account_decoder::UiAccountEncoding;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::signature::Keypair;
 
-use anchor_lang::{prelude::Pubkey, AccountDeserialize, Discriminator};
+use anchor_lang::{AccountDeserialize, Discriminator, prelude::Pubkey};
 use anyhow::{Result, anyhow};
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
-use comfy_table::{Cell, Table, presets::UTF8_FULL};
+use comfy_table::{Cell, CellAlignment, Table, presets::UTF8_FULL};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     anchor_client_setup,
     svmgov_program::accounts::{GlobalConfig, Proposal},
+    utils::api_helpers,
     utils::phase::{PhaseInputs, PhaseTimeline, ProposalPhase},
+    utils::quorum::{
+        SnapshotTotalSource, VoteTally, compute_outcome, list_vote_summary, print_vote_breakdown,
+        resolve_quorum_denominator,
+    },
     utils::utils::fetch_global_config,
+    utils::votes::{fetch_vote_records, print_votes_table, sort_vote_records},
 };
 
 /// Detect terminal width using various methods
@@ -60,7 +66,11 @@ fn detect_terminal_width() -> Option<u16> {
     None
 }
 
-pub async fn get_proposal(rpc_url: Option<String>, proposal_id: &String) -> Result<()> {
+pub async fn get_proposal(
+    rpc_url: Option<String>,
+    proposal_id: &String,
+    network: String,
+) -> Result<()> {
     // Parse the proposal ID into a Pubkey
     let proposal_pubkey = Pubkey::from_str(proposal_id)
         .map_err(|_| anyhow!("Invalid proposal ID: {}", proposal_id))?;
@@ -79,13 +89,39 @@ pub async fn get_proposal(rpc_url: Option<String>, proposal_id: &String) -> Resu
 
     let proposal_acc = program.account::<Proposal>(proposal_pubkey).await?;
     let global_config = fetch_global_config(&program).await?;
+    let vote_records = fetch_vote_records(&rpc, &program.id(), &proposal_pubkey).await;
+    let snapshots =
+        load_snapshot_sources(&network, std::iter::once(proposal_acc.snapshot_slot)).await;
 
     print_proposal_detail(proposal_id, &proposal_acc, current_epoch, &global_config);
+
+    let width = detect_terminal_width().unwrap_or(200);
+    let settled = ProposalPhase::new(
+        &PhaseInputs::new(&proposal_acc, &global_config),
+        current_epoch,
+    )
+    .vote_is_settled();
+    print_vote_breakdown(&vote_tally(&proposal_acc, &snapshots), width, settled);
+
+    match vote_records {
+        Ok(mut records) => {
+            sort_vote_records(&mut records);
+            print_votes_table(&records, width);
+        }
+        Err(e) => {
+            eprintln!("\nCould not load votes: {e}");
+        }
+    }
 
     Ok(())
 }
 
-fn print_proposal_detail(proposal_id: &str, proposal: &Proposal, current_epoch: u64, config: &GlobalConfig) {
+fn print_proposal_detail(
+    proposal_id: &str,
+    proposal: &Proposal,
+    current_epoch: u64,
+    config: &GlobalConfig,
+) {
     let mut table = Table::new();
     table
         .load_preset(UTF8_FULL)
@@ -249,9 +285,16 @@ struct ProposalOutput {
     voting: bool,
     finalized: bool,
     creation_timestamp: i64,
+    /// SGP-0001 outcome. While voting is open: `passing` / `failing`.
+    /// Once settled: `passed` / `failed`. Also `inconclusive` or `unknown`.
+    outcome: String,
 }
 
-fn get_proposal_status(proposal: &Proposal, current_epoch: u64, config: &GlobalConfig) -> &'static str {
+fn get_proposal_status(
+    proposal: &Proposal,
+    current_epoch: u64,
+    config: &GlobalConfig,
+) -> &'static str {
     ProposalPhase::new(&PhaseInputs::new(proposal, config), current_epoch).id()
 }
 
@@ -260,6 +303,7 @@ pub async fn list_proposals(
     status_filter: Option<String>,
     limit: Option<usize>,
     json_output: bool,
+    network: String,
 ) -> Result<()> {
     // Create a mock Payer
     let mock_payer = Arc::new(Keypair::new());
@@ -347,41 +391,103 @@ pub async fn list_proposals(
         return Ok(());
     }
 
+    let snapshots = load_snapshot_sources(
+        &network,
+        proposals.iter().map(|(_, proposal)| proposal.snapshot_slot),
+    )
+    .await;
+
     // Output in JSON format if requested
     if json_output {
         let json_proposals: Vec<ProposalOutput> = proposals
             .iter()
-            .map(|(pubkey, proposal)| ProposalOutput {
-                id: pubkey.to_string(),
-                title: proposal.title.clone(),
-                description: proposal.description.clone(),
-                author: proposal.author.to_string(),
-                status: get_proposal_status(proposal, current_epoch, &global_config).to_string(),
-                index: proposal.index,
-                creation_epoch: proposal.creation_epoch,
-                start_epoch: proposal.start_epoch,
-                end_epoch: proposal.end_epoch,
-                snapshot_slot: proposal.snapshot_slot,
-                proposer_stake_weight_bp: proposal.proposer_stake_weight_bp,
-                cluster_support_lamports: proposal.cluster_support_lamports,
-                for_votes_lamports: proposal.for_votes_lamports,
-                against_votes_lamports: proposal.against_votes_lamports,
-                abstain_votes_lamports: proposal.abstain_votes_lamports,
-                vote_count: proposal.vote_count,
-                voting: proposal.voting,
-                finalized: proposal.finalized,
-                creation_timestamp: proposal.creation_timestamp,
+            .map(|(pubkey, proposal)| {
+                let tally = vote_tally(proposal, &snapshots);
+                let phase =
+                    ProposalPhase::new(&PhaseInputs::new(proposal, &global_config), current_epoch);
+                ProposalOutput {
+                    id: pubkey.to_string(),
+                    title: proposal.title.clone(),
+                    description: proposal.description.clone(),
+                    author: proposal.author.to_string(),
+                    status: phase.id().to_string(),
+                    index: proposal.index,
+                    creation_epoch: proposal.creation_epoch,
+                    start_epoch: proposal.start_epoch,
+                    end_epoch: proposal.end_epoch,
+                    snapshot_slot: proposal.snapshot_slot,
+                    proposer_stake_weight_bp: proposal.proposer_stake_weight_bp,
+                    cluster_support_lamports: proposal.cluster_support_lamports,
+                    for_votes_lamports: proposal.for_votes_lamports,
+                    against_votes_lamports: proposal.against_votes_lamports,
+                    abstain_votes_lamports: proposal.abstain_votes_lamports,
+                    vote_count: proposal.vote_count,
+                    voting: proposal.voting,
+                    finalized: proposal.finalized,
+                    creation_timestamp: proposal.creation_timestamp,
+                    outcome: compute_outcome(&tally)
+                        .id(phase.vote_is_settled())
+                        .to_string(),
+                }
             })
             .collect();
         println!("{}", serde_json::to_string_pretty(&json_proposals)?);
     } else {
-        print_proposals_table(&proposals, current_epoch, &global_config);
+        print_proposals_table(&proposals, current_epoch, &global_config, &snapshots);
     }
 
     Ok(())
 }
 
-fn print_proposals_table(proposals: &[(Pubkey, Proposal)], current_epoch: u64, config: &GlobalConfig) {
+async fn load_snapshot_sources(
+    network: &str,
+    slots: impl IntoIterator<Item = u64>,
+) -> HashMap<u64, SnapshotTotalSource> {
+    let mut sources = HashMap::new();
+    let mut needed: Vec<u64> = slots.into_iter().filter(|slot| *slot != 0).collect();
+    needed.sort_unstable();
+    needed.dedup();
+
+    for slot in needed {
+        match api_helpers::get_snapshot_meta(network, Some(slot)).await {
+            Ok(meta) => {
+                // Keyed by the slot the API actually returned, never the one
+                // we asked for, so an operator that ignores `?slot=` cannot
+                // attach the newest total to an older proposal.
+                sources.insert(
+                    meta.slot,
+                    SnapshotTotalSource {
+                        slot: meta.slot,
+                        total_active_stake: meta.total_active_stake,
+                    },
+                );
+            }
+            Err(e) => {
+                log::debug!("Could not load snapshot meta for slot {slot}: {e}");
+            }
+        }
+    }
+    sources
+}
+
+fn vote_tally(proposal: &Proposal, snapshots: &HashMap<u64, SnapshotTotalSource>) -> VoteTally {
+    VoteTally {
+        for_lamports: proposal.for_votes_lamports,
+        against_lamports: proposal.against_votes_lamports,
+        abstain_lamports: proposal.abstain_votes_lamports,
+        total_active_stake: resolve_quorum_denominator(
+            snapshots.get(&proposal.snapshot_slot),
+            proposal.snapshot_slot,
+        ),
+    }
+}
+
+fn print_proposals_table(
+    proposals: &[(Pubkey, Proposal)],
+    current_epoch: u64,
+    config: &GlobalConfig,
+    snapshots: &HashMap<u64, SnapshotTotalSource>,
+) {
     let mut table = Table::new();
     table
         .load_preset(UTF8_FULL)
@@ -391,7 +497,9 @@ fn print_proposals_table(proposals: &[(Pubkey, Proposal)], current_epoch: u64, c
     let terminal_width = detect_terminal_width().unwrap_or(200);
     table.set_width(terminal_width);
 
-    table.set_header(vec!["ID", "Title", "Status"]);
+    table.set_header(vec![
+        "ID", "Title", "Status", "Outcome", "For", "Against", "Abstain",
+    ]);
 
     // Set ContentWidth constraint for ID column to prevent wrapping
     if let Some(column) = table.column_mut(0) {
@@ -399,22 +507,25 @@ fn print_proposals_table(proposals: &[(Pubkey, Proposal)], current_epoch: u64, c
     }
 
     for (pubkey, proposal) in proposals {
-        let status = ProposalPhase::new(&PhaseInputs::new(proposal, config), current_epoch).label();
+        let phase = ProposalPhase::new(&PhaseInputs::new(proposal, config), current_epoch);
+        let votes = list_vote_summary(&vote_tally(proposal, snapshots));
 
         // Truncate title if too long
-        let title = if proposal.title.chars().count() > 40 {
-            let truncated: String = proposal.title.chars().take(37).collect();
+        let title = if proposal.title.chars().count() > 32 {
+            let truncated: String = proposal.title.chars().take(29).collect();
             format!("{truncated}...")
         } else {
             proposal.title.clone()
         };
 
-        let pubkey_str = pubkey.to_string();
-
         table.add_row(vec![
-            Cell::new(pubkey_str),
+            Cell::new(pubkey.to_string()),
             Cell::new(title),
-            Cell::new(status),
+            Cell::new(phase.label()),
+            Cell::new(votes.outcome.short_label(phase.vote_is_settled())),
+            Cell::new(&votes.for_stake).set_alignment(CellAlignment::Right),
+            Cell::new(&votes.against_stake).set_alignment(CellAlignment::Right),
+            Cell::new(&votes.abstain_stake).set_alignment(CellAlignment::Right),
         ]);
     }
 

@@ -272,6 +272,45 @@ CREATE TABLE snapshot_meta (
     }
 
     #[tokio::test]
+    async fn lookup_returns_the_requested_slot_not_only_the_newest() {
+        let pool = pool().await;
+        run_migrations(&pool).await.unwrap();
+
+        for slot in [100_u64, 200] {
+            SnapshotMetaRecord {
+                network: "mainnet".to_string(),
+                slot,
+                merkle_root: format!("root-{slot}"),
+                snapshot_hash: format!("hash-{slot}"),
+                created_at: "2026-01-01T00:00:00Z".to_string(),
+                total_active_stake: Some(slot),
+            }
+            .insert_exec(&pool)
+            .await
+            .unwrap();
+        }
+
+        let latest = SnapshotMetaRecord::get_latest(&pool, "mainnet")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(latest.slot, 200);
+
+        let older = SnapshotMetaRecord::lookup(&pool, "mainnet", Some(100))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(older.slot, 100);
+        assert_eq!(older.merkle_root, "root-100");
+        assert_eq!(older.total_active_stake, Some(100));
+
+        assert!(SnapshotMetaRecord::lookup(&pool, "mainnet", Some(999))
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[tokio::test]
     async fn upgrading_backfills_totals_from_legacy_vote_accounts() {
         let pool = legacy_v1_database().await;
         sqlx::query(

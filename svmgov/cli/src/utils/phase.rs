@@ -136,6 +136,13 @@ impl ProposalPhase {
         }
     }
 
+    /// Voting is over, so an SGP-0001 pass/fail is past tense (`Passed` /
+    /// `Failed`). `Finalized` is the on-chain lock; `Ended` is the same result
+    /// waiting for that lock. Inconclusive does not change tense.
+    pub fn vote_is_settled(self) -> bool {
+        matches!(self, Self::Finalized | Self::Ended)
+    }
+
     /// Lowercase identifier used by `--status` filters and JSON output.
     pub fn id(self) -> &'static str {
         match self {
@@ -346,7 +353,9 @@ mod tests {
         assert_eq!(ProposalPhase::new(&p, 1020), ProposalPhase::Snapshot);
         assert_eq!(ProposalPhase::new(&p, 1021), ProposalPhase::Voting);
         assert_eq!(ProposalPhase::new(&p, 1023), ProposalPhase::Voting);
+        assert!(!ProposalPhase::new(&p, 1023).vote_is_settled());
         assert_eq!(ProposalPhase::new(&p, 1024), ProposalPhase::Ended);
+        assert!(ProposalPhase::new(&p, 1024).vote_is_settled());
     }
 
     #[test]
@@ -400,6 +409,7 @@ mod tests {
             ..double_disinflation()
         };
         assert_eq!(ProposalPhase::new(&p, 1012), ProposalPhase::Finalized);
+        assert!(ProposalPhase::new(&p, 1012).vote_is_settled());
         assert_eq!(p.epochs_remaining(1012), None);
     }
 

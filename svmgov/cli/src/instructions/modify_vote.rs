@@ -7,7 +7,10 @@ use ncn_snapshot::ID as SNAPSHOT_PROGRAM_ID;
 
 use crate::{
     constants::*,
-    svmgov_program::{accounts::Proposal, client::{accounts, args}},
+    svmgov_program::{
+        accounts::Proposal,
+        client::{accounts, args},
+    },
     utils::{
         api_helpers::{self, get_vote_account_proof},
         utils::{create_spinner, derive_vote_pda, setup_all},
@@ -53,7 +56,8 @@ pub async fn modify_vote(
     // Generate meta_merkle_proof_pda using the consensus_result from proposal
     let vote_account_pubkey = Pubkey::from_str(&proof_response.meta_merkle_leaf.vote_account)
         .map_err(|e| anyhow!("Invalid vote_account pubkey in response: {}", e))?;
-    let meta_merkle_proof_pda = api_helpers::generate_meta_merkle_proof_pda(&consensus_result_pda, &vote_account_pubkey)?;
+    let meta_merkle_proof_pda =
+        api_helpers::generate_meta_merkle_proof_pda(&consensus_result_pda, &vote_account_pubkey)?;
 
     let vote_pda = derive_vote_pda(&proposal_pubkey, &vote_account, &program.id());
 

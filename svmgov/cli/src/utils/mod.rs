@@ -4,5 +4,7 @@ pub mod config_command;
 pub mod init;
 pub mod phase;
 pub mod proposal_link;
+pub mod quorum;
 pub mod squads;
 pub mod utils;
+pub mod votes;

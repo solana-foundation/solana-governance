@@ -3,8 +3,8 @@ use std::str::FromStr;
 use anchor_client::solana_sdk::{pubkey::Pubkey, signer::Signer};
 use anchor_lang::system_program;
 use anyhow::{Result, anyhow};
-use ncn_snapshot::{ID as SNAPSHOT_PROGRAM_ID, MetaMerkleLeaf, MetaMerkleProof};
 use log::info;
+use ncn_snapshot::{ID as SNAPSHOT_PROGRAM_ID, MetaMerkleLeaf, MetaMerkleProof};
 
 use crate::{
     constants::*,
@@ -17,7 +17,7 @@ use crate::{
             self, convert_merkle_proof_strings, convert_stake_merkle_leaf_data_to_idl_type,
             get_stake_account_proof, get_vote_account_proof,
         },
-        squads::{effective_signer, SquadsCliOpts},
+        squads::{SquadsCliOpts, effective_signer},
         utils::{
             compute_vote_expiry_timestamp, create_spinner, derive_vote_override_cache_pda,
             derive_vote_override_pda, derive_vote_pda, setup_all_with_staker,
@@ -128,7 +128,10 @@ pub async fn cast_vote_override(
             Some(ts) => ts,
             None => compute_vote_expiry_timestamp(&program, proposal.end_epoch).await?,
         };
-        info!("Setting MetaMerkleProof close_timestamp to {}", close_timestamp);
+        info!(
+            "Setting MetaMerkleProof close_timestamp to {}",
+            close_timestamp
+        );
 
         let init_meta_merkle_proof_ix = merkle_proof_program
             .request()

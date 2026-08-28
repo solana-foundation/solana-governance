@@ -169,12 +169,13 @@ curl http://localhost:3000/version
 
 ### `GET /meta`
 
-Returns the latest `SnapshotMetaRecord` for a given network.
+Returns the `SnapshotMetaRecord` for a given network. Omit `slot` for the newest snapshot; pass it to look up a historical one.
 
-**Query params:** `network` (required)
+**Query params:** `network` (required), `slot` (optional — defaults to latest)
 
 ```bash
 curl "http://localhost:3000/meta?network=mainnet"
+curl "http://localhost:3000/meta?network=mainnet&slot=300000000"
 ```
 
 ```json

@@ -269,32 +269,55 @@ impl SnapshotMetaRecord {
         pool: &SqlitePool,
         network: &str,
     ) -> Result<Option<SnapshotMetaRecord>> {
-        let row_opt = sqlx::query(
-            "SELECT * FROM snapshot_meta
-             WHERE network = ? ORDER BY slot DESC LIMIT 1",
-        )
-        .bind(network)
-        .fetch_optional(pool)
-        .await?;
+        Self::lookup(pool, network, None).await
+    }
 
-        if let Some(row) = row_opt {
-            Ok(Some(SnapshotMetaRecord {
-                network: row.get("network"),
-                slot: row.get::<i64, _>("slot") as u64,
-                merkle_root: row.get("merkle_root"),
-                snapshot_hash: row.get("snapshot_hash"),
-                created_at: row.get("created_at"),
-                // Checked, mirroring the write side. A negative value cannot
-                // be written, but `as u64` would turn one into an enormous
-                // quorum denominator, silently reporting participation as ~0%.
-                total_active_stake: row
-                    .get::<Option<i64>, _>("total_active_stake")
-                    .map(u64::try_from)
-                    .transpose()?,
-            }))
-        } else {
-            Ok(None)
-        }
+    /// Snapshot metadata for `slot`, or the newest snapshot when `slot` is `None`.
+    pub async fn lookup(
+        pool: &SqlitePool,
+        network: &str,
+        slot: Option<u64>,
+    ) -> Result<Option<SnapshotMetaRecord>> {
+        let row_opt = match slot {
+            Some(slot) => {
+                sqlx::query(
+                    "SELECT * FROM snapshot_meta
+                     WHERE network = ? AND slot = ?",
+                )
+                .bind(network)
+                .bind(i64::try_from(slot)?)
+                .fetch_optional(pool)
+                .await?
+            }
+            None => {
+                sqlx::query(
+                    "SELECT * FROM snapshot_meta
+                     WHERE network = ? ORDER BY slot DESC LIMIT 1",
+                )
+                .bind(network)
+                .fetch_optional(pool)
+                .await?
+            }
+        };
+
+        row_opt.map(Self::from_row).transpose()
+    }
+
+    fn from_row(row: sqlx::sqlite::SqliteRow) -> Result<SnapshotMetaRecord> {
+        Ok(SnapshotMetaRecord {
+            network: row.get("network"),
+            slot: row.get::<i64, _>("slot") as u64,
+            merkle_root: row.get("merkle_root"),
+            snapshot_hash: row.get("snapshot_hash"),
+            created_at: row.get("created_at"),
+            // Checked, mirroring the write side. A negative value cannot
+            // be written, but `as u64` would turn one into an enormous
+            // quorum denominator, silently reporting participation as ~0%.
+            total_active_stake: row
+                .get::<Option<i64>, _>("total_active_stake")
+                .map(u64::try_from)
+                .transpose()?,
+        })
     }
 
     /// Get the latest slot for a network

@@ -105,6 +105,25 @@ async fn e2e_binary_endpoints() -> anyhow::Result<()> {
     });
     assert_eq!(meta, expected_meta);
 
+    let meta_by_slot: serde_json::Value = client
+        .get(format!("{}/meta?network=testnet&slot={}", base_url, slot))
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    assert_eq!(meta_by_slot, expected_meta);
+
+    let missing_slot = client
+        .get(format!(
+            "{}/meta?network=testnet&slot={}",
+            base_url,
+            slot + 1
+        ))
+        .send()
+        .await?;
+    assert_eq!(missing_slot.status(), StatusCode::NOT_FOUND);
+
     // Test GET /voter
     let voter: serde_json::Value = client
         .get(format!(

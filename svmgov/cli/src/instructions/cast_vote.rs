@@ -3,12 +3,15 @@ use std::str::FromStr;
 use anchor_client::solana_sdk::{pubkey::Pubkey, signer::Signer, transaction::Transaction};
 use anchor_lang::system_program;
 use anyhow::{Result, anyhow};
-use ncn_snapshot::{ID as SNAPSHOT_PROGRAM_ID, MetaMerkleLeaf, MetaMerkleProof};
 use log::info;
+use ncn_snapshot::{ID as SNAPSHOT_PROGRAM_ID, MetaMerkleLeaf, MetaMerkleProof};
 
 use crate::{
     constants::*,
-    svmgov_program::{accounts::Proposal, client::{accounts, args}},
+    svmgov_program::{
+        accounts::Proposal,
+        client::{accounts, args},
+    },
     utils::{
         api_helpers::{self, convert_merkle_proof_strings, get_vote_account_proof},
         utils::{
@@ -59,7 +62,8 @@ pub async fn cast_vote(
     // Generate meta_merkle_proof_pda using the consensus_result from proposal
     let vote_account_pubkey = Pubkey::from_str(&proof_response.meta_merkle_leaf.vote_account)
         .map_err(|e| anyhow!("Invalid vote_account pubkey in response: {}", e))?;
-    let meta_merkle_proof_pda = api_helpers::generate_meta_merkle_proof_pda(&consensus_result_pda, &vote_account_pubkey)?;
+    let meta_merkle_proof_pda =
+        api_helpers::generate_meta_merkle_proof_pda(&consensus_result_pda, &vote_account_pubkey)?;
 
     let vote_pda = derive_vote_pda(&proposal_pubkey, &vote_account, &program.id());
     let vote_override_cache_pda =
@@ -101,7 +105,10 @@ pub async fn cast_vote(
             Some(ts) => ts,
             None => compute_vote_expiry_timestamp(&program, proposal.end_epoch).await?,
         };
-        info!("Setting MetaMerkleProof close_timestamp to {}", close_timestamp);
+        info!(
+            "Setting MetaMerkleProof close_timestamp to {}",
+            close_timestamp
+        );
 
         let init_meta_merkle_proof_ix = merkle_proof_program
             .request()
@@ -176,10 +183,7 @@ pub async fn cast_vote(
         .rpc()
         .send_and_confirm_transaction(&transaction)
         .await?;
-    log::debug!(
-        "Cast vote transaction sent successfully: signature={}",
-        sig
-    );
+    log::debug!("Cast vote transaction sent successfully: signature={}", sig);
 
     spinner.finish_with_message(format!(
         "Vote cast successfully. https://explorer.solana.com/tx/{}",
