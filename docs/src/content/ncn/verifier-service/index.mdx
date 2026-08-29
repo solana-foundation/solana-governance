@@ -35,7 +35,7 @@ Rather than computing these from the raw snapshot file, clients query the verifi
 | Variable | Default | Required | Description |
 |---|---|---|---|
 | `OPERATOR_PUBKEY` | — | **Yes** | Base58 operator public key for upload authentication |
-| `METRICS_AUTH_TOKEN` | — | **Yes** | Bearer token for the `/admin/stats` endpoint |
+| `METRICS_AUTH_TOKEN` | — | **Yes** | Token for the `/admin/stats` endpoint, sent as the raw value of an `X-Metrics-Token` header (not `Authorization: Bearer`) |
 | `DB_PATH` | `/data/governance.db` | No | SQLite database path (`:memory:` for tests) |
 | `PORT` | `3000` | No | HTTP listen port |
 | `SQLITE_MAX_CONNECTIONS` | `4` (file) / `1` (memory) | No | Connection pool size |
@@ -115,7 +115,7 @@ Persistent data stays mounted under `/srv/verifier/data`, so upgrades should not
 
 Upload and index a snapshot. Only the whitelisted operator (identified by `OPERATOR_PUBKEY`) can upload.
 
-**Authentication:** Ed25519 signature over `slot.to_le_bytes() ‖ merkle_root_bs58_string.as_bytes()`
+**Authentication:** Ed25519 signature over `slot.to_le_bytes() ‖ network.as_bytes() ‖ merkle_root_bs58_string.as_bytes() ‖ snapshot_hash_bs58_string.as_bytes()`
 
 **Request:** `multipart/form-data`
 
@@ -124,6 +124,7 @@ Upload and index a snapshot. Only the whitelisted operator (identified by `OPERA
 | `slot` | string | Snapshot slot number |
 | `network` | string | Network identifier (e.g., `mainnet`, `testnet`) |
 | `merkle_root` | string | Base58-encoded Merkle root |
+| `snapshot_hash` | string | Base58-encoded snapshot content hash. Must appear before the `file` part — the server verifies the signature before reading the file, then recomputes this hash and compares. |
 | `signature` | string | Base58-encoded Ed25519 signature |
 | `file` | binary | The snapshot `.zip` file |
 
