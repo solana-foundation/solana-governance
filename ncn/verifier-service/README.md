@@ -336,6 +336,8 @@ rejects a snapshot with 413 before the service sees it:
 location /upload {
     client_max_body_size 128m;  # >= UPLOAD_BODY_LIMIT (default 100 MB)
     proxy_read_timeout 600s;
-    proxy_pass http://127.0.0.1:3000;
+    # The host port the container publishes (PORT_HOST in setup.sh), which is
+    # not the container's own 3000.
+    proxy_pass http://127.0.0.1:<PORT_HOST>;
 }
 ```
