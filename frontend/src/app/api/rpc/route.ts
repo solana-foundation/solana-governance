@@ -1,6 +1,6 @@
 import { cacheLife, cacheTag, revalidateTag } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
-import { getRpcUrlForEndpoint, type RpcEnvSource } from "@/lib/getRpcUrls";
+import { getRpcUrlForNetwork, type RpcEnvSource } from "@/lib/getRpcUrls";
 import {
   getRpcCachePolicy,
   isRpcCluster,
@@ -84,7 +84,7 @@ async function callUpstream(
   method: AllowedRpcMethod,
   params: JsonValue[],
 ): Promise<JsonValue> {
-  const rpcUrl = getRpcUrlForEndpoint(cluster, process.env as RpcEnvSource);
+  const rpcUrl = getRpcUrlForNetwork(cluster, process.env as RpcEnvSource);
   const response = await fetch(rpcUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

@@ -30,13 +30,13 @@ export function getRpcUrls(
 /**
  * Resolves the server-side upstream RPC URL for a supported cluster.
  */
-export function getRpcUrlForEndpoint(
-  endpoint: RpcNetwork,
+export function getRpcUrlForNetwork(
+  network: RpcNetwork,
   envSource?: RpcEnvSource,
 ): string {
   const urls = getRpcUrls(
     envSource ??
       (typeof process !== "undefined" ? (process.env as RpcEnvSource) : {}),
   );
-  return urls[endpoint];
+  return urls[network];
 }

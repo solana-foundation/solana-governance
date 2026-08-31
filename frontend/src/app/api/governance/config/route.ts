@@ -2,7 +2,7 @@ import { cacheLife, cacheTag } from "next/cache";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { fetchGovernanceConfigFromChain } from "@/lib/getGovernanceConfig";
-import { getRpcUrlForEndpoint, type RpcEnvSource } from "@/lib/getRpcUrls";
+import { getRpcUrlForNetwork, type RpcEnvSource } from "@/lib/getRpcUrls";
 import type { RpcNetwork } from "@/types";
 
 const REVALIDATE_SECONDS = 3600; // 1 hour
@@ -17,20 +17,20 @@ async function getCachedGovernanceConfig(network: RpcNetwork) {
   "use cache: remote";
   cacheTag("governance-config", network);
   cacheLife({ revalidate: REVALIDATE_SECONDS });
-  const rpcUrl = getRpcUrlForEndpoint(network, process.env as RpcEnvSource);
+  const rpcUrl = getRpcUrlForNetwork(network, process.env as RpcEnvSource);
   return fetchGovernanceConfigFromChain(rpcUrl);
 }
 
 /**
- * GET /api/governance/config?endpoint=mainnet|testnet|devnet
+ * GET /api/governance/config?network=mainnet|testnet|devnet
  * Returns the on-chain governance config (cached server-side). RPC URLs come from
- * server-only environment variables via `getRpcUrlForEndpoint`.
+ * server-only environment variables via `getRpcUrlForNetwork`.
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const parsed = governanceConfigQuerySchema.safeParse({
-      endpoint: searchParams.get("network") ?? "mainnet",
+      network: searchParams.get("network") ?? "mainnet",
     });
 
     if (!parsed.success) {
