@@ -110,8 +110,9 @@ Example public DNS: `ec2-18-221-54-191.us-east-2.compute.amazonaws.com`
 - Decide TLS mode (Full Strict recommended) and set up origin TLS (Nginx/ALB) if using HTTPS
 
 Cloudflare's origin timeout is 100 seconds and is not configurable below Enterprise, so a
-proxied snapshot upload returns 504. Upload over `localhost` from this host instead; see
-[Usage Notes](./README.md#usage-notes) for why, and for the remote-upload alternative.
+proxied snapshot upload returns 504. Upload from this host against the port the container
+publishes instead; see [Usage Notes](./README.md#usage-notes) for why, and for the
+remote-upload alternative.
 
 **In-app rate-limit keying.** The verifier keys its rate-limit buckets on the real client IP
 (`CF-Connecting-IP` / `X-Forwarded-For`), but only honors those headers when the connecting peer is
