@@ -21,7 +21,7 @@ The 40 GB minimum matches the AWS gp3 sizing in step 1; provision more headroom 
 
 ### Non-AWS Deployment Notes
 
-- **SSL/TLS:** If not using Cloudflare or AWS ALB, configure a reverse proxy (nginx or caddy) with [Let's Encrypt](https://letsencrypt.org/) for HTTPS termination
+- **SSL/TLS:** If not using Cloudflare or AWS ALB, configure a reverse proxy (nginx or caddy) with [Let's Encrypt](https://letsencrypt.org/) for HTTPS termination. Raise the proxy's body limit and read timeout for `/upload` — nginx defaults to `client_max_body_size 1m` and rejects a snapshot with 413 before the service sees it. See [Usage Notes](./README.md#usage-notes)
 - **DNS:** Point your verifier domain to your server's public IP via an A record
 - **Firewall:** Open ports 80 (HTTP, required for Let's Encrypt HTTP-01 challenge and HTTP→HTTPS redirects) and 443 (HTTPS) and any custom ports for the verifier API. Restrict SSH (port 22) to known IPs
 - **Process management:** The recommended Docker deployment (`setup.sh`) already uses `--restart unless-stopped`, so Docker handles crash and reboot recovery. A systemd unit is only needed if you run the binary natively
@@ -108,6 +108,10 @@ Example public DNS: `ec2-18-221-54-191.us-east-2.compute.amazonaws.com`
 - Configure Cloudflare rate limiting rules for your paths (e.g., /upload, /proof/\*)
 - Optional: restrict EC2 Security Group 80/443 to Cloudflare IP ranges to block direct-to-origin
 - Decide TLS mode (Full Strict recommended) and set up origin TLS (Nginx/ALB) if using HTTPS
+
+Cloudflare's origin timeout is 100 seconds and is not configurable below Enterprise, so a
+proxied snapshot upload returns 504. Upload over `localhost` from this host instead; see
+[Usage Notes](./README.md#usage-notes) for why, and for the remote-upload alternative.
 
 **In-app rate-limit keying.** The verifier keys its rate-limit buckets on the real client IP
 (`CF-Connecting-IP` / `X-Forwarded-For`), but only honors those headers when the connecting peer is

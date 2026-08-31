@@ -296,4 +296,41 @@ curl -i http://localhost:3000/version
 
 ## Usage Notes
 
-- If verifier service is used with CloudFlare proxy, there may be a origin timeout limit of 100s that will result in 504 errors for long running /upload requests. If modification on CloudFlare is not possible, it is recommended to bypass the proxy and use the public IP address of the instance.
+### Uploading through a proxy
+
+`/upload` does its work inside the request: it decompresses the snapshot, rebuilds a
+stake merkle tree per validator, reconstructs the meta merkle tree, and indexes every
+vote and stake account. That time scales with the number of accounts in the snapshot,
+not with how fast the bytes arrive — on a testnet snapshot with 28k stake accounts,
+receiving the file is under 1% of the request, and indexing is the rest. A mainnet
+snapshot takes considerably longer.
+
+Cloudflare's origin timeout is **100 seconds** and is not configurable below the
+Enterprise plan, so a large upload proxied through it returns 504. Chunking the upload
+does not help: the transfer is not what takes the time.
+
+**Upload from the verifier host over `localhost`**, as the `curl` example above does.
+Copy the snapshot to the host first (`scp`) if it was generated elsewhere. This is the
+supported path — it never crosses the proxy, so no timeout applies, and it leaves
+Cloudflare in front of every endpoint that is actually exposed.
+
+If you must upload from another machine, publish a **separate hostname with the
+Cloudflare proxy disabled** (grey cloud) and restrict it to your operator IPs at the
+firewall. Do not disable the proxy on the hostname serving `/proof/*` and `/meta`:
+those are the public read paths, and the service's rate limiting depends on
+`CF-Connecting-IP` from a trusted proxy (see `TRUSTED_PROXY_CIDRS` in
+[DEPLOYMENT.md](./DEPLOYMENT.md)). Exposing the origin directly gives that up.
+
+### Reverse proxy body size
+
+If you terminate TLS with your own nginx rather than Cloudflare or an ALB, raise the
+body limit and read timeout — nginx defaults to `client_max_body_size 1m`, which
+rejects a snapshot with 413 before the service sees it:
+
+```nginx
+location /upload {
+    client_max_body_size 128m;  # >= UPLOAD_BODY_LIMIT (default 100 MB)
+    proxy_read_timeout 600s;
+    proxy_pass http://127.0.0.1:3000;
+}
+```
