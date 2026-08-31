@@ -16,16 +16,11 @@ export function useEpochToDate(epoch: number | undefined) {
   const { data: epochData, isLoading: isLoadingEpochInfo } = useEpochInfo();
 
   return useQuery({
-    // Keyed on the current epoch, not the current slot. `absoluteSlot` advances
-    // constantly, so keying on it made every refresh a new cache entry rather
-    // than a refetch: `staleTime` never applied, remounts always re-fetched, and
-    // superseded entries piled up until garbage collection.
-    //
-    // The projection still has to be redone periodically — that is what
-    // `refetchInterval` is for, and it recomputes in place. Including the epoch
-    // covers the one input change the interval should not wait for: once the
-    // target epoch is no longer in the future, `epochToDate` switches from
-    // projecting to reading the epoch's actual block time.
+    // The epoch, not `absoluteSlot`: a key that moves every refresh makes each
+    // one a new cache entry rather than a refetch, so `staleTime` never applies.
+    // The epoch still belongs here because `epochToDate` switches from
+    // projecting to reading actual block time once the target is no longer
+    // ahead, which should not wait for the interval below.
     queryKey: ["epochToDate", epoch, endpointUrl, epochData?.epochInfo.epoch],
     queryFn: async () => {
       if (epoch === undefined || !epochData) return null;
@@ -37,9 +32,8 @@ export function useEpochToDate(epoch: number | undefined) {
       );
     },
     enabled: epoch !== undefined && !isLoadingEpochInfo && !!epochData,
-    // Matches the cadence the slot-keyed version refreshed at in practice, since
-    // it re-ran whenever useEpochInfo refetched. Each run re-reads the recent
-    // slot rate, which is what keeps a multi-day countdown from drifting.
+    // Refetching in place keeps the cadence the slot-keyed version reached by
+    // accident, without minting an entry each time.
     staleTime: EPOCH_TO_DATE_REFRESH_MS,
     refetchInterval: EPOCH_TO_DATE_REFRESH_MS,
     refetchOnWindowFocus: false,
