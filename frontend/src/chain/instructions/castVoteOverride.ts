@@ -161,6 +161,7 @@ export async function castVoteOverride(
     initTransaction.add(initMerkleInstruction);
     initTransaction.feePayer = signer;
     initTransaction.recentBlockhash = initBlockhash.blockhash;
+    initTransaction.lastValidBlockHeight = initBlockhash.lastValidBlockHeight;
 
     const signedInitTransaction = await signTransactionForWallet(
       wallet,
@@ -174,7 +175,8 @@ export async function castVoteOverride(
       );
     const initConfirmation = await confirmTransactionByPolling(
       program.provider.connection,
-      initSignature
+      initSignature,
+      initBlockhash.lastValidBlockHeight
     );
 
     if (initConfirmation.value.err) {

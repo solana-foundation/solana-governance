@@ -3,6 +3,7 @@ import {
   Connection,
   Keypair,
   Transaction,
+  TransactionExpiredBlockheightExceededError,
   type SignatureResult,
 } from "@solana/web3.js";
 import { AnchorProvider, Program, BN } from "@coral-xyz/anchor";
@@ -26,22 +27,21 @@ export class WalletSigningError extends Error {
 }
 
 const CONFIRMATION_POLL_INTERVAL_MS = 1_000;
-const CONFIRMATION_TIMEOUT_MS = 60_000;
 
 /**
  * Confirms a recently submitted transaction using HTTP JSON-RPC polling.
  *
  * web3.js `confirmTransaction` opens a WebSocket connection derived from the
  * HTTP endpoint. The app's RPC proxy intentionally exposes only HTTP, so poll
- * `getSignatureStatuses` instead.
+ * `getSignatureStatuses` instead. A transaction remains confirmable until its
+ * blockhash expires, which is determined by `lastValidBlockHeight`.
  */
 export async function confirmTransactionByPolling(
   connection: Connection,
   signature: string,
+  lastValidBlockHeight: number,
 ): Promise<{ value: SignatureResult }> {
-  const deadline = Date.now() + CONFIRMATION_TIMEOUT_MS;
-
-  while (Date.now() < deadline) {
+  while (true) {
     const response = await connection.getSignatureStatuses([signature]);
     const status = response.value[0];
     if (status) {
@@ -55,12 +55,15 @@ export async function confirmTransactionByPolling(
       }
     }
 
+    const currentBlockHeight = await connection.getBlockHeight("confirmed");
+    if (currentBlockHeight > lastValidBlockHeight) {
+      throw new TransactionExpiredBlockheightExceededError(signature);
+    }
+
     await new Promise((resolve) =>
       setTimeout(resolve, CONFIRMATION_POLL_INTERVAL_MS),
     );
   }
-
-  throw new Error(`Timed out confirming transaction ${signature}`);
 }
 
 /**

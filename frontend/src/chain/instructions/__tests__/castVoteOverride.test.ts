@@ -354,6 +354,7 @@ describe("castVoteOverride", () => {
     expect(mockConfirmTransactionByPolling).toHaveBeenCalledWith(
       expect.any(Object),
       "init-signature",
+      123,
     );
     expect(
       mockConfirmTransactionByPolling.mock.invocationCallOrder[0],

@@ -38,9 +38,11 @@ export async function finalizeProposal(
 
     const transaction = new Transaction().add(finalizeInstruction);
     transaction.feePayer = signer;
-    transaction.recentBlockhash = (
-      await program.provider.connection.getLatestBlockhash("confirmed")
-    ).blockhash;
+    const latestBlockhash = await program.provider.connection.getLatestBlockhash(
+      "confirmed",
+    );
+    transaction.recentBlockhash = latestBlockhash.blockhash;
+    transaction.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
 
     const signedTransaction = await signTransactionForWallet(
       wallet,
@@ -54,6 +56,7 @@ export async function finalizeProposal(
     const confirmation = await confirmTransactionByPolling(
       program.provider.connection,
       signature,
+      latestBlockhash.lastValidBlockHeight,
     );
     if (confirmation.value.err) {
       throw new Error(

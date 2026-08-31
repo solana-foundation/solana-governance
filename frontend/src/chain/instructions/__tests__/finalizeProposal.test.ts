@@ -100,6 +100,7 @@ describe("finalizeProposal", () => {
         sendRawTransaction: mockSendRawTransaction,
       }),
       "finalize-signature",
+      123,
     );
   });
 

@@ -7,7 +7,10 @@ jest.mock("@/contexts/EndpointContext", () => ({
 }));
 
 import { BN } from "@coral-xyz/anchor";
-import { PublicKey } from "@solana/web3.js";
+import {
+  PublicKey,
+  TransactionExpiredBlockheightExceededError,
+} from "@solana/web3.js";
 
 import {
   assertOverrideProofLineage,
@@ -36,7 +39,7 @@ describe("confirmTransactionByPolling", () => {
     const connection = { getSignatureStatuses } as unknown as Connection;
 
     await expect(
-      confirmTransactionByPolling(connection, "signature"),
+      confirmTransactionByPolling(connection, "signature", 123),
     ).resolves.toEqual({ value: { err: null } });
     expect(getSignatureStatuses).toHaveBeenCalledWith(["signature"]);
   });
@@ -50,8 +53,22 @@ describe("confirmTransactionByPolling", () => {
     } as unknown as Connection;
 
     await expect(
-      confirmTransactionByPolling(connection, "signature"),
+      confirmTransactionByPolling(connection, "signature", 123),
     ).resolves.toEqual({ value: { err } });
+  });
+
+  it("stops polling only after the transaction's blockhash expires", async () => {
+    const getSignatureStatuses = jest.fn().mockResolvedValue({ value: [null] });
+    const getBlockHeight = jest.fn().mockResolvedValue(124);
+    const connection = {
+      getSignatureStatuses,
+      getBlockHeight,
+    } as unknown as Connection;
+
+    await expect(
+      confirmTransactionByPolling(connection, "signature", 123),
+    ).rejects.toBeInstanceOf(TransactionExpiredBlockheightExceededError);
+    expect(getBlockHeight).toHaveBeenCalledWith("confirmed");
   });
 });
 
