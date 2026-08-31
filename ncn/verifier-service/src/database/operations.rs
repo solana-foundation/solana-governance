@@ -7,6 +7,7 @@ use tracing::debug;
 use tracing::info;
 
 use super::models::*;
+use super::sql::{SNAPSHOT_META_COLUMNS, STAKE_ACCOUNT_COLUMNS, VOTE_ACCOUNT_COLUMNS};
 
 /// Database operations for vote accounts
 impl VoteAccountRecord {
@@ -91,10 +92,10 @@ impl VoteAccountRecord {
         vote_account: &str,
         snapshot_slot: u64,
     ) -> Result<Option<VoteAccountRecord>> {
-        let row_opt = sqlx::query(
-            "SELECT * FROM vote_accounts \
-                   WHERE network = ? AND vote_account = ? AND snapshot_slot = ?",
-        )
+        let row_opt = sqlx::query(&format!(
+            "SELECT {VOTE_ACCOUNT_COLUMNS} FROM vote_accounts \
+             WHERE network = ? AND vote_account = ? AND snapshot_slot = ?"
+        ))
         .bind(network)
         .bind(vote_account)
         .bind(i64::try_from(snapshot_slot)?)
@@ -203,10 +204,10 @@ impl StakeAccountRecord {
         stake_account: &str,
         snapshot_slot: u64,
     ) -> Result<Option<StakeAccountRecord>> {
-        let row_opt = sqlx::query(
-            "SELECT * FROM stake_accounts \
-                   WHERE network = ? AND stake_account = ? AND snapshot_slot = ?",
-        )
+        let row_opt = sqlx::query(&format!(
+            "SELECT {STAKE_ACCOUNT_COLUMNS} FROM stake_accounts \
+             WHERE network = ? AND stake_account = ? AND snapshot_slot = ?"
+        ))
         .bind(network)
         .bind(stake_account)
         .bind(i64::try_from(snapshot_slot)?)
@@ -269,10 +270,10 @@ impl SnapshotMetaRecord {
         pool: &SqlitePool,
         network: &str,
     ) -> Result<Option<SnapshotMetaRecord>> {
-        let row_opt = sqlx::query(
-            "SELECT * FROM snapshot_meta
-             WHERE network = ? ORDER BY slot DESC LIMIT 1",
-        )
+        let row_opt = sqlx::query(&format!(
+            "SELECT {SNAPSHOT_META_COLUMNS} FROM snapshot_meta \
+             WHERE network = ? ORDER BY slot DESC LIMIT 1"
+        ))
         .bind(network)
         .fetch_optional(pool)
         .await?;
