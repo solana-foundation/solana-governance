@@ -48,7 +48,9 @@ const VoteBreakdown = ({
 
   // The proposal's own snapshot total, not a live cluster sum: Art. IV.2 fixes
   // the distribution for the voting period, so a live total drifts.
-  const { data: meta, isLoading: isLoadingMeta } = useSnapshotMeta();
+  const { data: meta, isLoading: isLoadingMeta } = useSnapshotMeta(
+    proposal?.snapshotSlot,
+  );
   const totalActiveStake = resolveQuorumDenominator(
     meta,
     proposal?.snapshotSlot,

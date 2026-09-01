@@ -9,26 +9,23 @@ import { SortableHeaderButton } from "@/components/SortableHeaderButton";
 import { ProposalRefLabel } from "@/components/proposals/ProposalRefLabel";
 import { ProposalRecord } from "@/types";
 import type { NetworkMetaResponse } from "@/chain";
-import {
-  computeProposalVoteStats,
-  resolveQuorumDenominator,
-} from "@/chain";
+import { computeProposalVoteStats, resolveQuorumDenominator } from "@/chain";
 
 interface ProposalColumnsOptions {
-  snapshotMeta: NetworkMetaResponse | undefined;
+  snapshotMetasBySlot: Map<number, NetworkMetaResponse>;
   isLoadingSnapshotMeta: boolean;
 }
 
 function getVoteStats(
   proposal: ProposalRecord,
-  snapshotMeta: NetworkMetaResponse | undefined,
+  snapshotMetasBySlot: Map<number, NetworkMetaResponse>,
 ) {
   return computeProposalVoteStats({
     forLamports: proposal.forVotesLamports,
     againstLamports: proposal.againstVotesLamports,
     abstainLamports: proposal.abstainVotesLamports,
     totalActiveStake: resolveQuorumDenominator(
-      snapshotMeta,
+      snapshotMetasBySlot.get(proposal.snapshotSlot),
       proposal.snapshotSlot,
     ),
   });
@@ -36,22 +33,20 @@ function getVoteStats(
 
 function VoteStatsLoadingCell({ width }: { width: string }) {
   return (
-    <div
-      className={`mx-auto h-4 animate-pulse rounded bg-white/10 ${width}`}
-    />
+    <div className={`mx-auto h-4 animate-pulse rounded bg-white/10 ${width}`} />
   );
 }
 
 function ParticipationCell({
   proposal,
-  snapshotMeta,
+  snapshotMetasBySlot,
   isLoadingSnapshotMeta,
 }: ProposalColumnsOptions & { proposal: ProposalRecord }) {
   if (isLoadingSnapshotMeta) {
     return <VoteStatsLoadingCell width="w-16" />;
   }
 
-  const stats = getVoteStats(proposal, snapshotMeta);
+  const stats = getVoteStats(proposal, snapshotMetasBySlot);
   const { quorum } = stats;
 
   if (!quorum.known) {
@@ -102,11 +97,11 @@ const VOTE_SEGMENTS = [
 
 function VoteBreakdownCell({
   proposal,
-  snapshotMeta,
-}: Pick<ProposalColumnsOptions, "snapshotMeta"> & {
+  snapshotMetasBySlot,
+}: Pick<ProposalColumnsOptions, "snapshotMetasBySlot"> & {
   proposal: ProposalRecord;
 }) {
-  const stats = getVoteStats(proposal, snapshotMeta);
+  const stats = getVoteStats(proposal, snapshotMetasBySlot);
   const { voteShare } = stats;
 
   if (!voteShare.known) {
@@ -165,7 +160,7 @@ function VoteBreakdownCell({
 // }
 
 export function getProposalColumns({
-  snapshotMeta,
+  snapshotMetasBySlot,
   isLoadingSnapshotMeta,
 }: ProposalColumnsOptions): ColumnDef<ProposalRecord>[] {
   return [
@@ -219,10 +214,8 @@ export function getProposalColumns({
     {
       id: "participation",
       accessorFn: (row) => {
-        const stats = getVoteStats(row, snapshotMeta);
-        return stats.quorum.known
-          ? stats.quorum.participationPercent
-          : null;
+        const stats = getVoteStats(row, snapshotMetasBySlot);
+        return stats.quorum.known ? stats.quorum.participationPercent : null;
       },
       header: ({ column }) => (
         <SortableHeaderButton column={column} label="Participation" />
@@ -230,7 +223,7 @@ export function getProposalColumns({
       cell: ({ row }) => (
         <ParticipationCell
           proposal={row.original}
-          snapshotMeta={snapshotMeta}
+          snapshotMetasBySlot={snapshotMetasBySlot}
           isLoadingSnapshotMeta={isLoadingSnapshotMeta}
         />
       ),
@@ -241,7 +234,7 @@ export function getProposalColumns({
       cell: ({ row }) => (
         <VoteBreakdownCell
           proposal={row.original}
-          snapshotMeta={snapshotMeta}
+          snapshotMetasBySlot={snapshotMetasBySlot}
         />
       ),
     },

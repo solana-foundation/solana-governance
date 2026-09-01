@@ -1,5 +1,5 @@
 mod common;
-use common::setup_server;
+use common::{setup_server, setup_server_with_env};
 
 use anchor_lang::solana_program::hash::Hash;
 use ncn_snapshot::merkle_helper::verify_helper;
@@ -39,7 +39,11 @@ fn decode_proof_strings(proof: &[String]) -> Vec<[u8; 32]> {
 #[serial_test::serial]
 async fn e2e_binary_endpoints() -> anyhow::Result<()> {
     let keypair = Keypair::new();
-    let (base_url, _guard) = setup_server(&keypair).await?;
+    // This test walks every endpoint, so the default global burst of 10 would
+    // start returning 429 partway through and mask the status each request is
+    // actually asserting. Rate limiting itself is covered in rate_limit.rs.
+    let (base_url, _guard) =
+        setup_server_with_env(&keypair, &[("GLOBAL_RATE_BURST", "100")]).await?;
 
     // Load and parse the snapshot that will be uploaded
     let snapshot_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -104,6 +108,27 @@ async fn e2e_binary_endpoints() -> anyhow::Result<()> {
         "total_active_stake": expected_total_active_stake,
     });
     assert_eq!(meta, expected_meta);
+
+    // A proposal votes against the snapshot frozen at its activation, so quorum
+    // for it has to be readable by slot once newer snapshots exist.
+    let meta_by_slot: serde_json::Value = client
+        .get(format!("{}/meta?network=testnet&slot={}", base_url, slot))
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    assert_eq!(meta_by_slot, expected_meta);
+
+    let missing_slot = client
+        .get(format!(
+            "{}/meta?network=testnet&slot={}",
+            base_url,
+            slot + 1
+        ))
+        .send()
+        .await?;
+    assert_eq!(missing_slot.status(), StatusCode::NOT_FOUND);
 
     // Test GET /voter
     let voter: serde_json::Value = client
