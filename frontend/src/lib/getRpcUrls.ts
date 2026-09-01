@@ -9,9 +9,9 @@ export const DEFAULT_RPC_URLS: Record<RpcNetwork, string> = {
 };
 
 export interface RpcEnvSource {
-  SOLANA_RPC_MAINNET?: string;
-  SOLANA_RPC_TESTNET?: string;
-  SOLANA_RPC_DEVNET?: string;
+  SOLANA_RPC_URL_MAINNET?: string;
+  SOLANA_RPC_URL_TESTNET?: string;
+  SOLANA_RPC_URL_DEVNET?: string;
 }
 
 /**
@@ -21,9 +21,9 @@ export function getRpcUrls(
   envSource: RpcEnvSource = {},
 ): Record<RpcNetwork, string> {
   return {
-    mainnet: envSource.SOLANA_RPC_MAINNET ?? DEFAULT_RPC_URLS.mainnet,
-    testnet: envSource.SOLANA_RPC_TESTNET ?? DEFAULT_RPC_URLS.testnet,
-    devnet: envSource.SOLANA_RPC_DEVNET ?? DEFAULT_RPC_URLS.devnet,
+    mainnet: envSource.SOLANA_RPC_URL_MAINNET ?? DEFAULT_RPC_URLS.mainnet,
+    testnet: envSource.SOLANA_RPC_URL_TESTNET ?? DEFAULT_RPC_URLS.testnet,
+    devnet: envSource.SOLANA_RPC_URL_DEVNET ?? DEFAULT_RPC_URLS.devnet,
   };
 }
 

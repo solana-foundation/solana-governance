@@ -29,11 +29,11 @@ function rpcRequest(
 describe("POST /api/rpc", () => {
   beforeEach(() => {
     jest.restoreAllMocks();
-    process.env.SOLANA_RPC_MAINNET = UPSTREAM_URL;
+    process.env.SOLANA_RPC_URL_MAINNET = UPSTREAM_URL;
   });
 
   afterAll(() => {
-    delete process.env.SOLANA_RPC_MAINNET;
+    delete process.env.SOLANA_RPC_URL_MAINNET;
   });
 
   it("forwards an allowed request without exposing the upstream URL", async () => {

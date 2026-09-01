@@ -198,7 +198,7 @@ by full path, or `cargo run --release --bin ncn-cli --` for ncn.
 
 **Frontend** (`frontend/`, Next.js):
 
-- [ ] Set `NEXT_PUBLIC_SOLANA_RPC_MAINNET` (+ testnet/devnet) to production RPCs;
+- [ ] Set `SOLANA_RPC_URL_MAINNET` (+ testnet/devnet) to production RPCs;
       `NEXT_PUBLIC_SENTRY_DSN` / `SENTRY_AUTH_TOKEN` if using Sentry.
 - [ ] Frontend NCN API defaults to `https://ncn-governance.solana.com`.
 - [ ] Confirm IDL in `frontend/src/chain/idl/` is the freshly-built one (Phase 1) and program
