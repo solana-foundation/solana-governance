@@ -130,6 +130,39 @@ async fn e2e_binary_endpoints() -> anyhow::Result<()> {
         .await?;
     assert_eq!(missing_slot.status(), StatusCode::NOT_FOUND);
 
+    // A page listing proposals asks for every snapshot it needs in one request.
+    // Unknown slots are simply absent, so a pruned snapshot does not fail the
+    // whole batch.
+    let metas: serde_json::Value = client
+        .get(format!(
+            "{}/metas?network=testnet&slots={},{}",
+            base_url,
+            slot,
+            slot + 1
+        ))
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    assert_eq!(metas, serde_json::json!([expected_meta]));
+
+    let too_many = client
+        .get(format!(
+            "{}/metas?network=testnet&slots={}",
+            base_url,
+            vec!["1"; 101].join(",")
+        ))
+        .send()
+        .await?;
+    assert_eq!(too_many.status(), StatusCode::BAD_REQUEST);
+
+    let malformed = client
+        .get(format!("{}/metas?network=testnet&slots=abc", base_url))
+        .send()
+        .await?;
+    assert_eq!(malformed.status(), StatusCode::BAD_REQUEST);
+
     // Test GET /voter
     let voter: serde_json::Value = client
         .get(format!(

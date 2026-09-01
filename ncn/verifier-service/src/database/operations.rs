@@ -324,6 +324,38 @@ impl SnapshotMetaRecord {
         row_opt.as_ref().map(Self::from_row).transpose()
     }
 
+    /// Get the metadata for several snapshots in one query.
+    ///
+    /// Slots that have no snapshot are absent from the result rather than being
+    /// an error, so a caller listing proposals gets whatever is retained
+    /// alongside the ones the cleanup job has already pruned.
+    pub async fn get_by_slots(
+        pool: &SqlitePool,
+        network: &str,
+        slots: &[u64],
+    ) -> Result<Vec<SnapshotMetaRecord>> {
+        if slots.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let placeholders = vec!["?"; slots.len()].join(", ");
+        let sql = format!(
+            "SELECT {SNAPSHOT_META_COLUMNS} FROM snapshot_meta \
+             WHERE network = ? AND slot IN ({placeholders}) ORDER BY slot"
+        );
+        let mut query = sqlx::query(&sql).bind(network);
+        for slot in slots {
+            query = query.bind(i64::try_from(*slot)?);
+        }
+
+        query
+            .fetch_all(pool)
+            .await?
+            .iter()
+            .map(Self::from_row)
+            .collect()
+    }
+
     /// Get the latest slot for a network
     pub async fn get_latest_slot(pool: &SqlitePool, network: &str) -> Result<Option<u64>> {
         let row_opt = sqlx::query(

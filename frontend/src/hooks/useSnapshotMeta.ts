@@ -2,13 +2,14 @@ import { NetworkMetaResponse } from "@/chain";
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { useNcnApi } from "@/contexts/NcnApiContext";
 import { fetchNcnJson } from "@/lib/ncnApi";
-import { queryOptions, useQueries, useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
-/** Shared so the table and a detail page reuse one cache entry per slot. */
+const SNAPSHOT_META_STALE_TIME_MS = 1000 * 120;
+
 function snapshotMetaQuery(ncnApiUrl: string, network: string, slot?: number) {
   return queryOptions({
-    staleTime: 1000 * 120, // 2 minutes
+    staleTime: SNAPSHOT_META_STALE_TIME_MS,
     queryKey: ["snapshot_meta", network, ncnApiUrl, slot],
     queryFn: ({ signal }) => {
       const url =
@@ -40,31 +41,18 @@ export const useSnapshotMeta = (slot?: number) => {
 };
 
 /**
- * Declared here rather than inline: `useQueries` caches the combined result
- * against this function's identity, so a new closure each render would rebuild
- * the map every time.
+ * Metadata for several snapshots, keyed by slot.
+ *
+ * One request rather than one per slot: a page listing proposals would
+ * otherwise open a connection per row and can exhaust the verifier's request
+ * burst before it has finished rendering.
  */
-function combineSnapshotMetas(
-  results: { data?: NetworkMetaResponse; isLoading: boolean }[],
-) {
-  const bySlot = new Map<number, NetworkMetaResponse>();
-  for (const { data } of results) {
-    // Keyed by the slot the response reports, so a verifier that does not
-    // support the parameter files its newest snapshot under its own slot rather
-    // than under the one that was asked for.
-    if (data) bySlot.set(data.slot, data);
-  }
-
-  return { bySlot, isLoading: results.some((result) => result.isLoading) };
-}
-
-/** Metadata for several snapshots, keyed by slot. */
 export const useSnapshotMetas = (slots: (number | undefined)[]) => {
   const { network } = useEndpoint();
   const { ncnApiUrl } = useNcnApi();
 
   // Sorted and de-duplicated so reordering the proposals does not change the
-  // query list.
+  // query key.
   const uniqueSlots = useMemo(
     () =>
       Array.from(
@@ -73,10 +61,24 @@ export const useSnapshotMetas = (slots: (number | undefined)[]) => {
     [slots],
   );
 
-  return useQueries({
-    queries: uniqueSlots.map((slot) =>
-      snapshotMetaQuery(ncnApiUrl, network, slot),
-    ),
-    combine: combineSnapshotMetas,
+  const { data, isLoading } = useQuery({
+    staleTime: SNAPSHOT_META_STALE_TIME_MS,
+    enabled: uniqueSlots.length > 0,
+    queryKey: ["snapshot_metas", network, ncnApiUrl, uniqueSlots],
+    queryFn: ({ signal }) =>
+      fetchNcnJson<NetworkMetaResponse[]>(
+        `${ncnApiUrl}/metas?network=${network}&slots=${uniqueSlots.join(",")}`,
+        { signal, label: "snapshot meta info", resource: "snapshot-meta" },
+      ),
   });
+
+  return useMemo(
+    () => ({
+      // Keyed by the slot each record reports, so a slot the verifier has
+      // pruned is simply absent rather than mapped to another snapshot.
+      bySlot: new Map((data ?? []).map((meta) => [meta.slot, meta])),
+      isLoading,
+    }),
+    [data, isLoading],
+  );
 };

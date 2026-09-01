@@ -21,7 +21,7 @@ use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
 use tracing::{debug, info, Level};
-use types::{NetworkQuery, VoterQuery};
+use types::{MetasQuery, NetworkQuery, VoterQuery};
 use upload::handle_upload;
 
 use crate::{
@@ -33,6 +33,8 @@ use crate::{
 const DEFAULT_BODY_LIMIT: usize = 100 * 1024 * 1024; // 100MB for uploads
 const DEFAULT_PORT: u16 = 3000; // override with PORT env var
 const DEFAULT_NETWORK: &str = "mainnet";
+/// Cap on `/metas?slots=`, so one request cannot ask for an unbounded `IN` list.
+const MAX_METAS_SLOTS: usize = 100;
 
 // Get the latest snapshot slot if not specified
 async fn get_snapshot_slot(
@@ -110,6 +112,7 @@ async fn main() -> anyhow::Result<()> {
             .route("/healthz", get(health_check))
             .route("/version", get(get_version))
             .route("/meta", get(get_meta))
+            .route("/metas", get(get_metas))
             .route("/voter/{voting_wallet}", get(get_voter_summary))
             .route("/proof/vote_account/{vote_account}", get(get_vote_proof))
             .route("/proof/stake_account/{stake_account}", get(get_stake_proof))
@@ -200,6 +203,45 @@ async fn get_meta(
             Err(StatusCode::NOT_FOUND)
         }
     }
+}
+
+/// Metadata for several snapshots at once.
+///
+/// A page listing proposals needs the snapshot each one was activated against.
+/// Requesting them individually would be one request per proposal, which a
+/// client can exhaust the rate limit with before the page has rendered.
+async fn get_metas(
+    State(pool): State<SqlitePool>,
+    Query(params): Query<MetasQuery>,
+) -> Result<Json<Vec<SnapshotMetaRecord>>, StatusCode> {
+    let network = params.network.as_deref().unwrap_or(DEFAULT_NETWORK);
+    validate_network(network)?;
+
+    let slots = params
+        .slots
+        .split(',')
+        .map(str::trim)
+        .filter(|slot| !slot.is_empty())
+        .map(str::parse::<u64>)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    if slots.len() > MAX_METAS_SLOTS {
+        info!(
+            "Rejected /metas asking for {} slots (max {})",
+            slots.len(),
+            MAX_METAS_SLOTS
+        );
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let records = db_operation(
+        || SnapshotMetaRecord::get_by_slots(&pool, network, &slots),
+        "Failed to get snapshot meta records",
+    )
+    .await?;
+
+    Ok(Json(records))
 }
 
 async fn get_voter_summary(

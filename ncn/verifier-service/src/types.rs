@@ -9,6 +9,14 @@ pub struct NetworkQuery {
     pub slot: Option<u64>,
 }
 
+/// Query for the batch metadata endpoint.
+#[derive(Debug, Deserialize)]
+pub struct MetasQuery {
+    pub network: Option<String>,
+    /// Comma-separated snapshot slots.
+    pub slots: String,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct VoterQuery {
     pub network: Option<String>,
