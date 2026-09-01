@@ -7,15 +7,19 @@ import { useMemo } from "react";
 
 const SNAPSHOT_META_STALE_TIME_MS = 1000 * 120;
 
-function snapshotMetaQuery(ncnApiUrl: string, network: string, slot?: number) {
+function snapshotMetaQuery(
+  ncnApiUrl: string,
+  network: string,
+  snapshotSlot?: number,
+) {
   return queryOptions({
     staleTime: SNAPSHOT_META_STALE_TIME_MS,
-    queryKey: ["snapshot_meta", network, ncnApiUrl, slot],
+    queryKey: ["snapshot_meta", network, ncnApiUrl, snapshotSlot],
     queryFn: ({ signal }) => {
       const url =
-        slot === undefined
+        snapshotSlot === undefined
           ? `${ncnApiUrl}/meta?network=${network}`
-          : `${ncnApiUrl}/meta?network=${network}&slot=${slot}`;
+          : `${ncnApiUrl}/meta?network=${network}&slot=${snapshotSlot}`;
 
       return fetchNcnJson<NetworkMetaResponse>(url, {
         signal,
@@ -27,17 +31,17 @@ function snapshotMetaQuery(ncnApiUrl: string, network: string, slot?: number) {
 }
 
 /**
- * Metadata for one snapshot; the newest when `slot` is omitted.
+ * Metadata for one snapshot; the newest when `snapshotSlot` is omitted.
  *
  * Anything measured against a proposal takes that proposal's `snapshotSlot`: it
  * votes against the snapshot frozen at activation, which stops being the newest
  * as soon as another is uploaded.
  */
-export const useSnapshotMeta = (slot?: number) => {
+export const useSnapshotMeta = (snapshotSlot?: number) => {
   const { network } = useEndpoint();
   const { ncnApiUrl } = useNcnApi();
 
-  return useQuery(snapshotMetaQuery(ncnApiUrl, network, slot));
+  return useQuery(snapshotMetaQuery(ncnApiUrl, network, snapshotSlot));
 };
 
 /** Kept at or below `MAX_METAS_SLOTS` in `ncn/verifier-service/src/main.rs`. */
@@ -46,14 +50,14 @@ const MAX_SLOTS_PER_REQUEST = 100;
 function snapshotMetasQuery(
   ncnApiUrl: string,
   network: string,
-  slots: number[],
+  snapshotSlots: number[],
 ) {
   return queryOptions({
     staleTime: SNAPSHOT_META_STALE_TIME_MS,
-    queryKey: ["snapshot_metas", network, ncnApiUrl, slots],
+    queryKey: ["snapshot_metas", network, ncnApiUrl, snapshotSlots],
     queryFn: ({ signal }) =>
       fetchNcnJson<NetworkMetaResponse[]>(
-        `${ncnApiUrl}/metas?network=${network}&slots=${slots.join(",")}`,
+        `${ncnApiUrl}/metas?network=${network}&slots=${snapshotSlots.join(",")}`,
         { signal, label: "snapshot meta info", resource: "snapshot-meta" },
       ),
   });
@@ -78,7 +82,7 @@ function combineSnapshotMetas(
 }
 
 /**
- * Metadata for several snapshots, keyed by slot.
+ * Metadata for several snapshots, keyed by snapshot slot.
  *
  * Batched rather than one request per slot, which on a page listing proposals
  * would open a connection per row and exhaust the verifier's request burst.
@@ -86,7 +90,7 @@ function combineSnapshotMetas(
  * so a long proposal history degrades to a few requests instead of a rejected
  * one that would leave every row without a denominator.
  */
-export const useSnapshotMetas = (slots: (number | undefined)[]) => {
+export const useSnapshotMetas = (snapshotSlots: (number | undefined)[]) => {
   const { network } = useEndpoint();
   const { ncnApiUrl } = useNcnApi();
 
@@ -94,7 +98,7 @@ export const useSnapshotMetas = (slots: (number | undefined)[]) => {
   // query keys.
   const batches = useMemo(() => {
     const unique = Array.from(
-      new Set(slots.filter((slot): slot is number => Boolean(slot))),
+      new Set(snapshotSlots.filter((slot): slot is number => Boolean(slot))),
     ).sort((a, b) => a - b);
 
     const chunks: number[][] = [];
@@ -102,7 +106,7 @@ export const useSnapshotMetas = (slots: (number | undefined)[]) => {
       chunks.push(unique.slice(i, i + MAX_SLOTS_PER_REQUEST));
     }
     return chunks;
-  }, [slots]);
+  }, [snapshotSlots]);
 
   return useQueries({
     queries: batches.map((batch) =>
