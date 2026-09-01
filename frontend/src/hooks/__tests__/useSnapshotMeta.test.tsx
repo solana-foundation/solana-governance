@@ -107,6 +107,23 @@ describe("useSnapshotMetas", () => {
     expect(lastUrl().searchParams.get("slots")).toBe("500,600,800");
   });
 
+  it("splits a history longer than one request accepts", async () => {
+    // The verifier rejects an over-long slot list, and a rejected batch would
+    // leave every row without a denominator rather than just the overflow.
+    const slots = Array.from({ length: 250 }, (_, index) => 1_000 + index);
+
+    const { result } = renderHook(() => useSnapshotMetas(slots), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.bySlot.size).toBe(250));
+    expect(mockFetchNcnJson).toHaveBeenCalledTimes(3);
+    for (const call of mockFetchNcnJson.mock.calls) {
+      const requested = new URL(call[0]).searchParams.get("slots")!.split(",");
+      expect(requested.length).toBeLessThanOrEqual(100);
+    }
+  });
+
   it("omits a slot the response does not carry", async () => {
     const { result } = renderHook(() => useSnapshotMetas([500, PRUNED_SLOT]), {
       wrapper: makeWrapper(),
