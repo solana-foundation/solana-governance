@@ -1,5 +1,6 @@
 import {
   PublicKey,
+  SystemProgram,
   Transaction,
   TransactionInstruction,
 } from "@solana/web3.js";
@@ -56,7 +57,7 @@ import { BN } from "@coral-xyz/anchor";
 import type { AnchorWallet } from "@solana/wallet-adapter-react";
 
 import { castVoteOverride } from "../castVoteOverride";
-import { SVMGOV_PROGRAM_ID } from "../types";
+import { SVMGOV_PROGRAM_ID, SNAPSHOT_PROGRAM_ID } from "../types";
 import type { RpcNetwork } from "@/types";
 
 // Distinct, valid 32-byte public keys used as stand-ins (byte-filled so PDA derivation always
@@ -81,6 +82,12 @@ const META_MERKLE_PROOF_PDA = new PublicKey(keyFromByte(20));
 const VALIDATOR_VOTE_PDA = new PublicKey(keyFromByte(21));
 const VOTE_OVERRIDE_PDA = new PublicKey(keyFromByte(22));
 const VOTE_OVERRIDE_CACHE_PDA = new PublicKey(keyFromByte(23));
+
+/** A created proof: owned by the snapshot program, with data. */
+const INITIALIZED_PROOF_ACCOUNT = {
+  owner: SNAPSHOT_PROGRAM_ID,
+  data: Buffer.alloc(32),
+};
 
 describe("castVoteOverride", () => {
   let recordedAccounts: Record<string, PublicKey>;
@@ -163,7 +170,9 @@ describe("castVoteOverride", () => {
     mockCreateProgramWithWallet.mockReturnValue(buildFakeProgram());
     mockCreateGovV1ProgramWithWallet.mockReturnValue(buildFakeGovV1Program());
     mockComputeProofCloseTimestamp.mockResolvedValue(2_000_000_000);
-    mockGetAccountInfo.mockResolvedValue({ data: Buffer.alloc(0) });
+    // An initialized proof: owned by the snapshot program with data. Lamports
+    // alone would not qualify — see isMetaMerkleProofInitialized.
+    mockGetAccountInfo.mockResolvedValue(INITIALIZED_PROOF_ACCOUNT);
     mockGetLatestBlockhash.mockResolvedValue({
       blockhash: BLOCKHASH,
       lastValidBlockHeight: 123,
@@ -373,6 +382,52 @@ describe("castVoteOverride", () => {
     );
     expect(mockSignTransaction).toHaveBeenCalledTimes(1);
     expect(mockSendRawTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("proceeds when another delegator creates the shared proof first", async () => {
+    // Every delegator under a validator shares one proof account, so one can
+    // create it between the existence check and this transaction landing.
+    // Preflight rejects the duplicate creation before a signature comes back.
+    mockGetAccountInfo
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(INITIALIZED_PROOF_ACCOUNT);
+    mockSendRawTransaction
+      .mockRejectedValueOnce(new Error("Allocate: account already in use"))
+      .mockResolvedValueOnce("vote-signature");
+
+    const result = await castVoteOverride(params, blockchainParams);
+
+    expect(result).toEqual({ signature: "vote-signature", success: true });
+  });
+
+  it("still fails when initialization fails and no proof appears", async () => {
+    // Recovery is conditional on the account existing, so an underfunded payer
+    // or a rejected signature is not mistaken for a lost race.
+    mockGetAccountInfo.mockResolvedValue(null);
+    mockSendRawTransaction.mockRejectedValueOnce(
+      new Error("insufficient funds"),
+    );
+
+    await expect(castVoteOverride(params, blockchainParams)).rejects.toThrow(
+      /insufficient funds/,
+    );
+  });
+
+  it("initializes the proof when the address only holds lamports", async () => {
+    // The address is derivable, so anyone can fund it before it exists. Treating
+    // that as initialized would skip creation and fail the program's owner check.
+    mockGetAccountInfo.mockResolvedValue({
+      owner: SystemProgram.programId,
+      data: Buffer.alloc(0),
+    });
+    mockSendRawTransaction
+      .mockResolvedValueOnce("init-signature")
+      .mockResolvedValueOnce("vote-signature");
+
+    const result = await castVoteOverride(params, blockchainParams);
+
+    expect(result).toEqual({ signature: "vote-signature", success: true });
+    expect(mockSignTransaction).toHaveBeenCalledTimes(2);
   });
 
   it("reports an unsigned wallet response without submitting the transaction", async () => {

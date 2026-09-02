@@ -19,6 +19,7 @@ import {
   createGovV1ProgramWithWallet,
   getVoteAccountProof,
   getMetaMerkleProofPda,
+  isMetaMerkleProofInitialized,
   computeProofCloseTimestamp,
   resolveProposalSnapshotSlot,
   signTransactionForWallet,
@@ -103,14 +104,14 @@ export async function castVote(
     consensusResult
   );
 
-  const merkleAccountInfo = await program.provider.connection.getAccountInfo(
-    metaMerkleProofPda,
-    "confirmed"
+  const proofInitialized = await isMetaMerkleProofInitialized(
+    program.provider.connection,
+    metaMerkleProofPda
   );
 
   const instructions: TransactionInstruction[] = [];
 
-  if (!merkleAccountInfo) {
+  if (!proofInitialized) {
     // Set close_timestamp to the proposal's vote expiry so the proof cannot be closed
     // permissionlessly while voting is open. See computeProofCloseTimestamp.
     const closeTimestamp = await computeProofCloseTimestamp(

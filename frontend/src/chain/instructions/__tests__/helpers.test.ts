@@ -9,6 +9,7 @@ jest.mock("@/contexts/EndpointContext", () => ({
 import { BN } from "@coral-xyz/anchor";
 import {
   PublicKey,
+  SystemProgram,
   TransactionExpiredBlockheightExceededError,
 } from "@solana/web3.js";
 
@@ -16,6 +17,7 @@ import {
   assertOverrideProofLineage,
   confirmTransactionByPolling,
   computeProofCloseTimestamp,
+  isMetaMerkleProofInitialized,
   resolveProposalSnapshotSlot,
   resolveSnapshotVoteAccount,
 } from "../helpers";
@@ -83,7 +85,7 @@ function mockConnection(
     epoch: number;
     slotsInEpoch: number;
   },
-  getBlockTime: (slot: number) => Promise<number | null>
+  getBlockTime: (slot: number) => Promise<number | null>,
 ): { connection: Connection; getBlockTime: jest.Mock } {
   const getBlockTimeMock = jest.fn(getBlockTime);
   const connection = {
@@ -102,7 +104,7 @@ describe("computeProofCloseTimestamp", () => {
         epoch: 100,
         slotsInEpoch: 432_000,
       },
-      async () => 1_700_000_000
+      async () => 1_700_000_000,
     );
 
     const ts = await computeProofCloseTimestamp(connection, 102);
@@ -126,7 +128,7 @@ describe("computeProofCloseTimestamp", () => {
         epoch: 100,
         slotsInEpoch: 432_000,
       },
-      async (slot: number) => (slot === 500_000 ? null : 1_700_000_000)
+      async (slot: number) => (slot === 500_000 ? null : 1_700_000_000),
     );
 
     const ts = await computeProofCloseTimestamp(connection, 102);
@@ -146,7 +148,7 @@ describe("computeProofCloseTimestamp", () => {
         epoch: 200,
         slotsInEpoch: 432_000,
       },
-      async () => 1_700_000_000
+      async () => 1_700_000_000,
     );
 
     const ts = await computeProofCloseTimestamp(connection, 199);
@@ -166,13 +168,13 @@ describe("computeProofCloseTimestamp", () => {
         epoch: 100,
         slotsInEpoch: 432_000,
       },
-      async () => null
+      async () => null,
     );
 
     // Walks back from absoluteSlot (500_000) over MAX_ATTEMPTS = 8 slots, so the
     // lowest slot actually tried — and thus the reported "ending at" — is 499_993.
     await expect(computeProofCloseTimestamp(connection, 102)).rejects.toThrow(
-      /Failed to fetch a recent block time \(tried 8 slots ending at 499993\)/
+      /Failed to fetch a recent block time \(tried 8 slots ending at 499993\)/,
     );
     expect(getBlockTime).toHaveBeenCalledTimes(8);
   });
@@ -189,7 +191,7 @@ describe("assertOverrideProofLineage", () => {
   const DELEGATOR_WALLET = "DelegatorWallet4444444444444444444444444444";
 
   function stakeProof(
-    overrides: Partial<StakeAccountProofResponse> = {}
+    overrides: Partial<StakeAccountProofResponse> = {},
   ): StakeAccountProofResponse {
     return {
       network: "testnet",
@@ -206,7 +208,7 @@ describe("assertOverrideProofLineage", () => {
   }
 
   function metaProof(
-    overrides: Partial<VoteAccountProofResponse["meta_merkle_leaf"]> = {}
+    overrides: Partial<VoteAccountProofResponse["meta_merkle_leaf"]> = {},
   ): VoteAccountProofResponse {
     return {
       network: "testnet",
@@ -225,7 +227,7 @@ describe("assertOverrideProofLineage", () => {
   it("passes when proofs share the snapshot vote account, even if voting wallets differ", () => {
     expect(VALIDATOR_WALLET).not.toBe(DELEGATOR_WALLET);
     expect(() =>
-      assertOverrideProofLineage(stakeProof(), metaProof())
+      assertOverrideProofLineage(stakeProof(), metaProof()),
     ).not.toThrow();
   });
 
@@ -235,8 +237,8 @@ describe("assertOverrideProofLineage", () => {
     expect(() =>
       assertOverrideProofLineage(
         stakeProof(),
-        metaProof({ vote_account: LIVE_VOTE_ACCOUNT })
-      )
+        metaProof({ vote_account: LIVE_VOTE_ACCOUNT }),
+      ),
     ).toThrow(/does not match meta proof vote account/);
   });
 
@@ -246,8 +248,10 @@ describe("assertOverrideProofLineage", () => {
     expect(() =>
       assertOverrideProofLineage(
         stakeProof(),
-        metaProof({ voting_wallet: "OtherWallet66666666666666666666666666666666" })
-      )
+        metaProof({
+          voting_wallet: "OtherWallet66666666666666666666666666666666",
+        }),
+      ),
     ).not.toThrow();
   });
 });
@@ -256,7 +260,7 @@ describe("resolveSnapshotVoteAccount", () => {
   const VOTE_ACCOUNT = new PublicKey(new Uint8Array(32).fill(1)).toBase58();
 
   function stakeProof(
-    overrides: Partial<StakeAccountProofResponse> = {}
+    overrides: Partial<StakeAccountProofResponse> = {},
   ): StakeAccountProofResponse {
     return {
       network: "testnet",
@@ -285,7 +289,7 @@ describe("resolveSnapshotVoteAccount", () => {
       vote_account: undefined as unknown as string,
     });
     expect(() => resolveSnapshotVoteAccount(proof)).toThrow(
-      /missing the snapshot vote_account/
+      /missing the snapshot vote_account/,
     );
   });
 });
@@ -297,7 +301,63 @@ describe("resolveProposalSnapshotSlot", () => {
 
   it("throws when voting has not been activated (slot is 0)", () => {
     expect(() => resolveProposalSnapshotSlot(new BN(0))).toThrow(
-      /no snapshot slot/
+      /no snapshot slot/,
     );
+  });
+});
+
+describe("isMetaMerkleProofInitialized", () => {
+  const PROOF_PDA = new PublicKey(new Uint8Array(32).fill(9));
+  const SNAPSHOT_PROGRAM = new PublicKey(new Uint8Array(32).fill(4));
+
+  function connectionReturning(info: unknown) {
+    return {
+      getAccountInfo: jest.fn(async () => info),
+    } as unknown as Connection;
+  }
+
+  it("accepts an account the snapshot program owns", async () => {
+    const connection = connectionReturning({
+      owner: SNAPSHOT_PROGRAM,
+      data: Buffer.alloc(32),
+    });
+
+    await expect(
+      isMetaMerkleProofInitialized(connection, PROOF_PDA, SNAPSHOT_PROGRAM),
+    ).resolves.toBe(true);
+  });
+
+  it("rejects an address that only holds lamports", async () => {
+    // The address is derivable, so anyone can fund it before it is created;
+    // only the snapshot program owning it means the proof is there.
+    const connection = connectionReturning({
+      owner: SystemProgram.programId,
+      data: Buffer.alloc(0),
+    });
+
+    await expect(
+      isMetaMerkleProofInitialized(connection, PROOF_PDA, SNAPSHOT_PROGRAM),
+    ).resolves.toBe(false);
+  });
+
+  it("rejects an account with no data", async () => {
+    const connection = connectionReturning({
+      owner: SNAPSHOT_PROGRAM,
+      data: Buffer.alloc(0),
+    });
+
+    await expect(
+      isMetaMerkleProofInitialized(connection, PROOF_PDA, SNAPSHOT_PROGRAM),
+    ).resolves.toBe(false);
+  });
+
+  it("rejects a missing account", async () => {
+    await expect(
+      isMetaMerkleProofInitialized(
+        connectionReturning(null),
+        PROOF_PDA,
+        SNAPSHOT_PROGRAM,
+      ),
+    ).resolves.toBe(false);
   });
 });

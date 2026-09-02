@@ -24,6 +24,7 @@ import {
   deriveVoteOverrideCachePda,
   deriveVotePda,
   getMetaMerkleProofPda,
+  isMetaMerkleProofInitialized,
   computeProofCloseTimestamp,
   signTransactionForWallet,
   confirmTransactionByPolling,
@@ -97,13 +98,14 @@ export async function modifyVoteOverride(
     consensusResult
   );
 
-  // Check if merkle account exists
-  const merkleAccountInfo = await program.provider.connection.getAccountInfo(
-    metaMerkleProofPda,
-    "confirmed"
+  // Every delegator under this validator shares one proof account, so it may
+  // already exist.
+  const proofInitialized = await isMetaMerkleProofInitialized(
+    program.provider.connection,
+    metaMerkleProofPda
   );
 
-  if (!merkleAccountInfo) {
+  if (!proofInitialized) {
     console.log("merkle proof does not exist, initializing");
     const govV1Program = createGovV1ProgramWithWallet(
       wallet,
@@ -164,26 +166,41 @@ export async function modifyVoteOverride(
     initTransaction.recentBlockhash = initBlockhash.blockhash;
     initTransaction.lastValidBlockHeight = initBlockhash.lastValidBlockHeight;
 
-    const signedInitTransaction = await signTransactionForWallet(
-      wallet,
-      initTransaction,
-      signer
-    );
-    const initSignature =
-      await program.provider.connection.sendRawTransaction(
-        signedInitTransaction.serialize(),
-        { preflightCommitment: "confirmed" }
+    try {
+      const signedInitTransaction = await signTransactionForWallet(
+        wallet,
+        initTransaction,
+        signer
       );
-    const initConfirmation = await confirmTransactionByPolling(
-      program.provider.connection,
-      initSignature,
-      initBlockhash.lastValidBlockHeight
-    );
+      const initSignature =
+        await program.provider.connection.sendRawTransaction(
+          signedInitTransaction.serialize(),
+          { preflightCommitment: "confirmed" }
+        );
+      const initConfirmation = await confirmTransactionByPolling(
+        program.provider.connection,
+        initSignature,
+        initBlockhash.lastValidBlockHeight
+      );
 
-    if (initConfirmation.value.err) {
-      throw new Error(
-        `Failed to initialize meta merkle proof: ${JSON.stringify(initConfirmation.value.err)}`
+      if (initConfirmation.value.err) {
+        throw new Error(
+          `Failed to initialize meta merkle proof: ${JSON.stringify(initConfirmation.value.err)}`
+        );
+      }
+    } catch (error) {
+      // Another delegator can create the shared proof between the check above
+      // and this transaction landing. Preflight rejects the duplicate before a
+      // signature returns, so the send is inside the try as well. Recovery is
+      // conditional on the account existing, so a rejected signature or an
+      // underfunded payer still surfaces.
+      const createdConcurrently = await isMetaMerkleProofInitialized(
+        program.provider.connection,
+        metaMerkleProofPda
       );
+      if (!createdConcurrently) {
+        throw error;
+      }
     }
   }
 

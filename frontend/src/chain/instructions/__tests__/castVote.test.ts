@@ -41,7 +41,7 @@ import { BN } from "@coral-xyz/anchor";
 import type { AnchorWallet } from "@solana/wallet-adapter-react";
 
 import { castVote } from "../castVote";
-import { SVMGOV_PROGRAM_ID } from "../types";
+import { SVMGOV_PROGRAM_ID, SNAPSHOT_PROGRAM_ID } from "../types";
 import type { RpcNetwork } from "@/types";
 
 // Distinct, valid 32-byte public keys used as stand-ins.
@@ -134,7 +134,12 @@ describe("castVote", () => {
       current: [{ nodePubkey: SIGNER, votePubkey: VOTE_ACCOUNT }],
       delinquent: [],
     });
-    mockGetAccountInfo.mockResolvedValue({ data: Buffer.alloc(0) });
+    // An initialized proof: owned by the snapshot program with data. Lamports
+    // alone would not qualify — see isMetaMerkleProofInitialized.
+    mockGetAccountInfo.mockResolvedValue({
+      owner: SNAPSHOT_PROGRAM_ID,
+      data: Buffer.alloc(32),
+    });
     mockGetLatestBlockhash.mockResolvedValue({
       blockhash: BLOCKHASH,
       lastValidBlockHeight: 123,

@@ -314,6 +314,26 @@ export function getMetaMerkleProofPda(
 }
 
 /**
+ * Whether the shared meta merkle proof exists and the vote instructions will
+ * accept it.
+ *
+ * Lamports alone do not qualify: the address is derivable, so anyone can fund it
+ * before it is created, and the vote instructions require the snapshot program
+ * to own the account.
+ */
+export async function isMetaMerkleProofInitialized(
+  connection: Connection,
+  metaMerkleProofPda: PublicKey,
+  snapshotProgramId: PublicKey = SNAPSHOT_PROGRAM_ID
+): Promise<boolean> {
+  const info = await connection.getAccountInfo(metaMerkleProofPda, "confirmed");
+
+  return (
+    info !== null && info.owner.equals(snapshotProgramId) && info.data.length > 0
+  );
+}
+
+/**
  * Resolve the snapshot validator vote account from a stake proof, guarding against a verifier
  * response that omits the field. `vote_account` is typed as `string` but comes from an
  * unvalidated JSON response — an older backend that predates surfacing `vote_account` on the
