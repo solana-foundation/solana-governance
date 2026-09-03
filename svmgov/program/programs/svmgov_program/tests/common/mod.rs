@@ -8,9 +8,7 @@
 #![allow(dead_code)]
 
 use {
-    anchor_lang::{
-        prelude::Pubkey as AnchorPubkey, solana_program::config, AnchorSerialize, Discriminator,
-    },
+    anchor_lang::{prelude::Pubkey as AnchorPubkey, AnchorSerialize, Discriminator},
     borsh::{BorshDeserialize, BorshSerialize},
     litesvm::LiteSVM,
     ncn_merkle_tree::{get_proof, MerkleTree},
@@ -329,7 +327,7 @@ pub fn update_global_config_ix(
             data.push(0);
         }
         data
-    };
+    }
     data.extend(encode_opt(max_title_length));
     data.extend(encode_opt(max_description_length));
     data.extend(encode_opt(max_support_epochs));
