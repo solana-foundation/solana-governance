@@ -450,6 +450,9 @@ enum Commands {
 
         #[arg(long, help = "Maximum number of validators allowed to support a proposal (1-2000)")]
         max_supporters: u32,
+        
+        #[arg(long, help = "Whether new proposal creation is allowed. Set to false to pause new proposals.")]
+        new_proposals_allowed: Option<bool>,
     },
 
     #[command(
@@ -490,6 +493,9 @@ enum Commands {
 
         #[arg(long, help = "Maximum number of validators allowed to support a proposal (1-2000)")]
         max_supporters: Option<u32>,
+
+        #[arg(long, help = "Whether new proposal creation is allowed. Set to false to pause new proposals.")]
+        new_proposals_allowed: Option<bool>,
     },
 
     #[command(
@@ -836,6 +842,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
             snapshot_epoch_extension,
             snapshot_slot_offset,
             max_supporters,
+            new_proposals_allowed
         } => {
             instructions::initialize_global_config(
                 cli.keypair,
@@ -850,6 +857,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 *snapshot_epoch_extension,
                 *snapshot_slot_offset,
                 *max_supporters,
+                *new_proposals_allowed,
                 squads_opts.clone(),
             )
             .await?;
@@ -865,6 +873,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
             snapshot_epoch_extension,
             snapshot_slot_offset,
             max_supporters,
+            new_proposals_allowed,
         } => {
             instructions::update_global_config(
                 cli.keypair,
@@ -879,6 +888,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 *snapshot_epoch_extension,
                 *snapshot_slot_offset,
                 *max_supporters,
+                *new_proposals_allowed,
                 squads_opts.clone(),
             )
             .await?;
