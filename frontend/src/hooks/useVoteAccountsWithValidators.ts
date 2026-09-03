@@ -69,8 +69,6 @@ export const useVoteAccountsWithValidators = () => {
             // enrich vote account info with matched validator data
             voteAccount: {
               ...vote,
-              // Cleared so the identity column falls back to the name.
-              identity: undefined,
               name: validator.name,
               commission: validator.commission,
               credits: validator.credits,

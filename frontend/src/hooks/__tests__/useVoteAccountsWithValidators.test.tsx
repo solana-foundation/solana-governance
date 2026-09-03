@@ -88,6 +88,18 @@ describe("useVoteAccountsWithValidators", () => {
     expect(entry.voteAccount.lastVote).toBe(222);
   });
 
+  it("keeps the identity on a matched record", async () => {
+    // The mobile drawer reads this field directly and has no name to fall back
+    // on, so enriching a row must not cost it the address.
+    const { result } = renderWith([validator], [voteRecord]);
+
+    await waitFor(() => expect(result.current.data).toBeDefined());
+
+    const entry = result.current.data!.voteMap[VOTE_PDA.toBase58()];
+    expect(entry.voteAccount.identity?.equals(IDENTITY)).toBe(true);
+    expect(entry.voteAccount.name).toBe("Real Validator");
+  });
+
   it("also matches on the vote account address", async () => {
     // Sibling hooks index both keys; a record carrying the vote account instead
     // of the identity has to resolve the same validator.
