@@ -37,7 +37,7 @@ impl<'info> UpdateConfig<'info> {
         snapshot_epoch_extension: Option<u64>,
         snapshot_slot_offset: Option<i64>,
         max_supporters: Option<u32>,
-        new_proposals_allowed: Option<bool>,
+        mut new_proposals_allowed: Option<bool>,
     ) -> Result<()> {
         if self.requires_migration() {
             // resize
@@ -59,8 +59,9 @@ impl<'info> UpdateConfig<'info> {
 
             self.global_config.realloc(new_size, true)?;
 
-            // ensure initialization of max supporters is valid during resize
-            validate_max_supporters(max_supporters.ok_or(GovernanceError::InvalidMaxSupporters)?)?;
+            if new_proposals_allowed.is_none() {
+                new_proposals_allowed = Some(true);
+            }
         }
 
         let mut config =
@@ -117,10 +118,6 @@ impl<'info> UpdateConfig<'info> {
     }
 
     fn requires_migration(&self) -> bool {
-        if self.global_config.data_len() < GlobalConfig::INIT_SPACE + 8 {
-            true
-        } else {
-            false
-        }
+        self.global_config.data_len() < GlobalConfig::INIT_SPACE + 8
     }
 }
