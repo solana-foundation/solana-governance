@@ -2104,9 +2104,7 @@ export type SvmgovProgram = {
               "Whether new proposals are allowed to be created. This can be use to",
               "temporarily halt new proposals while a governance upgrade is in progress."
             ],
-            "type": {
-              "option": "bool"
-            }
+            "type": "bool"
           }
         ]
       }
