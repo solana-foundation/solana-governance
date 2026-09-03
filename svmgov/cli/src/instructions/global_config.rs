@@ -382,6 +382,7 @@ pub async fn show_global_config(rpc_url: Option<String>) -> Result<()> {
         config.snapshot_slot_offset
     );
     println!("  max_supporters:              {}", config.max_supporters);
+    println!("  new_proposals_allowed:       {}", config.new_proposals_allowed);
 
     Ok(())
 }
