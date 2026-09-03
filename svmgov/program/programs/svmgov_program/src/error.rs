@@ -132,4 +132,6 @@ pub enum GovernanceError {
         "Support is closed: this proposal already reached its support threshold and voting has been scheduled"
     )]
     SupportAlreadyActivated,
+    #[msg("New proposals are not allowed at this time")]
+    NewProposalsNotAllowed,
 }

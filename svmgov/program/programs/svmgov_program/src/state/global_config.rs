@@ -34,4 +34,7 @@ pub struct GlobalConfig {
     /// proposal can always be processed within Solana's heap/compute limits.
     /// Must be in `1..=MAX_SUPPORTERS_LIMIT`.
     pub max_supporters: u32,
+    /// Whether new proposals are allowed to be created. This can be use to
+    /// temporarily halt new proposals while a governance upgrade is in progress.
+    pub new_proposals_allowed: bool,
 }
