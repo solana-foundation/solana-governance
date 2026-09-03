@@ -706,6 +706,12 @@ export type SvmgovProgram = {
         {
           "name": "maxSupporters",
           "type": "u32"
+        },
+        {
+          "name": "newProposalsAllowed",
+          "type": {
+            "option": "bool"
+          }
         }
       ]
     },
@@ -1406,6 +1412,12 @@ export type SvmgovProgram = {
           "type": {
             "option": "u32"
           }
+        },
+        {
+          "name": "newProposalsAllowed",
+          "type": {
+            "option": "bool"
+          }
         }
       ]
     }
@@ -1943,6 +1955,11 @@ export type SvmgovProgram = {
       "code": 6058,
       "name": "supportAlreadyActivated",
       "msg": "Support is closed: this proposal already reached its support threshold and voting has been scheduled"
+    },
+    {
+      "code": 6059,
+      "name": "newProposalsNotAllowed",
+      "msg": "New proposals are not allowed at this time"
     }
   ],
   "types": [
@@ -2080,6 +2097,16 @@ export type SvmgovProgram = {
               "Must be in `1..=MAX_SUPPORTERS_LIMIT`."
             ],
             "type": "u32"
+          },
+          {
+            "name": "newProposalsAllowed",
+            "docs": [
+              "Whether new proposals are allowed to be created. This can be use to",
+              "temporarily halt new proposals while a governance upgrade is in progress."
+            ],
+            "type": {
+              "option": "bool"
+            }
           }
         ]
       }

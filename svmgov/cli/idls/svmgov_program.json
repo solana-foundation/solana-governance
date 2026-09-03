@@ -700,6 +700,12 @@
         {
           "name": "max_supporters",
           "type": "u32"
+        },
+        {
+          "name": "new_proposals_allowed",
+          "type": {
+            "option": "bool"
+          }
         }
       ]
     },
@@ -1400,6 +1406,12 @@
           "type": {
             "option": "u32"
           }
+        },
+        {
+          "name": "new_proposals_allowed",
+          "type": {
+            "option": "bool"
+          }
         }
       ]
     }
@@ -1937,6 +1949,11 @@
       "code": 6058,
       "name": "SupportAlreadyActivated",
       "msg": "Support is closed: this proposal already reached its support threshold and voting has been scheduled"
+    },
+    {
+      "code": 6059,
+      "name": "NewProposalsNotAllowed",
+      "msg": "New proposals are not allowed at this time"
     }
   ],
   "types": [
@@ -2074,6 +2091,14 @@
               "Must be in `1..=MAX_SUPPORTERS_LIMIT`."
             ],
             "type": "u32"
+          },
+          {
+            "name": "new_proposals_allowed",
+            "docs": [
+              "Whether new proposals are allowed to be created. This can be use to",
+              "temporarily halt new proposals while a governance upgrade is in progress."
+            ],
+            "type": "bool"
           }
         ]
       }
