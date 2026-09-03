@@ -246,3 +246,63 @@ fn signer_must_operate_the_vote_account() {
         err.meta.logs
     );
 }
+
+#[test]
+fn new_proposals_rejected_if_new_proposals_allowed_is_false() {
+    let mut h = setup_harness(1, 2, 2);
+
+    let global_config = h.global_config;
+    // Rewrite the global config with new_proposals_allowed set to false.
+    {
+        let config = fetch_global_config(&h.svm, &global_config);
+        assert!(
+            config.new_proposals_allowed,
+            "new proposals should be allowed by default"
+        );
+        let ix = set_new_proposals_allowed_ix(&h.config_admin.pubkey(), global_config, false);
+        let _ = try_send_ix(&mut h.svm, &h.config_admin, &[ix])
+            .expect("failed to set new_proposals_allowed to false");
+        let config = fetch_global_config(&h.svm, &global_config);
+        assert!(
+            !config.new_proposals_allowed,
+            "new proposals should now be disallowed"
+        );
+    }
+
+    // Valid proposal creation should now be rejected.
+    {
+        let title = "t".repeat(MAX_TITLE_LEN);
+        let description = "https://github.com/solana-foundation/solana-governance-proposals/blob/main/proposals/sgp-0001-title.md";
+        let err = try_create(&mut h, 1, &title, description)
+            .expect_err("proposal should be rejected when new_proposals_allowed is false");
+        assert_eq!(
+            err.err,
+            TransactionError::InstructionError(
+                0,
+                anchor_custom_error(GovernanceError::NewProposalsNotAllowed)
+            ),
+            "logs: {:#?}",
+            err.meta.logs
+        );
+    }
+
+    // reenable new proposals
+    {
+        let ix = set_new_proposals_allowed_ix(&h.config_admin.pubkey(), global_config, true);
+        let _ = try_send_ix(&mut h.svm, &h.config_admin, &[ix])
+            .expect("failed to set new_proposals_allowed to true");
+        let config = fetch_global_config(&h.svm, &global_config);
+        assert!(
+            config.new_proposals_allowed,
+            "new proposals should now be allowed"
+        );
+    }
+
+    // Valid proposal creation should now succeed.
+    {
+        let title = "x".repeat(MAX_TITLE_LEN);
+        let description = "https://github.com/solana-foundation/solana-governance-proposals/blob/main/proposals/sgp-0001-title.md";
+        let _ = try_create(&mut h, 1, &title, description)
+            .expect("proposal should succeed when new_proposals_allowed is true");
+    }
+}

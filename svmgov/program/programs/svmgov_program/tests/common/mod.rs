@@ -8,7 +8,9 @@
 #![allow(dead_code)]
 
 use {
-    anchor_lang::{prelude::Pubkey as AnchorPubkey, AnchorSerialize, Discriminator},
+    anchor_lang::{
+        prelude::Pubkey as AnchorPubkey, solana_program::config, AnchorSerialize, Discriminator,
+    },
     borsh::{BorshDeserialize, BorshSerialize},
     litesvm::LiteSVM,
     ncn_merkle_tree::{get_proof, MerkleTree},
@@ -117,7 +119,7 @@ pub fn read_ncn_program() -> Vec<u8> {
     })
 }
 
-#[derive(BorshSerialize)]
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct GlobalConfigAccount {
     pub admin: [u8; 32],
     pub pending_admin: Option<[u8; 32]>,
@@ -192,6 +194,7 @@ pub struct Harness {
     pub global_config: Address,
     pub proposal_index: Address,
     pub program_config: Address,
+    pub config_admin: Keypair,
 }
 
 pub fn make_vote_account_data(node: &Address) -> Vec<u8> {
@@ -301,6 +304,77 @@ pub fn create_proposal_ix(
     }
 }
 
+pub fn update_global_config_ix(
+    admin: &Address,
+    global_config: Address,
+    max_title_length: Option<u16>,
+    max_description_length: Option<u16>,
+    max_support_epochs: Option<u64>,
+    min_proposal_stake_lamports: Option<u64>,
+    cluster_support_pct_min_bps: Option<u64>,
+    discussion_epochs: Option<u64>,
+    voting_epochs: Option<u64>,
+    snapshot_epoch_extension: Option<u64>,
+    snapshot_slot_offset: Option<i64>,
+    max_supporters: Option<u32>,
+    new_proposals_allowed: Option<bool>,
+) -> Instruction {
+    let mut data = anchor_discriminator("global", "update_config").to_vec();
+    fn encode_opt(opt: Option<impl AnchorSerialize>) -> Vec<u8> {
+        let mut data = Vec::new();
+        if let Some(v) = opt {
+            data.push(1);
+            v.serialize(&mut data).expect("serialize");
+        } else {
+            data.push(0);
+        }
+        data
+    };
+    data.extend(encode_opt(max_title_length));
+    data.extend(encode_opt(max_description_length));
+    data.extend(encode_opt(max_support_epochs));
+    data.extend(encode_opt(min_proposal_stake_lamports));
+    data.extend(encode_opt(cluster_support_pct_min_bps));
+    data.extend(encode_opt(discussion_epochs));
+    data.extend(encode_opt(voting_epochs));
+    data.extend(encode_opt(snapshot_epoch_extension));
+    data.extend(encode_opt(snapshot_slot_offset));
+    data.extend(encode_opt(max_supporters));
+    data.extend(encode_opt(new_proposals_allowed));
+
+    Instruction {
+        program_id: SVMGOV_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new(*admin, true),
+            AccountMeta::new(global_config, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+        data,
+    }
+}
+
+pub fn set_new_proposals_allowed_ix(
+    admin: &Address,
+    global_config: Address,
+    new_proposals_allowed: bool,
+) -> Instruction {
+    update_global_config_ix(
+        admin,
+        global_config,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(new_proposals_allowed),
+    )
+}
+
 pub fn support_proposal_ix(
     supporter: &Address,
     proposal: Address,
@@ -374,6 +448,17 @@ pub fn fetch_proposal(svm: &LiteSVM, proposal: &Address) -> ProposalAccount {
     state
 }
 
+pub fn fetch_global_config(svm: &LiteSVM, global_config: &Address) -> GlobalConfigAccount {
+    let account = svm
+        .get_account(global_config)
+        .expect("global config account");
+    assert_eq!(
+        account.data[..8],
+        anchor_discriminator("account", "GlobalConfig")
+    );
+    GlobalConfigAccount::deserialize(&mut &account.data[8..]).unwrap()
+}
+
 pub fn expected_snapshot_slot(crossing_epoch: u64) -> u64 {
     // discussion_epochs=1, snapshot_epoch_extension=0, snapshot_slot_offset=0
     (crossing_epoch + DISCUSSION_EPOCHS) * SLOTS_PER_EPOCH
@@ -439,13 +524,17 @@ pub fn setup_harness(
     let (program_config, _) =
         Address::find_program_address(&[b"ProgramConfig"], &NCN_SNAPSHOT_PROGRAM_ID);
 
+    let config_admin = Keypair::new();
+    svm.airdrop(&config_admin.pubkey(), 10 * LAMPORTS_PER_SOL)
+        .unwrap();
+
     write_anchor_account(
         &mut svm,
         global_config,
         SVMGOV_PROGRAM_ID,
         &anchor_discriminator("account", "GlobalConfig"),
         &GlobalConfigAccount {
-            admin: pk_bytes(&Address::new_unique()),
+            admin: pk_bytes(&config_admin.pubkey()),
             pending_admin: None,
             max_title_length: 200,
             max_description_length: 500,
@@ -530,6 +619,7 @@ pub fn setup_harness(
         global_config,
         proposal_index,
         program_config,
+        config_admin,
     }
 }
 
