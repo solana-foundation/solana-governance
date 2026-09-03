@@ -375,6 +375,25 @@ describe("castVoteOverride", () => {
     expect(mockSendRawTransaction).toHaveBeenCalledTimes(1);
   });
 
+  it("submits the vote when a competing transaction wins the proof initialization race", async () => {
+    mockGetAccountInfo
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ data: Buffer.alloc(0) });
+    mockSendRawTransaction
+      .mockResolvedValueOnce("losing-init-signature")
+      .mockResolvedValueOnce("vote-signature");
+    mockConfirmTransactionByPolling.mockResolvedValue({ 
+      value: { err: { InstructionError: [0, "Custom"] } },
+    });
+
+    await expect(
+      castVoteOverride(params, blockchainParams)
+    ).resolves.toEqual({ signature: "vote-signature", success: true });
+    expect(mockGetAccountInfo).toHaveBeenCalledTimes(2);
+    expect(mockSignTransaction).toHaveBeenCalledTimes(2);
+    expect(mockSendRawTransaction).toHaveBeenCalledTimes(2);
+  });
+
   it("reports an unsigned wallet response without submitting the transaction", async () => {
     mockSignTransaction.mockResolvedValueOnce(
       signedTransactionResponse([

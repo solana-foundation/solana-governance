@@ -26,7 +26,11 @@ import {
   getMetaMerkleProofPda,
   computeProofCloseTimestamp,
   signTransactionForWallet,
+
   confirmTransactionByPolling,
+
+  assertMetaMerkleProofInitialized,
+
 } from "./helpers";
 import { BN } from "@coral-xyz/anchor";
 
@@ -180,11 +184,11 @@ export async function modifyVoteOverride(
       initBlockhash.lastValidBlockHeight
     );
 
-    if (initConfirmation.value.err) {
-      throw new Error(
-        `Failed to initialize meta merkle proof: ${JSON.stringify(initConfirmation.value.err)}`
-      );
-    }
+    await assertMetaMerkleProofInitialized(
+      program.provider.connection,
+      metaMerkleProofPda,
+      initConfirmation.value.err
+    );
   }
 
   // Convert merkle proof data

@@ -67,6 +67,33 @@ export async function confirmTransactionByPolling(
 }
 
 /**
+ * Accepts an idempotent meta-proof initialization race while preserving real failures.
+ *
+ * Multiple delegators can share the same proof PDA. If they both observe it as missing, one
+ * initialization transaction will lose the race after the other creates the account. Re-read the
+ * confirmed account before treating that transaction error as fatal.
+ */
+export async function assertMetaMerkleProofInitialized(
+  connection: Connection,
+  metaMerkleProofPda: PublicKey,
+  initializationError: unknown
+): Promise<void> {
+  if (!initializationError) {
+    return;
+  }
+
+  const accountInfo = await connection.getAccountInfo(
+    metaMerkleProofPda,
+    "confirmed"
+  );
+  if (!accountInfo) {
+    throw new Error(
+      `Failed to initialize meta merkle proof: ${JSON.stringify(initializationError)}`
+    );
+  }
+}
+
+/**
  * Signs a transaction and verifies that the returned signature is for the account that built it.
  *
  * A wallet can return a transaction signed by a different account, or no signature at all. This
