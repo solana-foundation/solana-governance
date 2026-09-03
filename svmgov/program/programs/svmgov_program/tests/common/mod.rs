@@ -132,6 +132,7 @@ pub struct GlobalConfigAccount {
     pub snapshot_slot_offset: i64,
     pub bump: u8,
     pub max_supporters: u32,
+    pub new_proposals_allowed: bool,
 }
 
 #[derive(BorshSerialize)]
@@ -457,6 +458,7 @@ pub fn setup_harness(
             snapshot_slot_offset: 0,
             bump: global_bump,
             max_supporters: MAX_SUPPORTERS,
+            new_proposals_allowed: true,
         },
     );
     write_anchor_account(

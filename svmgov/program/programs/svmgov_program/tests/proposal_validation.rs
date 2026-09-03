@@ -201,6 +201,7 @@ fn insufficient_stake_rejected() {
             snapshot_slot_offset: 0,
             bump,
             max_supporters: MAX_SUPPORTERS,
+            new_proposals_allowed: true,
         },
     );
 
