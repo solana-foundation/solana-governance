@@ -41,11 +41,11 @@ export const columns: ColumnDef<OldVoteAccountData>[] = [
     accessorKey: "identity",
     header: () => <span className="hidden sm:inline">IDENTITY</span>,
     cell: ({ row }) => {
-      const identity = row.original.identity?.toBase58();
-      let cellValue: string | undefined = formatAddress(identity || "", 6);
-      if (!identity) {
-        cellValue = row.original.name;
-      }
+      const { name, identity } = row.original;
+      // The name where the validator is known, the address otherwise; the
+      // column is too narrow for both.
+      const cellValue =
+        name ?? (identity ? formatAddress(identity.toBase58(), 6) : undefined);
 
       return (
         <p className="hidden sm:block font-mono text-xs lg:text-sm">

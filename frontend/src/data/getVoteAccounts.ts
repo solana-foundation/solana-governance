@@ -31,11 +31,10 @@ export function mapVoteAccountDto(
     // validator data
     activeStake: raw.stake ? +raw.stake.toString() : 0,
     identity: raw.validator,
-    commission: 0,
-    lastVote: 0,
-    credits: 0,
-    epochCredits: 0,
-    activatedStake: 0,
+    // Validator metadata is not on chain; useVoteAccountsWithValidators fills
+    // it in from the RPC and StakeWiz. Left unset so an unmatched row renders
+    // as unknown.
+
     // vote data
     forVotesBp: raw.forVotesBp,
     againstVotesBp: raw.againstVotesBp,
