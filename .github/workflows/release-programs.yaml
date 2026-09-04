@@ -126,7 +126,7 @@ jobs:
           echo "pubkey=$PUBKEY" >> "$GITHUB_OUTPUT"
 
       - name: Configure Solana CLI
-        run: solana config set --url "$RPC_URL" --keypair "$HOME/.config/solana/id.json" > /dev/null
+        run: solana config set --url "$RPC_URL" --keypair "/tmp/deployer.json" > /dev/null
 
       # Equivalent of the build-verified composite action, inlined so the
       # base image can be pinned per program (its positional mount-dir
