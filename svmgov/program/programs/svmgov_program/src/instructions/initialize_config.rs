@@ -47,6 +47,7 @@ impl<'info> InitializeConfig<'info> {
         snapshot_epoch_extension: u64,
         snapshot_slot_offset: i64,
         max_supporters: u32,
+        new_proposals_allowed: Option<bool>,
         bumps: &InitializeConfigBumps,
     ) -> Result<()> {
         validate_cluster_support_pct_min_bps(cluster_support_pct_min_bps)?;
@@ -71,6 +72,7 @@ impl<'info> InitializeConfig<'info> {
             snapshot_slot_offset,
             max_supporters,
             bump: bumps.global_config,
+            new_proposals_allowed: new_proposals_allowed.unwrap_or(true),
         });
         Ok(())
     }

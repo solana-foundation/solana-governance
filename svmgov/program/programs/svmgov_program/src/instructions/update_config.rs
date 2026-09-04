@@ -11,9 +11,7 @@ use crate::{
 
 #[derive(Accounts)]
 pub struct UpdateConfig<'info> {
-    #[account(
-        mut,
-    )]
+    #[account(mut)]
     pub admin: Signer<'info>,
     /// CHECK: Validated after possible resize
     #[account(
@@ -39,6 +37,7 @@ impl<'info> UpdateConfig<'info> {
         snapshot_epoch_extension: Option<u64>,
         snapshot_slot_offset: Option<i64>,
         max_supporters: Option<u32>,
+        mut new_proposals_allowed: Option<bool>,
     ) -> Result<()> {
         if self.requires_migration() {
             // resize
@@ -60,8 +59,9 @@ impl<'info> UpdateConfig<'info> {
 
             self.global_config.realloc(new_size, true)?;
 
-            // ensure initialization of max supporters is valid during resize
-            validate_max_supporters(max_supporters.ok_or(GovernanceError::InvalidMaxSupporters)?)?;
+            if new_proposals_allowed.is_none() {
+                new_proposals_allowed = Some(false);
+            }
         }
 
         let mut config =
@@ -107,7 +107,9 @@ impl<'info> UpdateConfig<'info> {
             validate_max_supporters(v)?;
             config.max_supporters = v;
         }
-
+        if let Some(v) = new_proposals_allowed {
+            config.new_proposals_allowed = v;
+        }
         let mut data = self.global_config.try_borrow_mut_data()?;
         let mut dst: &mut [u8] = &mut data;
         GlobalConfig::try_serialize(&config, &mut dst)?;
@@ -116,10 +118,6 @@ impl<'info> UpdateConfig<'info> {
     }
 
     fn requires_migration(&self) -> bool {
-        if self.global_config.data_len() < GlobalConfig::INIT_SPACE + 8 {
-            true
-        } else {
-            false
-        }
+        self.global_config.data_len() < GlobalConfig::INIT_SPACE + 8
     }
 }

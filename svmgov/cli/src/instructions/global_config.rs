@@ -120,6 +120,7 @@ pub async fn initialize_global_config(
     snapshot_epoch_extension: u64,
     snapshot_slot_offset: i64,
     max_supporters: u32,
+    new_proposals_allowed: Option<bool>,
     squads: Option<SquadsCliOpts>,
 ) -> Result<()> {
     validate_config_values(
@@ -153,6 +154,7 @@ pub async fn initialize_global_config(
             snapshot_epoch_extension,
             snapshot_slot_offset,
             max_supporters,
+            new_proposals_allowed,
         })
         .accounts(accounts::InitializeConfig {
             admin,
@@ -194,6 +196,7 @@ pub async fn update_global_config(
     snapshot_epoch_extension: Option<u64>,
     snapshot_slot_offset: Option<i64>,
     max_supporters: Option<u32>,
+    new_proposals_allowed: Option<bool>,
     squads: Option<SquadsCliOpts>,
 ) -> Result<()> {
     validate_config_values(
@@ -223,6 +226,7 @@ pub async fn update_global_config(
             snapshot_epoch_extension,
             snapshot_slot_offset,
             max_supporters,
+            new_proposals_allowed,
         })
         .accounts(accounts::UpdateConfig {
             admin,
@@ -378,6 +382,7 @@ pub async fn show_global_config(rpc_url: Option<String>) -> Result<()> {
         config.snapshot_slot_offset
     );
     println!("  max_supporters:              {}", config.max_supporters);
+    println!("  new_proposals_allowed:       {}", config.new_proposals_allowed);
 
     Ok(())
 }
