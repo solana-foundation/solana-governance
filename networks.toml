@@ -1,7 +1,7 @@
 # Release manifest — single source of truth for per-network program IDs and RPC endpoints.
 
 [meta]
-release_version = "0.5.0-40200"
+release_version = "0.6.0-40200"
 
 [networks.mainnet]
 rpc_url = "https://api.mainnet-beta.solana.com"

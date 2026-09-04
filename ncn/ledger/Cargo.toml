@@ -1,6 +1,6 @@
 [package]
 name = "ncn-ledger"
-version = "0.5.0-40200"
+version = "0.6.0-40200"
 edition = "2021"
 description = "Ledger replay and snapshot loading helpers for the Solana governance NCN"
 license = "Apache-2.0"

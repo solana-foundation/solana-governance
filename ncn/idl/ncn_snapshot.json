@@ -2,7 +2,7 @@
   "address": "ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf",
   "metadata": {
     "name": "ncn_snapshot",
-    "version": "0.5.0-40200",
+    "version": "0.6.0-40200",
     "spec": "0.1.0",
     "description": "Governance NCN Voting Program"
   },

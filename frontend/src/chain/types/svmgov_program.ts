@@ -5,43 +5,34 @@
  * IDL can be found at `target/idl/svmgov_program.json`.
  */
 export type SvmgovProgram = {
-  "address": "govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU",
-  "metadata": {
-    "name": "svmgovProgram",
-    "version": "0.5.0-40200",
-    "spec": "0.1.0",
-    "description": "Created with Anchor"
-  },
-  "instructions": [
+  address: "govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU";
+  metadata: {
+    name: "svmgovProgram";
+    version: "0.6.0-40200";
+    spec: "0.1.0";
+    description: "Created with Anchor";
+  };
+  instructions: [
     {
-      "name": "acceptAdmin",
-      "docs": [
+      name: "acceptAdmin";
+      docs: [
         "Step 2 of the two-step admin transfer: the nominated admin accepts and becomes",
-        "the active admin."
-      ],
-      "discriminator": [
-        112,
-        42,
-        45,
-        90,
-        116,
-        181,
-        13,
-        170
-      ],
-      "accounts": [
+        "the active admin.",
+      ];
+      discriminator: [112, 42, 45, 90, 116, 181, 13, 170];
+      accounts: [
         {
-          "name": "newAdmin",
-          "signer": true
+          name: "newAdmin";
+          signer: true;
         },
         {
-          "name": "globalConfig",
-          "writable": true,
-          "pda": {
-            "seeds": [
+          name: "globalConfig";
+          writable: true;
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
+                kind: "const";
+                value: [
                   103,
                   108,
                   111,
@@ -54,77 +45,63 @@ export type SvmgovProgram = {
                   110,
                   102,
                   105,
-                  103
-                ]
-              }
-            ]
-          }
-        }
-      ],
-      "args": []
+                  103,
+                ];
+              },
+            ];
+          };
+        },
+      ];
+      args: [];
     },
     {
-      "name": "castVote",
-      "discriminator": [
-        20,
-        212,
-        15,
-        189,
-        69,
-        180,
-        69,
-        151
-      ],
-      "accounts": [
+      name: "castVote";
+      discriminator: [20, 212, 15, 189, 69, 180, 69, 151];
+      accounts: [
         {
-          "name": "signer",
-          "writable": true,
-          "signer": true
+          name: "signer";
+          writable: true;
+          signer: true;
         },
         {
-          "name": "proposal",
-          "writable": true
+          name: "proposal";
+          writable: true;
         },
         {
-          "name": "vote",
-          "writable": true,
-          "pda": {
-            "seeds": [
+          name: "vote";
+          writable: true;
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
-                  118,
-                  111,
-                  116,
-                  101
-                ]
+                kind: "const";
+                value: [118, 111, 116, 101];
               },
               {
-                "kind": "account",
-                "path": "proposal"
+                kind: "account";
+                path: "proposal";
               },
               {
-                "kind": "account",
-                "path": "splVoteAccount"
-              }
-            ]
-          }
+                kind: "account";
+                path: "splVoteAccount";
+              },
+            ];
+          };
         },
         {
-          "name": "splVoteAccount",
-          "docs": [
+          name: "splVoteAccount";
+          docs: [
             "enforced here. The signer-to-vote-account binding is proved in the handler",
             "via the meta merkle proof: voting_wallet == signer AND vote_account ==",
-            "spl_vote_account, both anchored to proposal.consensus_result."
-          ]
+            "spl_vote_account, both anchored to proposal.consensus_result.",
+          ];
         },
         {
-          "name": "voteOverrideCache",
-          "pda": {
-            "seeds": [
+          name: "voteOverrideCache";
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
+                kind: "const";
+                value: [
                   118,
                   111,
                   116,
@@ -143,113 +120,99 @@ export type SvmgovProgram = {
                   97,
                   99,
                   104,
-                  101
-                ]
+                  101,
+                ];
               },
               {
-                "kind": "account",
-                "path": "proposal"
+                kind: "account";
+                path: "proposal";
               },
               {
-                "kind": "account",
-                "path": "vote"
-              }
-            ]
-          }
+                kind: "account";
+                path: "vote";
+              },
+            ];
+          };
         },
         {
-          "name": "snapshotProgram"
+          name: "snapshotProgram";
         },
         {
-          "name": "consensusResult"
+          name: "consensusResult";
         },
         {
-          "name": "metaMerkleProof"
+          name: "metaMerkleProof";
         },
         {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
+          name: "systemProgram";
+          address: "11111111111111111111111111111111";
+        },
+      ];
+      args: [
         {
-          "name": "forVotesBp",
-          "type": "u64"
+          name: "forVotesBp";
+          type: "u64";
         },
         {
-          "name": "againstVotesBp",
-          "type": "u64"
+          name: "againstVotesBp";
+          type: "u64";
         },
         {
-          "name": "abstainVotesBp",
-          "type": "u64"
-        }
-      ]
+          name: "abstainVotesBp";
+          type: "u64";
+        },
+      ];
     },
     {
-      "name": "castVoteOverride",
-      "discriminator": [
-        225,
-        8,
-        137,
-        98,
-        214,
-        156,
-        183,
-        62
-      ],
-      "accounts": [
+      name: "castVoteOverride";
+      discriminator: [225, 8, 137, 98, 214, 156, 183, 62];
+      accounts: [
         {
-          "name": "signer",
-          "writable": true,
-          "signer": true
+          name: "signer";
+          writable: true;
+          signer: true;
         },
         {
-          "name": "proposal",
-          "writable": true
+          name: "proposal";
+          writable: true;
         },
         {
-          "name": "validatorVote",
-          "writable": true,
-          "pda": {
-            "seeds": [
+          name: "validatorVote";
+          writable: true;
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
-                  118,
-                  111,
-                  116,
-                  101
-                ]
+                kind: "const";
+                value: [118, 111, 116, 101];
               },
               {
-                "kind": "account",
-                "path": "proposal"
+                kind: "account";
+                path: "proposal";
               },
               {
-                "kind": "account",
-                "path": "splVoteAccount"
-              }
-            ]
-          }
+                kind: "account";
+                path: "splVoteAccount";
+              },
+            ];
+          };
         },
         {
-          "name": "splVoteAccount",
-          "docs": [
+          name: "splVoteAccount";
+          docs: [
             "enforced here. The signer here is the delegator (not the validator); the",
             "handler proves stake_merkle_leaf.voting_wallet == signer and binds the",
             "stake leaf to this vote account via the two-tier merkle proof",
-            "(stake_merkle_root nested inside meta_merkle_leaf)."
-          ]
+            "(stake_merkle_root nested inside meta_merkle_leaf).",
+          ];
         },
         {
-          "name": "voteOverride",
-          "writable": true,
-          "pda": {
-            "seeds": [
+          name: "voteOverride";
+          writable: true;
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
+                kind: "const";
+                value: [
                   118,
                   111,
                   116,
@@ -262,32 +225,32 @@ export type SvmgovProgram = {
                   114,
                   105,
                   100,
-                  101
-                ]
+                  101,
+                ];
               },
               {
-                "kind": "account",
-                "path": "proposal"
+                kind: "account";
+                path: "proposal";
               },
               {
-                "kind": "account",
-                "path": "splStakeAccount"
+                kind: "account";
+                path: "splStakeAccount";
               },
               {
-                "kind": "account",
-                "path": "validatorVote"
-              }
-            ]
-          }
+                kind: "account";
+                path: "validatorVote";
+              },
+            ];
+          };
         },
         {
-          "name": "voteOverrideCache",
-          "writable": true,
-          "pda": {
-            "seeds": [
+          name: "voteOverrideCache";
+          writable: true;
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
+                kind: "const";
+                value: [
                   118,
                   111,
                   116,
@@ -306,150 +269,123 @@ export type SvmgovProgram = {
                   97,
                   99,
                   104,
-                  101
-                ]
+                  101,
+                ];
               },
               {
-                "kind": "account",
-                "path": "proposal"
+                kind: "account";
+                path: "proposal";
               },
               {
-                "kind": "account",
-                "path": "validatorVote"
-              }
-            ]
-          }
+                kind: "account";
+                path: "validatorVote";
+              },
+            ];
+          };
         },
         {
-          "name": "splStakeAccount"
+          name: "splStakeAccount";
         },
         {
-          "name": "snapshotProgram"
+          name: "snapshotProgram";
         },
         {
-          "name": "consensusResult"
+          name: "consensusResult";
         },
         {
-          "name": "metaMerkleProof"
+          name: "metaMerkleProof";
         },
         {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
+          name: "systemProgram";
+          address: "11111111111111111111111111111111";
+        },
+      ];
+      args: [
         {
-          "name": "forVotesBp",
-          "type": "u64"
+          name: "forVotesBp";
+          type: "u64";
         },
         {
-          "name": "againstVotesBp",
-          "type": "u64"
+          name: "againstVotesBp";
+          type: "u64";
         },
         {
-          "name": "abstainVotesBp",
-          "type": "u64"
+          name: "abstainVotesBp";
+          type: "u64";
         },
         {
-          "name": "stakeMerkleProof",
-          "type": {
-            "vec": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          }
+          name: "stakeMerkleProof";
+          type: {
+            vec: {
+              array: ["u8", 32];
+            };
+          };
         },
         {
-          "name": "stakeMerkleLeaf",
-          "type": {
-            "defined": {
-              "name": "stakeMerkleLeaf"
-            }
-          }
-        }
-      ]
+          name: "stakeMerkleLeaf";
+          type: {
+            defined: {
+              name: "stakeMerkleLeaf";
+            };
+          };
+        },
+      ];
     },
     {
-      "name": "createProposal",
-      "discriminator": [
-        132,
-        116,
-        68,
-        174,
-        216,
-        160,
-        198,
-        22
-      ],
-      "accounts": [
+      name: "createProposal";
+      discriminator: [132, 116, 68, 174, 216, 160, 198, 22];
+      accounts: [
         {
-          "name": "signer",
-          "writable": true,
-          "signer": true
+          name: "signer";
+          writable: true;
+          signer: true;
         },
         {
-          "name": "proposal",
-          "writable": true,
-          "pda": {
-            "seeds": [
+          name: "proposal";
+          writable: true;
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  112,
-                  111,
-                  115,
-                  97,
-                  108
-                ]
+                kind: "const";
+                value: [112, 114, 111, 112, 111, 115, 97, 108];
               },
               {
-                "kind": "arg",
-                "path": "seed"
+                kind: "arg";
+                path: "seed";
               },
               {
-                "kind": "account",
-                "path": "splVoteAccount"
-              }
-            ]
-          }
+                kind: "account";
+                path: "splVoteAccount";
+              },
+            ];
+          };
         },
         {
-          "name": "proposalIndex",
-          "writable": true,
-          "pda": {
-            "seeds": [
+          name: "proposalIndex";
+          writable: true;
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
-                  105,
-                  110,
-                  100,
-                  101,
-                  120
-                ]
-              }
-            ]
-          }
+                kind: "const";
+                value: [105, 110, 100, 101, 120];
+              },
+            ];
+          };
         },
         {
-          "name": "splVoteAccount",
-          "docs": [
+          name: "splVoteAccount";
+          docs: [
             "enforced here; the handler then deserializes VoteStateVersions and requires",
-            "node_pubkey == signer, proving the signer operates this vote account."
-          ]
+            "node_pubkey == signer, proving the signer operates this vote account.",
+          ];
         },
         {
-          "name": "globalConfig",
-          "pda": {
-            "seeds": [
+          name: "globalConfig";
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
+                kind: "const";
+                value: [
                   103,
                   108,
                   111,
@@ -462,100 +398,82 @@ export type SvmgovProgram = {
                   110,
                   102,
                   105,
-                  103
-                ]
-              }
-            ]
-          }
+                  103,
+                ];
+              },
+            ];
+          };
         },
         {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
+          name: "systemProgram";
+          address: "11111111111111111111111111111111";
+        },
+      ];
+      args: [
         {
-          "name": "seed",
-          "type": "u64"
+          name: "seed";
+          type: "u64";
         },
         {
-          "name": "title",
-          "type": "string"
+          name: "title";
+          type: "string";
         },
         {
-          "name": "description",
-          "type": "string"
-        }
-      ]
+          name: "description";
+          type: "string";
+        },
+      ];
     },
     {
-      "name": "finalizeProposal",
-      "discriminator": [
-        23,
-        68,
-        51,
-        167,
-        109,
-        173,
-        187,
-        164
-      ],
-      "accounts": [
+      name: "finalizeProposal";
+      discriminator: [23, 68, 51, 167, 109, 173, 187, 164];
+      accounts: [
         {
-          "name": "signer",
-          "signer": true
+          name: "signer";
+          signer: true;
         },
         {
-          "name": "proposal",
-          "writable": true
-        }
-      ],
-      "args": []
+          name: "proposal";
+          writable: true;
+        },
+      ];
+      args: [];
     },
     {
-      "name": "flushMerkleRoot",
-      "discriminator": [
-        10,
-        71,
-        17,
-        246,
-        162,
-        57,
-        144,
-        87
-      ],
-      "accounts": [
+      name: "flushMerkleRoot";
+      discriminator: [10, 71, 17, 246, 162, 57, 144, 87];
+      accounts: [
         {
-          "name": "signer",
-          "writable": true,
-          "signer": true
+          name: "signer";
+          writable: true;
+          signer: true;
         },
         {
-          "name": "proposal",
-          "writable": true
+          name: "proposal";
+          writable: true;
         },
         {
-          "name": "splVoteAccount",
-          "docs": [
+          name: "splVoteAccount";
+          docs: [
             "to the proposal by the init_ballot_box CPI's PDA seed check, which re-derives",
-            "[b\"proposal\", proposal_seed, spl_vote_account] against the signing proposal",
+            '[b"proposal", proposal_seed, spl_vote_account] against the signing proposal',
             "PDA. A mismatched vote account is therefore rejected regardless of who signs",
-            "this instruction (the signer is the admin, not necessarily the author)."
-          ]
+            "this instruction (the signer is the admin, not necessarily the author).",
+          ];
         },
         {
-          "name": "ballotBox"
+          name: "ballotBox";
         },
         {
-          "name": "ballotProgram"
+          name: "ballotProgram";
         },
         {
-          "name": "programConfig",
-          "pda": {
-            "seeds": [
+          name: "programConfig";
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
+                kind: "const";
+                value: [
                   80,
                   114,
                   111,
@@ -568,23 +486,23 @@ export type SvmgovProgram = {
                   110,
                   102,
                   105,
-                  103
-                ]
-              }
-            ],
-            "program": {
-              "kind": "account",
-              "path": "ballotProgram"
-            }
-          }
+                  103,
+                ];
+              },
+            ];
+            program: {
+              kind: "account";
+              path: "ballotProgram";
+            };
+          };
         },
         {
-          "name": "globalConfig",
-          "pda": {
-            "seeds": [
+          name: "globalConfig";
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
+                kind: "const";
+                value: [
                   103,
                   108,
                   111,
@@ -597,45 +515,36 @@ export type SvmgovProgram = {
                   110,
                   102,
                   105,
-                  103
-                ]
-              }
-            ]
-          }
+                  103,
+                ];
+              },
+            ];
+          };
         },
         {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": []
+          name: "systemProgram";
+          address: "11111111111111111111111111111111";
+        },
+      ];
+      args: [];
     },
     {
-      "name": "initializeConfig",
-      "discriminator": [
-        208,
-        127,
-        21,
-        1,
-        194,
-        190,
-        196,
-        70
-      ],
-      "accounts": [
+      name: "initializeConfig";
+      discriminator: [208, 127, 21, 1, 194, 190, 196, 70];
+      accounts: [
         {
-          "name": "admin",
-          "writable": true,
-          "signer": true
+          name: "admin";
+          writable: true;
+          signer: true;
         },
         {
-          "name": "globalConfig",
-          "writable": true,
-          "pda": {
-            "seeds": [
+          name: "globalConfig";
+          writable: true;
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
+                kind: "const";
+                value: [
                   103,
                   108,
                   111,
@@ -648,261 +557,218 @@ export type SvmgovProgram = {
                   110,
                   102,
                   105,
-                  103
-                ]
-              }
-            ]
-          }
+                  103,
+                ];
+              },
+            ];
+          };
         },
         {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
+          name: "systemProgram";
+          address: "11111111111111111111111111111111";
         },
         {
-          "name": "program",
-          "address": "govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU"
+          name: "program";
+          address: "govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU";
         },
         {
-          "name": "programData"
-        }
-      ],
-      "args": [
+          name: "programData";
+        },
+      ];
+      args: [
         {
-          "name": "maxTitleLength",
-          "type": "u16"
+          name: "maxTitleLength";
+          type: "u16";
         },
         {
-          "name": "maxDescriptionLength",
-          "type": "u16"
+          name: "maxDescriptionLength";
+          type: "u16";
         },
         {
-          "name": "maxSupportEpochs",
-          "type": "u64"
+          name: "maxSupportEpochs";
+          type: "u64";
         },
         {
-          "name": "minProposalStakeLamports",
-          "type": "u64"
+          name: "minProposalStakeLamports";
+          type: "u64";
         },
         {
-          "name": "clusterSupportPctMinBps",
-          "type": "u64"
+          name: "clusterSupportPctMinBps";
+          type: "u64";
         },
         {
-          "name": "discussionEpochs",
-          "type": "u64"
+          name: "discussionEpochs";
+          type: "u64";
         },
         {
-          "name": "votingEpochs",
-          "type": "u64"
+          name: "votingEpochs";
+          type: "u64";
         },
         {
-          "name": "snapshotEpochExtension",
-          "type": "u64"
+          name: "snapshotEpochExtension";
+          type: "u64";
         },
         {
-          "name": "snapshotSlotOffset",
-          "type": "i64"
+          name: "snapshotSlotOffset";
+          type: "i64";
         },
         {
-          "name": "maxSupporters",
-          "type": "u32"
+          name: "maxSupporters";
+          type: "u32";
         },
         {
-          "name": "newProposalsAllowed",
-          "type": {
-            "option": "bool"
-          }
-        }
-      ]
+          name: "newProposalsAllowed";
+          type: {
+            option: "bool";
+          };
+        },
+      ];
     },
     {
-      "name": "initializeIndex",
-      "discriminator": [
-        204,
-        67,
-        3,
-        74,
-        139,
-        139,
-        233,
-        10
-      ],
-      "accounts": [
+      name: "initializeIndex";
+      discriminator: [204, 67, 3, 74, 139, 139, 233, 10];
+      accounts: [
         {
-          "name": "signer",
-          "writable": true,
-          "signer": true
+          name: "signer";
+          writable: true;
+          signer: true;
         },
         {
-          "name": "proposalIndex",
-          "writable": true,
-          "pda": {
-            "seeds": [
+          name: "proposalIndex";
+          writable: true;
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
-                  105,
-                  110,
-                  100,
-                  101,
-                  120
-                ]
-              }
-            ]
-          }
+                kind: "const";
+                value: [105, 110, 100, 101, 120];
+              },
+            ];
+          };
         },
         {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": []
+          name: "systemProgram";
+          address: "11111111111111111111111111111111";
+        },
+      ];
+      args: [];
     },
     {
-      "name": "modifyVote",
-      "discriminator": [
-        116,
-        52,
-        102,
-        0,
-        121,
-        145,
-        27,
-        139
-      ],
-      "accounts": [
+      name: "modifyVote";
+      discriminator: [116, 52, 102, 0, 121, 145, 27, 139];
+      accounts: [
         {
-          "name": "signer",
-          "signer": true
+          name: "signer";
+          signer: true;
         },
         {
-          "name": "proposal",
-          "writable": true
+          name: "proposal";
+          writable: true;
         },
         {
-          "name": "vote",
-          "writable": true,
-          "pda": {
-            "seeds": [
+          name: "vote";
+          writable: true;
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
-                  118,
-                  111,
-                  116,
-                  101
-                ]
+                kind: "const";
+                value: [118, 111, 116, 101];
               },
               {
-                "kind": "account",
-                "path": "proposal"
+                kind: "account";
+                path: "proposal";
               },
               {
-                "kind": "account",
-                "path": "splVoteAccount"
-              }
-            ]
-          }
+                kind: "account";
+                path: "splVoteAccount";
+              },
+            ];
+          };
         },
         {
-          "name": "splVoteAccount",
-          "docs": [
+          name: "splVoteAccount";
+          docs: [
             "enforced here. The signer-to-vote-account binding is proved in the handler",
             "via the meta merkle proof: voting_wallet == signer AND vote_account ==",
-            "spl_vote_account, both anchored to proposal.consensus_result."
-          ]
+            "spl_vote_account, both anchored to proposal.consensus_result.",
+          ];
         },
         {
-          "name": "snapshotProgram"
+          name: "snapshotProgram";
         },
         {
-          "name": "consensusResult"
+          name: "consensusResult";
         },
         {
-          "name": "metaMerkleProof"
+          name: "metaMerkleProof";
         },
         {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
+          name: "systemProgram";
+          address: "11111111111111111111111111111111";
+        },
+      ];
+      args: [
         {
-          "name": "forVotesBp",
-          "type": "u64"
+          name: "forVotesBp";
+          type: "u64";
         },
         {
-          "name": "againstVotesBp",
-          "type": "u64"
+          name: "againstVotesBp";
+          type: "u64";
         },
         {
-          "name": "abstainVotesBp",
-          "type": "u64"
-        }
-      ]
+          name: "abstainVotesBp";
+          type: "u64";
+        },
+      ];
     },
     {
-      "name": "modifyVoteOverride",
-      "discriminator": [
-        42,
-        54,
-        123,
-        87,
-        239,
-        152,
-        22,
-        186
-      ],
-      "accounts": [
+      name: "modifyVoteOverride";
+      discriminator: [42, 54, 123, 87, 239, 152, 22, 186];
+      accounts: [
         {
-          "name": "signer",
-          "signer": true
+          name: "signer";
+          signer: true;
         },
         {
-          "name": "proposal",
-          "writable": true
+          name: "proposal";
+          writable: true;
         },
         {
-          "name": "validatorVote",
-          "pda": {
-            "seeds": [
+          name: "validatorVote";
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
-                  118,
-                  111,
-                  116,
-                  101
-                ]
+                kind: "const";
+                value: [118, 111, 116, 101];
               },
               {
-                "kind": "account",
-                "path": "proposal"
+                kind: "account";
+                path: "proposal";
               },
               {
-                "kind": "account",
-                "path": "splVoteAccount"
-              }
-            ]
-          }
+                kind: "account";
+                path: "splVoteAccount";
+              },
+            ];
+          };
         },
         {
-          "name": "splVoteAccount",
-          "docs": [
+          name: "splVoteAccount";
+          docs: [
             "enforced here. The signer here is the delegator (not the validator); the",
             "handler proves stake_merkle_leaf.voting_wallet == signer and binds the",
             "stake leaf to this vote account via the two-tier merkle proof",
-            "(stake_merkle_root nested inside meta_merkle_leaf)."
-          ]
+            "(stake_merkle_root nested inside meta_merkle_leaf).",
+          ];
         },
         {
-          "name": "voteOverride",
-          "writable": true,
-          "pda": {
-            "seeds": [
+          name: "voteOverride";
+          writable: true;
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
+                kind: "const";
+                value: [
                   118,
                   111,
                   116,
@@ -915,32 +781,32 @@ export type SvmgovProgram = {
                   114,
                   105,
                   100,
-                  101
-                ]
+                  101,
+                ];
               },
               {
-                "kind": "account",
-                "path": "proposal"
+                kind: "account";
+                path: "proposal";
               },
               {
-                "kind": "account",
-                "path": "splStakeAccount"
+                kind: "account";
+                path: "splStakeAccount";
               },
               {
-                "kind": "account",
-                "path": "validatorVote"
-              }
-            ]
-          }
+                kind: "account";
+                path: "validatorVote";
+              },
+            ];
+          };
         },
         {
-          "name": "voteOverrideCache",
-          "writable": true,
-          "pda": {
-            "seeds": [
+          name: "voteOverrideCache";
+          writable: true;
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
+                kind: "const";
+                value: [
                   118,
                   111,
                   116,
@@ -959,100 +825,88 @@ export type SvmgovProgram = {
                   97,
                   99,
                   104,
-                  101
-                ]
+                  101,
+                ];
               },
               {
-                "kind": "account",
-                "path": "proposal"
+                kind: "account";
+                path: "proposal";
               },
               {
-                "kind": "account",
-                "path": "validatorVote"
-              }
-            ]
-          }
+                kind: "account";
+                path: "validatorVote";
+              },
+            ];
+          };
         },
         {
-          "name": "splStakeAccount"
+          name: "splStakeAccount";
         },
         {
-          "name": "snapshotProgram"
+          name: "snapshotProgram";
         },
         {
-          "name": "consensusResult"
+          name: "consensusResult";
         },
         {
-          "name": "metaMerkleProof"
+          name: "metaMerkleProof";
         },
         {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
+          name: "systemProgram";
+          address: "11111111111111111111111111111111";
+        },
+      ];
+      args: [
         {
-          "name": "forVotesBp",
-          "type": "u64"
+          name: "forVotesBp";
+          type: "u64";
         },
         {
-          "name": "againstVotesBp",
-          "type": "u64"
+          name: "againstVotesBp";
+          type: "u64";
         },
         {
-          "name": "abstainVotesBp",
-          "type": "u64"
+          name: "abstainVotesBp";
+          type: "u64";
         },
         {
-          "name": "stakeMerkleProof",
-          "type": {
-            "vec": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          }
+          name: "stakeMerkleProof";
+          type: {
+            vec: {
+              array: ["u8", 32];
+            };
+          };
         },
         {
-          "name": "stakeMerkleLeaf",
-          "type": {
-            "defined": {
-              "name": "stakeMerkleLeaf"
-            }
-          }
-        }
-      ]
+          name: "stakeMerkleLeaf";
+          type: {
+            defined: {
+              name: "stakeMerkleLeaf";
+            };
+          };
+        },
+      ];
     },
     {
-      "name": "nominateAdmin",
-      "docs": [
+      name: "nominateAdmin";
+      docs: [
         "Step 1 of the two-step admin transfer: the current admin nominates a new admin.",
-        "The transfer only completes once the nominee calls `accept_admin`."
-      ],
-      "discriminator": [
-        134,
-        11,
-        31,
-        244,
-        20,
-        77,
-        138,
-        121
-      ],
-      "accounts": [
+        "The transfer only completes once the nominee calls `accept_admin`.",
+      ];
+      discriminator: [134, 11, 31, 244, 20, 77, 138, 121];
+      accounts: [
         {
-          "name": "admin",
-          "signer": true
+          name: "admin";
+          signer: true;
         },
         {
-          "name": "globalConfig",
-          "writable": true,
-          "pda": {
-            "seeds": [
+          name: "globalConfig";
+          writable: true;
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
+                kind: "const";
+                value: [
                   103,
                   108,
                   111,
@@ -1065,64 +919,55 @@ export type SvmgovProgram = {
                   110,
                   102,
                   105,
-                  103
-                ]
-              }
-            ]
-          }
-        }
-      ],
-      "args": [
+                  103,
+                ];
+              },
+            ];
+          };
+        },
+      ];
+      args: [
         {
-          "name": "proposedAdmin",
-          "type": "pubkey"
-        }
-      ]
+          name: "proposedAdmin";
+          type: "pubkey";
+        },
+      ];
     },
     {
-      "name": "retallySupport",
-      "docs": [
+      name: "retallySupport";
+      docs: [
         "Permissionless re-tally of a proposal's support at the current epoch.",
-        "Activates voting if the re-measured support now meets the threshold."
-      ],
-      "discriminator": [
-        132,
-        55,
-        145,
-        255,
-        12,
-        163,
-        151,
-        141
-      ],
-      "accounts": [
+        "Activates voting if the re-measured support now meets the threshold.",
+      ];
+      discriminator: [132, 55, 145, 255, 12, 163, 151, 141];
+      accounts: [
         {
-          "name": "signer",
-          "docs": [
+          name: "signer";
+          docs: [
             "Any caller. Pays only the tx fee — plus the ballot-box rent iff this",
-            "retally activates voting and the ballot box does not exist yet."
-          ],
-          "writable": true,
-          "signer": true
+            "retally activates voting and the ballot box does not exist yet.",
+          ];
+          writable: true;
+          signer: true;
         },
         {
-          "name": "proposal",
-          "writable": true
+          name: "proposal";
+          writable: true;
         },
         {
-          "name": "ballotBox",
-          "writable": true
+          name: "ballotBox";
+          writable: true;
         },
         {
-          "name": "ballotProgram"
+          name: "ballotProgram";
         },
         {
-          "name": "programConfig",
-          "pda": {
-            "seeds": [
+          name: "programConfig";
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
+                kind: "const";
+                value: [
                   80,
                   114,
                   111,
@@ -1135,23 +980,23 @@ export type SvmgovProgram = {
                   110,
                   102,
                   105,
-                  103
-                ]
-              }
-            ],
-            "program": {
-              "kind": "account",
-              "path": "ballotProgram"
-            }
-          }
+                  103,
+                ];
+              },
+            ];
+            program: {
+              kind: "account";
+              path: "ballotProgram";
+            };
+          };
         },
         {
-          "name": "globalConfig",
-          "pda": {
-            "seeds": [
+          name: "globalConfig";
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
+                kind: "const";
+                value: [
                   103,
                   108,
                   111,
@@ -1164,91 +1009,74 @@ export type SvmgovProgram = {
                   110,
                   102,
                   105,
-                  103
-                ]
-              }
-            ]
-          }
+                  103,
+                ];
+              },
+            ];
+          };
         },
         {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": []
+          name: "systemProgram";
+          address: "11111111111111111111111111111111";
+        },
+      ];
+      args: [];
     },
     {
-      "name": "supportProposal",
-      "discriminator": [
-        95,
-        239,
-        233,
-        199,
-        201,
-        62,
-        90,
-        27
-      ],
-      "accounts": [
+      name: "supportProposal";
+      discriminator: [95, 239, 233, 199, 201, 62, 90, 27];
+      accounts: [
         {
-          "name": "signer",
-          "writable": true,
-          "signer": true
+          name: "signer";
+          writable: true;
+          signer: true;
         },
         {
-          "name": "proposal",
-          "writable": true
+          name: "proposal";
+          writable: true;
         },
         {
-          "name": "support",
-          "writable": true,
-          "pda": {
-            "seeds": [
+          name: "support";
+          writable: true;
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
-                  115,
-                  117,
-                  112,
-                  112,
-                  111,
-                  114,
-                  116
-                ]
+                kind: "const";
+                value: [115, 117, 112, 112, 111, 114, 116];
               },
               {
-                "kind": "account",
-                "path": "proposal"
+                kind: "account";
+                path: "proposal";
               },
               {
-                "kind": "account",
-                "path": "splVoteAccount"
-              }
-            ]
-          }
+                kind: "account";
+                path: "splVoteAccount";
+              },
+            ];
+          };
         },
         {
-          "name": "splVoteAccount",
-          "docs": [
+          name: "splVoteAccount";
+          docs: [
             "enforced here; the handler then deserializes VoteStateVersions and requires",
             "node_pubkey == signer, so a supporter can only pledge stake from a vote",
-            "account they operate."
-          ]
+            "account they operate.",
+          ];
         },
         {
-          "name": "ballotBox",
-          "writable": true
+          name: "ballotBox";
+          writable: true;
         },
         {
-          "name": "ballotProgram"
+          name: "ballotProgram";
         },
         {
-          "name": "programConfig",
-          "pda": {
-            "seeds": [
+          name: "programConfig";
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
+                kind: "const";
+                value: [
                   80,
                   114,
                   111,
@@ -1261,23 +1089,23 @@ export type SvmgovProgram = {
                   110,
                   102,
                   105,
-                  103
-                ]
-              }
-            ],
-            "program": {
-              "kind": "account",
-              "path": "ballotProgram"
-            }
-          }
+                  103,
+                ];
+              },
+            ];
+            program: {
+              kind: "account";
+              path: "ballotProgram";
+            };
+          };
         },
         {
-          "name": "globalConfig",
-          "pda": {
-            "seeds": [
+          name: "globalConfig";
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
+                kind: "const";
+                value: [
                   103,
                   108,
                   111,
@@ -1290,45 +1118,36 @@ export type SvmgovProgram = {
                   110,
                   102,
                   105,
-                  103
-                ]
-              }
-            ]
-          }
+                  103,
+                ];
+              },
+            ];
+          };
         },
         {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": []
+          name: "systemProgram";
+          address: "11111111111111111111111111111111";
+        },
+      ];
+      args: [];
     },
     {
-      "name": "updateConfig",
-      "discriminator": [
-        29,
-        158,
-        252,
-        191,
-        10,
-        83,
-        219,
-        99
-      ],
-      "accounts": [
+      name: "updateConfig";
+      discriminator: [29, 158, 252, 191, 10, 83, 219, 99];
+      accounts: [
         {
-          "name": "admin",
-          "writable": true,
-          "signer": true
+          name: "admin";
+          writable: true;
+          signer: true;
         },
         {
-          "name": "globalConfig",
-          "writable": true,
-          "pda": {
-            "seeds": [
+          name: "globalConfig";
+          writable: true;
+          pda: {
+            seeds: [
               {
-                "kind": "const",
-                "value": [
+                kind: "const";
+                value: [
                   103,
                   108,
                   111,
@@ -1341,907 +1160,721 @@ export type SvmgovProgram = {
                   110,
                   102,
                   105,
-                  103
-                ]
-              }
-            ]
-          }
+                  103,
+                ];
+              },
+            ];
+          };
         },
         {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
+          name: "systemProgram";
+          address: "11111111111111111111111111111111";
+        },
+      ];
+      args: [
         {
-          "name": "maxTitleLength",
-          "type": {
-            "option": "u16"
-          }
+          name: "maxTitleLength";
+          type: {
+            option: "u16";
+          };
         },
         {
-          "name": "maxDescriptionLength",
-          "type": {
-            "option": "u16"
-          }
+          name: "maxDescriptionLength";
+          type: {
+            option: "u16";
+          };
         },
         {
-          "name": "maxSupportEpochs",
-          "type": {
-            "option": "u64"
-          }
+          name: "maxSupportEpochs";
+          type: {
+            option: "u64";
+          };
         },
         {
-          "name": "minProposalStakeLamports",
-          "type": {
-            "option": "u64"
-          }
+          name: "minProposalStakeLamports";
+          type: {
+            option: "u64";
+          };
         },
         {
-          "name": "clusterSupportPctMinBps",
-          "type": {
-            "option": "u64"
-          }
+          name: "clusterSupportPctMinBps";
+          type: {
+            option: "u64";
+          };
         },
         {
-          "name": "discussionEpochs",
-          "type": {
-            "option": "u64"
-          }
+          name: "discussionEpochs";
+          type: {
+            option: "u64";
+          };
         },
         {
-          "name": "votingEpochs",
-          "type": {
-            "option": "u64"
-          }
+          name: "votingEpochs";
+          type: {
+            option: "u64";
+          };
         },
         {
-          "name": "snapshotEpochExtension",
-          "type": {
-            "option": "u64"
-          }
+          name: "snapshotEpochExtension";
+          type: {
+            option: "u64";
+          };
         },
         {
-          "name": "snapshotSlotOffset",
-          "type": {
-            "option": "i64"
-          }
+          name: "snapshotSlotOffset";
+          type: {
+            option: "i64";
+          };
         },
         {
-          "name": "maxSupporters",
-          "type": {
-            "option": "u32"
-          }
+          name: "maxSupporters";
+          type: {
+            option: "u32";
+          };
         },
         {
-          "name": "newProposalsAllowed",
-          "type": {
-            "option": "bool"
-          }
-        }
-      ]
-    }
-  ],
-  "accounts": [
-    {
-      "name": "globalConfig",
-      "discriminator": [
-        149,
-        8,
-        156,
-        202,
-        160,
-        252,
-        176,
-        217
-      ]
-    },
-    {
-      "name": "proposal",
-      "discriminator": [
-        26,
-        94,
-        189,
-        187,
-        116,
-        136,
-        53,
-        33
-      ]
-    },
-    {
-      "name": "proposalIndex",
-      "discriminator": [
-        83,
-        97,
-        143,
-        58,
-        176,
-        46,
-        177,
-        195
-      ]
-    },
-    {
-      "name": "support",
-      "discriminator": [
-        247,
-        108,
-        3,
-        111,
-        84,
-        51,
-        217,
-        107
-      ]
-    },
-    {
-      "name": "vote",
-      "discriminator": [
-        96,
-        91,
-        104,
-        57,
-        145,
-        35,
-        172,
-        155
-      ]
-    },
-    {
-      "name": "voteOverride",
-      "discriminator": [
-        130,
-        93,
-        172,
-        50,
-        168,
-        151,
-        176,
-        188
-      ]
-    },
-    {
-      "name": "voteOverrideCache",
-      "discriminator": [
-        195,
-        82,
-        50,
-        219,
-        140,
-        34,
-        108,
-        57
-      ]
-    }
-  ],
-  "events": [
-    {
-      "name": "adminNominated",
-      "discriminator": [
-        22,
-        247,
-        53,
-        33,
-        59,
-        59,
-        68,
-        112
-      ]
-    },
-    {
-      "name": "adminTransferred",
-      "discriminator": [
-        255,
-        147,
-        182,
-        5,
-        199,
-        217,
-        38,
-        179
-      ]
-    },
-    {
-      "name": "merkleRootFlushed",
-      "discriminator": [
-        120,
-        37,
-        53,
-        216,
-        119,
-        172,
-        17,
-        144
-      ]
-    },
-    {
-      "name": "proposalCreated",
-      "discriminator": [
-        186,
-        8,
-        160,
-        108,
-        81,
-        13,
-        51,
-        206
-      ]
-    },
-    {
-      "name": "proposalFinalized",
-      "discriminator": [
-        159,
-        104,
-        210,
-        220,
-        86,
-        209,
-        61,
-        51
-      ]
-    },
-    {
-      "name": "proposalRetallied",
-      "discriminator": [
-        50,
-        227,
-        187,
-        86,
-        132,
-        93,
-        57,
-        3
-      ]
-    },
-    {
-      "name": "proposalSupported",
-      "discriminator": [
-        248,
-        220,
-        71,
-        30,
-        127,
-        209,
-        67,
-        231
-      ]
-    },
-    {
-      "name": "voteCast",
-      "discriminator": [
-        39,
-        53,
-        195,
-        104,
-        188,
-        17,
-        225,
-        213
-      ]
-    },
-    {
-      "name": "voteModified",
-      "discriminator": [
-        192,
-        64,
-        130,
-        9,
-        210,
-        47,
-        57,
-        175
-      ]
-    },
-    {
-      "name": "voteOverrideCast",
-      "discriminator": [
-        111,
-        204,
-        225,
-        252,
-        254,
-        218,
-        120,
-        236
-      ]
-    },
-    {
-      "name": "voteOverrideModified",
-      "discriminator": [
-        235,
-        74,
-        153,
-        225,
-        242,
-        72,
-        228,
-        9
-      ]
-    }
-  ],
-  "errors": [
-    {
-      "code": 6000,
-      "name": "notEnoughStake",
-      "msg": "Insufficient stake to perform this action"
-    },
+          name: "newProposalsAllowed";
+          type: {
+            option: "bool";
+          };
+        },
+      ];
+    },
+  ];
+  accounts: [
+    {
+      name: "globalConfig";
+      discriminator: [149, 8, 156, 202, 160, 252, 176, 217];
+    },
+    {
+      name: "proposal";
+      discriminator: [26, 94, 189, 187, 116, 136, 53, 33];
+    },
+    {
+      name: "proposalIndex";
+      discriminator: [83, 97, 143, 58, 176, 46, 177, 195];
+    },
+    {
+      name: "support";
+      discriminator: [247, 108, 3, 111, 84, 51, 217, 107];
+    },
+    {
+      name: "vote";
+      discriminator: [96, 91, 104, 57, 145, 35, 172, 155];
+    },
+    {
+      name: "voteOverride";
+      discriminator: [130, 93, 172, 50, 168, 151, 176, 188];
+    },
+    {
+      name: "voteOverrideCache";
+      discriminator: [195, 82, 50, 219, 140, 34, 108, 57];
+    },
+  ];
+  events: [
+    {
+      name: "adminNominated";
+      discriminator: [22, 247, 53, 33, 59, 59, 68, 112];
+    },
+    {
+      name: "adminTransferred";
+      discriminator: [255, 147, 182, 5, 199, 217, 38, 179];
+    },
+    {
+      name: "merkleRootFlushed";
+      discriminator: [120, 37, 53, 216, 119, 172, 17, 144];
+    },
+    {
+      name: "proposalCreated";
+      discriminator: [186, 8, 160, 108, 81, 13, 51, 206];
+    },
+    {
+      name: "proposalFinalized";
+      discriminator: [159, 104, 210, 220, 86, 209, 61, 51];
+    },
+    {
+      name: "proposalRetallied";
+      discriminator: [50, 227, 187, 86, 132, 93, 57, 3];
+    },
+    {
+      name: "proposalSupported";
+      discriminator: [248, 220, 71, 30, 127, 209, 67, 231];
+    },
+    {
+      name: "voteCast";
+      discriminator: [39, 53, 195, 104, 188, 17, 225, 213];
+    },
+    {
+      name: "voteModified";
+      discriminator: [192, 64, 130, 9, 210, 47, 57, 175];
+    },
+    {
+      name: "voteOverrideCast";
+      discriminator: [111, 204, 225, 252, 254, 218, 120, 236];
+    },
     {
-      "code": 6001,
-      "name": "titleEmpty",
-      "msg": "The title of the proposal cannot be empty"
+      name: "voteOverrideModified";
+      discriminator: [235, 74, 153, 225, 242, 72, 228, 9];
     },
+  ];
+  errors: [
     {
-      "code": 6002,
-      "name": "titleTooLong",
-      "msg": "The title of the proposal is too long, max 200 bytes"
+      code: 6000;
+      name: "notEnoughStake";
+      msg: "Insufficient stake to perform this action";
     },
     {
-      "code": 6003,
-      "name": "descriptionEmpty",
-      "msg": "The description of the proposal cannot be empty"
+      code: 6001;
+      name: "titleEmpty";
+      msg: "The title of the proposal cannot be empty";
     },
     {
-      "code": 6004,
-      "name": "descriptionTooLong",
-      "msg": "The description of the proposal is too long, max 500 bytes"
+      code: 6002;
+      name: "titleTooLong";
+      msg: "The title of the proposal is too long, max 200 bytes";
     },
     {
-      "code": 6005,
-      "name": "descriptionInvalid",
-      "msg": "The description of the proposal must point to a github link"
+      code: 6003;
+      name: "descriptionEmpty";
+      msg: "The description of the proposal cannot be empty";
     },
     {
-      "code": 6006,
-      "name": "invalidProposalId",
-      "msg": "Invalid proposal ID"
+      code: 6004;
+      name: "descriptionTooLong";
+      msg: "The description of the proposal is too long, max 500 bytes";
     },
     {
-      "code": 6007,
-      "name": "votingNotStarted",
-      "msg": "Voting on proposal not yet started"
+      code: 6005;
+      name: "descriptionInvalid";
+      msg: "The description of the proposal must point to a github link";
     },
     {
-      "code": 6008,
-      "name": "proposalClosed",
-      "msg": "Proposal voting period has ended"
+      code: 6006;
+      name: "invalidProposalId";
+      msg: "Invalid proposal ID";
     },
     {
-      "code": 6009,
-      "name": "proposalFinalized",
-      "msg": "Proposal has already been finalized"
+      code: 6007;
+      name: "votingNotStarted";
+      msg: "Voting on proposal not yet started";
     },
     {
-      "code": 6010,
-      "name": "invalidVoteDistribution",
-      "msg": "Vote distribution must add up to 100% in Basis Points"
+      code: 6008;
+      name: "proposalClosed";
+      msg: "Proposal voting period has ended";
     },
     {
-      "code": 6011,
-      "name": "votingPeriodNotEnded",
-      "msg": "Voting period not yet ended"
+      code: 6009;
+      name: "proposalFinalized";
+      msg: "Proposal has already been finalized";
     },
     {
-      "code": 6012,
-      "name": "invalidVoteAccount",
-      "msg": "Invalid vote account"
+      code: 6010;
+      name: "invalidVoteDistribution";
+      msg: "Vote distribution must add up to 100% in Basis Points";
     },
     {
-      "code": 6013,
-      "name": "failedDeserializeNodePubkey",
-      "msg": "Failed to deserialize node_pubkey from Vote account"
+      code: 6011;
+      name: "votingPeriodNotEnded";
+      msg: "Voting period not yet ended";
     },
     {
-      "code": 6014,
-      "name": "voteNodePubkeyMismatch",
-      "msg": "Deserialized node_pubkey from Vote accounts does not match"
+      code: 6012;
+      name: "invalidVoteAccount";
+      msg: "Invalid vote account";
     },
     {
-      "code": 6015,
-      "name": "notEnoughAccounts",
-      "msg": "Not enough accounts for tally"
+      code: 6013;
+      name: "failedDeserializeNodePubkey";
+      msg: "Failed to deserialize node_pubkey from Vote account";
     },
     {
-      "code": 6016,
-      "name": "invalidClusterStake",
-      "msg": "Cluster stake cannot be zero"
+      code: 6014;
+      name: "voteNodePubkeyMismatch";
+      msg: "Deserialized node_pubkey from Vote accounts does not match";
     },
     {
-      "code": 6017,
-      "name": "invalidStartEpoch",
-      "msg": "Start epoch must be current or future epoch"
+      code: 6015;
+      name: "notEnoughAccounts";
+      msg: "Not enough accounts for tally";
     },
     {
-      "code": 6018,
-      "name": "invalidVotingLength",
-      "msg": "Voting length must be bigger than 0"
+      code: 6016;
+      name: "invalidClusterStake";
+      msg: "Cluster stake cannot be zero";
     },
     {
-      "code": 6019,
-      "name": "invalidVoteAccountVersion",
-      "msg": "Invalid Vote account version"
+      code: 6017;
+      name: "invalidStartEpoch";
+      msg: "Start epoch must be current or future epoch";
     },
     {
-      "code": 6020,
-      "name": "invalidVoteAccountSize",
-      "msg": "Invalid Vote account size"
+      code: 6018;
+      name: "invalidVotingLength";
+      msg: "Voting length must be bigger than 0";
     },
     {
-      "code": 6021,
-      "name": "invalidStakeAccount",
-      "msg": "Invalid stake account"
+      code: 6019;
+      name: "invalidVoteAccountVersion";
+      msg: "Invalid Vote account version";
     },
     {
-      "code": 6022,
-      "name": "invalidStakeState",
-      "msg": "Invalid stake account state"
+      code: 6020;
+      name: "invalidVoteAccountSize";
+      msg: "Invalid Vote account size";
     },
     {
-      "code": 6023,
-      "name": "invalidStakeAccountSize",
-      "msg": "Invalid Stake account size"
+      code: 6021;
+      name: "invalidStakeAccount";
+      msg: "Invalid stake account";
     },
     {
-      "code": 6024,
-      "name": "invalidSnapshotProgram",
-      "msg": "Invalid Snapshot program: provided program ID does not match the expected Merkle Verifier Service program"
+      code: 6022;
+      name: "invalidStakeState";
+      msg: "Invalid stake account state";
     },
     {
-      "code": 6025,
-      "name": "unauthorizedMerkleRootUpdate",
-      "msg": "Only the original proposal author can add the merkle root hash"
+      code: 6023;
+      name: "invalidStakeAccountSize";
+      msg: "Invalid Stake account size";
     },
     {
-      "code": 6026,
-      "name": "merkleRootAlreadySet",
-      "msg": "Merkle root hash is already set for this proposal"
+      code: 6024;
+      name: "invalidSnapshotProgram";
+      msg: "Invalid Snapshot program: provided program ID does not match the expected Merkle Verifier Service program";
     },
     {
-      "code": 6027,
-      "name": "invalidMerkleRoot",
-      "msg": "Merkle root hash cannot be all zeros"
+      code: 6025;
+      name: "unauthorizedMerkleRootUpdate";
+      msg: "Only the original proposal author can add the merkle root hash";
     },
     {
-      "code": 6028,
-      "name": "invalidSnapshotSlot",
-      "msg": "Invalid snapshot slot: snapshot slot must be past or current slot"
+      code: 6026;
+      name: "merkleRootAlreadySet";
+      msg: "Merkle root hash is already set for this proposal";
     },
     {
-      "code": 6029,
-      "name": "mustBeOwnedBySnapshotProgram",
-      "msg": "Account must be owned by Snapshot program"
+      code: 6027;
+      name: "invalidMerkleRoot";
+      msg: "Merkle root hash cannot be all zeros";
     },
     {
-      "code": 6030,
-      "name": "invalidConsensusResultPda",
-      "msg": "Invalid consensus result PDA"
+      code: 6028;
+      name: "invalidSnapshotSlot";
+      msg: "Invalid snapshot slot: snapshot slot must be past or current slot";
     },
     {
-      "code": 6031,
-      "name": "cannotDeserializeMetaMerkleProofPda",
-      "msg": "Cannot deserialize MetaMerkleProof PDA"
+      code: 6029;
+      name: "mustBeOwnedBySnapshotProgram";
+      msg: "Account must be owned by Snapshot program";
     },
     {
-      "code": 6032,
-      "name": "cannotDeserializeConsensusResult",
-      "msg": "Cannot deserialize ConsensusResult"
+      code: 6030;
+      name: "invalidConsensusResultPda";
+      msg: "Invalid consensus result PDA";
     },
     {
-      "code": 6033,
-      "name": "cannotModifyAfterStart",
-      "msg": "Cannot modify proposal after voting has started"
+      code: 6031;
+      name: "cannotDeserializeMetaMerkleProofPda";
+      msg: "Cannot deserialize MetaMerkleProof PDA";
     },
     {
-      "code": 6034,
-      "name": "votingLengthTooLong",
-      "msg": "Voting length exceeds maximum allowed epochs"
+      code: 6032;
+      name: "cannotDeserializeConsensusResult";
+      msg: "Cannot deserialize ConsensusResult";
     },
     {
-      "code": 6035,
-      "name": "arithmeticOverflow",
-      "msg": "Arithmetic overflow occurred"
+      code: 6033;
+      name: "cannotModifyAfterStart";
+      msg: "Cannot modify proposal after voting has started";
     },
     {
-      "code": 6036,
-      "name": "snapshotProgramUpgraded",
-      "msg": "Snapshot program has been upgraded, update protection triggered"
+      code: 6034;
+      name: "votingLengthTooLong";
+      msg: "Voting length exceeds maximum allowed epochs";
     },
     {
-      "code": 6037,
-      "name": "merkleRootNotSet",
-      "msg": "Merkle root hash has not been set for this proposal"
+      code: 6035;
+      name: "arithmeticOverflow";
+      msg: "Arithmetic overflow occurred";
     },
     {
-      "code": 6038,
-      "name": "supportPeriodExpired",
-      "msg": "Support period has expired for this proposal"
+      code: 6036;
+      name: "snapshotProgramUpgraded";
+      msg: "Snapshot program has been upgraded, update protection triggered";
     },
     {
-      "code": 6039,
-      "name": "notInSupportPeriod",
-      "msg": "Not within the support period"
+      code: 6037;
+      name: "merkleRootNotSet";
+      msg: "Merkle root hash has not been set for this proposal";
     },
     {
-      "code": 6040,
-      "name": "consensusResultNotSet",
-      "msg": "Consensus result has not been set for this proposal"
+      code: 6038;
+      name: "supportPeriodExpired";
+      msg: "Support period has expired for this proposal";
     },
     {
-      "code": 6041,
-      "name": "unauthorized",
-      "msg": "Unauthorized: caller is not authorized to perform this action"
+      code: 6039;
+      name: "notInSupportPeriod";
+      msg: "Not within the support period";
     },
     {
-      "code": 6042,
-      "name": "proposalNotInVotingPhase",
-      "msg": "Proposal is not in voting phase"
+      code: 6040;
+      name: "consensusResultNotSet";
+      msg: "Consensus result has not been set for this proposal";
     },
     {
-      "code": 6043,
-      "name": "invalidVoteOverrideCache",
-      "msg": "Invalid vote override cache"
+      code: 6041;
+      name: "unauthorized";
+      msg: "Unauthorized: caller is not authorized to perform this action";
     },
     {
-      "code": 6044,
-      "name": "stakeAccountOwnerMismatch",
-      "msg": "Stake account owner mismatch"
+      code: 6042;
+      name: "proposalNotInVotingPhase";
+      msg: "Proposal is not in voting phase";
     },
     {
-      "code": 6045,
-      "name": "unauthorizedAdmin",
-      "msg": "Unauthorized: only the admin can perform this action"
+      code: 6043;
+      name: "invalidVoteOverrideCache";
+      msg: "Invalid vote override cache";
     },
     {
-      "code": 6046,
-      "name": "invalidProgram",
-      "msg": "Invalid program"
+      code: 6044;
+      name: "stakeAccountOwnerMismatch";
+      msg: "Stake account owner mismatch";
     },
     {
-      "code": 6047,
-      "name": "invalidClusterSupportPctMin",
-      "msg": "Invalid cluster support percentage minimum in basis points (must be between 0 and 10,000)"
+      code: 6045;
+      name: "unauthorizedAdmin";
+      msg: "Unauthorized: only the admin can perform this action";
     },
     {
-      "code": 6048,
-      "name": "invalidMaxTitleLength",
-      "msg": "Invalid max title length (must be greater than 0 and less than or equal to 200)"
+      code: 6046;
+      name: "invalidProgram";
+      msg: "Invalid program";
     },
     {
-      "code": 6049,
-      "name": "invalidMaxDescriptionLength",
-      "msg": "Invalid max description length (must be greater than 0 and less than or equal to 500)"
+      code: 6047;
+      name: "invalidClusterSupportPctMin";
+      msg: "Invalid cluster support percentage minimum in basis points (must be between 0 and 10,000)";
     },
     {
-      "code": 6050,
-      "name": "invalidAdmin",
-      "msg": "Admin cannot be the default (all-zero) pubkey"
+      code: 6048;
+      name: "invalidMaxTitleLength";
+      msg: "Invalid max title length (must be greater than 0 and less than or equal to 200)";
     },
     {
-      "code": 6051,
-      "name": "noPendingAdmin",
-      "msg": "No pending admin nomination exists to accept"
+      code: 6049;
+      name: "invalidMaxDescriptionLength";
+      msg: "Invalid max description length (must be greater than 0 and less than or equal to 500)";
     },
     {
-      "code": 6052,
-      "name": "notPendingAdmin",
-      "msg": "Signer is not the pending admin nominee"
+      code: 6050;
+      name: "invalidAdmin";
+      msg: "Admin cannot be the default (all-zero) pubkey";
     },
     {
-      "code": 6053,
-      "name": "invalidBallotBox",
-      "msg": "Invalid ballot box: provided account does not match the expected BallotBox PDA for the snapshot slot"
+      code: 6051;
+      name: "noPendingAdmin";
+      msg: "No pending admin nomination exists to accept";
     },
     {
-      "code": 6054,
-      "name": "snapshotSlotNotInFuture",
-      "msg": "Snapshot slot must be in the future (greater than the current slot)"
+      code: 6052;
+      name: "notPendingAdmin";
+      msg: "Signer is not the pending admin nominee";
     },
     {
-      "code": 6055,
-      "name": "noSupporters",
-      "msg": "Proposal has no supporters to retally"
+      code: 6053;
+      name: "invalidBallotBox";
+      msg: "Invalid ballot box: provided account does not match the expected BallotBox PDA for the snapshot slot";
     },
     {
-      "code": 6056,
-      "name": "supporterLimitReached",
-      "msg": "Proposal has reached the maximum number of supporters"
+      code: 6054;
+      name: "snapshotSlotNotInFuture";
+      msg: "Snapshot slot must be in the future (greater than the current slot)";
     },
     {
-      "code": 6057,
-      "name": "invalidMaxSupporters",
-      "msg": "Invalid max supporters (must be greater than 0 and less than or equal to the supporter limit)"
+      code: 6055;
+      name: "noSupporters";
+      msg: "Proposal has no supporters to retally";
     },
     {
-      "code": 6058,
-      "name": "supportAlreadyActivated",
-      "msg": "Support is closed: this proposal already reached its support threshold and voting has been scheduled"
+      code: 6056;
+      name: "supporterLimitReached";
+      msg: "Proposal has reached the maximum number of supporters";
     },
     {
-      "code": 6059,
-      "name": "newProposalsNotAllowed",
-      "msg": "New proposals are not allowed at this time"
-    }
-  ],
-  "types": [
+      code: 6057;
+      name: "invalidMaxSupporters";
+      msg: "Invalid max supporters (must be greater than 0 and less than or equal to the supporter limit)";
+    },
+    {
+      code: 6058;
+      name: "supportAlreadyActivated";
+      msg: "Support is closed: this proposal already reached its support threshold and voting has been scheduled";
+    },
+    {
+      code: 6059;
+      name: "newProposalsNotAllowed";
+      msg: "New proposals are not allowed at this time";
+    },
+  ];
+  types: [
     {
-      "name": "adminNominated",
-      "type": {
-        "kind": "struct",
-        "fields": [
+      name: "adminNominated";
+      type: {
+        kind: "struct";
+        fields: [
           {
-            "name": "currentAdmin",
-            "type": "pubkey"
+            name: "currentAdmin";
+            type: "pubkey";
           },
           {
-            "name": "pendingAdmin",
-            "type": "pubkey"
-          }
-        ]
-      }
+            name: "pendingAdmin";
+            type: "pubkey";
+          },
+        ];
+      };
     },
     {
-      "name": "adminTransferred",
-      "type": {
-        "kind": "struct",
-        "fields": [
+      name: "adminTransferred";
+      type: {
+        kind: "struct";
+        fields: [
           {
-            "name": "previousAdmin",
-            "type": "pubkey"
+            name: "previousAdmin";
+            type: "pubkey";
           },
           {
-            "name": "newAdmin",
-            "type": "pubkey"
-          }
-        ]
-      }
+            name: "newAdmin";
+            type: "pubkey";
+          },
+        ];
+      };
     },
     {
-      "name": "globalConfig",
-      "type": {
-        "kind": "struct",
-        "fields": [
+      name: "globalConfig";
+      type: {
+        kind: "struct";
+        fields: [
           {
-            "name": "admin",
-            "docs": [
-              "The admin pubkey who can update this config"
-            ],
-            "type": "pubkey"
+            name: "admin";
+            docs: ["The admin pubkey who can update this config"];
+            type: "pubkey";
           },
           {
-            "name": "pendingAdmin",
-            "docs": [
+            name: "pendingAdmin";
+            docs: [
               "A pending admin nominated by the current admin. The transfer only completes",
-              "once this key signs `accept_admin`. `None` when no transfer is in progress."
-            ],
-            "type": {
-              "option": "pubkey"
-            }
+              "once this key signs `accept_admin`. `None` when no transfer is in progress.",
+            ];
+            type: {
+              option: "pubkey";
+            };
           },
           {
-            "name": "maxTitleLength",
-            "docs": [
-              "Maximum length for proposal titles"
-            ],
-            "type": "u16"
+            name: "maxTitleLength";
+            docs: ["Maximum length for proposal titles"];
+            type: "u16";
           },
           {
-            "name": "maxDescriptionLength",
-            "docs": [
-              "Maximum length for proposal descriptions"
-            ],
-            "type": "u16"
+            name: "maxDescriptionLength";
+            docs: ["Maximum length for proposal descriptions"];
+            type: "u16";
           },
           {
-            "name": "maxSupportEpochs",
-            "docs": [
-              "Maximum epochs allowed for support phase (0 means same epoch as creation)"
-            ],
-            "type": "u64"
+            name: "maxSupportEpochs";
+            docs: [
+              "Maximum epochs allowed for support phase (0 means same epoch as creation)",
+            ];
+            type: "u64";
           },
           {
-            "name": "minProposalStakeLamports",
-            "docs": [
-              "Minimum stake in lamports required to create a proposal"
-            ],
-            "type": "u64"
+            name: "minProposalStakeLamports";
+            docs: ["Minimum stake in lamports required to create a proposal"];
+            type: "u64";
           },
           {
-            "name": "clusterSupportPctMinBps",
-            "docs": [
+            name: "clusterSupportPctMinBps";
+            docs: [
               "Minimum cluster support percentage in BASIS POINTS (1 bp = 0.01%)",
-              "e.g., 1000 = 10%, 50 = 0.5%"
-            ],
-            "type": "u64"
+              "e.g., 1000 = 10%, 50 = 0.5%",
+            ];
+            type: "u64";
           },
           {
-            "name": "discussionEpochs",
-            "docs": [
-              "Number of full epochs reserved for discussion"
-            ],
-            "type": "u64"
+            name: "discussionEpochs";
+            docs: ["Number of full epochs reserved for discussion"];
+            type: "u64";
           },
           {
-            "name": "votingEpochs",
-            "docs": [
-              "Number of epochs for voting period"
-            ],
-            "type": "u64"
+            name: "votingEpochs";
+            docs: ["Number of epochs for voting period"];
+            type: "u64";
           },
           {
-            "name": "snapshotEpochExtension",
-            "docs": [
-              "Epochs of extension for snapshot"
-            ],
-            "type": "u64"
+            name: "snapshotEpochExtension";
+            docs: ["Epochs of extension for snapshot"];
+            type: "u64";
           },
           {
-            "name": "snapshotSlotOffset",
-            "docs": [
-              "Slot offset from epoch start for snapshot computation (can be negative)"
-            ],
-            "type": "i64"
+            name: "snapshotSlotOffset";
+            docs: [
+              "Slot offset from epoch start for snapshot computation (can be negative)",
+            ];
+            type: "i64";
           },
           {
-            "name": "bump",
-            "docs": [
-              "PDA bump seed"
-            ],
-            "type": "u8"
+            name: "bump";
+            docs: ["PDA bump seed"];
+            type: "u8";
           },
           {
-            "name": "maxSupporters",
-            "docs": [
+            name: "maxSupporters";
+            docs: [
               "Maximum number of validators that may support a single proposal. Bounds",
               "the per-transaction cost of re-tallying the `supporters` list so a",
               "proposal can always be processed within Solana's heap/compute limits.",
-              "Must be in `1..=MAX_SUPPORTERS_LIMIT`."
-            ],
-            "type": "u32"
+              "Must be in `1..=MAX_SUPPORTERS_LIMIT`.",
+            ];
+            type: "u32";
           },
           {
-            "name": "newProposalsAllowed",
-            "docs": [
+            name: "newProposalsAllowed";
+            docs: [
               "Whether new proposals are allowed to be created. This can be use to",
-              "temporarily halt new proposals while a governance upgrade is in progress."
-            ],
-            "type": "bool"
-          }
-        ]
-      }
+              "temporarily halt new proposals while a governance upgrade is in progress.",
+            ];
+            type: "bool";
+          },
+        ];
+      };
     },
     {
-      "name": "merkleRootFlushed",
-      "type": {
-        "kind": "struct",
-        "fields": [
+      name: "merkleRootFlushed";
+      type: {
+        kind: "struct";
+        fields: [
           {
-            "name": "proposalId",
-            "type": "pubkey"
+            name: "proposalId";
+            type: "pubkey";
           },
           {
-            "name": "author",
-            "type": "pubkey"
+            name: "author";
+            type: "pubkey";
           },
           {
-            "name": "newSnapshotSlot",
-            "type": "u64"
+            name: "newSnapshotSlot";
+            type: "u64";
           },
           {
-            "name": "flushTimestamp",
-            "type": "i64"
-          }
-        ]
-      }
+            name: "flushTimestamp";
+            type: "i64";
+          },
+        ];
+      };
     },
     {
-      "name": "proposal",
-      "type": {
-        "kind": "struct",
-        "fields": [
+      name: "proposal";
+      type: {
+        kind: "struct";
+        fields: [
           {
-            "name": "author",
-            "docs": [
-              "The public key of the validator who created this proposal"
-            ],
-            "type": "pubkey"
+            name: "author";
+            docs: ["The public key of the validator who created this proposal"];
+            type: "pubkey";
           },
           {
-            "name": "title",
-            "type": "string"
+            name: "title";
+            type: "string";
           },
           {
-            "name": "description",
-            "type": "string"
+            name: "description";
+            type: "string";
           },
           {
-            "name": "creationEpoch",
-            "type": "u64"
+            name: "creationEpoch";
+            type: "u64";
           },
           {
-            "name": "startEpoch",
-            "type": "u64"
+            name: "startEpoch";
+            type: "u64";
           },
           {
-            "name": "endEpoch",
-            "type": "u64"
+            name: "endEpoch";
+            type: "u64";
           },
           {
-            "name": "proposerStakeWeightBp",
-            "type": "u64"
+            name: "proposerStakeWeightBp";
+            type: "u64";
           },
           {
-            "name": "clusterSupportLamports",
-            "type": "u64"
+            name: "clusterSupportLamports";
+            type: "u64";
           },
           {
-            "name": "forVotesLamports",
-            "docs": [
-              "Total lamports voted in favor of this proposal"
-            ],
-            "type": "u64"
+            name: "forVotesLamports";
+            docs: ["Total lamports voted in favor of this proposal"];
+            type: "u64";
           },
           {
-            "name": "againstVotesLamports",
-            "docs": [
-              "Total lamports voted against this proposal"
-            ],
-            "type": "u64"
+            name: "againstVotesLamports";
+            docs: ["Total lamports voted against this proposal"];
+            type: "u64";
           },
           {
-            "name": "abstainVotesLamports",
-            "docs": [
-              "Total lamports that abstained from voting on this proposal"
-            ],
-            "type": "u64"
+            name: "abstainVotesLamports";
+            docs: [
+              "Total lamports that abstained from voting on this proposal",
+            ];
+            type: "u64";
           },
           {
-            "name": "voting",
-            "type": "bool"
+            name: "voting";
+            type: "bool";
           },
           {
-            "name": "finalized",
-            "type": "bool"
+            name: "finalized";
+            type: "bool";
           },
           {
-            "name": "proposalBump",
-            "type": "u8"
+            name: "proposalBump";
+            type: "u8";
           },
           {
-            "name": "creationTimestamp",
-            "type": "i64"
+            name: "creationTimestamp";
+            type: "i64";
           },
           {
-            "name": "voteCount",
-            "type": "u32"
+            name: "voteCount";
+            type: "u32";
           },
           {
-            "name": "index",
-            "type": "u32"
+            name: "index";
+            type: "u32";
           },
           {
-            "name": "consensusResult",
-            "type": {
-              "option": "pubkey"
-            }
+            name: "consensusResult";
+            type: {
+              option: "pubkey";
+            };
           },
           {
-            "name": "snapshotSlot",
-            "docs": [
-              "Slot number when the validator stake snapshot was taken"
-            ],
-            "type": "u64"
+            name: "snapshotSlot";
+            docs: ["Slot number when the validator stake snapshot was taken"];
+            type: "u64";
           },
           {
-            "name": "proposalSeed",
-            "type": "u64"
+            name: "proposalSeed";
+            type: "u64";
           },
           {
-            "name": "voteAccountPubkey",
-            "type": "pubkey"
+            name: "voteAccountPubkey";
+            type: "pubkey";
           },
           {
-            "name": "numSupporters",
-            "docs": [
+            name: "numSupporters";
+            docs: [
               "Number of supporter entries stored in the account data at the fixed",
               "offset [`Proposal::SUPPORTERS_OFFSET`].",
               "",
@@ -2249,589 +1882,585 @@ export type SvmgovProgram = {
               "this struct: they live past the struct's Borsh capacity boundary",
               "(`discriminator + INIT_SPACE`), so Anchor only (de)serializes this",
               "4-byte count. The entries are read zero-copy via",
-              "[`Proposal::supporters`] and written by [`Proposal::append_supporter`]."
-            ],
-            "type": "u32"
-          }
-        ]
-      }
+              "[`Proposal::supporters`] and written by [`Proposal::append_supporter`].",
+            ];
+            type: "u32";
+          },
+        ];
+      };
     },
     {
-      "name": "proposalCreated",
-      "type": {
-        "kind": "struct",
-        "fields": [
+      name: "proposalCreated";
+      type: {
+        kind: "struct";
+        fields: [
           {
-            "name": "proposalId",
-            "type": "pubkey"
+            name: "proposalId";
+            type: "pubkey";
           },
           {
-            "name": "author",
-            "type": "pubkey"
+            name: "author";
+            type: "pubkey";
           },
           {
-            "name": "title",
-            "type": "string"
+            name: "title";
+            type: "string";
           },
           {
-            "name": "description",
-            "type": "string"
+            name: "description";
+            type: "string";
           },
           {
-            "name": "creationTimestamp",
-            "type": "i64"
-          }
-        ]
-      }
+            name: "creationTimestamp";
+            type: "i64";
+          },
+        ];
+      };
     },
     {
-      "name": "proposalFinalized",
-      "type": {
-        "kind": "struct",
-        "fields": [
+      name: "proposalFinalized";
+      type: {
+        kind: "struct";
+        fields: [
           {
-            "name": "proposalId",
-            "type": "pubkey"
+            name: "proposalId";
+            type: "pubkey";
           },
           {
-            "name": "finalizer",
-            "type": "pubkey"
+            name: "finalizer";
+            type: "pubkey";
           },
           {
-            "name": "totalForVotes",
-            "type": "u64"
+            name: "totalForVotes";
+            type: "u64";
           },
           {
-            "name": "totalAgainstVotes",
-            "type": "u64"
+            name: "totalAgainstVotes";
+            type: "u64";
           },
           {
-            "name": "totalAbstainVotes",
-            "type": "u64"
+            name: "totalAbstainVotes";
+            type: "u64";
           },
           {
-            "name": "totalVotesCount",
-            "type": "u32"
+            name: "totalVotesCount";
+            type: "u32";
           },
           {
-            "name": "finalizationTimestamp",
-            "type": "i64"
-          }
-        ]
-      }
+            name: "finalizationTimestamp";
+            type: "i64";
+          },
+        ];
+      };
     },
     {
-      "name": "proposalIndex",
-      "type": {
-        "kind": "struct",
-        "fields": [
+      name: "proposalIndex";
+      type: {
+        kind: "struct";
+        fields: [
           {
-            "name": "currentIndex",
-            "type": "u32"
+            name: "currentIndex";
+            type: "u32";
           },
           {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
+            name: "bump";
+            type: "u8";
+          },
+        ];
+      };
     },
     {
-      "name": "proposalRetallied",
-      "type": {
-        "kind": "struct",
-        "fields": [
+      name: "proposalRetallied";
+      type: {
+        kind: "struct";
+        fields: [
           {
-            "name": "proposalId",
-            "type": "pubkey"
+            name: "proposalId";
+            type: "pubkey";
           },
           {
-            "name": "caller",
-            "type": "pubkey"
+            name: "caller";
+            type: "pubkey";
           },
           {
-            "name": "clusterSupportLamports",
-            "type": "u64"
+            name: "clusterSupportLamports";
+            type: "u64";
           },
           {
-            "name": "votingActivated",
-            "type": "bool"
+            name: "votingActivated";
+            type: "bool";
           },
           {
-            "name": "snapshotSlot",
-            "type": "u64"
-          }
-        ]
-      }
+            name: "snapshotSlot";
+            type: "u64";
+          },
+        ];
+      };
     },
     {
-      "name": "proposalSupported",
-      "type": {
-        "kind": "struct",
-        "fields": [
+      name: "proposalSupported";
+      type: {
+        kind: "struct";
+        fields: [
           {
-            "name": "proposalId",
-            "type": "pubkey"
+            name: "proposalId";
+            type: "pubkey";
           },
           {
-            "name": "supporter",
-            "type": "pubkey"
+            name: "supporter";
+            type: "pubkey";
           },
           {
-            "name": "clusterSupportLamports",
-            "type": "u64"
+            name: "clusterSupportLamports";
+            type: "u64";
           },
           {
-            "name": "votingActivated",
-            "type": "bool"
+            name: "votingActivated";
+            type: "bool";
           },
           {
-            "name": "snapshotSlot",
-            "type": "u64"
-          }
-        ]
-      }
+            name: "snapshotSlot";
+            type: "u64";
+          },
+        ];
+      };
     },
     {
-      "name": "stakeMerkleLeaf",
-      "type": {
-        "kind": "struct",
-        "fields": [
+      name: "stakeMerkleLeaf";
+      type: {
+        kind: "struct";
+        fields: [
           {
-            "name": "votingWallet",
-            "docs": [
-              "Wallet designated for governance voting for the stake account."
-            ],
-            "type": "pubkey"
+            name: "votingWallet";
+            docs: [
+              "Wallet designated for governance voting for the stake account.",
+            ];
+            type: "pubkey";
           },
           {
-            "name": "stakeAccount",
-            "docs": [
-              "The stake account address."
-            ],
-            "type": "pubkey"
+            name: "stakeAccount";
+            docs: ["The stake account address."];
+            type: "pubkey";
           },
           {
-            "name": "activeStake",
-            "docs": [
-              "Active delegated stake amount."
-            ],
-            "type": "u64"
-          }
-        ]
-      }
+            name: "activeStake";
+            docs: ["Active delegated stake amount."];
+            type: "u64";
+          },
+        ];
+      };
     },
     {
-      "name": "support",
-      "type": {
-        "kind": "struct",
-        "fields": [
+      name: "support";
+      type: {
+        kind: "struct";
+        fields: [
           {
-            "name": "proposal",
-            "type": "pubkey"
+            name: "proposal";
+            type: "pubkey";
           },
           {
-            "name": "validator",
-            "type": "pubkey"
+            name: "validator";
+            type: "pubkey";
           },
           {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
+            name: "bump";
+            type: "u8";
+          },
+        ];
+      };
     },
     {
-      "name": "vote",
-      "type": {
-        "kind": "struct",
-        "fields": [
+      name: "vote";
+      type: {
+        kind: "struct";
+        fields: [
           {
-            "name": "validator",
-            "type": "pubkey"
+            name: "validator";
+            type: "pubkey";
           },
           {
-            "name": "proposal",
-            "type": "pubkey"
+            name: "proposal";
+            type: "pubkey";
           },
           {
-            "name": "forVotesBp",
-            "type": "u64"
+            name: "forVotesBp";
+            type: "u64";
           },
           {
-            "name": "againstVotesBp",
-            "type": "u64"
+            name: "againstVotesBp";
+            type: "u64";
           },
           {
-            "name": "abstainVotesBp",
-            "type": "u64"
+            name: "abstainVotesBp";
+            type: "u64";
           },
           {
-            "name": "forVotesLamports",
-            "type": "u64"
+            name: "forVotesLamports";
+            type: "u64";
           },
           {
-            "name": "againstVotesLamports",
-            "type": "u64"
+            name: "againstVotesLamports";
+            type: "u64";
           },
           {
-            "name": "abstainVotesLamports",
-            "type": "u64"
+            name: "abstainVotesLamports";
+            type: "u64";
           },
           {
-            "name": "stake",
-            "type": "u64"
+            name: "stake";
+            type: "u64";
           },
           {
-            "name": "overrideLamports",
-            "type": "u64"
+            name: "overrideLamports";
+            type: "u64";
           },
           {
-            "name": "voteTimestamp",
-            "type": "i64"
+            name: "voteTimestamp";
+            type: "i64";
           },
           {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
+            name: "bump";
+            type: "u8";
+          },
+        ];
+      };
     },
     {
-      "name": "voteCast",
-      "type": {
-        "kind": "struct",
-        "fields": [
+      name: "voteCast";
+      type: {
+        kind: "struct";
+        fields: [
           {
-            "name": "proposalId",
-            "type": "pubkey"
+            name: "proposalId";
+            type: "pubkey";
           },
           {
-            "name": "voter",
-            "type": "pubkey"
+            name: "voter";
+            type: "pubkey";
           },
           {
-            "name": "voteAccount",
-            "type": "pubkey"
+            name: "voteAccount";
+            type: "pubkey";
           },
           {
-            "name": "forVotesBp",
-            "type": "u64"
+            name: "forVotesBp";
+            type: "u64";
           },
           {
-            "name": "againstVotesBp",
-            "type": "u64"
+            name: "againstVotesBp";
+            type: "u64";
           },
           {
-            "name": "abstainVotesBp",
-            "type": "u64"
+            name: "abstainVotesBp";
+            type: "u64";
           },
           {
-            "name": "forVotesLamports",
-            "type": "u64"
+            name: "forVotesLamports";
+            type: "u64";
           },
           {
-            "name": "againstVotesLamports",
-            "type": "u64"
+            name: "againstVotesLamports";
+            type: "u64";
           },
           {
-            "name": "abstainVotesLamports",
-            "type": "u64"
+            name: "abstainVotesLamports";
+            type: "u64";
           },
           {
-            "name": "voteTimestamp",
-            "type": "i64"
-          }
-        ]
-      }
+            name: "voteTimestamp";
+            type: "i64";
+          },
+        ];
+      };
     },
     {
-      "name": "voteModified",
-      "type": {
-        "kind": "struct",
-        "fields": [
+      name: "voteModified";
+      type: {
+        kind: "struct";
+        fields: [
           {
-            "name": "proposalId",
-            "type": "pubkey"
+            name: "proposalId";
+            type: "pubkey";
           },
           {
-            "name": "voter",
-            "type": "pubkey"
+            name: "voter";
+            type: "pubkey";
           },
           {
-            "name": "voteAccount",
-            "type": "pubkey"
+            name: "voteAccount";
+            type: "pubkey";
           },
           {
-            "name": "oldForVotesBp",
-            "type": "u64"
+            name: "oldForVotesBp";
+            type: "u64";
           },
           {
-            "name": "oldAgainstVotesBp",
-            "type": "u64"
+            name: "oldAgainstVotesBp";
+            type: "u64";
           },
           {
-            "name": "oldAbstainVotesBp",
-            "type": "u64"
+            name: "oldAbstainVotesBp";
+            type: "u64";
           },
           {
-            "name": "newForVotesBp",
-            "type": "u64"
+            name: "newForVotesBp";
+            type: "u64";
           },
           {
-            "name": "newAgainstVotesBp",
-            "type": "u64"
+            name: "newAgainstVotesBp";
+            type: "u64";
           },
           {
-            "name": "newAbstainVotesBp",
-            "type": "u64"
+            name: "newAbstainVotesBp";
+            type: "u64";
           },
           {
-            "name": "forVotesLamports",
-            "type": "u64"
+            name: "forVotesLamports";
+            type: "u64";
           },
           {
-            "name": "againstVotesLamports",
-            "type": "u64"
+            name: "againstVotesLamports";
+            type: "u64";
           },
           {
-            "name": "abstainVotesLamports",
-            "type": "u64"
+            name: "abstainVotesLamports";
+            type: "u64";
           },
           {
-            "name": "modificationTimestamp",
-            "type": "i64"
-          }
-        ]
-      }
+            name: "modificationTimestamp";
+            type: "i64";
+          },
+        ];
+      };
     },
     {
-      "name": "voteOverride",
-      "type": {
-        "kind": "struct",
-        "fields": [
+      name: "voteOverride";
+      type: {
+        kind: "struct";
+        fields: [
           {
-            "name": "delegator",
-            "type": "pubkey"
+            name: "delegator";
+            type: "pubkey";
           },
           {
-            "name": "stakeAccount",
-            "type": "pubkey"
+            name: "stakeAccount";
+            type: "pubkey";
           },
           {
-            "name": "validator",
-            "type": "pubkey"
+            name: "validator";
+            type: "pubkey";
           },
           {
-            "name": "proposal",
-            "type": "pubkey"
+            name: "proposal";
+            type: "pubkey";
           },
           {
-            "name": "voteAccountValidator",
-            "type": "pubkey"
+            name: "voteAccountValidator";
+            type: "pubkey";
           },
           {
-            "name": "forVotesBp",
-            "type": "u64"
+            name: "forVotesBp";
+            type: "u64";
           },
           {
-            "name": "againstVotesBp",
-            "type": "u64"
+            name: "againstVotesBp";
+            type: "u64";
           },
           {
-            "name": "abstainVotesBp",
-            "type": "u64"
+            name: "abstainVotesBp";
+            type: "u64";
           },
           {
-            "name": "forVotesLamports",
-            "type": "u64"
+            name: "forVotesLamports";
+            type: "u64";
           },
           {
-            "name": "againstVotesLamports",
-            "type": "u64"
+            name: "againstVotesLamports";
+            type: "u64";
           },
           {
-            "name": "abstainVotesLamports",
-            "type": "u64"
+            name: "abstainVotesLamports";
+            type: "u64";
           },
           {
-            "name": "stakeAmount",
-            "type": "u64"
+            name: "stakeAmount";
+            type: "u64";
           },
           {
-            "name": "voteOverrideTimestamp",
-            "type": "i64"
+            name: "voteOverrideTimestamp";
+            type: "i64";
           },
           {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
+            name: "bump";
+            type: "u8";
+          },
+        ];
+      };
     },
     {
-      "name": "voteOverrideCache",
-      "type": {
-        "kind": "struct",
-        "fields": [
+      name: "voteOverrideCache";
+      type: {
+        kind: "struct";
+        fields: [
           {
-            "name": "validator",
-            "type": "pubkey"
+            name: "validator";
+            type: "pubkey";
           },
           {
-            "name": "proposal",
-            "type": "pubkey"
+            name: "proposal";
+            type: "pubkey";
           },
           {
-            "name": "voteAccountValidator",
-            "type": "pubkey"
+            name: "voteAccountValidator";
+            type: "pubkey";
           },
           {
-            "name": "forVotesLamports",
-            "type": "u64"
+            name: "forVotesLamports";
+            type: "u64";
           },
           {
-            "name": "againstVotesLamports",
-            "type": "u64"
+            name: "againstVotesLamports";
+            type: "u64";
           },
           {
-            "name": "abstainVotesLamports",
-            "type": "u64"
+            name: "abstainVotesLamports";
+            type: "u64";
           },
           {
-            "name": "totalStake",
-            "type": "u64"
+            name: "totalStake";
+            type: "u64";
           },
           {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
+            name: "bump";
+            type: "u8";
+          },
+        ];
+      };
     },
     {
-      "name": "voteOverrideCast",
-      "type": {
-        "kind": "struct",
-        "fields": [
+      name: "voteOverrideCast";
+      type: {
+        kind: "struct";
+        fields: [
           {
-            "name": "proposalId",
-            "type": "pubkey"
+            name: "proposalId";
+            type: "pubkey";
           },
           {
-            "name": "delegator",
-            "type": "pubkey"
+            name: "delegator";
+            type: "pubkey";
           },
           {
-            "name": "stakeAccount",
-            "type": "pubkey"
+            name: "stakeAccount";
+            type: "pubkey";
           },
           {
-            "name": "validator",
-            "type": "pubkey"
+            name: "validator";
+            type: "pubkey";
           },
           {
-            "name": "forVotesBp",
-            "type": "u64"
+            name: "forVotesBp";
+            type: "u64";
           },
           {
-            "name": "againstVotesBp",
-            "type": "u64"
+            name: "againstVotesBp";
+            type: "u64";
           },
           {
-            "name": "abstainVotesBp",
-            "type": "u64"
+            name: "abstainVotesBp";
+            type: "u64";
           },
           {
-            "name": "forVotesLamports",
-            "type": "u64"
+            name: "forVotesLamports";
+            type: "u64";
           },
           {
-            "name": "againstVotesLamports",
-            "type": "u64"
+            name: "againstVotesLamports";
+            type: "u64";
           },
           {
-            "name": "abstainVotesLamports",
-            "type": "u64"
+            name: "abstainVotesLamports";
+            type: "u64";
           },
           {
-            "name": "stakeAmount",
-            "type": "u64"
+            name: "stakeAmount";
+            type: "u64";
           },
           {
-            "name": "voteTimestamp",
-            "type": "i64"
-          }
-        ]
-      }
+            name: "voteTimestamp";
+            type: "i64";
+          },
+        ];
+      };
     },
     {
-      "name": "voteOverrideModified",
-      "type": {
-        "kind": "struct",
-        "fields": [
+      name: "voteOverrideModified";
+      type: {
+        kind: "struct";
+        fields: [
           {
-            "name": "proposalId",
-            "type": "pubkey"
+            name: "proposalId";
+            type: "pubkey";
           },
           {
-            "name": "delegator",
-            "type": "pubkey"
+            name: "delegator";
+            type: "pubkey";
           },
           {
-            "name": "stakeAccount",
-            "type": "pubkey"
+            name: "stakeAccount";
+            type: "pubkey";
           },
           {
-            "name": "validator",
-            "type": "pubkey"
+            name: "validator";
+            type: "pubkey";
           },
           {
-            "name": "oldForVotesBp",
-            "type": "u64"
+            name: "oldForVotesBp";
+            type: "u64";
           },
           {
-            "name": "oldAgainstVotesBp",
-            "type": "u64"
+            name: "oldAgainstVotesBp";
+            type: "u64";
           },
           {
-            "name": "oldAbstainVotesBp",
-            "type": "u64"
+            name: "oldAbstainVotesBp";
+            type: "u64";
           },
           {
-            "name": "newForVotesBp",
-            "type": "u64"
+            name: "newForVotesBp";
+            type: "u64";
           },
           {
-            "name": "newAgainstVotesBp",
-            "type": "u64"
+            name: "newAgainstVotesBp";
+            type: "u64";
           },
           {
-            "name": "newAbstainVotesBp",
-            "type": "u64"
+            name: "newAbstainVotesBp";
+            type: "u64";
           },
           {
-            "name": "forVotesLamports",
-            "type": "u64"
+            name: "forVotesLamports";
+            type: "u64";
           },
           {
-            "name": "againstVotesLamports",
-            "type": "u64"
+            name: "againstVotesLamports";
+            type: "u64";
           },
           {
-            "name": "abstainVotesLamports",
-            "type": "u64"
+            name: "abstainVotesLamports";
+            type: "u64";
           },
           {
-            "name": "stakeAmount",
-            "type": "u64"
+            name: "stakeAmount";
+            type: "u64";
           },
           {
-            "name": "modificationTimestamp",
-            "type": "i64"
-          }
-        ]
-      }
-    }
-  ]
+            name: "modificationTimestamp";
+            type: "i64";
+          },
+        ];
+      };
+    },
+  ];
 };
