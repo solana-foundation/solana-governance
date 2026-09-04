@@ -3,7 +3,7 @@
 # installed binary keeps the `ncn-cli` name users already get from
 # scripts/install-ncn-cli.sh.
 name = "ncn-cli"
-version = "0.5.0-40200"
+version = "0.6.0-40200"
 edition = "2021"
 description = "CLI for the Solana governance NCN: ledger replay, stake snapshots, merkle tree generation and vote verification"
 license = "Apache-2.0"
@@ -22,8 +22,8 @@ path = "src/main.rs"
 [dependencies]
 anchor-client = "0.31.1"
 clap = { version = "4", features = ["derive", "env"] }
-ncn-ledger = { path = "../ledger", version = "0.5.0-40200" }
-ncn-merkle-tree = { path = "../merkle-tree", version = "0.5.0-40200" }
+ncn-ledger = { path = "../ledger", version = "0.6.0-40200" }
+ncn-merkle-tree = { path = "../merkle-tree", version = "0.6.0-40200" }
 solana-accounts-db            = { version = "=4.2.0", features = ["agave-unstable-api"] }
 solana-runtime                = { version = "=4.2.0", features = ["agave-unstable-api"] }
 solana-vote                   = { version = "=4.2.0", features = ["agave-unstable-api"] }
@@ -40,7 +40,7 @@ tokio = { version = "1.36.0", features = ["full"] }
 anyhow = "1.0.86"
 im = "15.1"
 borsh = { version = "0.10.3" }
-ncn-snapshot = { path = "../programs/ncn-snapshot", version = "0.5.0-40200" }
+ncn-snapshot = { path = "../programs/ncn-snapshot", version = "0.6.0-40200" }
 squads-client = { path = "../../squads-client", version = "0.1.0" }
 spl-stake-pool = { version = "2.0.0", default-features = false, features = ["no-entrypoint"] }
 borsh_stake = { package = "borsh", version = "1.5", default-features = false }

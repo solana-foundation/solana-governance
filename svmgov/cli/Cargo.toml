@@ -1,6 +1,6 @@
 [package]
 name = "svmgov"
-version = "0.5.0-40200"
+version = "0.6.0-40200"
 edition = "2024"
 rust-version = "1.85.0"
 authors = ["bergabman", "berg@turbin3.org"]
@@ -30,7 +30,7 @@ indicatif = "0.18.0"
 reqwest = { version = "0.12.23", features = ["json"] }
 bs58 = "0.5.1"
 hex = "0.4.3"
-ncn-snapshot = { path = "../../ncn/programs/ncn-snapshot", version = "0.5.0-40200" }
+ncn-snapshot = { path = "../../ncn/programs/ncn-snapshot", version = "0.6.0-40200" }
 squads-client = { path = "../../squads-client", version = "0.1.0" }
 dotenv = "0.15.0"
 toml = "0.8"

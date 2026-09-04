@@ -1853,7 +1853,7 @@ dependencies = [
 
 [[package]]
 name = "ncn-merkle-tree"
-version = "0.5.0-40200"
+version = "0.6.0-40200"
 dependencies = [
  "fast-math",
  "hex",
@@ -1863,7 +1863,7 @@ dependencies = [
 
 [[package]]
 name = "ncn-snapshot"
-version = "0.5.0-40200"
+version = "0.6.0-40200"
 dependencies = [
  "anchor-lang",
 ]
@@ -4874,7 +4874,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "svmgov_program"
-version = "0.5.0-40200"
+version = "0.6.0-40200"
 dependencies = [
  "anchor-lang",
  "bincode",
