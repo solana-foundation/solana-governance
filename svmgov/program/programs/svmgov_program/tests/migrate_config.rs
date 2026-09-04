@@ -231,12 +231,12 @@ fn migration_preserves_max_supporters_and_applies_pause_flag() {
 }
 
 #[test_log::test]
-fn migration_defaults_to_allowing_proposals() {
+fn migration_defaults_to_disallowing_proposals() {
     let mut h = setup_harness();
 
     update(&mut h, &UpdateConfigArgs::default());
 
     let config = fetch_config(&h);
     assert_eq!(config.max_supporters, MAX_SUPPORTERS);
-    assert!(config.new_proposals_allowed);
+    assert!(!config.new_proposals_allowed);
 }
