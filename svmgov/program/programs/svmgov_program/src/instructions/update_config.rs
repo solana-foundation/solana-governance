@@ -60,7 +60,7 @@ impl<'info> UpdateConfig<'info> {
             self.global_config.realloc(new_size, true)?;
 
             if new_proposals_allowed.is_none() {
-                new_proposals_allowed = Some(true);
+                new_proposals_allowed = Some(false);
             }
         }
 
