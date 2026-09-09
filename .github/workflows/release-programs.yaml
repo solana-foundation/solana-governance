@@ -39,7 +39,7 @@ concurrency:
 env:
   RUST_VERSION: "1.93.1"
   # Agave release providing the solana CLI used by the deploy actions.
-  AGAVE_VERSION: "3.1.10"
+  AGAVE_VERSION: "4.1.2"
   # Pinned so verified builds stay reproducible: the executable hash depends
   # on the builder, and this is the version validated against this repo
   # (0.4.x fails to locate artifacts in this workspace layout).
@@ -56,8 +56,8 @@ jobs:
       - id: set
         run: |
           ALL='[
-            {"program":"svmgov_program","program-id":"govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU","mount-path":".","base-image":"solanafoundation/solana-verifiable-build:3.1.10","idl-path":"svmgov/cli/idls/svmgov_program.json"},
-            {"program":"ncn_snapshot","program-id":"ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf","mount-path":".","base-image":"solanafoundation/solana-verifiable-build:3.1.10","idl-path":"ncn/idl/ncn_snapshot.json"}
+            {"program":"svmgov_program","program-id":"govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU","mount-path":".","base-image":"solanafoundation/solana-verifiable-build:4.1.2","idl-path":"svmgov/cli/idls/svmgov_program.json"},
+            {"program":"ncn_snapshot","program-id":"ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf","mount-path":".","base-image":"solanafoundation/solana-verifiable-build:4.1.2","idl-path":"ncn/idl/ncn_snapshot.json"}
           ]'
           if [ "${{ inputs.programs }}" = "both" ]; then
             SELECTED="$ALL"
