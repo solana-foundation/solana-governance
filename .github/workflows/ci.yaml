@@ -94,11 +94,19 @@ jobs:
 
       # Both programs live in the repo-root workspace; artifacts land in
       # target/deploy/ at the repo root, where the LiteSVM suites load them.
+      # Keep SBF intermediates out of the Rust target cache. cargo-build-sbf's
+      # platform-tools are not part of rust-cache's key, and restoring
+      # target/sbpf-solana-solana across Agave versions can produce an invalid
+      # program binary. The final artifacts still go to target/deploy below.
       - name: Build ncn-snapshot program
-        run: cargo-build-sbf --manifest-path ncn/programs/ncn-snapshot/Cargo.toml -- --locked
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/sbpf-target
+        run: cargo-build-sbf --sbf-out-dir target/deploy --manifest-path ncn/programs/ncn-snapshot/Cargo.toml -- --locked
 
       - name: Build svmgov program
-        run: cargo-build-sbf --manifest-path svmgov/program/programs/svmgov_program/Cargo.toml -- --locked
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/sbpf-target
+        run: cargo-build-sbf --sbf-out-dir target/deploy --manifest-path svmgov/program/programs/svmgov_program/Cargo.toml -- --locked
 
       # ncn-merkle-tree is a root-workspace member both programs' proof
       # verification depends on, so its unit tests ride along here.
