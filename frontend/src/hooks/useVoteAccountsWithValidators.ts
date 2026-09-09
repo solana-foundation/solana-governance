@@ -47,10 +47,21 @@ export const useVoteAccountsWithValidators = () => {
       const voteMap: VoteMap = {};
       const validatorMap: ValidatorMap = {};
 
+      // A Vote account records the validator's identity, while StakeWiz keys on
+      // the vote account address. Index both so a lookup succeeds with either.
+      const validatorByKey: Record<string, Validator> = {};
+      for (const v of validators) {
+        validatorByKey[v.vote_identity] = v;
+        if (v.identity) {
+          validatorByKey[v.identity] = v;
+        }
+      }
+
+      let unmatched = 0;
+
       for (const vote of votes) {
-        const validator = validators.find(
-          (v) => vote.identity?.toBase58() === v.vote_identity,
-        );
+        const identity = vote.identity?.toBase58();
+        const validator = identity ? validatorByKey[identity] : undefined;
         const votePk = vote.voteAccount.toBase58();
         if (validator) {
           const entry: VoteValidatorEntry = {
@@ -58,8 +69,8 @@ export const useVoteAccountsWithValidators = () => {
             // enrich vote account info with matched validator data
             voteAccount: {
               ...vote,
-              identity: undefined,
               name: validator.name,
+              commission: validator.commission,
               credits: validator.credits,
               lastVote: validator.last_vote,
               activeStake: validator.activated_stake,
@@ -76,7 +87,7 @@ export const useVoteAccountsWithValidators = () => {
           }
           validatorMap[valId].push(entry);
         } else {
-          // console.warn("no validator found");
+          unmatched += 1;
           const entry: VoteValidatorEntry = {
             votePDA: vote.voteAccount.toBase58(),
             voteAccount: {
@@ -87,6 +98,12 @@ export const useVoteAccountsWithValidators = () => {
           };
           voteMap[votePk] = entry;
         }
+      }
+
+      if (unmatched > 0) {
+        console.warn(
+          `No validator metadata for ${unmatched} of ${votes.length} vote records; those rows report unknown rather than zero.`,
+        );
       }
 
       return {
