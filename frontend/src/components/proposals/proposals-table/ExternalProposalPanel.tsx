@@ -1,5 +1,7 @@
 "use client";
 
+import type { MouseEvent } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AppButton } from "@/components/ui/AppButton";
 import { GitHubIcon } from "@/components/icons/SvgIcons";
@@ -209,7 +211,13 @@ function VotingPanel({ proposal }: { proposal: ProposalRecord }) {
   const isDiscussion = proposal.status === "discussion";
 
   return (
-    <aside className="w-full glass-card p-6 lg:w-80 xl:w-80">
+    // data-no-card-nav: the voting panel is an action area, not part of the
+    // card's click-to-navigate surface; cursor-auto undoes the card's
+    // inherited cursor-pointer so the panel doesn't look clickable
+    <aside
+      className="w-full cursor-auto glass-card p-6 lg:w-80 xl:w-80"
+      data-no-card-nav
+    >
       <header className="mb-6">
         <span className="block text-[11px] uppercase tracking-[0.24em] text-white/45 mb-3">
           {getHeaderLabel(proposal)}
@@ -265,8 +273,28 @@ type ExternalProposalPanelProps = {
 export default function ExternalProposalPanel({
   proposal,
 }: ExternalProposalPanelProps) {
+  const router = useRouter();
+
+  // Whole-card click navigation is a mouse convenience; keyboard and
+  // assistive-technology users navigate via the proposal title link.
+  // Clicks that originate on interactive elements or inside opted-out
+  // regions ([data-no-card-nav], e.g. the voting panel) and clicks that
+  // end a text selection are left alone.
+  const handleCardClick = (e: MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest("a, button, [data-no-card-nav]")) {
+      return;
+    }
+    if (window.getSelection()?.toString()) {
+      return;
+    }
+    router.push(getProposalDetailPagePath(proposal.publicKey));
+  };
+
   return (
-    <div className="flex min-w-0 w-full flex-col gap-6 p-6 lg:flex-row lg:items-stretch xl:gap-8">
+    <div
+      className="flex min-w-0 w-full flex-col gap-6 p-6 cursor-pointer lg:flex-row lg:items-stretch xl:gap-8"
+      onClick={handleCardClick}
+    >
       <div className="w-32 shrink-0 self-stretch flex items-center justify-center">
         <Spade className="size-15 text-muted/70 animate-pulse" />
       </div>
