@@ -9,10 +9,8 @@ use std::{
 };
 
 use agave_snapshots::{
-    error::SnapshotError,
-    paths::{full_snapshot_archives_iter, incremental_snapshot_archives_iter},
-    snapshot_archive_info::SnapshotArchiveInfoGetter,
-    snapshot_config::SnapshotConfig,
+    error::SnapshotError, paths::full_snapshot_archives_iter,
+    snapshot_archive_info::SnapshotArchiveInfoGetter, snapshot_config::SnapshotConfig,
     SnapshotVersion,
 };
 use clap_old::ArgMatches;
@@ -36,7 +34,10 @@ use solana_runtime::{bank::Bank, snapshot_bank_utils};
 use solana_sdk::clock::Slot;
 use thiserror::Error;
 
-use super::{arg_matches, load_and_process_ledger, resource_limits};
+use super::{
+    arg_matches, load_and_process_ledger, resource_limits,
+    snapshot_selection::select_snapshot_archives,
+};
 
 #[derive(Error, Debug)]
 pub enum LedgerUtilsError {
@@ -268,22 +269,22 @@ pub fn get_bank_from_ledger(
         ..Default::default()
     };
 
-    let mut starting_slot = 0; // default start check with genesis
-    let max_slot = process_options.halt_at_slot;
-    let full_snapshot_slot = full_snapshot_archives_iter(&full_snapshots_path)
-        .map(|archive| archive.slot())
-        .filter(|slot| max_slot.is_none_or(|max_slot| *slot <= max_slot))
-        .max();
-    if let Some(full_snapshot_slot) = full_snapshot_slot {
-        let incremental_snapshot_slot =
-            incremental_snapshot_archives_iter(&incremental_snapshots_path)
-                .filter(|archive| archive.base_slot() == full_snapshot_slot)
-                .map(|archive| archive.slot())
-                .filter(|slot| max_slot.is_none_or(|max_slot| *slot <= max_slot))
-                .max()
-                .unwrap_or_default();
-        starting_slot = std::cmp::max(full_snapshot_slot, incremental_snapshot_slot);
-    }
+    // Use the same archives load_and_process_ledger will use, so the range check
+    // below covers the slots the replay actually reads. Falls back to genesis
+    // when the directory holds no usable full snapshot.
+    let starting_slot = select_snapshot_archives(
+        &full_snapshots_path,
+        &incremental_snapshots_path,
+        process_options.halt_at_slot,
+    )
+    .map_or(0, |selected| {
+        info!(
+            "Selected full snapshot {} and incremental snapshot {:?}",
+            selected.full.slot(),
+            selected.incremental.as_ref().map(|archive| archive.slot())
+        );
+        selected.starting_slot()
+    });
     info!("Starting slot {}", starting_slot);
 
     match process_options.halt_at_slot {
