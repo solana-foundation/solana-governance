@@ -71,6 +71,23 @@ impl MetaMerkleSnapshot {
         Self::try_from_slice(&buf).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     }
 
+    /// Refuse to use this snapshot for a ballot box other than the one it was
+    /// generated for. `cast-vote-from-snapshot` names the ballot box with
+    /// `--snapshot-slot` but takes the root and hash from the file; if the two
+    /// disagree the operator votes a valid-looking root into the wrong ballot.
+    pub fn ensure_slot(&self, expected_slot: u64) -> io::Result<()> {
+        if self.slot != expected_slot {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "snapshot file was generated for slot {} but --snapshot-slot is {}",
+                    self.slot, expected_slot
+                ),
+            ));
+        }
+        Ok(())
+    }
+
     pub fn snapshot_hash(path: PathBuf, is_compressed: bool) -> io::Result<Hash> {
         let file = File::open(path)?;
         let buf = if is_compressed {
@@ -162,6 +179,21 @@ impl MetaMerkleLeafBundle {
 mod tests {
     use super::*;
     use anchor_lang::prelude::Pubkey;
+
+    #[test]
+    fn ensure_slot_accepts_the_generating_slot_and_rejects_others() {
+        let snapshot = MetaMerkleSnapshot {
+            root: [1; 32],
+            leaf_bundles: vec![],
+            slot: 440_641_000,
+        };
+        assert!(snapshot.ensure_slot(440_641_000).is_ok());
+
+        let err = snapshot.ensure_slot(441_073_000).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        assert!(err.to_string().contains("440641000"));
+        assert!(err.to_string().contains("441073000"));
+    }
 
     fn pubkey(seed: u8) -> Pubkey {
         Pubkey::new_from_array([seed; 32])
