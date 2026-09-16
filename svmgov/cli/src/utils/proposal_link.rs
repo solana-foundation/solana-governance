@@ -299,6 +299,12 @@ fn assert_on_chain_compatible(link: &str) -> Result<()> {
         ));
     }
 
+    if segments.get(2) != Some(&"blob") {
+        return Err(anyhow!(
+            "`--description` must use the canonical /blob/<commit-sha>/ path; /raw/ is only used internally to fetch document content\n\n  got: {link}"
+        ));
+    }
+
     if segments.iter().any(|segment| segment.is_empty()) {
         return Err(anyhow!(
             "`--description` contains an empty path segment; the on-chain program rejects it\n\n  got: {link}"
@@ -463,6 +469,10 @@ mod tests {
             (
                 "https://raw.githubusercontent.com/o/r/main/proposals/0001-x.md",
                 "must start with",
+            ),
+            (
+                "https://github.com/solana-foundation/solana-governance-proposals/raw/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/sgp-0001-x.md",
+                "canonical /blob",
             ),
             (
                 "https://gitlab.com/o/r/blob/main/proposals/0001-x.md",

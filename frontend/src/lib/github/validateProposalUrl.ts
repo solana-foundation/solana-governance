@@ -215,6 +215,10 @@ function describeOnChainViolation(url: string): string | undefined {
     return "The link contains an empty path segment, which the on-chain program rejects.";
   }
 
+  if (segments[2] !== "blob") {
+    return "The link must use the canonical /blob/<commit-sha>/ path; /raw/ is only used internally to fetch document content.";
+  }
+
   if (segments.some((segment) => segment === "..")) {
     return 'The link contains a ".." path-traversal segment, which the on-chain program rejects.';
   }
