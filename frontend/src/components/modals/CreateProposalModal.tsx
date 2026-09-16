@@ -21,6 +21,7 @@ import {
   WALLET_SIGNING_CANCELLED_MESSAGE,
 } from "@/lib/walletSigning";
 import { validateProposalUrl } from "@/lib/github";
+import { ProposalDocumentValidationError } from "@/lib/github";
 
 interface CreateProposalModalProps {
   isOpen: boolean;
@@ -44,6 +45,7 @@ export function CreateProposalModal({
   const [error, setError] = React.useState<string | undefined>();
   /** Keeps the field from turning red while the user is still typing the URL. */
   const [descriptionTouched, setDescriptionTouched] = React.useState(false);
+  const [allowUnverified, setAllowUnverified] = React.useState(false);
 
   const wallet = useAnchorWallet();
   const { mutate: createProposal } = useCreateProposal();
@@ -63,6 +65,7 @@ export function CreateProposalModal({
       });
       setError(undefined);
       setDescriptionTouched(false);
+      setAllowUnverified(false);
     }
   }, [isOpen]);
 
@@ -73,6 +76,11 @@ export function CreateProposalModal({
   };
 
   const handleError = (err: Error) => {
+    if (err instanceof ProposalDocumentValidationError) {
+      setError(`${err.message} You may explicitly continue without document verification.`);
+      setIsLoading(false);
+      return;
+    }
     if (isWalletSigningCancellation(err)) {
       toast.info(WALLET_SIGNING_CANCELLED_MESSAGE);
       setIsLoading(false);
@@ -99,6 +107,7 @@ export function CreateProposalModal({
         title: formData.title,
         description: formData.description,
         wallet,
+        skipDocumentCheck: allowUnverified,
       },
       {
         onSuccess: handleSuccess,
@@ -114,6 +123,7 @@ export function CreateProposalModal({
     });
     setError(undefined);
     setDescriptionTouched(false);
+    setAllowUnverified(false);
     onClose();
   };
 
@@ -214,6 +224,16 @@ export function CreateProposalModal({
                       </p>
                     ))}
                 </div>
+                {error?.includes("without document verification") && (
+                  <label className="flex items-center gap-2 text-xs text-white/60">
+                    <input
+                      type="checkbox"
+                      checked={allowUnverified}
+                      onChange={(event) => setAllowUnverified(event.target.checked)}
+                    />
+                    Create without document verification
+                  </label>
+                )}
               </div>
 
               {/* Error Message */}

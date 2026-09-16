@@ -12,7 +12,7 @@ import {
   signTransactionForWallet,
 } from "./helpers";
 import { deriveProposalAccount } from "../helpers";
-import { assertValidProposalUrl } from "@/lib/github";
+import { assertValidProposalDocument, assertValidProposalUrl } from "@/lib/github";
 
 /**
  * Creates a new governance proposal
@@ -38,6 +38,9 @@ export async function createProposal(
   // a literal https://github.com/ prefix, so sending the raw input would be rejected on chain
   // after the frontend had already accepted it.
   const description = assertValidProposalUrl(params.description);
+  if (!params.skipDocumentCheck) {
+    await assertValidProposalDocument(description);
+  }
 
   // Generate random seed if not provided
   const seedValue = new BN(
