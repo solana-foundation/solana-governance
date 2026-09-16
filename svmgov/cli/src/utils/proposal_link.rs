@@ -1,18 +1,9 @@
-//! Validation for the `--description` GitHub link on `create-proposal`.
+//! Client-side validation for proposal document URLs supplied to the CLI.
 //!
-//! The on-chain program (`svmgov_program::utils::is_valid_github_link`) only checks that the
-//! description must name the approved `solana-foundation/solana-governance-proposals` GitHub
-//! repository, have 2-10 path segments, contain no `..` traversal segment, and use only
-//! ASCII alphanumerics plus `-`, `_`, `.`. A pull request link such as `.../owner/repo/pull/3` is four
-//! clean segments, so it sails through the broad shape check — and then the frontend cannot
-//! resolve it to a proposal document.
-//!
-//! This module closes that gap client-side. It does NOT reimplement the on-chain rules; it is
-//! strictly stricter by construction, accepting only
-//! `https://github.com/{owner}/{repo}/blob/{ref}/{...}.md` and then re-checking the on-chain
-//! grammar directly, so anything accepted here is guaranteed to be accepted on chain.
-//!
-//! Rule numbering matches frontend/src/lib/github/validateProposalUrl.ts; keep the two in step.
+//! Structural validation rejects non-canonical GitHub URLs, pull requests and directories,
+//! files outside the approved repository, non-Markdown files, mutable refs, and values the
+//! program would reject. The optional preflight fetch verifies that the pinned file is
+//! reachable and has non-empty frontmatter.
 
 use std::time::Duration;
 
@@ -100,18 +91,20 @@ pub fn classify_github_link(link: &str) -> GithubLinkKind {
     }
 }
 
-/// Applies rules 1-11 with no network access. Warnings (9-11) go to `log::warn!`.
+/// Validates a proposal document URL without making a network request.
+///
+/// Requires a non-empty, size-bounded `https://github.com/` URL to a Markdown `blob` in the
+/// approved repository at a full commit SHA. Rejects pull requests, directory URLs, query
+/// strings, fragments, and any URL that would fail the program's canonical URL grammar.
 pub fn validate_description_structure(description: &str) -> Result<GithubLinkKind> {
     let link = description.trim();
 
-    // 1
     if link.is_empty() {
         return Err(anyhow!(
             "`--description` must be a GitHub link to the proposal markdown file"
         ));
     }
 
-    // 8 — cheap, and it bounds everything below.
     if link.len() > MAX_DESCRIPTION_BYTES {
         return Err(anyhow!(
             "`--description` is {} bytes; the on-chain limit is {MAX_DESCRIPTION_BYTES}",
@@ -119,14 +112,13 @@ pub fn validate_description_structure(description: &str) -> Result<GithubLinkKin
         ));
     }
 
-    // 2
     if link.starts_with("http://") {
         return Err(anyhow!(
             "`--description` must use https, not http\n\n  got: {link}"
         ));
     }
 
-    // 3 — the on-chain check requires this exact prefix, so `www.github.com` and
+    // The on-chain check requires this exact prefix, so `www.github.com` and
     // `raw.githubusercontent.com` links are rejected on chain even though they resolve.
     if !link.starts_with(GITHUB_PREFIX) {
         return Err(anyhow!(
@@ -134,7 +126,6 @@ pub fn validate_description_structure(description: &str) -> Result<GithubLinkKin
         ));
     }
 
-    // 7 — `is_valid_github_link` rejects these outright, so they would fail on chain.
     if link.contains(['?', '#']) {
         return Err(anyhow!(
             "`--description` must not contain a query string or #fragment; the on-chain program rejects them\n\n  got: {link}"
@@ -143,14 +134,12 @@ pub fn validate_description_structure(description: &str) -> Result<GithubLinkKin
 
     let kind = classify_github_link(link);
 
-    // 4
     if let GithubLinkKind::Pull { number, .. } = &kind {
         return Err(anyhow!(
             "`--description` must link to the proposal markdown file, not to pull request #{number}.\n\n  got: {link}\n\n{PULL_REQUEST_HELP}"
         ));
     }
 
-    // 5
     if matches!(kind, GithubLinkKind::Tree) {
         return Err(anyhow!(
             "`--description` links to a directory listing. Link to the proposal markdown file itself.\n\n  got: {link}"
@@ -175,7 +164,6 @@ pub fn validate_description_structure(description: &str) -> Result<GithubLinkKin
         ));
     }
 
-    // 6
     let file_name = path.rsplit('/').next().unwrap_or_default();
     if !file_name.to_ascii_lowercase().ends_with(".md") {
         return Err(anyhow!(
@@ -186,15 +174,14 @@ pub fn validate_description_structure(description: &str) -> Result<GithubLinkKin
     // Re-check the on-chain grammar rather than assuming the shape above implies it.
     assert_on_chain_compatible(link)?;
 
-    // 9
+    // A proposal document must be immutable on chain, so a branch or tag is
+    // not an acceptable reference.
     if !is_commit_sha(git_ref) {
-        log::warn!(
-            "`{git_ref}` is a branch or tag. The description cannot be changed once it is on chain, \
-             so a full commit SHA is safer against the branch moving or being deleted."
-        );
+        return Err(anyhow!(
+            "`--description` must use a full 40-character commit SHA, not branch or tag `{git_ref}`\n\n  got: {link}"
+        ));
     }
 
-    // 11
     if proposal_number(file_name).is_none() {
         log::warn!(
             "`{file_name}` does not look like a proposal filename (expected `sgp-0001-title.md` \
@@ -205,10 +192,8 @@ pub fn validate_description_structure(description: &str) -> Result<GithubLinkKin
     Ok(kind)
 }
 
-/// Structural validation plus an optional check that the file actually exists.
-///
-/// Only an authoritative 404 blocks. Transport failures (offline, DNS, TLS, timeout) warn and
-/// pass, so a flaky or absent network never stops a proposal from being created.
+/// Structural validation plus an optional check that the file exists and has
+/// non-empty frontmatter.
 ///
 /// Returns the normalized link, which the caller must submit in place of the raw argument:
 /// validation trims, and the program requires a literal `https://github.com/` prefix, so a
@@ -232,9 +217,9 @@ pub async fn validate_description(description: &str, skip_network: bool) -> Resu
         return Ok(normalized);
     };
 
-    // Checked against the raw URL rather than the HTML page: 200/404 is unambiguous, there is
-    // no HTML to parse, it is not subject to the GitHub API rate limit, and it is exactly the
-    // URL the frontend will fetch — so a pass here proves the frontend can render it.
+    // Checked against the raw URL rather than the HTML page: it is exactly the
+    // content the frontend fetches, and lets us verify frontmatter without a
+    // GitHub API rate limit.
     let raw_url = format!("https://raw.githubusercontent.com/{owner}/{repo}/{git_ref}/{path}");
     check_reachable(&raw_url).await?;
 
@@ -248,50 +233,59 @@ async fn check_reachable(raw_url: &str) -> Result<()> {
         .timeout(REQUEST_TIMEOUT)
         .build()?;
 
-    let response = match client.head(raw_url).send().await {
-        Ok(response) => response,
-        Err(e) => return warn_and_continue(e, raw_url),
-    };
-
-    // Some intermediaries refuse HEAD; retry as a one-byte GET.
-    let response = if matches!(response.status().as_u16(), 405 | 501) {
-        match client
-            .get(raw_url)
-            .header("Range", "bytes=0-0")
-            .send()
-            .await
-        {
-            Ok(response) => response,
-            Err(e) => return warn_and_continue(e, raw_url),
-        }
-    } else {
-        response
-    };
+    let response = client
+        .get(raw_url)
+        .send()
+        .await
+        .map_err(|e| anyhow!("could not verify proposal document at {raw_url}: {e}"))?;
 
     let status = response.status();
-    if status.is_success() {
-        return Ok(());
-    }
-
     if status == reqwest::StatusCode::NOT_FOUND {
         return Err(anyhow!(
             "proposal file not found at {raw_url}\n\n\
              Check the path and the branch or commit. If the proposal only exists on a pull \
              request, use the blob URL at the PR's head commit rather than the PR link itself.\n\n\
-             Re-run with --skip-link-check to create the proposal anyway."
+             Re-run with --skip-link-check to submit without document verification."
         ));
     }
 
-    log::warn!("could not verify proposal link: GitHub returned {status} for {raw_url}");
+    if !status.is_success() {
+        return Err(anyhow!(
+            "could not verify proposal document: GitHub returned {status} for {raw_url}\n\n\
+             Re-run with --skip-link-check to submit without document verification."
+        ));
+    }
+
+    let body = response
+        .text()
+        .await
+        .map_err(|e| anyhow!("could not read proposal document at {raw_url}: {e}"))?;
+    if !has_nonempty_frontmatter(&body) {
+        return Err(anyhow!(
+            "proposal document at {raw_url} has no non-empty leading frontmatter block\n\n\
+             Start the markdown file with `---`, add frontmatter, and close it with `---`. \
+             Re-run with --skip-link-check to submit without document verification."
+        ));
+    }
     Ok(())
 }
 
-fn warn_and_continue(error: reqwest::Error, raw_url: &str) -> Result<()> {
-    if error.is_connect() || error.is_timeout() || error.is_request() {
-        log::warn!("could not verify {raw_url} (offline?): {error}");
-        return Ok(());
+/// Returns true only for a non-empty frontmatter block that begins on the
+/// document's first line and is closed by a standalone delimiter.
+pub fn has_nonempty_frontmatter(markdown: &str) -> bool {
+    let mut lines = markdown.lines();
+    if lines.next().map(str::trim_end) != Some("---") {
+        return false;
     }
-    Err(anyhow!("failed to verify {raw_url}: {error}"))
+
+    let mut non_empty = false;
+    for line in lines {
+        if line.trim_end() == "---" {
+            return non_empty;
+        }
+        non_empty |= !line.trim().is_empty();
+    }
+    false
 }
 
 /// Proves the claim in this module's docs: anything accepted here is accepted on chain.
@@ -548,8 +542,8 @@ mod tests {
     fn accepted_links_satisfy_the_on_chain_rules() {
         let accepted = [
             SGP_FILE,
-            "https://github.com/solana-foundation/solana-governance-proposals/blob/main/x.md",
-            "https://github.com/solana-foundation/solana-governance-proposals/blob/main/a/b/c/d/e/f.md",
+            "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/x.md",
+            "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/a/b/c/d/e/f.md",
         ];
 
         for link in accepted {
@@ -613,6 +607,14 @@ mod tests {
         assert!(is_commit_sha("27bca51e5c0fc34ddbea6904faf86f5098225316"));
         assert!(!is_commit_sha("main"));
         assert!(!is_commit_sha("27bca51"));
+    }
+
+    #[test]
+    fn detects_nonempty_frontmatter() {
+        assert!(has_nonempty_frontmatter("---\r\nsgp: 0001\r\n---\r\n# Title"));
+        assert!(!has_nonempty_frontmatter("# Title\n---\nsgp: 0001\n---"));
+        assert!(!has_nonempty_frontmatter("---\n---\n# Title"));
+        assert!(!has_nonempty_frontmatter("---\nsgp: 0001\n# Title"));
     }
 
     #[test]
