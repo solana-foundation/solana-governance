@@ -60,7 +60,7 @@ The main proposal account. One per governance proposal.
 |---|---|---|
 | `author` | `Pubkey` | Validator who created the proposal |
 | `title` | `String` | Short title (length in bytes ≤ `max_title_length`, ≤ 200) |
-| `description` | `String` | URL in `https://github.com/solana-foundation/solana-governance-proposals` for full proposal text (length in bytes ≤ `max_description_length`, ≤ 500) |
+| `description` | `String` | Full-commit-SHA GitHub `blob` URL to one `.md` file in `solana-governance-proposals` (length in bytes ≤ `max_description_length`, ≤ 500) |
 | `creation_epoch` | `u64` | Epoch when created |
 | `start_epoch` | `u64` | Epoch when voting begins |
 | `end_epoch` | `u64` | Epoch when voting ends |
@@ -242,9 +242,23 @@ Creates a new governance proposal.
 |---|---|---|
 | `seed: u64` | `u64` | Unique seed for PDA derivation |
 | `title: String` | `String` | Non-empty, ≤ `max_title_length` |
-| `description: String` | `String` | Non-empty, ≤ `max_description_length`, must be in `https://github.com/solana-foundation/solana-governance-proposals` and contain no `..` segment |
+| `description: String` | `String` | Non-empty, ≤ `max_description_length`, full-commit-SHA GitHub `blob` URL to one `.md` file in `solana-governance-proposals` |
 
 **Additional checks:** proposer stake ≥ `min_proposal_stake_lamports`
+
+---
+
+### `update_proposal_description`
+
+Replaces a proposal's pinned document URL. It does not resize the proposal account or alter any lifecycle/voting state.
+
+**Signer:** the proposal's original `author`.
+
+| Parameter | Type | Validation |
+|---|---|---|
+| `description` | `String` | Same canonical, full-commit-SHA Markdown `blob` URL validation as `create_proposal` |
+
+The instruction is permitted during support while the support window remains open. Once support has activated the lifecycle, it remains permitted only while `clock.epoch < start_epoch`. It is rejected at the start of voting and for finalized proposals. Emits `ProposalDescriptionUpdated`, including the old URL, new URL, author, and timestamp.
 
 ---
 
@@ -347,7 +361,7 @@ Admin-only recovery instruction. Re-anchors a supported proposal's snapshot/voti
 | `TitleTooLong` | Title exceeds max length (bytes) |
 | `DescriptionEmpty` | Description is empty |
 | `DescriptionTooLong` | Description exceeds max length (bytes) |
-| `DescriptionInvalid` | Description must link to `https://github.com/solana-foundation/solana-governance-proposals` without `..` path segments |
+| `DescriptionInvalid` | Description must be a full-commit-SHA GitHub `blob` URL to one `.md` file in `solana-governance-proposals` |
 | `InvalidProposalId` | Invalid proposal ID |
 | `VotingNotStarted` | Proposal has not yet entered voting phase |
 | `ProposalClosed` | Voting period has ended |
@@ -375,6 +389,7 @@ Admin-only recovery instruction. Re-anchors a supported proposal's snapshot/voti
 | `CannotDeserializeMetaMerkleProofPDA` | MetaMerkleProof deserialization failed |
 | `CannotDeserializeConsensusResult` | ConsensusResult deserialization failed |
 | `CannotModifyAfterStart` | Cannot modify proposal after voting starts |
+| `UnauthorizedProposalUpdate` | Only the original proposal author can update its document URL |
 | `VotingLengthTooLong` | Voting length exceeds `max_support_epochs` |
 | `ArithmeticOverflow` | Overflow in stake calculations |
 | `SnapshotProgramUpgraded` | Snapshot program upgrade protection triggered |

@@ -8,6 +8,9 @@ export default {
   'create-proposal': {
     title: 'Create Proposal',
   },
+  'update-proposal-description': {
+    title: 'Update Proposal Document',
+  },
   'support-proposal': {
     title: 'Support Proposal',
   },

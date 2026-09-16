@@ -69,9 +69,17 @@ When voting, `for_votes + against_votes + abstain_votes` must equal exactly **10
 | Argument | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `--title` | String | Yes | — | Proposal title; byte length must be ≤ configured `max_title_length` and ≤ 200 |
-| `--description` | String | Yes | — | URL in `https://github.com/solana-foundation/solana-governance-proposals/...` without `..`; byte length must be ≤ configured `max_description_length` and ≤ 500 |
+| `--description` | String | Yes | — | Full-commit-SHA `blob` URL to one `.md` file in `solana-governance-proposals`; byte length must be ≤ configured `max_description_length` and ≤ 500 |
 | `--network` | String | No | Config value | Network for proof fetching |
 | `--seed` | u64 | No | Random | PDA derivation seed |
+
+### `update-proposal-description`
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `--proposal-id` | String | Yes | Proposal PDA (base58) |
+| `--description` | String | Yes | Replacement commit-pinned Markdown `blob` URL |
+| `--skip-link-check` | flag | No | Skip only the CLI's GitHub/frontmatter preflight |
 
 ### `support-proposal`
 
