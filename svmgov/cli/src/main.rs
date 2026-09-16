@@ -143,6 +143,23 @@ enum Commands {
     },
 
     #[command(
+        about = "Update a proposal document before voting starts",
+        long_about = "Updates a proposal's commit-pinned markdown document URL. Only the proposal author may update it, and updates are allowed during support and discussion but never once voting begins.\n\n\
+                      Example:\n\
+                      $ svmgov -k /path/to/key.json update-proposal-description --proposal-id <PROPOSAL_PUBKEY> --description https://github.com/solana-foundation/solana-governance-proposals/blob/<commit-sha>/proposals/sgp-0001-title.md"
+    )]
+    UpdateProposalDescription {
+        #[arg(long, help = "Proposal PDA address")]
+        proposal_id: String,
+
+        #[arg(long, help = "Commit-pinned markdown URL in solana-governance-proposals")]
+        description: String,
+
+        #[arg(long, help = "Skip the network and frontmatter verification of --description")]
+        skip_link_check: bool,
+    },
+
+    #[command(
         about = "Support a proposal to vote on",
         long_about = "This command allows an eligible validator to support a governance proposal, making it available for voting. \
                       It requires the proposal ID and the validator's identity keypair to sign the transaction. \
@@ -604,6 +621,10 @@ fn squads_refusal_for(command: &Commands) -> Option<String> {
             "create-proposal",
             "the validator identity (vote_state.node_pubkey) to be the signer",
         ),
+        Commands::UpdateProposalDescription { .. } => (
+            "update-proposal-description",
+            "the original proposal author to be the signer",
+        ),
         Commands::SupportProposal { .. } => (
             "support-proposal",
             "the validator identity (vote_state.node_pubkey) to be the signer",
@@ -696,6 +717,20 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 network.clone(),
                 *skip_link_check,
                 *with_support,
+            )
+            .await?;
+        }
+        Commands::UpdateProposalDescription {
+            proposal_id,
+            description,
+            skip_link_check,
+        } => {
+            instructions::update_proposal_description(
+                proposal_id.to_string(),
+                description.to_string(),
+                cli.keypair,
+                cli.rpc_url,
+                *skip_link_check,
             )
             .await?;
         }
