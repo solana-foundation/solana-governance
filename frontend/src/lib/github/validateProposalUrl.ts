@@ -13,14 +13,13 @@ export type ProposalUrlErrorCode =
   | "pull-request"
   | "tree-or-directory"
   | "not-markdown"
+  | "not-commit-sha"
   | "query-or-fragment"
   | "too-long"
   | "rejected-on-chain"
   | "unsupported";
 
-export type ProposalUrlWarningCode =
-  | "mutable-ref"
-  | "unrecognized-filename";
+export type ProposalUrlWarningCode = "unrecognized-filename";
 
 export interface ProposalUrlIssue<Code extends string> {
   code: Code;
@@ -75,16 +74,16 @@ const PULL_REQUEST_MESSAGE = [
   "https://github.com/<owner>/<repo>/blob/<commit-sha>/proposals/sgp-0001-....md",
   "",
   "Prefer the commit SHA over a branch name: the description is stored on chain and cannot be",
-  "edited, so a branch link breaks once the branch moves or is deleted.",
+  "tied to a particular revision, so a branch link breaks once the branch moves or is deleted.",
 ].join("\n");
 
 /**
  * Validates a proposal description URL before it is written on chain.
  *
- * The on-chain program only checks that the string looks broadly like a GitHub link — a pull
- * request URL is four clean path segments, so it passes there. This is where that is caught.
- *
- * Rule numbering is mirrored in svmgov/cli/src/utils/proposal_link.rs; keep the two in step.
+ * Requires an HTTPS GitHub `blob` URL to one Markdown file in the approved repository at a
+ * full commit SHA. Rejects empty, oversized, mutable, malformed, pull-request, directory,
+ * query/fragment, and on-chain-incompatible URLs. It warns when the filename cannot provide a
+ * proposal reference for display.
  */
 export function validateProposalUrl(url: string): ProposalUrlValidation {
   const errors: ProposalUrlIssue<ProposalUrlErrorCode>[] = [];
@@ -97,7 +96,7 @@ export function validateProposalUrl(url: string): ProposalUrlValidation {
     return { ok: false, errors, warnings, parsed, normalized: trimmed };
   };
 
-  // 1-5: shape. `parseProposalUrl` already distinguishes these cases.
+  // `parseProposalUrl` distinguishes pull requests and unsupported URL shapes.
   if (parsed.kind === "pull") {
     return fail("pull-request", PULL_REQUEST_MESSAGE);
   }
@@ -125,7 +124,7 @@ export function validateProposalUrl(url: string): ProposalUrlValidation {
     }
   }
 
-  // 3 (continued): `parseProposalUrl` is deliberately lenient about the host so that existing
+  // `parseProposalUrl` is deliberately lenient about the host so that existing
   // on-chain descriptions still render. Creation has to be stricter than that.
   if (!trimmed.startsWith(ON_CHAIN_PREFIX)) {
     return fail(
@@ -134,7 +133,6 @@ export function validateProposalUrl(url: string): ProposalUrlValidation {
     );
   }
 
-  // 6: the document has to be markdown.
   if (!/\.md$/i.test(parsed.fileName)) {
     errors.push({
       code: "not-markdown",
@@ -142,7 +140,6 @@ export function validateProposalUrl(url: string): ProposalUrlValidation {
     });
   }
 
-  // 7: the on-chain validator rejects `?` and `#` outright, so these fail at the program.
   if (/[?#]/.test(trimmed)) {
     errors.push({
       code: "query-or-fragment",
@@ -151,7 +148,6 @@ export function validateProposalUrl(url: string): ProposalUrlValidation {
     });
   }
 
-  // 8
   if (byteLength(trimmed) > MAX_DESCRIPTION_BYTES) {
     errors.push({
       code: "too-long",
@@ -166,15 +162,15 @@ export function validateProposalUrl(url: string): ProposalUrlValidation {
     errors.push({ code: "rejected-on-chain", message: onChainIssue });
   }
 
-  // 9
+  // A document is immutable only when its URL pins a full Git commit.
   if (!COMMIT_SHA.test(parsed.gitRef)) {
-    warnings.push({
-      code: "mutable-ref",
-      message: `"${parsed.gitRef}" is a branch or tag. The description cannot be changed once on chain, so a full commit SHA is safer.`,
+    errors.push({
+      code: "not-commit-sha",
+      message: `"${parsed.gitRef}" is not a full 40-character commit SHA.`,
     });
   }
 
-  // 10: descriptions are an on-chain trust boundary, so creation is limited to the
+  // Descriptions are an on-chain trust boundary, so creation is limited to the
   // repository the program accepts. Compare the raw case-sensitive components to mirror the
   // program rather than treating GitHub's case-insensitive names as interchangeable.
   if (`${parsed.repo.owner}/${parsed.repo.repo}` !== SGP_REPO) {
@@ -184,7 +180,6 @@ export function validateProposalUrl(url: string): ProposalUrlValidation {
     });
   }
 
-  // 11
   if (!parsed.ref) {
     warnings.push({
       code: "unrecognized-filename",
