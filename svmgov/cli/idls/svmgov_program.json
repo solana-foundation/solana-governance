@@ -1414,6 +1414,60 @@
           }
         }
       ]
+    },
+    {
+      "name": "update_proposal_description",
+      "discriminator": [
+        252,
+        66,
+        166,
+        167,
+        49,
+        61,
+        123,
+        214
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "signer": true
+        },
+        {
+          "name": "proposal",
+          "writable": true
+        },
+        {
+          "name": "global_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "description",
+          "type": "string"
+        }
+      ]
     }
   ],
   "accounts": [
@@ -1560,6 +1614,19 @@
         13,
         51,
         206
+      ]
+    },
+    {
+      "name": "ProposalDescriptionUpdated",
+      "discriminator": [
+        132,
+        184,
+        237,
+        78,
+        43,
+        19,
+        162,
+        248
       ]
     },
     {
@@ -1969,6 +2036,11 @@
       "code": 6062,
       "name": "SnapshotWindowTooShort",
       "msg": "Snapshot slot must leave the minimum required voting window before voting starts"
+    },
+    {
+      "code": 6063,
+      "name": "UnauthorizedProposalUpdate",
+      "msg": "Only the original proposal author can update the proposal description"
     }
   ],
   "types": [
@@ -2288,6 +2360,34 @@
           },
           {
             "name": "creation_timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProposalDescriptionUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "proposal_id",
+            "type": "pubkey"
+          },
+          {
+            "name": "author",
+            "type": "pubkey"
+          },
+          {
+            "name": "previous_description",
+            "type": "string"
+          },
+          {
+            "name": "new_description",
+            "type": "string"
+          },
+          {
+            "name": "update_timestamp",
             "type": "i64"
           }
         ]
