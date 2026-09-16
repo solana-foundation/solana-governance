@@ -21,6 +21,8 @@ tokio = { version = "1.44.2", features = ["full"] }
 async-trait = "0.1"
 anchor-client = { version = "0.31.1", features = ["async"]}
 anchor-lang = "0.31.1"
+solana-remote-wallet = "=2.2.1"
+uriparse = "0.6.4"
 rand = { version = "0.9.1", features = ["thread_rng"]}
 log = "0.4.27"
 env_logger = "0.11.8"

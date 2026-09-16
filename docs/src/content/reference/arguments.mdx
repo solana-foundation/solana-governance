@@ -6,7 +6,7 @@ Complete reference for all `svmgov` CLI command-line arguments and configuration
 
 | Option | Short | Env Var | Description |
 |---|---|---|---|
-| `--keypair <PATH>` | `-k` | `SVMGOV_KEY` | Path to signer keypair JSON |
+| `--keypair <PATH>` | `-k` | `SVMGOV_KEY` | Signer keypair JSON file or Ledger URI |
 | `--rpc-url <URL>` | `-r` | `SVMGOV_RPC` | Solana RPC endpoint |
 | `--network <NETWORK>` | `-n` | — | Network for verifier/proof fetching; overrides config |
 | `--squads <PUBKEY>` | — | — | Route supported admin transactions through this Squads multisig |
@@ -15,6 +15,27 @@ Complete reference for all `svmgov` CLI command-line arguments and configuration
 | `--squads-program-id <PUBKEY>` | — | — | Override the canonical Squads program ID |
 
 **Resolution order:** explicit flags → env vars → config file → built-in defaults
+
+### Ledger
+
+Pass a Solana Ledger URI to `--keypair` (or `--staker-keypair`):
+
+```bash
+svmgov update-global-config \
+  --max-support-epochs 10 --discussion-epochs 10 --voting-epochs 4 \
+  --keypair 'usb://ledger?key=0/0' \
+  --squads "$SQUADS" --rpc-url "$MAINNET_RPC"
+```
+
+Use the derivation path for your account: `?key=0/0` selects `m/44'/501'/0'/0'`;
+omitting `?key=` uses Solana's default `m/44'/501'`. A device can be selected with
+`usb://ledger/<PUBKEY>?key=0/0`, where `<PUBKEY>` is its default-path public key.
+Unlock the Ledger, open the Solana app, and enable blind signing for governance
+and Squads instructions. Approve each transaction on the device. In Squads mode,
+the Ledger signs the proposal creation transaction as a multisig member and fee payer.
+
+Ledger URIs also work in `SVMGOV_KEY` and the existing keypair config values.
+Building from source on Debian/Ubuntu additionally requires `libudev-dev`.
 
 ## Configuration File
 
@@ -124,7 +145,7 @@ When voting, `for_votes + against_votes + abstain_votes` must equal exactly **10
 | `--stake-account` | String | Yes | Stake account pubkey (base58) |
 | `--vote-account` | String | Yes | Validator vote account pubkey (base58) |
 | `--network` | String | No | Network override |
-| `--staker-keypair` | String | Yes | Staker keypair path |
+| `--staker-keypair` | String | Yes | Staker keypair JSON file or Ledger URI |
 | `--close-timestamp` | i64 | No | _(`cast-vote-override` only)_ Unix timestamp after which the `MetaMerkleProof` PDA may be closed permissionlessly. Defaults to the proposal's vote-expiry time |
 
 ## Admin Command Arguments

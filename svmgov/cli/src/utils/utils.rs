@@ -1,18 +1,25 @@
-use std::{fmt, fs, str::FromStr, sync::Arc, time::Duration};
+use std::{fmt, str::FromStr, sync::Arc, time::Duration};
 
 use anchor_client::{
-    Client, Cluster, Program,
+    Client, Cluster, DynSigner, Program,
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_sdk::{
         bpf_loader_upgradeable, commitment_config::CommitmentConfig,
-        native_token::LAMPORTS_PER_SOL, signature::Keypair, signer::Signer,
+        derivation_path::DerivationPath, native_token::LAMPORTS_PER_SOL,
+        signature::read_keypair_file, signer::Signer,
     },
 };
 use anchor_lang::{Id, prelude::Pubkey};
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use chrono::prelude::*;
 use indicatif::{ProgressBar, ProgressStyle};
+use solana_remote_wallet::{
+    locator::Locator,
+    remote_keypair::generate_remote_keypair,
+    remote_wallet::{RemoteWalletError, maybe_wallet_manager},
+};
 use textwrap::wrap;
+use uriparse::URIReference;
 
 use crate::{
     constants::*,
@@ -45,7 +52,11 @@ pub fn create_spinner(message: &str) -> ProgressBar {
 pub fn setup_signer_and_program(
     keypair_path: Option<String>,
     rpc_url: Option<String>,
-) -> Result<(Arc<Keypair>, Program<Arc<Keypair>>, Client<Arc<Keypair>>)> {
+) -> Result<(
+    Arc<DynSigner>,
+    Program<Arc<DynSigner>>,
+    Client<Arc<DynSigner>>,
+)> {
     let identity_keypair = load_identity_keypair(keypair_path)?;
     let identity_keypair_arc = Arc::new(identity_keypair);
 
@@ -66,14 +77,13 @@ pub async fn setup_all(
     keypair_path: Option<String>,
     rpc_url: Option<String>,
 ) -> Result<(
-    Arc<Keypair>,
+    Arc<DynSigner>,
     Pubkey,
-    Program<Arc<Keypair>>,
-    Program<Arc<Keypair>>,
+    Program<Arc<DynSigner>>,
+    Program<Arc<DynSigner>>,
 )> {
     // Step 1: Signer, cluster and svmgov program
-    let (identity_keypair_arc, program, client) =
-        setup_signer_and_program(keypair_path, rpc_url)?;
+    let (identity_keypair_arc, program, client) = setup_signer_and_program(keypair_path, rpc_url)?;
 
     // Step 2: The merkle-proof (ncn-snapshot) program
     let merkle_proof_program = client.program(ncn_snapshot::id())?;
@@ -101,9 +111,13 @@ pub async fn setup_all(
 pub fn setup_all_with_staker(
     staker_keypair_path: String,
     rpc_url: Option<String>,
-) -> Result<(Arc<Keypair>, Program<Arc<Keypair>>, Program<Arc<Keypair>>)> {
+) -> Result<(
+    Arc<DynSigner>,
+    Program<Arc<DynSigner>>,
+    Program<Arc<DynSigner>>,
+)> {
     // Step 1: Load the staker keypair
-    let staker_keypair = load_staker_keypair(staker_keypair_path)?;
+    let staker_keypair = load_signer(&staker_keypair_path)?;
     let staker_keypair_arc = Arc::new(staker_keypair);
 
     // Step 2: Set the cluster
@@ -125,82 +139,33 @@ pub fn setup_all_with_staker(
     Ok((staker_keypair_arc, program, merkle_proof_program))
 }
 
-fn load_staker_keypair(keypair_path: String) -> Result<Keypair> {
-    let file_content = fs::read_to_string(&keypair_path).map_err(|e| match e.kind() {
-        std::io::ErrorKind::NotFound => {
-            anyhow!(
-                "The specified staker keypair file does not exist: {}",
-                keypair_path
-            )
-        }
-        _ => anyhow!("Failed to read staker keypair file {}: {}", keypair_path, e),
-    })?;
-
-    let keypair_bytes: Vec<u8> = serde_json::from_str(&file_content).map_err(|e| {
-        anyhow!(
-            "The staker keypair file is not a valid JSON array of bytes: {}. Error: {}",
-            keypair_path,
-            e
-        )
-    })?;
-
-    // Create the Keypair from the bytes
-    let staker_keypair = Keypair::from_bytes(&keypair_bytes).map_err(|e| {
-        anyhow!(
-            "The provided bytes do not form a valid Solana keypair: {}. This might be due to invalid key data.",
-            e
-        )
-    })?;
-
-    Ok(staker_keypair)
+fn load_signer(path: &str) -> Result<DynSigner> {
+    if path.starts_with("usb://") {
+        let uri = URIReference::try_from(path).context("Invalid Ledger URI")?;
+        let locator = Locator::new_from_uri(&uri).context("Invalid Ledger locator")?;
+        let derivation_path = DerivationPath::from_uri_key_query(&uri)
+            .context("Invalid Ledger derivation path")?
+            .unwrap_or_default();
+        let wallet_manager = maybe_wallet_manager()?.ok_or(RemoteWalletError::NoDeviceFound)?;
+        let signer =
+            generate_remote_keypair(locator, derivation_path, &wallet_manager, false, "keypair")?;
+        Ok(DynSigner(Arc::new(signer)))
+    } else {
+        let keypair = read_keypair_file(path)
+            .map_err(|e| anyhow!("Failed to read keypair file {}: {}", path, e))?;
+        Ok(DynSigner(Arc::new(keypair)))
+    }
 }
 
-fn load_identity_keypair(keypair_path: Option<String>) -> Result<Keypair> {
-    // Check if the keypair path is provided
-    let identity_keypair_path = if let Some(path) = keypair_path {
-        path
-    } else {
-        return Err(anyhow!(
+fn load_identity_keypair(keypair_path: Option<String>) -> Result<DynSigner> {
+    let path = keypair_path.ok_or_else(|| {
+        anyhow!(
             "No identity keypair path provided. Please specify the path using the --keypair flag."
-        ));
-    };
-
-    let file_content = fs::read_to_string(&identity_keypair_path).map_err(|e| match e.kind() {
-        std::io::ErrorKind::NotFound => {
-            anyhow!(
-                "The specified keypair file does not exist: {}",
-                identity_keypair_path
-            )
-        }
-        _ => anyhow!(
-            "Failed to read keypair file {}: {}",
-            identity_keypair_path,
-            e
-        ),
-    })?;
-
-    let keypair_bytes: Vec<u8> = serde_json::from_str(&file_content).map_err(|e| {
-        anyhow!(
-            "The keypair file is not a valid JSON array of bytes: {}. Error: {}",
-            identity_keypair_path,
-            e
         )
     })?;
-
-    // Create the Keypair from the bytes
-    let identity_keypair = Keypair::from_bytes(&keypair_bytes).map_err(|e| {
-        anyhow!(
-            "The provided bytes do not form a valid Solana keypair: {}. This might be due to invalid key data.",
-            e
-        )
-    })?;
-
-    println!(
-        "Loaded identity keypair address -> {:?}",
-        identity_keypair.pubkey()
-    );
-
-    Ok(identity_keypair)
+    let signer = load_signer(&path)?;
+    println!("Loaded identity keypair address -> {:?}", signer.pubkey());
+    Ok(signer)
 }
 
 async fn find_spl_vote_account(
@@ -231,8 +196,8 @@ fn set_cluster(rpc_url: Option<String>) -> Cluster {
 
 pub fn anchor_client_setup(
     rpc_url: Option<String>,
-    payer: Arc<Keypair>,
-) -> Result<Program<Arc<Keypair>>> {
+    payer: Arc<DynSigner>,
+) -> Result<Program<Arc<DynSigner>>> {
     // Set up the cluster
     let cluster = set_cluster(rpc_url);
 
@@ -247,7 +212,7 @@ pub fn anchor_client_setup(
 pub fn setup_admin(
     keypair_path: Option<String>,
     rpc_url: Option<String>,
-) -> Result<(Arc<Keypair>, Program<Arc<Keypair>>)> {
+) -> Result<(Arc<DynSigner>, Program<Arc<DynSigner>>)> {
     let (payer, program, _client) = setup_signer_and_program(keypair_path, rpc_url)?;
     Ok((payer, program))
 }
@@ -454,7 +419,7 @@ pub fn derive_program_data_pda(program_id: &Pubkey) -> Pubkey {
     pda
 }
 
-pub async fn fetch_global_config(program: &Program<Arc<Keypair>>) -> Result<GlobalConfig> {
+pub async fn fetch_global_config(program: &Program<Arc<DynSigner>>) -> Result<GlobalConfig> {
     let pda = derive_global_config_pda(&program.id());
     program
         .account::<GlobalConfig>(pda)
@@ -481,7 +446,7 @@ pub async fn fetch_global_config(program: &Program<Arc<Keypair>>) -> Result<Glob
 /// when projecting into the future — already-expired proposals keep a past timestamp and stay
 /// immediately closable.
 pub async fn compute_vote_expiry_timestamp(
-    program: &Program<Arc<Keypair>>,
+    program: &Program<Arc<DynSigner>>,
     end_epoch: u64,
 ) -> Result<i64> {
     const MS_PER_SLOT: i64 = 400; // solana_sdk::clock::DEFAULT_MS_PER_SLOT
@@ -560,4 +525,57 @@ pub fn get_epoch_slot_range(epoch: u64) -> (u64, u64) {
     let end_slot = (epoch + 1) * SLOTS_PER_EPOCH - 1;
 
     (start_slot, end_slot)
+}
+
+#[cfg(test)]
+mod signer_tests {
+    use super::*;
+    use anchor_client::solana_sdk::signature::{Keypair, write_keypair};
+
+    #[test]
+    fn file_signer_preserves_pubkey_and_signatures_for_identity_and_staker() {
+        let keypair = Keypair::new();
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        write_keypair(&keypair, file.as_file_mut()).unwrap();
+        let path = file.path().to_str().unwrap().to_string();
+        let (identity, _, _) = setup_signer_and_program(Some(path.clone()), None).unwrap();
+        let (staker, _, _) = setup_all_with_staker(path, None).unwrap();
+        let message = b"signer regression test";
+
+        for signer in [identity, staker] {
+            assert_eq!(signer.pubkey(), keypair.pubkey());
+            assert!(!signer.is_interactive());
+            let signature = signer.try_sign_message(message).unwrap();
+            assert!(signature.verify(keypair.pubkey().as_ref(), message));
+        }
+    }
+
+    #[test]
+    fn invalid_ledger_derivation_is_rejected_before_device_access() {
+        for uri in [
+            "usb://ledger?key=invalid",
+            "usb://ledger?key=0/0/0",
+            "usb://ledger?key=0&other=1",
+        ] {
+            let error = load_signer(uri)
+                .err()
+                .expect("invalid derivation must fail");
+            assert_eq!(error.to_string(), "Invalid Ledger derivation path");
+        }
+    }
+
+    #[test]
+    fn missing_or_invalid_keypair_file_returns_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("keypair.json");
+        for contents in [None, Some("not json"), Some("[1,2,3]")] {
+            if let Some(contents) = contents {
+                std::fs::write(&path, contents).unwrap();
+            }
+            let error = load_signer(path.to_str().unwrap())
+                .err()
+                .expect("invalid file must fail");
+            assert!(error.to_string().contains("Failed to read keypair file"));
+        }
+    }
 }

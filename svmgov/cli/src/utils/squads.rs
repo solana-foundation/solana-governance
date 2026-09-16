@@ -24,7 +24,7 @@ use anchor_client::solana_sdk::{
     hash::Hash,
     instruction::Instruction,
     pubkey::Pubkey,
-    signature::{Keypair, Signature, Signer},
+    signature::{Signature, Signer},
     transaction::Transaction,
 };
 use anyhow::Result;
@@ -262,7 +262,7 @@ pub async fn route(
     rpc: &RpcClient,
     vault_ixs: Vec<Instruction>,
     preflight_ixs: Vec<Instruction>,
-    signers: &[&Keypair],
+    signers: &[&dyn Signer],
     squads: Option<&SquadsRoutingConfig>,
 ) -> Result<RoutedOutcome> {
     route_or_send(rpc, vault_ixs, preflight_ixs, signers, squads)
@@ -281,8 +281,9 @@ pub async fn route(
 ///   wrapped inside `vault_transaction_create`.
 /// * `preflight_ixs` — setup instructions that do not need vault authority. In Squads mode
 ///   they are sent first as a separate, locally-signed transaction; in direct mode they
-///   are prepended to `vault_ixs` and sent atomically.
-/// * `signers` — keypairs that sign the locally-submitted transaction(s). `signers[0]` is
+///   are prepended to `vault_ixs` and sent atomically. If the Squads proposal step fails
+///   after preflight confirms, the error includes the confirmed preflight signature.
+/// * `signers` — signers for the locally-submitted transaction(s). `signers[0]` is
 ///   treated as the fee payer (and, in Squads mode, must correspond to
 ///   `SquadsRoutingConfig::proposer`).
 /// * `squads` — `Some(..)` to route through a multisig vault, `None` for direct mode.
@@ -291,7 +292,7 @@ pub async fn route_or_send<R: RouterRpc + ?Sized>(
     rpc: &R,
     vault_ixs: Vec<Instruction>,
     preflight_ixs: Vec<Instruction>,
-    signers: &[&Keypair],
+    signers: &[&dyn Signer],
     squads: Option<&SquadsRoutingConfig>,
 ) -> Result<RoutedOutcome, SquadsError> {
     match squads {
@@ -309,26 +310,46 @@ pub async fn route_or_send<R: RouterRpc + ?Sized>(
     }
 }
 
-/// Builds the Squads `vault_transaction_create` + `proposal_create` pair and submits it,
-/// retrying on transaction-index collisions.
+/// Runs preflight and preserves its confirmed signature if the proposal step fails.
 async fn route_via_squads<R: RouterRpc + ?Sized>(
     rpc: &R,
     vault_ixs: Vec<Instruction>,
     preflight_ixs: Vec<Instruction>,
-    signers: &[&Keypair],
+    signers: &[&dyn Signer],
     config: &SquadsRoutingConfig,
 ) -> Result<RoutedOutcome, SquadsError> {
-    // 1. Run any preflight instructions as their own direct-mode transaction first.
-    if !preflight_ixs.is_empty() {
-        send_instructions(rpc, &preflight_ixs, signers).await?;
-    }
+    let preflight_signature = if preflight_ixs.is_empty() {
+        None
+    } else {
+        Some(send_instructions(rpc, &preflight_ixs, signers).await?)
+    };
 
+    create_squads_proposal(rpc, vault_ixs, signers, config)
+        .await
+        .map_err(|err| match preflight_signature {
+            Some(signature) => SquadsError::SendTransaction {
+                reason: format!(
+                    "preflight transaction {signature} was confirmed and remains on-chain; \
+                     Squads proposal step failed: {err}"
+                ),
+            },
+            None => err,
+        })
+}
+
+/// Builds and submits the Squads proposal, retrying on transaction-index collisions.
+async fn create_squads_proposal<R: RouterRpc + ?Sized>(
+    rpc: &R,
+    vault_ixs: Vec<Instruction>,
+    signers: &[&dyn Signer],
+    config: &SquadsRoutingConfig,
+) -> Result<RoutedOutcome, SquadsError> {
     let squads = match config.program_id {
         Some(program_id) => SquadsClient::with_program_id(program_id),
         None => SquadsClient::new(),
     };
 
-    // 2. Build + submit, retrying with a freshly-fetched index on "already in use"
+    // Build + submit, retrying with a freshly-fetched index on "already in use"
     //    collisions.
     let mut attempt: u8 = 0;
     loop {
@@ -385,12 +406,16 @@ async fn route_via_squads<R: RouterRpc + ?Sized>(
 async fn send_instructions<R: RouterRpc + ?Sized>(
     rpc: &R,
     instructions: &[Instruction],
-    signers: &[&Keypair],
+    signers: &[&dyn Signer],
 ) -> Result<Signature, SquadsError> {
     let blockhash = rpc.recent_blockhash().await?;
-    let payer = signers.first().map(|keypair| keypair.pubkey());
-    let transaction =
-        Transaction::new_signed_with_payer(instructions, payer.as_ref(), signers, blockhash);
+    let payer = signers.first().map(|signer| signer.pubkey());
+    let mut transaction = Transaction::new_with_payer(instructions, payer.as_ref());
+    transaction
+        .try_sign(signers, blockhash)
+        .map_err(|err| SquadsError::SendTransaction {
+            reason: format!("failed to sign transaction: {err}"),
+        })?;
     rpc.submit_transaction(&transaction).await
 }
 
@@ -412,14 +437,15 @@ fn squads_transaction_url(multisig: &Pubkey, transaction_index: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anchor_client::solana_sdk::{signature::Keypair, signer::SignerError};
     use borsh::BorshDeserialize;
     use squads_client::discriminator::instruction_discriminator;
     use squads_client::{
         Member, Multisig, PROGRAM_ID, Permission, Permissions, TransactionMessage,
         VaultTransactionCreateArgs,
     };
-    use std::collections::VecDeque;
     use std::sync::Mutex;
+    use std::{cell::Cell, collections::VecDeque};
 
     #[test]
     fn effective_signer_substitutes_vault_pda_only_in_squads_mode() {
@@ -444,7 +470,7 @@ mod tests {
 
     /// Behavior the mock applies to a single `submit_transaction` call.
     enum SendBehavior {
-        /// Succeed and return a default signature.
+        /// Succeed and return the submitted transaction's signature.
         Succeed,
         /// Fail with an "already in use" account-collision error and advance the stored
         /// multisig's transaction index by one (simulating a competing proposal).
@@ -500,7 +526,7 @@ mod tests {
                         reason: "Allocate: account Address { .. } already in use".to_string(),
                     })
                 }
-                _ => Ok(Signature::default()),
+                _ => Ok(transaction.signatures[0]),
             }
         }
     }
@@ -590,6 +616,155 @@ mod tests {
             program_id: Pubkey::new_unique(),
             accounts: vec![AccountMeta::new(Pubkey::new_unique(), false)],
             data,
+        }
+    }
+
+    struct InteractiveSigner {
+        keypair: Keypair,
+        reject_on: Option<usize>,
+        attempts: Cell<usize>,
+    }
+
+    impl Signer for InteractiveSigner {
+        fn try_pubkey(&self) -> Result<Pubkey, SignerError> {
+            self.keypair.try_pubkey()
+        }
+
+        fn try_sign_message(&self, message: &[u8]) -> Result<Signature, SignerError> {
+            self.attempts.set(self.attempts.get() + 1);
+            if self.reject_on == Some(self.attempts.get()) {
+                Err(SignerError::UserCancel("user rejected signing".to_string()))
+            } else {
+                self.keypair.try_sign_message(message)
+            }
+        }
+
+        fn is_interactive(&self) -> bool {
+            true
+        }
+    }
+
+    #[tokio::test]
+    async fn interactive_signer_signs_direct_and_squads_transactions() {
+        let signer = InteractiveSigner {
+            keypair: Keypair::new(),
+            reject_on: None,
+            attempts: Cell::new(0),
+        };
+        let config = SquadsRoutingConfig {
+            multisig: Pubkey::new_unique(),
+            vault_index: 0,
+            proposer: signer.pubkey(),
+            program_id: None,
+            memo: None,
+        };
+
+        for squads in [None, Some(&config)] {
+            let mock = MockRpc::new(multisig_with_proposer(&signer.pubkey(), 0));
+            route_or_send(
+                &mock,
+                vec![user_instruction(vec![7])],
+                vec![],
+                &[&signer],
+                squads,
+            )
+            .await
+            .unwrap();
+
+            let sent = mock.sent_transactions();
+            assert_eq!(sent.len(), 1);
+            assert_eq!(sent[0].message.account_keys[0], signer.pubkey());
+            sent[0].verify().unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn rejected_signing_returns_error_without_submitting() {
+        let signer = InteractiveSigner {
+            keypair: Keypair::new(),
+            reject_on: Some(1),
+            attempts: Cell::new(0),
+        };
+        let config = SquadsRoutingConfig {
+            multisig: Pubkey::new_unique(),
+            vault_index: 0,
+            proposer: signer.pubkey(),
+            program_id: None,
+            memo: None,
+        };
+
+        for squads in [None, Some(&config)] {
+            signer.attempts.set(0);
+            let mock = MockRpc::new(multisig_with_proposer(&signer.pubkey(), 0));
+            let err = route_or_send(
+                &mock,
+                vec![user_instruction(vec![7])],
+                vec![],
+                &[&signer],
+                squads,
+            )
+            .await
+            .unwrap_err();
+
+            assert!(matches!(err, SquadsError::SendTransaction { reason }
+                    if reason == "failed to sign transaction: user rejected signing"));
+            assert!(mock.sent_transactions().is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn proposal_rejection_reports_confirmed_preflight_including_after_collision() {
+        for reject_on in [2, 3] {
+            let signer = InteractiveSigner {
+                keypair: Keypair::new(),
+                reject_on: Some(reject_on),
+                attempts: Cell::new(0),
+            };
+            let config = SquadsRoutingConfig {
+                multisig: Pubkey::new_unique(),
+                vault_index: 0,
+                proposer: signer.pubkey(),
+                program_id: None,
+                memo: None,
+            };
+            let mock = MockRpc::with_behaviors(
+                multisig_with_proposer(&signer.pubkey(), 0),
+                vec![SendBehavior::Succeed, SendBehavior::FailAlreadyInUse],
+            );
+            let preflight = user_instruction(vec![1]);
+            let err = route_or_send(
+                &mock,
+                vec![user_instruction(vec![2])],
+                vec![preflight.clone()],
+                &[&signer],
+                Some(&config),
+            )
+            .await
+            .unwrap_err();
+
+            let sent = mock.sent_transactions();
+            assert_eq!(signer.attempts.get(), reject_on);
+            assert_eq!(sent.len(), reject_on - 1);
+            assert_eq!(
+                instruction_program_ids(&sent[0]),
+                vec![preflight.program_id]
+            );
+            sent[0].verify().unwrap();
+            assert_eq!(
+                sent.iter()
+                    .filter(|tx| instruction_program_ids(tx).contains(&preflight.program_id))
+                    .count(),
+                1,
+            );
+            let error = err.to_string();
+            assert!(
+                error.contains(&format!(
+                    "preflight transaction {} was confirmed and remains on-chain",
+                    sent[0].signatures[0],
+                )),
+                "{error}"
+            );
+            assert!(error.contains("user rejected signing"), "{error}");
         }
     }
 

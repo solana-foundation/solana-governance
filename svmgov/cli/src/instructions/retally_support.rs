@@ -86,12 +86,8 @@ pub async fn retally_support(
         .instructions()?;
 
     let blockhash = program.rpc().get_latest_blockhash().await?;
-    let transaction = Transaction::new_signed_with_payer(
-        &retally_support_ixs,
-        Some(&payer.pubkey()),
-        &[&payer],
-        blockhash,
-    );
+    let mut transaction = Transaction::new_with_payer(&retally_support_ixs, Some(&payer.pubkey()));
+    transaction.try_sign(&[&payer], blockhash)?;
 
     let sig = program
         .rpc()

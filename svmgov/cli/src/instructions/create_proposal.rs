@@ -85,12 +85,8 @@ pub async fn create_proposal(
     }
 
     let blockhash = program.rpc().get_latest_blockhash().await?;
-    let transaction = Transaction::new_signed_with_payer(
-        &instructions,
-        Some(&payer.pubkey()),
-        &[&payer],
-        blockhash,
-    );
+    let mut transaction = Transaction::new_with_payer(&instructions, Some(&payer.pubkey()));
+    transaction.try_sign(&[&payer], blockhash)?;
 
     let sig = program
         .rpc()

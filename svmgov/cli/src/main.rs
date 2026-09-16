@@ -36,11 +36,11 @@ declare_program!(svmgov_program);
                     For more information on each subcommand, use --help, e.g., `svmgov create-proposal --help`."
 )]
 struct Cli {
-    /// Path to the keypair JSON file used to sign transactions.
+    /// Keypair JSON file or Ledger URI used to sign transactions.
     #[arg(
         short = 'k',
         long = "keypair",
-        help = "Path to the signer keypair JSON file (or set via SVMGOV_KEY env var)",
+        help = "Signer keypair JSON file or Ledger URI, e.g. usb://ledger?key=0/0 (or SVMGOV_KEY)",
         global = true,
         env = SVMGOV_KEY_ENV
     )]
@@ -339,8 +339,11 @@ enum Commands {
         )]
         stake_account: String,
 
-        /// Staker keypair for signing the transaction
-        #[arg(long, help = "Staker keypair for signing the transaction")]
+        /// Staker keypair JSON file or Ledger URI for signing the transaction
+        #[arg(
+            long,
+            help = "Staker keypair JSON file or Ledger URI for signing the transaction"
+        )]
         staker_keypair: String,
 
         /// Vote account pubkey for the validator
@@ -401,8 +404,11 @@ enum Commands {
         )]
         stake_account: String,
 
-        /// Staker keypair for signing the transaction
-        #[arg(long, help = "Staker keypair for signing the transaction")]
+        /// Staker keypair JSON file or Ledger URI for signing the transaction
+        #[arg(
+            long,
+            help = "Staker keypair JSON file or Ledger URI for signing the transaction"
+        )]
         staker_keypair: String,
 
         /// Vote account pubkey for the validator

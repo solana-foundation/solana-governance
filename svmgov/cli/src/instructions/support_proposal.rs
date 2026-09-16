@@ -1,10 +1,10 @@
 use std::{str::FromStr, sync::Arc};
 
 use anchor_client::{
-    Program,
+    DynSigner, Program,
     solana_sdk::{
         compute_budget::ComputeBudgetInstruction, instruction::Instruction, pubkey::Pubkey,
-        signature::Keypair, signer::Signer, transaction::Transaction,
+        signer::Signer, transaction::Transaction,
     },
 };
 use anchor_lang::system_program;
@@ -24,7 +24,7 @@ use crate::{
 /// Builds the instructions to support a proposal, deriving the snapshot slot
 /// and all required PDAs from the current epoch and global config.
 pub async fn build_support_proposal_instructions(
-    program: &Program<Arc<Keypair>>,
+    program: &Program<Arc<DynSigner>>,
     signer: Pubkey,
     proposal: Pubkey,
     vote_account: Pubkey,
@@ -133,12 +133,8 @@ pub async fn support_proposal(
     );
 
     let blockhash = program.rpc().get_latest_blockhash().await?;
-    let transaction = Transaction::new_signed_with_payer(
-        &instructions,
-        Some(&payer.pubkey()),
-        &[&payer],
-        blockhash,
-    );
+    let mut transaction = Transaction::new_with_payer(&instructions, Some(&payer.pubkey()));
+    transaction.try_sign(&[&payer], blockhash)?;
 
     let sig = program
         .rpc()
