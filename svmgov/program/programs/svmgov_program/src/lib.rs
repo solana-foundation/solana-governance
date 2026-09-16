@@ -113,6 +113,14 @@ pub mod svmgov_program {
         Ok(())
     }
 
+    pub fn update_proposal_description(
+        ctx: Context<UpdateProposalDescription>,
+        description: String,
+    ) -> Result<()> {
+        ctx.accounts.update_proposal_description(description)?;
+        Ok(())
+    }
+
     pub fn support_proposal(ctx: Context<SupportProposal>) -> Result<()> {
         ctx.accounts.support_proposal(&ctx.bumps)?;
         Ok(())

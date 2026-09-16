@@ -140,4 +140,6 @@ pub enum GovernanceError {
     InvalidSnapshotSlotOffset,
     #[msg("Snapshot slot must leave the minimum required voting window before voting starts")]
     SnapshotWindowTooShort,
+    #[msg("Only the original proposal author can update the proposal description")]
+    UnauthorizedProposalUpdate,
 }
