@@ -1,4 +1,8 @@
-import { parseProposalMarkdown, splitFrontmatter } from "../proposalMarkdown";
+import {
+  hasNonEmptyFrontmatter,
+  parseProposalMarkdown,
+  splitFrontmatter,
+} from "../proposalMarkdown";
 import { makeProposalRef } from "../proposalUrl";
 
 const SIMD_DOC = `---
@@ -158,5 +162,13 @@ describe("splitFrontmatter", () => {
   it("does not treat a mid-document --- as frontmatter", () => {
     const { frontmatter } = splitFrontmatter("# Title\n\n---\n\nfoo: bar\n---\n");
     expect(frontmatter).toBeUndefined();
+  });
+});
+
+describe("hasNonEmptyFrontmatter", () => {
+  it("requires a non-empty opening frontmatter block", () => {
+    expect(hasNonEmptyFrontmatter(SGP_DOC)).toBe(true);
+    expect(hasNonEmptyFrontmatter("---\n---\n# Title")).toBe(false);
+    expect(hasNonEmptyFrontmatter("# Title\n---\nsgp: 1\n---")).toBe(false);
   });
 });

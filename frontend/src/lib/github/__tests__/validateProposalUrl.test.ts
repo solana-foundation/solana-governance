@@ -117,10 +117,10 @@ describe("validateProposalUrl - rejected", () => {
 });
 
 describe("validateProposalUrl - warnings", () => {
-  it("warns about a branch ref but still passes", () => {
+  it("rejects a branch ref", () => {
     const result = validateProposalUrl(MUTABLE_SGP);
-    expect(result.ok).toBe(true);
-    expect(codes(result.warnings)).toContain("mutable-ref");
+    expect(result.ok).toBe(false);
+    expect(codes(result.errors)).toContain("not-commit-sha");
   });
 
   it("rejects repositories other than solana-governance-proposals", () => {
