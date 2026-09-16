@@ -60,87 +60,54 @@ macro_rules! calculate_vote_lamports {
     }};
 }
 
-/// Validates that the input points to the approved GitHub proposal repository.
+/// Validates the canonical, immutable GitHub URL used for proposal documents.
+///
+/// Ensures the link value names one markdown file in the approved repository
+/// at a full commit SHA.
 pub fn is_valid_github_link(link: &str) -> bool {
     const PREFIX: &str = "https://github.com/";
-    const REPOSITORY_PATH: &str = "solana-foundation/solana-governance-proposals";
+    const OWNER: &str = "solana-foundation";
+    const REPOSITORY: &str = "solana-governance-proposals";
     const MAX_SEGMENTS: usize = 10;
-    const MIN_SEGMENTS: usize = 2;
 
     if !link.starts_with(PREFIX) {
         return false;
     }
 
-    let mut path = &link[PREFIX.len()..];
-    if path.ends_with('/') {
-        if path.len() == 1 {
-            // If only '/', path would be empty after trim
-            return false;
-        }
-        path = &path[..path.len() - 1];
-    }
-    if path.is_empty() || path.starts_with('/') {
+    let path = &link[PREFIX.len()..];
+    if path.is_empty() || path.starts_with('/') || path.ends_with('/') {
         return false;
     }
 
-    // path must start with repository path followed by another segment
-    if !path
-        .strip_prefix(REPOSITORY_PATH)
-        .is_some_and(|suffix| suffix.starts_with('/'))
+    let segments: Vec<&str> = path.split('/').collect();
+    // owner/repo/blob/<40-hex SHA>/<one or more file path components>
+    if !(5..=MAX_SEGMENTS).contains(&segments.len())
+        || segments[0] != OWNER
+        || segments[1] != REPOSITORY
+        || segments[2] != "blob"
+        || segments
+            .iter()
+            .any(|segment| segment.is_empty() || *segment == "." || *segment == "..")
     {
         return false;
     }
 
-    // URL consumers normalize `..` by walking to a parent path. Reject it here so the
-    // raw on-chain string and the URL that clients resolve always identify the same repo.
-    if path.contains("/../") || path.ends_with("/..") {
+    let commit = segments[3];
+    if commit.len() != 40 || !commit.chars().all(|c| c.is_ascii_hexdigit()) {
         return false;
     }
 
-    let mut segment_count = 0;
-    let mut in_segment = false;
-    let mut has_invalid_char = false;
-
-    for c in path.chars() {
-        match c {
-            '/' => {
-                if !in_segment {
-                    // Consecutive '/' -> empty segment
-                    return false;
-                }
-                in_segment = false;
-                segment_count += 1;
-                if segment_count > MAX_SEGMENTS {
-                    return false;
-                }
-            }
-            ' ' | '?' | '#' => {
-                has_invalid_char = true;
-                break; // Early exit on forbidden chars
-            }
-            _ => {
-                if !in_segment {
-                    in_segment = true;
-                }
-                if !c.is_ascii_alphanumeric() && !matches!(c, '-' | '_' | '.') {
-                    has_invalid_char = true;
-                    break;
-                }
-            }
-        }
-    }
-
-    if has_invalid_char {
+    if !segments.iter().all(|segment| {
+        segment
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+    }) {
         return false;
     }
 
-    // Account for the last segment if it was being processed
-    if in_segment {
-        segment_count += 1;
-    }
-
-    // Check trailing '/' was handled (no empty last segment)
-    (MIN_SEGMENTS..=MAX_SEGMENTS).contains(&segment_count)
+    segments.last().is_some_and(|file_name| {
+        file_name.len() > 3 && file_name[file_name.len() - 3..].eq_ignore_ascii_case(".md")
+    })
 }
 
 /// Calculates the starting and ending slot for a given epoch.
@@ -357,7 +324,7 @@ mod tests {
     #[test]
     fn github_link_requires_the_allowed_repository_without_traversal() {
         assert!(is_valid_github_link(
-            "https://github.com/solana-foundation/solana-governance-proposals/blob/main/proposals/sgp-0001-title.md"
+            "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/sgp-0001-title.md"
         ));
         assert!(!is_valid_github_link(
             "https://github.com/attacker/repo/blob/ref/0022-x.md"
@@ -373,13 +340,26 @@ mod tests {
     #[test]
     fn github_link_rejects_unicode_path_characters() {
         let prefix =
-            "https://github.com/solana-foundation/solana-governance-proposals/blob/main/proposals/";
+            "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/";
 
         for filename in ["sgp-0001-café.md", "sgp-0001-测试.md", "sgp-0001-а.md"] {
             assert!(
                 !is_valid_github_link(&format!("{prefix}{filename}")),
                 "Unicode path character should be rejected: {filename}"
             );
+        }
+    }
+
+    #[test]
+    fn github_link_requires_a_full_commit_and_markdown_file() {
+        let prefix = "https://github.com/solana-foundation/solana-governance-proposals/blob/";
+        for link in [
+            format!("{prefix}main/proposals/sgp-0001.md"),
+            format!("{prefix}27bca51/proposals/sgp-0001.md"),
+            format!("{prefix}27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/sgp-0001.txt"),
+            format!("{prefix}27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/sgp-0001.md/"),
+        ] {
+            assert!(!is_valid_github_link(&link), "should reject {link}");
         }
     }
 
