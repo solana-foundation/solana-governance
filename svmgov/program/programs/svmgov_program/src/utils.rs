@@ -165,13 +165,64 @@ pub fn is_valid_github_link(link: &str) -> bool {
 /// assert_eq!(get_epoch_slot_range(0), (0, 431_999));
 /// assert_eq!(get_epoch_slot_range(1), (432_000, 863_999));
 /// ```
-pub fn get_epoch_slot_range(epoch: u64) -> (u64, u64) {
-    const SLOTS_PER_EPOCH: u64 = 432_000;
+pub const SLOTS_PER_EPOCH: u64 = 432_000;
 
+pub fn get_epoch_slot_range(epoch: u64) -> (u64, u64) {
     let start_slot = epoch * SLOTS_PER_EPOCH;
     let end_slot = (epoch + 1) * SLOTS_PER_EPOCH - 1;
 
     (start_slot, end_slot)
+}
+
+/// Validates an offset that is added to the beginning of the snapshot epoch.
+/// Negative offsets remain supported and are checked against the current slot
+/// when a proposal is activated; an offset that reaches the next epoch would
+/// put the snapshot at or after voting starts.
+pub fn validate_snapshot_slot_offset(
+    snapshot_slot_offset: i64,
+) -> core::result::Result<(), crate::error::GovernanceError> {
+    let latest_snapshot_offset = SLOTS_PER_EPOCH
+        .checked_sub(ncn_snapshot::MIN_VOTE_EXPIRY_SLOTS)
+        .ok_or(crate::error::GovernanceError::ArithmeticOverflow)?;
+
+    if snapshot_slot_offset > latest_snapshot_offset as i64 {
+        return Err(crate::error::GovernanceError::InvalidSnapshotSlotOffset);
+    }
+    Ok(())
+}
+
+/// Returns the epoch at which SVMGov voting begins for a snapshot epoch.
+/// This is the single source of truth for deriving Proposal::start_epoch and
+/// the NCN ballot expiry slot.
+pub fn voting_start_epoch(
+    snapshot_epoch: u64,
+) -> core::result::Result<u64, crate::error::GovernanceError> {
+    snapshot_epoch
+        .checked_add(1)
+        .ok_or(crate::error::GovernanceError::ArithmeticOverflow)
+}
+
+/// Returns the first slot of the given epoch, or an error if the multiplication overflows u64.
+pub fn epoch_start_slot(epoch: u64) -> core::result::Result<u64, crate::error::GovernanceError> {
+    epoch
+        .checked_mul(SLOTS_PER_EPOCH)
+        .ok_or(crate::error::GovernanceError::ArithmeticOverflow)
+}
+
+/// Ensures the stake snapshot leaves NCN operators the required time to reach
+/// consensus before SVMGov voting opens.
+pub fn ensure_snapshot_before_voting_start(
+    snapshot_slot: u64,
+    voting_start_epoch: u64,
+) -> core::result::Result<u64, crate::error::GovernanceError> {
+    let voting_start_slot = epoch_start_slot(voting_start_epoch)?;
+    if snapshot_slot >= voting_start_slot {
+        return Err(crate::error::GovernanceError::SnapshotSlotNotBeforeVotingStart);
+    }
+    if voting_start_slot.saturating_sub(snapshot_slot) < ncn_snapshot::MIN_VOTE_EXPIRY_SLOTS {
+        return Err(crate::error::GovernanceError::SnapshotWindowTooShort);
+    }
+    Ok(voting_start_slot)
 }
 
 /// Computes the schedule anchor epoch for a proposal: the epoch whose start slot
@@ -192,7 +243,7 @@ pub fn get_epoch_slot_range(epoch: u64) -> (u64, u64) {
 /// previously guarded against cannot occur there.
 ///
 /// Returns `ArithmeticOverflow` if the summed epoch exceeds `u64`.
-pub fn proposal_target_epoch(
+pub fn proposal_snapshot_epoch(
     support_epoch: u64,
     discussion_epochs: u64,
     snapshot_epoch_extension: u64,
@@ -216,12 +267,16 @@ pub fn proposal_target_epoch(
 /// Returns the validated `snapshot_slot`, or an error if the offset underflows
 /// below zero or the resulting slot is not in the future.
 pub fn compute_future_snapshot_slot(
-    target_epoch: u64,
+    snapshot_epoch: u64,
     snapshot_slot_offset: i64,
     current_slot: u64,
 ) -> core::result::Result<u64, crate::error::GovernanceError> {
-    let (start_slot, _) = get_epoch_slot_range(target_epoch);
-    let offset_result = (start_slot as i64)
+    let start_slot = snapshot_epoch
+        .checked_mul(SLOTS_PER_EPOCH)
+        .ok_or(crate::error::GovernanceError::ArithmeticOverflow)?;
+    let start_slot_i64 =
+        i64::try_from(start_slot).map_err(|_| crate::error::GovernanceError::ArithmeticOverflow)?;
+    let offset_result = start_slot_i64
         .checked_add(snapshot_slot_offset)
         .ok_or(crate::error::GovernanceError::ArithmeticOverflow)?;
     if offset_result < 0 {
@@ -487,6 +542,64 @@ mod tests {
     }
 
     #[test]
+    fn snapshot_offset_accepts_the_latest_valid_boundary() {
+        let latest = (SLOTS_PER_EPOCH - ncn_snapshot::MIN_VOTE_EXPIRY_SLOTS) as i64;
+
+        assert!(validate_snapshot_slot_offset(-1).is_ok());
+        assert!(validate_snapshot_slot_offset(latest).is_ok());
+        assert!(matches!(
+            validate_snapshot_slot_offset(latest + 1),
+            Err(GovernanceError::InvalidSnapshotSlotOffset)
+        ));
+    }
+
+    #[test]
+    fn snapshot_to_voting_window_enforces_both_boundaries() {
+        let voting_start_epoch = 10;
+        let voting_start_slot = epoch_start_slot(voting_start_epoch).unwrap();
+        let minimum = ncn_snapshot::MIN_VOTE_EXPIRY_SLOTS;
+
+        assert_eq!(
+            ensure_snapshot_before_voting_start(voting_start_slot - minimum, voting_start_epoch)
+                .unwrap(),
+            voting_start_slot
+        );
+        assert!(matches!(
+            ensure_snapshot_before_voting_start(
+                voting_start_slot - minimum + 1,
+                voting_start_epoch
+            ),
+            Err(GovernanceError::SnapshotWindowTooShort)
+        ));
+        for snapshot_slot in [voting_start_slot, voting_start_slot + 1] {
+            assert!(matches!(
+                ensure_snapshot_before_voting_start(snapshot_slot, voting_start_epoch),
+                Err(GovernanceError::SnapshotSlotNotBeforeVotingStart)
+            ));
+        }
+    }
+
+    #[test]
+    fn schedule_helpers_reject_arithmetic_boundaries() {
+        assert!(matches!(
+            voting_start_epoch(u64::MAX),
+            Err(GovernanceError::ArithmeticOverflow)
+        ));
+
+        let first_overflowing_epoch = u64::MAX / SLOTS_PER_EPOCH + 1;
+        assert!(matches!(
+            epoch_start_slot(first_overflowing_epoch),
+            Err(GovernanceError::ArithmeticOverflow)
+        ));
+
+        let first_epoch_past_i64 = i64::MAX as u64 / SLOTS_PER_EPOCH + 1;
+        assert!(matches!(
+            compute_future_snapshot_slot(first_epoch_past_i64, 0, 0),
+            Err(GovernanceError::ArithmeticOverflow)
+        ));
+    }
+
+    #[test]
     fn future_snapshot_slot_accepts_future_slot() {
         // Epoch 2 starts at slot 864_000; current slot is well before that.
         assert_eq!(
@@ -564,7 +677,7 @@ mod tests {
         // support_proposal, anchored on the same epoch, includes the discussion
         // window, so its target is exactly `discussion_epochs` later than flush's.
         let support_target =
-            proposal_target_epoch(current_epoch, discussion_epochs, snapshot_epoch_extension)
+            proposal_snapshot_epoch(current_epoch, discussion_epochs, snapshot_epoch_extension)
                 .unwrap();
         assert_eq!(support_target - flush_target, discussion_epochs);
     }
@@ -573,8 +686,8 @@ mod tests {
     fn target_epoch_includes_discussion_period() {
         // The discussion window must remain part of the schedule. Dropping it (as
         // the old flush did) shortened time-to-vote by exactly `discussion_epochs`.
-        let with_discussion = proposal_target_epoch(9, 3, 1).unwrap();
-        let without_discussion = proposal_target_epoch(9, 0, 1).unwrap();
+        let with_discussion = proposal_snapshot_epoch(9, 3, 1).unwrap();
+        let without_discussion = proposal_snapshot_epoch(9, 0, 1).unwrap();
         assert_eq!(with_discussion - without_discussion, 3);
     }
 
@@ -583,7 +696,7 @@ mod tests {
         // Bounded, admin-set inputs should never reach this, but the checked math
         // surfaces a clean error instead of relying on the release overflow-checks panic.
         assert!(matches!(
-            proposal_target_epoch(u64::MAX, 1, 0),
+            proposal_snapshot_epoch(u64::MAX, 1, 0),
             Err(GovernanceError::ArithmeticOverflow)
         ));
     }

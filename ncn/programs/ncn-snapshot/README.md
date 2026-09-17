@@ -96,7 +96,7 @@ Each `BallotBox` is uniquely identified by its `snapshot_slot`, which is used as
 ### 6. Tie Breaking and Recovery
 
 **Tie Breaking:**
-If consensus is not reached before `vote_expiry_timestamp`, the `tie_breaker_admin` is allowed to select any ballot value (not limited to existing ballots in the BallotBox). This ensures liveness and allows governance recovery from operator deadlock. When a tie breaker is used, the `tie_breaker_consensus` flag is set to `true` in the `BallotBox` and propagated to the `ConsensusResult`.
+If consensus is not reached before `vote_expiry_slot`, the `tie_breaker_admin` is allowed to select any ballot value (not limited to existing ballots in the BallotBox). This ensures liveness and allows governance recovery from operator deadlock. When a tie breaker is used, the `tie_breaker_consensus` flag is set to `true` in the `BallotBox` and propagated to the `ConsensusResult`.
 
 **BallotBox Recovery:**
 In the event that a `BallotBox` becomes bricked with invalid ballots, the `reset_ballot_box` instruction allows the tie breaker admin to clear all votes and ballot tallies, enabling recovery. This is only allowed when:

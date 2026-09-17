@@ -7,6 +7,7 @@ use crate::{
         validate_max_supporters, validate_max_title_length,
     },
     state::GlobalConfig,
+    utils::validate_snapshot_slot_offset,
 };
 
 #[derive(Accounts)]
@@ -101,6 +102,7 @@ impl<'info> UpdateConfig<'info> {
             config.snapshot_epoch_extension = v;
         }
         if let Some(v) = snapshot_slot_offset {
+            validate_snapshot_slot_offset(v)?;
             config.snapshot_slot_offset = v;
         }
         if let Some(v) = max_supporters {

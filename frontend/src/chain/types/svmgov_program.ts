@@ -1619,6 +1619,21 @@ export type SvmgovProgram = {
       name: "newProposalsNotAllowed";
       msg: "New proposals are not allowed at this time";
     },
+    {
+      code: 6060;
+      name: "snapshotSlotNotBeforeVotingStart";
+      msg: "Snapshot slot must be strictly before the voting start slot";
+    },
+    {
+      code: 6061;
+      name: "invalidSnapshotSlotOffset";
+      msg: "Snapshot slot offset must remain within the snapshot epoch";
+    },
+    {
+      code: 6062;
+      name: "snapshotWindowTooShort";
+      msg: "Snapshot slot must leave the minimum required voting window before voting starts";
+    },
   ];
   types: [
     {

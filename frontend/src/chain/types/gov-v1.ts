@@ -11,6 +11,7 @@ export type GovV1 = {
     version: "0.6.0-40200";
     spec: "0.1.0";
     description: "Governance NCN Voting Program";
+    repository: "https://github.com/solana-foundation/solana-governance";
   };
   instructions: [
     {
@@ -138,8 +139,8 @@ export type GovV1 = {
           name: "proposal";
           docs: [
             "Verifies the signer is a Proposal PDA from the svmgov program recorded in",
-            "`ProgramConfig.svmgov_program_pubkey`. When the `skip-pda-check` feature is",
-            "enabled, this check is disabled to allow local testing without CPI.",
+            "`ProgramConfig.svmgov_program_pubkey` — only that program (via CPI with",
+            "the proposal's seeds) can open a ballot box.",
           ];
           signer: true;
         },
@@ -179,6 +180,10 @@ export type GovV1 = {
         {
           name: "splVoteAccount";
           type: "pubkey";
+        },
+        {
+          name: "voteExpirySlot";
+          type: "u64";
         },
       ];
     },
@@ -438,12 +443,6 @@ export type GovV1 = {
           };
         },
         {
-          name: "voteDuration";
-          type: {
-            option: "i64";
-          };
-        },
-        {
           name: "svmgovProgramPubkey";
           type: {
             option: "pubkey";
@@ -591,6 +590,11 @@ export type GovV1 = {
       name: "snapshotSlotNotReached";
       msg: "Current slot must be greater than snapshot slot";
     },
+    {
+      code: 6017;
+      name: "voteExpiryTooSoon";
+      msg: "Vote expiry slot must leave the minimum required voting window after the snapshot";
+    },
   ];
   types: [
     {
@@ -672,7 +676,10 @@ export type GovV1 = {
           },
           {
             name: "ballotTallies";
-            docs: ["Mapping of ballots votes to stake weight"];
+            docs: [
+              "Vote counts per distinct ballot. Each whitelisted operator contributes",
+              "one vote; tallies are not stake-weighted.",
+            ];
             type: {
               vec: {
                 defined: {
@@ -682,12 +689,9 @@ export type GovV1 = {
             };
           },
           {
-            name: "voteExpiryTimestamp";
-            docs: [
-              "Timestamp when voting ends. Tie breaker admin will decide the results",
-              "if no consensus is reached by then.",
-            ];
-            type: "i64";
+            name: "voteExpirySlot";
+            docs: ["Slot when voting ends."];
+            type: "u64";
           },
           {
             name: "snapshotSlot";
@@ -911,9 +915,14 @@ export type GovV1 = {
             type: "pubkey";
           },
           {
-            name: "voteDuration";
-            docs: ["Duration for which ballot box will be opened for voting."];
-            type: "i64";
+            name: "reserved";
+            docs: [
+              "Reserved to preserve the deployed account layout. This was the legacy",
+              "timestamp-based vote duration and is no longer read or configurable.",
+            ];
+            type: {
+              array: ["u8", 8];
+            };
           },
           {
             name: "svmgovProgramPubkey";

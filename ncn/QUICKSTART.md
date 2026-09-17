@@ -161,7 +161,7 @@ Any signer can finalize — it just creates the `ConsensusResult` account on-cha
 
 ## Removing a Vote
 
-Two conditions must both hold: consensus must not yet be reached, **and** the ballot box's `vote_expiry_timestamp` must not have passed. The expiry is set when the BallotBox is created, from `ProgramConfig.vote_duration`, so read it with `log --ty ballot-box` rather than assuming a fixed window.
+Two conditions must both hold: consensus must not yet be reached, **and** the current slot must be strictly before the ballot box's `vote_expiry_slot`. The expiry slot is set when the BallotBox is created, so read it with `log --ty ballot-box` rather than assuming a fixed window.
 
 After expiry, votes can be neither cast nor removed. If consensus was never reached, the `tie_breaker_admin` may then select any ballot value to preserve liveness.
 

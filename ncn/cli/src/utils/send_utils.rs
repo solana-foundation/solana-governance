@@ -151,7 +151,6 @@ pub fn send_update_program_config(
     proposed_authority: Option<Pubkey>,
     min_consensus_threshold_bps: Option<u16>,
     tie_breaker_admin: Option<Pubkey>,
-    vote_duration: Option<i64>,
     svmgov_program_pubkey: Option<Pubkey>,
 ) -> Result<RoutedOutcome> {
     let authority = effective_signer(tx_sender.squads.as_ref(), tx_sender.authority.pubkey());
@@ -168,7 +167,6 @@ pub fn send_update_program_config(
             proposed_authority,
             min_consensus_threshold_bps,
             tie_breaker_admin,
-            vote_duration,
             svmgov_program_pubkey,
         })
         .instructions()?;
@@ -232,6 +230,7 @@ pub fn send_init_ballot_box(
     tx_sender: &TxSender,
     ballot_box: Pubkey,
     snapshot_slot: u64,
+    vote_expiry_slot: u64,
 ) -> Result<Signature, ClientError> {
     let ixs = tx_sender
         .program
@@ -247,6 +246,7 @@ pub fn send_init_ballot_box(
             snapshot_slot,
             proposal_seed: 0,
             spl_vote_account: Pubkey::default(),
+            vote_expiry_slot,
         })
         .instructions()?;
 

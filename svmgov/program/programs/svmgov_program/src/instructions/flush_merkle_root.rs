@@ -4,7 +4,9 @@ use crate::{
     error::GovernanceError,
     events::MerkleRootFlushed,
     state::{GlobalConfig, Proposal},
-    utils::compute_future_snapshot_slot,
+    utils::{
+        compute_future_snapshot_slot, ensure_snapshot_before_voting_start, voting_start_epoch,
+    },
 };
 
 #[derive(Accounts)]
@@ -77,20 +79,23 @@ impl<'info> FlushMerkleRoot<'info> {
         // snapshot/voting window forward off the *current* epoch so a proposal whose
         // NCN snapshot failed to reach consensus can be rescheduled far enough ahead
         // for operators to re-snapshot and re-run consensus.
-        let target_epoch = clock
+        let snapshot_epoch = clock
             .epoch
             .checked_add(self.global_config.snapshot_epoch_extension)
             .ok_or(GovernanceError::ArithmeticOverflow)?;
+        let voting_start_epoch = voting_start_epoch(snapshot_epoch)?;
         // SECURITY: enforce the future-slot invariant *before* mutating any proposal
         // state. `init_ballot_box` below is skipped whenever `ballot_box` already
         // exists, so this is the only place the `snapshot_slot > clock.slot` guard is
         // guaranteed to run. Without it a proposal could be backdated onto an
         // already-finalized ConsensusResult for a past slot.
         let snapshot_slot = compute_future_snapshot_slot(
-            target_epoch,
+            snapshot_epoch,
             self.global_config.snapshot_slot_offset,
             clock.slot,
         )?;
+        let vote_expiry_slot =
+            ensure_snapshot_before_voting_start(snapshot_slot, voting_start_epoch)?;
 
         // SECURITY: bind `ballot_box` to the exact PDA implied by the recomputed
         // snapshot slot so a caller cannot pass an arbitrary non-empty account to
@@ -114,11 +119,8 @@ impl<'info> FlushMerkleRoot<'info> {
         // All validation passed; commit the recomputed lineage.
         self.proposal.snapshot_slot = snapshot_slot;
         // start voting 1 epoch after snapshot
-        let start_epoch = target_epoch
-            .checked_add(1)
-            .ok_or(GovernanceError::ArithmeticOverflow)?;
-        self.proposal.start_epoch = start_epoch;
-        self.proposal.end_epoch = start_epoch
+        self.proposal.start_epoch = voting_start_epoch;
+        self.proposal.end_epoch = voting_start_epoch
             .checked_add(self.global_config.voting_epochs)
             .ok_or(GovernanceError::ArithmeticOverflow)?;
         self.proposal.consensus_result = Some(consensus_result_pda);
@@ -154,6 +156,7 @@ impl<'info> FlushMerkleRoot<'info> {
                 snapshot_slot,
                 self.proposal.proposal_seed,
                 self.spl_vote_account.key(),
+                vote_expiry_slot,
             )?;
         }
 

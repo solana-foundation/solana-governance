@@ -141,14 +141,13 @@ RUST_LOG=info cargo run --bin ncn-cli -- \
   update-operator-whitelist -a key1,key2,key3 -r key4,key5
 
 # Update config (all arguments are optional):
-# threshold, vote duration, tie-breaker-admin, proposed authority (two-step)
+# threshold, tie-breaker-admin, proposed authority (two-step)
 RUST_LOG=info cargo run --bin ncn-cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url <RPC_URL> \
   update-program-config \
   --min-consensus-threshold-bps 6000 \
-  --vote-duration 180 \
   --tie-breaker-admin <NEW_TIE_BREAKER_ADMIN_PUBKEY> \
   --proposed-authority <NEW_ADMIN_PUBKEY>
 

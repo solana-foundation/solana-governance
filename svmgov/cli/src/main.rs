@@ -445,7 +445,7 @@ enum Commands {
         #[arg(long, help = "Number of extra epochs for snapshot extension")]
         snapshot_epoch_extension: u64,
 
-        #[arg(long, help = "Slot offset from epoch start for snapshot computation (can be negative)")]
+        #[arg(long, help = "Slot offset from epoch start for snapshot computation (maximum 414000; can be negative)")]
         snapshot_slot_offset: i64,
 
         #[arg(long, help = "Maximum number of validators allowed to support a proposal (1-2000)")]
@@ -488,7 +488,7 @@ enum Commands {
         #[arg(long, help = "Number of extra epochs for snapshot extension")]
         snapshot_epoch_extension: Option<u64>,
 
-        #[arg(long, help = "Slot offset from epoch start for snapshot computation (can be negative)")]
+        #[arg(long, help = "Slot offset from epoch start for snapshot computation (maximum 414000; can be negative)")]
         snapshot_slot_offset: Option<i64>,
 
         #[arg(long, help = "Maximum number of validators allowed to support a proposal (1-2000)")]

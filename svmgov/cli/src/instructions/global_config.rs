@@ -2,7 +2,7 @@ use std::{str::FromStr, sync::Arc};
 
 use anchor_client::{
     Program,
-    solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction},
+    solana_sdk::{signature::Keypair, signer::Signer},
 };
 use anchor_lang::{prelude::Pubkey, system_program};
 use anyhow::{Result, anyhow};
@@ -13,7 +13,7 @@ use crate::{
         squads::{SquadsCliOpts, effective_signer},
         utils::{
             anchor_client_setup, create_spinner, derive_global_config_pda, derive_program_data_pda,
-            fetch_global_config, setup_admin,
+            fetch_global_config, setup_admin, validate_snapshot_slot_offset,
         },
     },
 };
@@ -35,6 +35,7 @@ fn validate_config_values(
     max_description_length: Option<u16>,
     cluster_support_pct_min_bps: Option<u64>,
     max_supporters: Option<u32>,
+    snapshot_slot_offset: Option<i64>,
 ) -> Result<()> {
     if let Some(v) = max_title_length {
         if v == 0 || v > MAX_TITLE_LENGTH {
@@ -67,6 +68,9 @@ fn validate_config_values(
                 MAX_SUPPORTERS_LIMIT
             ));
         }
+    }
+    if let Some(v) = snapshot_slot_offset {
+        validate_snapshot_slot_offset(v)?;
     }
     Ok(())
 }
@@ -128,6 +132,7 @@ pub async fn initialize_global_config(
         Some(max_description_length),
         Some(cluster_support_pct_min_bps),
         Some(max_supporters),
+        Some(snapshot_slot_offset),
     )?;
 
     let (payer, program) = setup_admin(keypair, rpc_url)?;
@@ -204,6 +209,7 @@ pub async fn update_global_config(
         max_description_length,
         cluster_support_pct_min_bps,
         max_supporters,
+        snapshot_slot_offset,
     )?;
 
     let (payer, program) = setup_admin(keypair, rpc_url)?;

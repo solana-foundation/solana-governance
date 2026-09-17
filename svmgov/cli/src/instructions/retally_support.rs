@@ -14,7 +14,7 @@ use crate::{
     svmgov_program::client::{accounts, args},
     utils::utils::{
         create_spinner, derive_global_config_pda, derive_program_config_pda, fetch_global_config,
-        get_epoch_slot_range, setup_signer_and_program,
+        proposal_snapshot_slot, setup_signer_and_program,
     },
 };
 
@@ -53,11 +53,13 @@ pub async fn retally_support(
     // Same prospective snapshot slot as support_proposal: if this retally
     // crosses the threshold, the program binds the ballot box derived from it.
     let clock = program.rpc().get_epoch_info().await?;
-    let target_epoch =
-        clock.epoch + global_config.discussion_epochs + global_config.snapshot_epoch_extension;
-
-    let (start_slot, _) = get_epoch_slot_range(target_epoch);
-    let snapshot_slot = ((start_slot as i64) + global_config.snapshot_slot_offset) as u64;
+    let snapshot_slot = proposal_snapshot_slot(
+        clock.epoch,
+        clock.absolute_slot,
+        global_config.discussion_epochs,
+        global_config.snapshot_epoch_extension,
+        global_config.snapshot_slot_offset,
+    )?;
 
     let ballot_box_pda = {
         let seeds = &[b"BallotBox".as_ref(), &snapshot_slot.to_le_bytes()];
