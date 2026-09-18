@@ -150,10 +150,11 @@ Push a `v*` tag or run **Deploy NCN Router** manually. The workflow:
 1. Applies infrastructure with `ncn-router-terraform` and `prd_infra`.
 2. Builds both locked Rust binaries into a `linux/amd64` image and pushes it to Artifact Registry.
 3. Resolves the pushed tag to a `sha256` digest.
-4. Sends the digest, RPC URLs, and Origin CA material over SSH standard input through IAP.
-5. Installs runtime files as root with mode `0600` and starts separate cron/router systemd units.
-6. Waits for fresh mainnet and testnet whitelist files, router redirects, and nginx readiness.
-7. Restores the prior digest and runtime files if any readiness check fails.
+4. Waits for VM startup provisioning to finish.
+5. Sends the digest, RPC URLs, and Origin CA material over SSH standard input through IAP.
+6. Installs runtime files as root with mode `0600` and starts separate cron/router systemd units.
+7. Waits for fresh mainnet and testnet whitelist files, router redirects, and nginx readiness.
+8. Restores the prior digest and runtime files if any readiness check fails.
 
 Terraform state contains no RPC URLs, certificates, private keys, or application image digest.
 

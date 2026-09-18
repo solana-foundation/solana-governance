@@ -115,6 +115,11 @@ NGINX
 ln -sfn /etc/nginx/sites-available/ncn-router /etc/nginx/sites-enabled/ncn-router
 rm -f /etc/nginx/sites-enabled/default
 
-systemctl enable --now docker.service
-systemctl disable --now nginx.service || true
 systemctl daemon-reload
+systemctl enable --now docker.service
+
+if [[ ! -f /etc/ncn-router/deployment.env ]]; then
+  systemctl disable --now nginx.service || true
+fi
+
+touch /run/ncn-router-provisioned
