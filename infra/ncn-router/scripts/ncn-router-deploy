@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+fail() {
+  echo "ncn-router-deploy: $*" >&2
+  exit 1
+}
+
+[[ $EUID -eq 0 ]] || fail "must run as root"
+command -v docker >/dev/null || fail "Docker is not installed"
+command -v jq >/dev/null || fail "jq is not installed"
+systemctl cat ncn-meta-cron.service >/dev/null 2>&1 || fail "cron unit is not installed"
+systemctl cat ncn-router.service >/dev/null 2>&1 || fail "router unit is not installed"
+[[ -s /etc/ncn-router/domain ]] || fail "router domain configuration is missing"
+domain_name="$(</etc/ncn-router/domain)"
+
+payload="$(cat)"
+jq -e '
+  . as $document |
+  type == "object" and
+  (["image_ref", "ncn_program_id", "rpc_mainnet", "rpc_testnet", "origin_certificate", "origin_private_key"]
+    | all(. as $key | $document | has($key)))
+' <<<"$payload" >/dev/null 2>&1 || fail "stdin must contain the complete deployment JSON object"
+
+image_ref="$(jq -er '.image_ref | select(type == "string" and length > 0)' <<<"$payload")"
+ncn_program_id="$(jq -er '.ncn_program_id | select(type == "string" and length > 0)' <<<"$payload")"
+rpc_mainnet="$(jq -er '.rpc_mainnet | select(type == "string" and length > 0)' <<<"$payload")"
+rpc_testnet="$(jq -er '.rpc_testnet | select(type == "string" and length > 0)' <<<"$payload")"
+origin_certificate="$(jq -er '.origin_certificate | select(type == "string" and length > 0)' <<<"$payload")"
+origin_private_key="$(jq -er '.origin_private_key | select(type == "string" and length > 0)' <<<"$payload")"
+unset payload
+
+[[ $image_ref =~ ^[a-z0-9.-]+-docker\.pkg\.dev/[a-z0-9:._-]+/[a-z0-9._-]+/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$ ]] \
+  || fail "image_ref must be an immutable Artifact Registry sha256 reference"
+[[ $ncn_program_id =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || fail "ncn_program_id is not valid base58"
+[[ $rpc_mainnet =~ ^https://[^[:space:]]+$ ]] || fail "rpc_mainnet must be an HTTPS URL without whitespace"
+[[ $rpc_testnet =~ ^https://[^[:space:]]+$ ]] || fail "rpc_testnet must be an HTTPS URL without whitespace"
+[[ $origin_certificate == *"BEGIN CERTIFICATE"* ]] || fail "origin_certificate is not PEM encoded"
+[[ $origin_private_key == *"BEGIN "*"PRIVATE KEY"* ]] || fail "origin_private_key is not PEM encoded"
+
+work_dir="$(mktemp -d /run/ncn-router-deploy.XXXXXX)"
+rollback_required=false
+
+declare -A managed_files=(
+  [deployment.env]="/etc/ncn-router/deployment.env"
+  [runtime.env]="/etc/ncn-router/runtime.env"
+  [origin.crt]="/etc/ncn-router/tls/origin.crt"
+  [origin.key]="/etc/ncn-router/tls/origin.key"
+)
+
+for name in "${!managed_files[@]}"; do
+  path="${managed_files[$name]}"
+  if [[ -f $path ]]; then
+    cp --preserve=mode,ownership "$path" "$work_dir/$name"
+    touch "$work_dir/$name.present"
+  fi
+done
+
+restore_previous_deployment() {
+  local name path
+
+  for name in "${!managed_files[@]}"; do
+    path="${managed_files[$name]}"
+    if [[ -f $work_dir/$name.present ]]; then
+      install -o root -g root -m 0600 "$work_dir/$name" "$path"
+    else
+      rm -f "$path"
+    fi
+  done
+
+  if [[ -f /etc/ncn-router/deployment.env ]]; then
+    systemctl restart ncn-meta-cron.service ncn-router.service nginx.service || true
+  else
+    systemctl disable --now ncn-meta-cron.service ncn-router.service nginx.service || true
+  fi
+}
+
+cleanup() {
+  local status=$?
+
+  if (( status != 0 )) && [[ $rollback_required == true ]]; then
+    restore_previous_deployment
+  fi
+  rm -rf "$work_dir"
+  exit "$status"
+}
+trap cleanup EXIT
+
+registry="${image_ref%%/*}"
+access_token="$(
+  curl --fail --silent --show-error \
+    --header 'Metadata-Flavor: Google' \
+    'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token' \
+  | jq -er '.access_token'
+)"
+printf '%s' "$access_token" | docker login --username oauth2accesstoken --password-stdin "https://$registry" >/dev/null
+unset access_token
+docker pull "$image_ref"
+docker logout "$registry" >/dev/null
+
+printf 'NCN_ROUTER_IMAGE=%s\n' "$image_ref" > "$work_dir/deployment.env.new"
+{
+  printf 'NCN_PROGRAM_ID=%s\n' "$ncn_program_id"
+  printf 'SOLANA_RPC_URL_MAINNET=%s\n' "$rpc_mainnet"
+  printf 'SOLANA_RPC_URL_TESTNET=%s\n' "$rpc_testnet"
+  printf '%s\n' 'NCN_CONFIG=/etc/ncn-router/config.toml'
+  printf '%s\n' 'NCN_LOG=/var/lib/ncn-router/ncn_verifier_meta.log'
+  printf '%s\n' 'NCN_ROUTER_BIND_ADDR=0.0.0.0:8080'
+  printf '%s\n' 'NCN_WHITELIST_MAINNET_PATH=/var/lib/ncn-router/ncn_whitelist.mainnet.json'
+  printf '%s\n' 'NCN_WHITELIST_TESTNET_PATH=/var/lib/ncn-router/ncn_whitelist.testnet.json'
+} > "$work_dir/runtime.env.new"
+printf '%s\n' "$origin_certificate" > "$work_dir/origin.crt.new"
+printf '%s\n' "$origin_private_key" > "$work_dir/origin.key.new"
+unset ncn_program_id rpc_mainnet rpc_testnet origin_certificate origin_private_key
+
+rollback_required=true
+install -o root -g root -m 0600 "$work_dir/deployment.env.new" /etc/ncn-router/deployment.env
+install -o root -g root -m 0600 "$work_dir/runtime.env.new" /etc/ncn-router/runtime.env
+install -o root -g root -m 0600 "$work_dir/origin.crt.new" /etc/ncn-router/tls/origin.crt
+install -o root -g root -m 0600 "$work_dir/origin.key.new" /etc/ncn-router/tls/origin.key
+
+activate_deployment() {
+  local deadline mainnet_status readiness_marker testnet_status
+  local fresh_whitelists=false
+
+  nginx -t
+  readiness_marker="$work_dir/readiness-started"
+  touch "$readiness_marker"
+  systemctl enable ncn-meta-cron.service ncn-router.service nginx.service
+  systemctl restart ncn-meta-cron.service ncn-router.service nginx.service
+
+  deadline=$((SECONDS + 600))
+  while (( SECONDS < deadline )); do
+    if [[ -f /var/lib/ncn-router/ncn_whitelist.mainnet.json \
+          && -f /var/lib/ncn-router/ncn_whitelist.testnet.json \
+          && /var/lib/ncn-router/ncn_whitelist.mainnet.json -nt $readiness_marker \
+          && /var/lib/ncn-router/ncn_whitelist.testnet.json -nt $readiness_marker ]] \
+      && jq -e '.network == "mainnet" and (.verifiers | type == "array")' \
+        /var/lib/ncn-router/ncn_whitelist.mainnet.json >/dev/null 2>&1 \
+      && jq -e '.network == "testnet" and (.verifiers | type == "array")' \
+        /var/lib/ncn-router/ncn_whitelist.testnet.json >/dev/null 2>&1; then
+      fresh_whitelists=true
+      break
+    fi
+    sleep 3
+  done
+
+  [[ $fresh_whitelists == true ]] || return 1
+
+  jq -e '.network == "mainnet" and (.verifiers | type == "array")' \
+    /var/lib/ncn-router/ncn_whitelist.mainnet.json >/dev/null
+  jq -e '.network == "testnet" and (.verifiers | type == "array")' \
+    /var/lib/ncn-router/ncn_whitelist.testnet.json >/dev/null
+
+  mainnet_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+    'http://127.0.0.1:8080/?network=mainnet')"
+  testnet_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+    'http://127.0.0.1:8080/?network=testnet')"
+  [[ $mainnet_status == 302 ]] || return 1
+  [[ $testnet_status == 302 ]] || return 1
+
+  curl --fail --silent --show-error --insecure \
+    --header "Host: $domain_name" \
+    https://127.0.0.1/healthz >/dev/null
+}
+
+set +e
+activate_deployment
+status=$?
+set -e
+
+if (( status != 0 )); then
+  echo "ncn-router-deploy: readiness checks failed; restoring the previous image digest" >&2
+  exit "$status"
+fi
+
+rollback_required=false
+echo "ncn-router-deploy: deployed $image_ref"

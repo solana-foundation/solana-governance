@@ -26,7 +26,6 @@
 | Digital Energy | `https://ncn-verifier.digital-energy.io` |
 | stakeware.xyz | `https://ncn.stakeware.xyz:3000/` |
 | Prompt Logic | `https://verifier.promptlogic.systems` |
-| Exo Tech | `http://ncn-verifier.exotechnologies.xyz:3000` |
 | Chainflow | `https://ncn-verifier.chainflow.io` |
 | Brewlabs | `https://ncn.brewlabs.so` |
 - **Env vars**:
@@ -49,3 +48,9 @@ cargo run --bin ncn-meta-cron -- --network testnet
 cargo run --bin ncn-meta-cron
 
 cargo run -r --bin ncn-router # runs HTTP router for NCN data
+```
+
+### Production deployment
+
+See [`infra/ncn-router/README.md`](../infra/ncn-router/README.md) for GCP bootstrap, IAM,
+Doppler, Cloudflare, deployment, rollback, and verification procedures.
