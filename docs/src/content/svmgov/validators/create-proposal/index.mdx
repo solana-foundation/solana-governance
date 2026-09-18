@@ -8,7 +8,11 @@ Create a new governance proposal on-chain.
 
 Submits a new governance proposal. The validator must have at least **100,000 SOL staked** to their vote account. The proposal is assigned a unique sequential index and a PDA derived from the seed and the validator's vote account.
 
-The `description` must link to the [`solana-foundation/solana-governance-proposals`](https://github.com/solana-foundation/solana-governance-proposals) repository. Full proposal text, rationale, and discussion lives there; only the title and GitHub link are stored on-chain to keep accounts small. The URL must not contain a `..` path-traversal segment.
+The `description` must be a link to one Markdown file in the [`solana-foundation/solana-governance-proposals`](https://github.com/solana-foundation/solana-governance-proposals) repository, pinned to a full 40-character Git commit SHA:
+
+`https://github.com/solana-foundation/solana-governance-proposals/blob/<40-hex-commit>/path/to/proposal.md`
+
+The program enforces this URL shape. The CLI additionally fetches the file and requires non-empty YAML frontmatter (opening and closing `---` delimiters). Use `--skip-link-check` only to explicitly bypass that off-chain reachability/frontmatter check; it cannot bypass URL validation.
 
 ## Usage
 
@@ -24,7 +28,8 @@ svmgov create-proposal \
 | Argument | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `--title` | String | **Yes** | — | Proposal title. Length in bytes must be ≤ `max_title_length` (config-set, up to 200 bytes) |
-| `--description` | String | **Yes** | — | Link in `https://github.com/solana-foundation/solana-governance-proposals`; must not contain `..`; length in bytes must be ≤ `max_description_length` (config-set, up to 500 bytes) |
+| `--description` | String | **Yes** | — | Commit-pinned GitHub `blob` URL to a single `.md` file in the proposal repository; length in bytes must be ≤ `max_description_length` (config-set, up to 500 bytes) |
+| `--skip-link-check` | flag | No | false | Skip the CLI's GitHub fetch and frontmatter preflight; structural URL validation still applies |
 | `--network` | String | No | Config value | Network override for proof fetching: `mainnet`, `testnet` |
 | `--seed` | u64 | No | Random | Unique seed for PDA derivation |
 
@@ -39,7 +44,8 @@ svmgov create-proposal \
 
 - Validator must have ≥ **100,000 SOL** staked to their vote account
 - The identity keypair must match the `node_pubkey` of the vote account
-- Description must be a `https://github.com/solana-foundation/solana-governance-proposals/...` URL without `..` path segments
+- Description must be a commit-pinned `.md` `blob` URL in the proposal repository; branches, tags, pull-request URLs, and directories are rejected
+- The fetched document should begin with non-empty YAML frontmatter
 - `ProposalIndex` must be initialized (run `svmgov init-index` once)
 
 ## Examples

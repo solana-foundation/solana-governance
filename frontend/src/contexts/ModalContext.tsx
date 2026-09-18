@@ -2,6 +2,7 @@
 
 import { SupportProposalModal } from "@/components/modals/SupportProposalModal";
 import { CreateProposalModal } from "@/components/modals/CreateProposalModal";
+import { UpdateProposalDescriptionModal } from "@/components/modals/UpdateProposalDescriptionModal";
 import {
   CastVoteModal,
   CastVoteModalDataProps,
@@ -28,6 +29,7 @@ import { track } from "@vercel/analytics";
 export type ModalType =
   | "support-proposal"
   | "create-proposal"
+  | "update-proposal-description"
   | "cast-vote"
   | "modify-vote"
   | "override-vote"
@@ -40,6 +42,10 @@ interface ModalDataMap {
     proposalId?: string;
   };
   "create-proposal": Record<string, never>;
+  "update-proposal-description": {
+    proposalId: string;
+    currentDescription: string;
+  };
   "cast-vote": CastVoteModalDataProps;
   "override-vote": OverrideVoteModalDataProps;
   "modify-vote":
@@ -87,6 +93,7 @@ const MODAL_COMPONENTS: Record<
 > = {
   "support-proposal": SupportProposalModal,
   "create-proposal": CreateProposalModal,
+  "update-proposal-description": UpdateProposalDescriptionModal,
   "cast-vote": CastVoteModal,
   "override-vote": OverrideVoteModal,
   "modify-vote": ModifyVoteModal,

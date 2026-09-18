@@ -23,6 +23,12 @@ export interface ParsedProposalMarkdown {
   summary: string;
 }
 
+/** Returns whether markdown begins with a non-empty delimiter-based frontmatter block. */
+export function hasNonEmptyFrontmatter(text: string): boolean {
+  const { frontmatter } = splitFrontmatter(text);
+  return frontmatter !== undefined && frontmatter.trim().length > 0;
+}
+
 /**
  * Reads the proposal number and summary out of a proposal markdown document.
  *

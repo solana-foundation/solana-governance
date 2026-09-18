@@ -17,6 +17,7 @@ export * from "./useCastVoteOverride";
 export * from "./useModifyVote";
 export * from "./useModifyVoteOverride";
 export * from "./useCreateProposal";
+export * from "./useUpdateProposalDescription";
 export * from "./useSupportProposal";
 
 export * from "./useGetValidators";

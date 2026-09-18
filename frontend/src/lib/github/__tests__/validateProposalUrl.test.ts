@@ -76,6 +76,17 @@ describe("validateProposalUrl - rejected", () => {
     expect(codes(result.errors)).toContain("not-github");
   });
 
+  it("rejects github.com /raw/ URLs even when they are commit-pinned", () => {
+    const result = validateProposalUrl(
+      `https://github.com/${SGP_REPO}/raw/${SHA}/proposals/sgp-0001-solana-constitution.md`,
+    );
+    expect(result.ok).toBe(false);
+    expect(codes(result.errors)).toContain("rejected-on-chain");
+    expect(result.errors.map((error) => error.message).join(" ")).toContain(
+      "canonical /blob",
+    );
+  });
+
   it.each([
     [
       `https://github.com/${SGP_REPO}/blob/main/proposals/sgp-0001%20x.md`,
@@ -117,10 +128,10 @@ describe("validateProposalUrl - rejected", () => {
 });
 
 describe("validateProposalUrl - warnings", () => {
-  it("warns about a branch ref but still passes", () => {
+  it("rejects a branch ref", () => {
     const result = validateProposalUrl(MUTABLE_SGP);
-    expect(result.ok).toBe(true);
-    expect(codes(result.warnings)).toContain("mutable-ref");
+    expect(result.ok).toBe(false);
+    expect(codes(result.errors)).toContain("not-commit-sha");
   });
 
   it("rejects repositories other than solana-governance-proposals", () => {

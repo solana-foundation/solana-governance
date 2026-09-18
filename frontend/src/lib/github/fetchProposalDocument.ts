@@ -2,7 +2,7 @@ import {
   pickProposalFile,
   type PullRequestFile,
 } from "./pickProposalFile";
-import { parseProposalMarkdown } from "./proposalMarkdown";
+import { hasNonEmptyFrontmatter, parseProposalMarkdown } from "./proposalMarkdown";
 import {
   parseProposalUrl,
   rawContentUrl,
@@ -17,6 +17,8 @@ export interface ProposalDocument {
   /** The raw.githubusercontent.com URL the markdown actually came from. */
   sourceUrl: string;
   fetchedAt: number;
+  /** Whether the raw document begins with a non-empty frontmatter block. */
+  hasFrontmatter: boolean;
 }
 
 export type ProposalDocumentResult =
@@ -145,7 +147,13 @@ function buildDocument(
   const { ref, summary } = parseProposalMarkdown(text, fallbackRef);
   return {
     status: "ok",
-    document: { ref, summary, sourceUrl, fetchedAt: Date.now() },
+    document: {
+      ref,
+      summary,
+      sourceUrl,
+      fetchedAt: Date.now(),
+      hasFrontmatter: hasNonEmptyFrontmatter(text),
+    },
   };
 }
 
