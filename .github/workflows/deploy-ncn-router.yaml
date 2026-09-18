@@ -1,0 +1,208 @@
+name: Deploy NCN Router
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-ncn-router-production
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TF_VAR_project_id: ncn-router
+  TF_VAR_deployer_service_account_email: ncn-router-deployer@ncn-router.iam.gserviceaccount.com
+  TF_STATE_BUCKET: ncn-router-terraform-state
+  TF_ROOT: infra/ncn-router
+  GCP_PROJECT_ID: ncn-router
+  GCE_INSTANCE: ncn-router-managed
+  GCE_ZONE: europe-west2-c
+  GAR_LOCATION: europe-west2
+  GAR_REPOSITORY: ncn-router
+  IMAGE_NAME: ncn-router
+  NCN_PROGRAM_ID: ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf
+
+jobs:
+  infrastructure:
+    name: Apply infrastructure
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Load infrastructure credentials from Doppler
+        uses: dopplerhq/secrets-fetch-action@451892f16195f9ac360e1a5bcbf0b5fd0e957534 # v2.0.0
+        with:
+          auth-method: oidc
+          doppler-identity-id: ${{ vars.DOPPLER_SERVICE_IDENTITY_ID }}
+          doppler-project: solana-governance
+          doppler-config: prd_infra
+          inject-env-vars: true
+
+      - name: Validate infrastructure credentials
+        run: |
+          : "${NCN_ROUTER_TERRAFORM_SERVICE_ACCOUNT_KEY:?Set NCN_ROUTER_TERRAFORM_SERVICE_ACCOUNT_KEY in Doppler prd_infra}"
+
+      - name: Authenticate infrastructure service account
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          credentials_json: ${{ env.NCN_ROUTER_TERRAFORM_SERVICE_ACCOUNT_KEY }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: 1.15.1
+          terraform_wrapper: false
+
+      - name: Set up Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Format check
+        run: terraform fmt -check -recursive "$TF_ROOT"
+
+      - name: Initialize Terraform
+        run: terraform -chdir="$TF_ROOT" init -input=false -backend-config="bucket=$TF_STATE_BUCKET"
+
+      - name: Validate Terraform
+        run: terraform -chdir="$TF_ROOT" validate
+
+      - name: Create saved plan
+        run: terraform -chdir="$TF_ROOT" plan -input=false -out="$RUNNER_TEMP/ncn-router.tfplan"
+
+      - name: Apply saved plan
+        run: terraform -chdir="$TF_ROOT" apply -input=false -auto-approve "$RUNNER_TEMP/ncn-router.tfplan"
+
+      - name: Verify idempotent second apply
+        run: terraform -chdir="$TF_ROOT" apply -input=false -auto-approve
+
+      - name: Verify CI project-role boundaries
+        run: |
+          terraform_member="serviceAccount:ncn-router-terraform@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
+          deployer_member="serviceAccount:ncn-router-deployer@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
+          policy="$(gcloud projects get-iam-policy "$GCP_PROJECT_ID" --format=json)"
+
+          jq -e \
+            --arg terraform_member "$terraform_member" \
+            --arg deployer_member "$deployer_member" \
+            '[
+              .bindings[]
+              | select(
+                  .role == "roles/editor"
+                  or .role == "roles/owner"
+                  or .role == "roles/storage.admin"
+                  or .role == "roles/iap.admin"
+                )
+              | .members[]?
+              | select(. == $terraform_member or . == $deployer_member)
+            ] | length == 0' <<<"$policy"
+
+          jq -e \
+            --arg deployer_member "$deployer_member" \
+            '[
+              .bindings[]
+              | select(any(.members[]?; . == $deployer_member))
+              | .role
+              | select(. != "roles/compute.osAdminLogin")
+            ] | length == 0' <<<"$policy"
+
+  deploy:
+    name: Build and deploy image
+    needs: infrastructure
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Load deployment credentials and runtime secrets from Doppler
+        uses: dopplerhq/secrets-fetch-action@451892f16195f9ac360e1a5bcbf0b5fd0e957534 # v2.0.0
+        with:
+          auth-method: oidc
+          doppler-identity-id: ${{ vars.DOPPLER_SERVICE_IDENTITY_ID }}
+          doppler-project: solana-governance
+          doppler-config: prd
+          inject-env-vars: true
+
+      - name: Validate deployment configuration
+        run: |
+          : "${NCN_ROUTER_DEPLOY_SERVICE_ACCOUNT_KEY:?Set NCN_ROUTER_DEPLOY_SERVICE_ACCOUNT_KEY in Doppler prd}"
+          : "${CLOUDFLARE_ORIGIN_CA_CERTIFICATE:?Set CLOUDFLARE_ORIGIN_CA_CERTIFICATE in Doppler prd}"
+          : "${CLOUDFLARE_ORIGIN_CA_PRIVATE_KEY:?Set CLOUDFLARE_ORIGIN_CA_PRIVATE_KEY in Doppler prd}"
+          : "${SOLANA_RPC_URL_MAINNET:?Set SOLANA_RPC_URL_MAINNET in Doppler prd}"
+          : "${SOLANA_RPC_URL_TESTNET:?Set SOLANA_RPC_URL_TESTNET in Doppler prd}"
+
+      - name: Authenticate deployment service account
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          credentials_json: ${{ env.NCN_ROUTER_DEPLOY_SERVICE_ACCOUNT_KEY }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Set up Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Configure Artifact Registry authentication
+        run: gcloud auth configure-docker "${GAR_LOCATION}-docker.pkg.dev" --quiet
+
+      - name: Build and publish linux/amd64 image
+        id: image
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          image="${GAR_LOCATION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${IMAGE_NAME}"
+          docker buildx build \
+            --platform linux/amd64 \
+            --tag "$image:$IMAGE_TAG" \
+            --push \
+            ncn-router
+          digest="$(gcloud artifacts docker images describe "$image:$IMAGE_TAG" --format='value(image_summary.digest)')"
+          test -n "$digest"
+          echo "ref=$image@$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy immutable image through IAP
+        env:
+          IMAGE_REF: ${{ steps.image.outputs.ref }}
+        run: |
+          jq -n \
+            --arg image_ref "$IMAGE_REF" \
+            --arg ncn_program_id "$NCN_PROGRAM_ID" \
+            --arg rpc_mainnet "$SOLANA_RPC_URL_MAINNET" \
+            --arg rpc_testnet "$SOLANA_RPC_URL_TESTNET" \
+            --arg origin_certificate "$CLOUDFLARE_ORIGIN_CA_CERTIFICATE" \
+            --arg origin_private_key "$CLOUDFLARE_ORIGIN_CA_PRIVATE_KEY" \
+            '{
+              image_ref: $image_ref,
+              ncn_program_id: $ncn_program_id,
+              rpc_mainnet: $rpc_mainnet,
+              rpc_testnet: $rpc_testnet,
+              origin_certificate: $origin_certificate,
+              origin_private_key: $origin_private_key
+            }' \
+          | gcloud compute ssh "$GCE_INSTANCE" \
+              --project "$GCP_PROJECT_ID" \
+              --zone "$GCE_ZONE" \
+              --tunnel-through-iap \
+              --ssh-key-expire-after=15m \
+              --quiet \
+              --command 'sudo /usr/local/sbin/ncn-router-deploy'
+
+      - name: Deployment summary
+        env:
+          IMAGE_REF: ${{ steps.image.outputs.ref }}
+        run: |
+          {
+            echo '## NCN router deployment'
+            echo "- Project: \`$GCP_PROJECT_ID\`"
+            echo "- VM: \`$GCE_INSTANCE\` (\`$GCE_ZONE\`)"
+            echo "- Image: \`$IMAGE_REF\`"
+          } >> "$GITHUB_STEP_SUMMARY"
