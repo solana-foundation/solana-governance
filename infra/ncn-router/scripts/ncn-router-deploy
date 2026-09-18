@@ -120,27 +120,32 @@ install -o root -g root -m 0600 "$work_dir/origin.crt.new" /etc/ncn-router/tls/o
 install -o root -g root -m 0600 "$work_dir/origin.key.new" /etc/ncn-router/tls/origin.key
 
 activate_deployment() {
-  local activation_epoch deadline mainnet_status testnet_status
+  local deadline mainnet_status readiness_marker testnet_status
+  local fresh_whitelists=false
 
   nginx -t
-  activation_epoch="$(date +%s)"
+  readiness_marker="$work_dir/readiness-started"
+  touch "$readiness_marker"
   systemctl enable ncn-meta-cron.service ncn-router.service nginx.service
   systemctl restart ncn-meta-cron.service ncn-router.service nginx.service
 
   deadline=$((SECONDS + 600))
   while (( SECONDS < deadline )); do
     if [[ -f /var/lib/ncn-router/ncn_whitelist.mainnet.json \
-          && -f /var/lib/ncn-router/ncn_whitelist.testnet.json ]] \
-      && (( $(stat -c %Y /var/lib/ncn-router/ncn_whitelist.mainnet.json) >= activation_epoch )) \
-      && (( $(stat -c %Y /var/lib/ncn-router/ncn_whitelist.testnet.json) >= activation_epoch )) \
+          && -f /var/lib/ncn-router/ncn_whitelist.testnet.json \
+          && /var/lib/ncn-router/ncn_whitelist.mainnet.json -nt $readiness_marker \
+          && /var/lib/ncn-router/ncn_whitelist.testnet.json -nt $readiness_marker ]] \
       && jq -e '.network == "mainnet" and (.verifiers | type == "array")' \
         /var/lib/ncn-router/ncn_whitelist.mainnet.json >/dev/null 2>&1 \
       && jq -e '.network == "testnet" and (.verifiers | type == "array")' \
         /var/lib/ncn-router/ncn_whitelist.testnet.json >/dev/null 2>&1; then
+      fresh_whitelists=true
       break
     fi
     sleep 3
   done
+
+  [[ $fresh_whitelists == true ]] || return 1
 
   jq -e '.network == "mainnet" and (.verifiers | type == "array")' \
     /var/lib/ncn-router/ncn_whitelist.mainnet.json >/dev/null
