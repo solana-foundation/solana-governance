@@ -400,6 +400,58 @@ fn post_vote_override_does_not_change_cache() {
     );
 }
 
+/// An override cast after the validator has voted is booked on the Vote
+/// account; the cache is only needed for pre-vote overrides. The delegator
+/// must not be left paying rent for an empty cache that nothing ever reads.
+#[test]
+fn post_vote_override_without_cache_does_not_leave_one_behind() {
+    let (mut h, s) = voting_fixture();
+
+    let vote = vote_pda(&s.proposal, &h.validators[s.voters[0].idx].vote.pubkey());
+    let cache = vote_override_cache_pda(&s.proposal, &vote);
+
+    cast_validator_vote(&mut h, &s, 0, 10_000, 0, 0);
+    assert!(h.svm.get_account(&cache).is_none());
+
+    let delegator = s.voters[0].delegators[0].wallet.pubkey();
+    let balance_before = h.svm.get_balance(&delegator).unwrap();
+    cast_delegator_override(&mut h, &s, 0, 0, 0, 10_000, 0);
+    let balance_after = h.svm.get_balance(&delegator).unwrap();
+
+    assert!(
+        h.svm
+            .get_account(&cache)
+            .is_none_or(|a| a.lamports == 0 && a.data.is_empty()),
+        "no VoteOverrideCache should survive a post-vote override"
+    );
+    // The delegator paid for the VoteOverride account and fees only, not for
+    // a cache as well.
+    let override_rent = h
+        .svm
+        .get_account(&vote_override_pda(
+            &s.proposal,
+            &s.voters[0].delegators[0].stake_account,
+            &vote,
+        ))
+        .unwrap()
+        .lamports;
+    assert!(balance_before - balance_after < override_rent + 100_000);
+
+    // The override itself is fully accounted for on the Vote.
+    let vote_state = fetch_vote(&h, &s, 0).expect("validator vote");
+    assert_eq!(vote_state.override_lamports, D0);
+    assert_totals(&fetch_proposal(&h.svm, &s.proposal), V_ACTIVE - D0, D0, 0);
+
+    // A second post-vote override from another delegator behaves the same.
+    cast_delegator_override(&mut h, &s, 0, 1, 0, 0, 10_000);
+    assert!(h
+        .svm
+        .get_account(&cache)
+        .is_none_or(|a| a.lamports == 0 && a.data.is_empty()));
+    let state = finalize_proposal(&mut h, &s);
+    assert_totals(&state, V_REMAINDER, D0, D1);
+}
+
 // ---------------------------------------------------------------------------
 // 5. Vote modifications, across the same ordering matrix.
 // ---------------------------------------------------------------------------
