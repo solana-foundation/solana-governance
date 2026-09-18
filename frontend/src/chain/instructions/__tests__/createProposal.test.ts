@@ -8,6 +8,18 @@ jest.mock("@/contexts/EndpointContext", () => ({
 }));
 
 const mockCreateProgramWithWallet = jest.fn();
+const mockAssertValidProposalDocument = jest.fn<Promise<void>, [string]>();
+
+// Document fetching is covered by the GitHub utility tests. Keep this transaction-builder unit
+// test independent of GitHub availability and verify only that it runs the preflight check.
+jest.mock("@/lib/github", () => {
+  const actual = jest.requireActual("@/lib/github");
+  return {
+    ...actual,
+    assertValidProposalDocument: (...args: [string]) =>
+      mockAssertValidProposalDocument(...args),
+  };
+});
 
 jest.mock("../helpers", () => {
   const actual = jest.requireActual("../helpers");
@@ -90,6 +102,7 @@ describe("createProposal", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockAssertValidProposalDocument.mockResolvedValue(undefined);
     walletState.publicKey = new PublicKey(SIGNER);
     // Emulates a real wallet: whatever account is connected NOW provides the signature.
     mockSignTransaction.mockImplementation(async () =>
@@ -120,6 +133,7 @@ describe("createProposal", () => {
     const result = await createProposal(params, blockchainParams);
 
     expect(result).toEqual({ signature: "test-signature", success: true });
+    expect(mockAssertValidProposalDocument).toHaveBeenCalledWith(DESCRIPTION);
     expect(mockSignTransaction).toHaveBeenCalledTimes(1);
     expect(mockSendRawTransaction).toHaveBeenCalledTimes(1);
   });
