@@ -52,6 +52,13 @@ export interface GetProposalStatusParams {
   /** GlobalConfig.clusterSupportPctMinBps — support threshold in basis points. */
   clusterSupportPctMinBps: number;
   consensusResult: PublicKey | undefined;
+  /**
+   * Whether the ConsensusResult account behind `consensusResult` exists on
+   * chain. The proposal stores the PDA as soon as support is reached, but the
+   * account itself is only created once the NCN finalizes the snapshot ballot,
+   * and votes are rejected until then.
+   */
+  consensusReached: boolean;
   finalized: boolean;
   voting: boolean;
   epochConstants: EpochConstants;
@@ -144,6 +151,7 @@ export const getProposalStatus = ({
   totalStakedLamports,
   clusterSupportPctMinBps,
   consensusResult,
+  consensusReached,
   finalized,
   voting,
   epochConstants: epochs,
@@ -191,10 +199,10 @@ export const getProposalStatus = ({
     }
     // At or past voting start epoch, but before end epoch
     // Note: endEpoch check is already done above, so we know currentEpoch < endEpoch here
-    if (consensusResult) {
+    if (consensusResult && consensusReached) {
       return "voting";
     }
-    // Snapshot not available yet, still in discussion
+    // Snapshot consensus not available yet, still in discussion
     return "discussion";
   }
 
