@@ -169,6 +169,27 @@ jobs:
           test -n "$digest"
           echo "ref=$image@$digest" >> "$GITHUB_OUTPUT"
 
+      - name: Wait for VM provisioning
+        run: |
+          for attempt in {1..60}; do
+            if gcloud compute ssh "$GCE_INSTANCE" \
+              --project "$GCP_PROJECT_ID" \
+              --zone "$GCE_ZONE" \
+              --tunnel-through-iap \
+              --ssh-key-expire-after=15m \
+              --quiet \
+              --command 'sudo test -f /run/ncn-router-provisioned'; then
+              exit 0
+            fi
+
+            if (( attempt == 60 )); then
+              echo "VM provisioning did not complete within 10 minutes" >&2
+              exit 1
+            fi
+
+            sleep 10
+          done
+
       - name: Deploy immutable image through IAP
         env:
           IMAGE_REF: ${{ steps.image.outputs.ref }}

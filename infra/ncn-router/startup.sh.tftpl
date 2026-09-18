@@ -2,6 +2,7 @@
 set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
+rm -f /run/ncn-router-provisioned
 
 apt-get update
 apt-get install -y --no-install-recommends ca-certificates curl docker.io jq nginx
