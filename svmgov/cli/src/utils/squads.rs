@@ -18,16 +18,22 @@
 //! up front before any handler runs. The router therefore trusts its caller; the routing
 //! call is unconditional once the gate has passed.
 
-use anchor_client::solana_client::nonblocking::rpc_client::RpcClient;
+use anchor_client::solana_account_decoder::{UiAccountEncoding, UiDataSliceConfig};
+use anchor_client::solana_client::{
+    nonblocking::rpc_client::RpcClient,
+    rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
+    rpc_filter::{Memcmp, RpcFilterType},
+};
 use anchor_client::solana_sdk::{
     clock::Slot,
+    commitment_config::CommitmentConfig,
     hash::Hash,
     instruction::Instruction,
     pubkey::Pubkey,
     signature::{Keypair, Signature, Signer},
     transaction::Transaction,
 };
-use anyhow::Result;
+use anyhow::{Context, Result, anyhow, ensure};
 use async_trait::async_trait;
 use squads_client::{Multisig, SquadsClient, SquadsError};
 
@@ -39,8 +45,8 @@ const MAX_INDEX_ATTEMPTS: u8 = 3;
 // CLI flag parsing + effective-signer helper
 // ============================================================================
 
-/// Raw `--squads*` flag values as parsed from the CLI, before the signer (proposer) is
-/// known. Converted into a [`SquadsRoutingConfig`] once the keypair has been loaded.
+/// Resolved `--squads*` options, before the signer (proposer) is known.
+/// Converted into a [`SquadsRoutingConfig`] once the signer has been loaded.
 #[derive(Clone, Debug)]
 pub struct SquadsCliOpts {
     /// Target multisig account.
@@ -51,6 +57,77 @@ pub struct SquadsCliOpts {
     pub program_id: Option<Pubkey>,
     /// Optional memo attached to the vault transaction.
     pub memo: Option<String>,
+}
+
+/// Resolve a vault address by matching forward PDA derivations against on-chain
+/// multisig accounts. Existing multisig state addresses remain a direct fast path.
+pub async fn resolve_multisig(
+    rpc: &RpcClient,
+    address: Pubkey,
+    vault_index: u8,
+    program_id: Option<Pubkey>,
+) -> Result<Pubkey> {
+    let program_id = program_id.unwrap_or(squads_client::PROGRAM_ID);
+    let commitment = CommitmentConfig::confirmed();
+    let account = rpc
+        .get_account_with_commitment(&address, commitment)
+        .await
+        .with_context(|| format!("Failed to fetch Squads address {address}"))?
+        .value;
+    if let Some(account) = account {
+        if account.owner == program_id && Multisig::try_deserialize(&account.data).is_ok() {
+            return Ok(address);
+        }
+    }
+
+    let accounts = rpc
+        .get_program_accounts_with_config(
+            &program_id,
+            RpcProgramAccountsConfig {
+                filters: Some(vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+                    0,
+                    Multisig::discriminator().to_vec(),
+                ))]),
+                account_config: RpcAccountInfoConfig {
+                    encoding: Some(UiAccountEncoding::Base64),
+                    data_slice: Some(UiDataSliceConfig {
+                        offset: 0,
+                        length: 0,
+                    }),
+                    commitment: Some(commitment),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        )
+        .await
+        .context("Failed to look up Squads vault; the RPC must support getProgramAccounts")?;
+    let (multisig, _) = accounts
+        .into_iter()
+        .find(|(multisig, account)| {
+            account.owner == program_id
+                && squads_client::vault_pda(multisig, vault_index, Some(&program_id)).0 == address
+        })
+        .ok_or_else(|| anyhow!(
+            "No Squads multisig found for vault {address} at vault index {vault_index} under program {program_id}"
+        ))?;
+
+    let account = rpc
+        .get_account_with_commitment(&multisig, commitment)
+        .await
+        .with_context(|| format!("Failed to fetch resolved Squads multisig {multisig}"))?
+        .value
+        .ok_or_else(|| anyhow!("Resolved Squads multisig {multisig} no longer exists"))?;
+    ensure!(
+        account.owner == program_id,
+        "Resolved multisig {multisig} is not owned by Squads program {program_id}"
+    );
+    Multisig::try_deserialize(&account.data)
+        .with_context(|| format!("Resolved account {multisig} is not a valid Squads multisig"))?;
+    log::info!(
+        "Resolved Squads vault {address} to multisig {multisig} (vault index {vault_index})"
+    );
+    Ok(multisig)
 }
 
 impl SquadsCliOpts {
@@ -412,14 +489,23 @@ fn squads_transaction_url(multisig: &Pubkey, transaction_index: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anchor_client::solana_client::{
+        client_error,
+        rpc_request::RpcRequest,
+        rpc_sender::{RpcSender, RpcTransportStats},
+    };
+    use base64::{Engine, engine::general_purpose::STANDARD};
     use borsh::BorshDeserialize;
+    use serde_json::{Value, json};
     use squads_client::discriminator::instruction_discriminator;
     use squads_client::{
         Member, Multisig, PROGRAM_ID, Permission, Permissions, TransactionMessage,
         VaultTransactionCreateArgs,
     };
-    use std::collections::VecDeque;
-    use std::sync::Mutex;
+    use std::{
+        collections::VecDeque,
+        sync::{Arc, Mutex},
+    };
 
     #[test]
     fn effective_signer_substitutes_vault_pda_only_in_squads_mode() {
@@ -438,6 +524,255 @@ mod tests {
         let vault = effective_signer(Some(&opts), local);
         assert_eq!(vault, opts.vault_pubkey());
         assert_ne!(vault, local);
+    }
+
+    #[derive(Clone)]
+    struct ResolverRpc {
+        responses: Arc<Mutex<VecDeque<(RpcRequest, client_error::Result<Value>)>>>,
+        calls: Arc<Mutex<Vec<(RpcRequest, Value)>>>,
+    }
+
+    impl ResolverRpc {
+        fn new(responses: Vec<(RpcRequest, client_error::Result<Value>)>) -> Self {
+            Self {
+                responses: Arc::new(Mutex::new(responses.into())),
+                calls: Arc::default(),
+            }
+        }
+
+        fn client(&self) -> RpcClient {
+            RpcClient::new_sender(self.clone(), Default::default())
+        }
+
+        fn calls(&self) -> Vec<(RpcRequest, Value)> {
+            assert!(self.responses.lock().unwrap().is_empty());
+            self.calls.lock().unwrap().clone()
+        }
+    }
+
+    #[async_trait]
+    impl RpcSender for ResolverRpc {
+        async fn send(&self, request: RpcRequest, params: Value) -> client_error::Result<Value> {
+            let (expected, response) = self
+                .responses
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("unexpected RPC request");
+            assert_eq!(request, expected);
+            self.calls.lock().unwrap().push((request, params));
+            response
+        }
+
+        fn get_transport_stats(&self) -> RpcTransportStats {
+            RpcTransportStats::default()
+        }
+
+        fn url(&self) -> String {
+            "http://squads-resolver.test".to_string()
+        }
+    }
+
+    fn rpc_account(owner: Pubkey, data: &[u8]) -> Value {
+        json!({
+            "lamports": 1,
+            "data": [STANDARD.encode(data), "base64"],
+            "owner": owner.to_string(),
+            "executable": false,
+            "rentEpoch": 0,
+        })
+    }
+
+    fn account_response(account: Option<Value>) -> (RpcRequest, client_error::Result<Value>) {
+        (
+            RpcRequest::GetAccountInfo,
+            Ok(json!({ "context": { "slot": 1 }, "value": account })),
+        )
+    }
+
+    fn program_accounts_response(
+        program_id: Pubkey,
+        multisigs: &[Pubkey],
+    ) -> (RpcRequest, client_error::Result<Value>) {
+        (
+            RpcRequest::GetProgramAccounts,
+            Ok(json!(
+                multisigs
+                    .iter()
+                    .map(|multisig| json!({
+                        "pubkey": multisig.to_string(),
+                        "account": rpc_account(program_id, &[]),
+                    }))
+                    .collect::<Vec<_>>()
+            )),
+        )
+    }
+
+    fn multisig_account(program_id: Pubkey) -> Value {
+        rpc_account(
+            program_id,
+            &serialize_multisig(&multisig_with_proposer(&Pubkey::new_unique(), 0)),
+        )
+    }
+
+    #[tokio::test]
+    async fn resolves_canonical_vault_with_filtered_program_scan() {
+        let vault = "FQC6LwQSEPNEX7MrFJXSqty46r4wxA9iJdsqpzVsv8aD"
+            .parse()
+            .unwrap();
+        let multisig = "4sDp4gaJQMyD7Ted5dTkf1kYJ417GPwnnHTwAwaUKeKx"
+            .parse()
+            .unwrap();
+        let rpc = ResolverRpc::new(vec![
+            account_response(Some(rpc_account(Pubkey::default(), &[]))),
+            program_accounts_response(PROGRAM_ID, &[Pubkey::new_unique(), multisig]),
+            account_response(Some(multisig_account(PROGRAM_ID))),
+        ]);
+
+        assert_eq!(
+            resolve_multisig(&rpc.client(), vault, 0, None)
+                .await
+                .unwrap(),
+            multisig
+        );
+        let calls = rpc.calls();
+        assert_eq!(calls[0].1[0], vault.to_string());
+        assert_eq!(calls[0].1[1]["commitment"], "confirmed");
+        assert_eq!(calls[1].1[0], PROGRAM_ID.to_string());
+        assert_eq!(
+            calls[1].1[1]["dataSlice"],
+            json!({ "offset": 0, "length": 0 })
+        );
+        let filters: Vec<RpcFilterType> =
+            serde_json::from_value(calls[1].1[1]["filters"].clone()).unwrap();
+        let [RpcFilterType::Memcmp(filter)] = filters.as_slice() else {
+            panic!("expected one discriminator filter: {filters:?}");
+        };
+        assert_eq!(filter.offset(), 0);
+        assert_eq!(
+            filter.bytes().unwrap().as_slice(),
+            Multisig::discriminator()
+        );
+        assert_eq!(calls[2].1[0], multisig.to_string());
+        assert_eq!(calls[2].1[1]["commitment"], "confirmed");
+    }
+
+    #[tokio::test]
+    async fn resolves_unfunded_vault_with_custom_program_and_nonzero_index() {
+        let multisig = Pubkey::new_unique();
+        let program_id = Pubkey::new_unique();
+        let vault = squads_client::vault_pda(&multisig, 7, Some(&program_id)).0;
+        let rpc = ResolverRpc::new(vec![
+            account_response(None),
+            program_accounts_response(program_id, &[multisig]),
+            account_response(Some(multisig_account(program_id))),
+        ]);
+
+        assert_eq!(
+            resolve_multisig(&rpc.client(), vault, 7, Some(program_id))
+                .await
+                .unwrap(),
+            multisig,
+        );
+        assert_eq!(rpc.calls()[1].1[0], program_id.to_string());
+    }
+
+    #[tokio::test]
+    async fn squads_owned_vault_is_not_mistaken_for_multisig_state() {
+        let multisig = Pubkey::new_unique();
+        let vault = squads_client::vault_pda(&multisig, 0, None).0;
+        let rpc = ResolverRpc::new(vec![
+            account_response(Some(rpc_account(PROGRAM_ID, &[]))),
+            program_accounts_response(PROGRAM_ID, &[multisig]),
+            account_response(Some(multisig_account(PROGRAM_ID))),
+        ]);
+
+        assert_eq!(
+            resolve_multisig(&rpc.client(), vault, 0, None)
+                .await
+                .unwrap(),
+            multisig
+        );
+        assert_eq!(rpc.calls().len(), 3);
+    }
+
+    #[tokio::test]
+    async fn multisig_address_avoids_program_scan() {
+        let multisig = Pubkey::new_unique();
+        let program_id = Pubkey::new_unique();
+        let rpc = ResolverRpc::new(vec![account_response(Some(multisig_account(program_id)))]);
+
+        assert_eq!(
+            resolve_multisig(&rpc.client(), multisig, 7, Some(program_id))
+                .await
+                .unwrap(),
+            multisig,
+        );
+        assert_eq!(rpc.calls().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn unresolved_vault_or_wrong_index_is_rejected() {
+        let multisig = Pubkey::new_unique();
+        let vault = squads_client::vault_pda(&multisig, 1, None).0;
+        for candidates in [vec![], vec![multisig]] {
+            let rpc = ResolverRpc::new(vec![
+                account_response(None),
+                program_accounts_response(PROGRAM_ID, &candidates),
+            ]);
+
+            let error = resolve_multisig(&rpc.client(), vault, 0, None)
+                .await
+                .unwrap_err();
+            assert!(error.to_string().contains(&vault.to_string()), "{error:#}");
+            assert_eq!(rpc.calls().len(), 2);
+        }
+    }
+
+    #[tokio::test]
+    async fn resolved_multisig_must_have_valid_owner_and_data() {
+        let multisig = Pubkey::new_unique();
+        let vault = squads_client::vault_pda(&multisig, 0, None).0;
+        for account in [
+            None,
+            Some(multisig_account(Pubkey::new_unique())),
+            Some(rpc_account(PROGRAM_ID, &[])),
+        ] {
+            let rpc = ResolverRpc::new(vec![
+                account_response(None),
+                program_accounts_response(PROGRAM_ID, &[multisig]),
+                account_response(account),
+            ]);
+
+            assert!(
+                resolve_multisig(&rpc.client(), vault, 0, None)
+                    .await
+                    .is_err()
+            );
+            assert_eq!(rpc.calls().len(), 3);
+        }
+    }
+
+    #[tokio::test]
+    async fn resolver_preserves_rpc_failure() {
+        let rpc = ResolverRpc::new(vec![
+            account_response(None),
+            (
+                RpcRequest::GetProgramAccounts,
+                Err(client_error::ClientError::from(
+                    client_error::ClientErrorKind::Custom("program scan unavailable".to_string()),
+                )),
+            ),
+        ]);
+
+        let error = resolve_multisig(&rpc.client(), Pubkey::new_unique(), 0, None)
+            .await
+            .unwrap_err();
+        assert!(
+            format!("{error:#}").contains("program scan unavailable"),
+            "{error:#}"
+        );
+        assert_eq!(rpc.calls().len(), 2);
     }
 
     // ----- Router orchestration tests (mock RPC) -----
