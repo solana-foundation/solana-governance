@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: deploy-ncn-router-production
@@ -32,8 +31,17 @@ env:
 jobs:
   infrastructure:
     name: Apply infrastructure
+    # Manual production deployments are permitted only from the protected main
+    # branch. Push-triggered deployments are limited by the v* tag trigger.
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    environment: production
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
@@ -118,8 +126,12 @@ jobs:
   deploy:
     name: Build and deploy image
     needs: infrastructure
+    environment: production
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
