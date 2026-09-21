@@ -6,6 +6,10 @@ locals {
     "ncn-router-deployer@${var.project_id}.iam.gserviceaccount.com",
   )
   deployer_member = "serviceAccount:${local.deployer_service_account_email}"
+  startup_script = templatefile("${path.module}/startup.sh.tftpl", {
+    deploy_script_base64 = base64encode(file("${path.module}/scripts/ncn-router-deploy"))
+    domain_name          = var.domain_name
+  })
 
   required_services = toset([
     "artifactregistry.googleapis.com",
@@ -125,6 +129,14 @@ resource "google_project_iam_member" "runtime_log_writer" {
   member  = "serviceAccount:${google_service_account.runtime.email}"
 }
 
+# Bootstrap changes must create a new VM. Google's Compute Engine will
+# update startup metadata in place, but only executes the change during 
+# boot. The static IP is a separate resource and remains attached to 
+#the replacement instance.
+resource "terraform_data" "router_bootstrap" {
+  triggers_replace = [local.startup_script]
+}
+
 resource "google_compute_instance" "router" {
   name         = local.instance_name
   project      = var.project_id
@@ -158,10 +170,11 @@ resource "google_compute_instance" "router" {
     enable-oslogin         = "TRUE"
   }
 
-  metadata_startup_script = templatefile("${path.module}/startup.sh.tftpl", {
-    deploy_script_base64 = base64encode(file("${path.module}/scripts/ncn-router-deploy"))
-    domain_name          = var.domain_name
-  })
+  metadata_startup_script = local.startup_script
+
+  lifecycle {
+    replace_triggered_by = [terraform_data.router_bootstrap]
+  }
 
   service_account {
     email  = google_service_account.runtime.email
