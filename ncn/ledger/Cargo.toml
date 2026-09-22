@@ -2,27 +2,28 @@
 name = "ncn-ledger"
 version = "0.6.0-40200"
 edition = "2021"
+rust-version = "1.97.1"
 description = "Ledger replay and snapshot loading helpers for the Solana governance NCN"
 license = "Apache-2.0"
 repository = "https://github.com/solana-foundation/solana-governance"
 
 [dependencies]
-agave-snapshots               = { version = "=4.2.0", features = ["agave-unstable-api"] }
-solana-accounts-db            = { version = "=4.2.0", features = ["agave-unstable-api"] }
-solana-runtime                = { version = "=4.2.0", features = ["agave-unstable-api"] }
-solana-ledger                 = { version = "=4.2.0", features = ["agave-unstable-api"] }
-solana-rpc                    = { version = "=4.2.0", features = ["agave-unstable-api"] }
-solana-geyser-plugin-manager  = { version = "=4.2.0", features = ["agave-unstable-api"] }
-solana-unified-scheduler-pool = { version = "=4.2.0", features = ["agave-unstable-api"] }
-solana-genesis-utils          = { version = "=4.2.0", features = ["agave-unstable-api"] }
-solana-measure                = { version = "=4.2.0", features = ["agave-unstable-api"] }
-solana-clap-utils             = { version = "=4.2.0", features = ["agave-unstable-api"] }
+agave-snapshots               = { version = "=4.3.0", features = ["agave-unstable-api"] }
+solana-accounts-db            = { version = "=4.3.0", features = ["agave-unstable-api"] }
+solana-runtime                = { version = "=4.3.0", features = ["agave-unstable-api"] }
+solana-ledger                 = { version = "=4.3.0", features = ["agave-unstable-api"] }
+solana-rpc                    = { version = "=4.3.0", features = ["agave-unstable-api"] }
+solana-geyser-plugin-manager  = { version = "=4.3.0", features = ["agave-unstable-api"] }
+solana-unified-scheduler-pool = { version = "=4.3.0", features = ["agave-unstable-api"] }
+solana-genesis-utils          = { version = "=4.3.0", features = ["agave-unstable-api"] }
+solana-measure                = { version = "=4.3.0", features = ["agave-unstable-api"] }
+solana-clap-utils             = { version = "=4.3.0", features = ["agave-unstable-api"] }
 solana-genesis-config         = "4.0.0"
-solana-metrics                = "=4.2.0"
+solana-metrics                = "=4.3.0"
 solana-program = { version = "4.0.0", default-features = false, features = [] }
 solana-sdk = "=4.0.1"
 solana-shred-version = "=3.0.1"
-solana-stake-interface = { version = "=4.3.0", features = ["sysvar", "serde"] }
+solana-stake-interface = { version = "=4.4.0", features = ["sysvar", "serde"] }
 clap_old = { package = "clap", version = "2.33.1" }
 crossbeam-channel = "0.5.15"
 libc = "0.2"
