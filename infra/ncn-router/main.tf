@@ -223,6 +223,12 @@ resource "google_compute_instance_iam_member" "deployer_instance_admin" {
   instance_name = google_compute_instance.router.name
   role          = "roles/compute.instanceAdmin.v1"
   member        = local.deployer_member
+
+  # Instance IAM policies are deleted with the VM. Recreate this binding when
+  # a bootstrap change replaces the otherwise identically named instance.
+  lifecycle {
+    replace_triggered_by = [google_compute_instance.router]
+  }
 }
 
 resource "google_iap_tunnel_instance_iam_member" "deployer_iap_ssh" {
@@ -236,6 +242,11 @@ resource "google_iap_tunnel_instance_iam_member" "deployer_iap_ssh" {
     title       = "ssh-only"
     description = "Permit IAP TCP forwarding only to SSH."
     expression  = "destination.port == 22"
+  }
+
+  # The instance-scoped IAP policy must follow VM replacement too.
+  lifecycle {
+    replace_triggered_by = [google_compute_instance.router]
   }
 }
 

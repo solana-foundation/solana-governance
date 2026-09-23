@@ -90,8 +90,8 @@ jobs:
       - name: Apply saved plan
         run: terraform -chdir="$TF_ROOT" apply -input=false -auto-approve "$RUNNER_TEMP/ncn-router.tfplan"
 
-      - name: Verify idempotent second apply
-        run: terraform -chdir="$TF_ROOT" apply -input=false -auto-approve
+      - name: Verify no drift after apply
+        run: terraform -chdir="$TF_ROOT" plan -input=false -detailed-exitcode
 
       - name: Verify CI project-role boundaries
         run: |

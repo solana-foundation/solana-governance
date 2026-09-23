@@ -123,8 +123,9 @@ just ncn-router-tf-apply
 `ncn-router-tf-plan` saves `/tmp/ncn-router.tfplan`. Override the bucket or plan path with
 `NCN_ROUTER_TF_STATE_BUCKET` and `NCN_ROUTER_TF_PLAN`.
 
-CI performs the same initialization, formatting, validation, saved plan/apply, and a second
-idempotency apply before the deployment job starts. It then fails if either CI identity has
+CI performs the same initialization, formatting, validation, and saved plan/apply before the
+deployment job starts. It then runs `terraform plan -detailed-exitcode` and fails if any drift
+remains. It also fails if either CI identity has
 `Editor`, `Owner`, `Storage Admin`, or IAP Admin, or if the deployer has any project-level role
 other than OS Admin Login.
 
