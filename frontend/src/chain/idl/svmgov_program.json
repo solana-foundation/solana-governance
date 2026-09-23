@@ -1955,6 +1955,21 @@
       "code": 6059,
       "name": "NewProposalsNotAllowed",
       "msg": "New proposals are not allowed at this time"
+    },
+    {
+      "code": 6060,
+      "name": "SnapshotSlotNotBeforeVotingStart",
+      "msg": "Snapshot slot must be strictly before the voting start slot"
+    },
+    {
+      "code": 6061,
+      "name": "InvalidSnapshotSlotOffset",
+      "msg": "Snapshot slot offset must remain within the snapshot epoch"
+    },
+    {
+      "code": 6062,
+      "name": "SnapshotWindowTooShort",
+      "msg": "Snapshot slot must leave the minimum required voting window before voting starts"
     }
   ],
   "types": [

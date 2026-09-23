@@ -134,4 +134,10 @@ pub enum GovernanceError {
     SupportAlreadyActivated,
     #[msg("New proposals are not allowed at this time")]
     NewProposalsNotAllowed,
+    #[msg("Snapshot slot must be strictly before the voting start slot")]
+    SnapshotSlotNotBeforeVotingStart,
+    #[msg("Snapshot slot offset must remain within the snapshot epoch")]
+    InvalidSnapshotSlotOffset,
+    #[msg("Snapshot slot must leave the minimum required voting window before voting starts")]
+    SnapshotWindowTooShort,
 }

@@ -553,11 +553,94 @@ pub fn derive_program_config_pda(ballot_program_id: &Pubkey) -> Pubkey {
     pda
 }
 
-pub fn get_epoch_slot_range(epoch: u64) -> (u64, u64) {
-    const SLOTS_PER_EPOCH: u64 = 432_000;
+pub const SLOTS_PER_EPOCH: u64 = 432_000;
 
-    let start_slot = epoch * SLOTS_PER_EPOCH;
-    let end_slot = (epoch + 1) * SLOTS_PER_EPOCH - 1;
+/// Derives the ballot snapshot slot using the same checked schedule as the
+/// on-chain support and retally handlers.
+pub fn proposal_snapshot_slot(
+    current_epoch: u64,
+    current_slot: u64,
+    discussion_epochs: u64,
+    snapshot_epoch_extension: u64,
+    snapshot_slot_offset: i64,
+) -> Result<u64> {
+    validate_snapshot_slot_offset(snapshot_slot_offset)?;
 
-    (start_slot, end_slot)
+    let snapshot_epoch = current_epoch
+        .checked_add(discussion_epochs)
+        .and_then(|epoch| epoch.checked_add(snapshot_epoch_extension))
+        .ok_or_else(|| anyhow!("proposal snapshot epoch overflowed"))?;
+    let voting_start_epoch = snapshot_epoch
+        .checked_add(1)
+        .ok_or_else(|| anyhow!("proposal voting start epoch overflowed"))?;
+    let snapshot_epoch_start = snapshot_epoch
+        .checked_mul(SLOTS_PER_EPOCH)
+        .ok_or_else(|| anyhow!("proposal snapshot slot overflowed"))?;
+    let snapshot_epoch_start = i64::try_from(snapshot_epoch_start)
+        .map_err(|_| anyhow!("proposal snapshot slot exceeds the supported range"))?;
+    let snapshot_slot = snapshot_epoch_start
+        .checked_add(snapshot_slot_offset)
+        .and_then(|slot| u64::try_from(slot).ok())
+        .ok_or_else(|| anyhow!("snapshot slot offset produces an invalid slot"))?;
+
+    if snapshot_slot <= current_slot {
+        return Err(anyhow!(
+            "snapshot slot {snapshot_slot} must be after the current slot {current_slot}"
+        ));
+    }
+
+    let voting_start_slot = voting_start_epoch
+        .checked_mul(SLOTS_PER_EPOCH)
+        .ok_or_else(|| anyhow!("proposal voting start slot overflowed"))?;
+    if voting_start_slot.saturating_sub(snapshot_slot) < ncn_snapshot::MIN_VOTE_EXPIRY_SLOTS {
+        return Err(anyhow!(
+            "snapshot slot must leave at least {} slots before voting starts",
+            ncn_snapshot::MIN_VOTE_EXPIRY_SLOTS
+        ));
+    }
+
+    Ok(snapshot_slot)
+}
+
+/// Validates the configured offset against the NCN ballot's minimum voting
+/// window. Negative offsets remain valid and are checked when a proposal is
+/// activated.
+pub fn validate_snapshot_slot_offset(snapshot_slot_offset: i64) -> Result<()> {
+    let latest = SLOTS_PER_EPOCH
+        .checked_sub(ncn_snapshot::MIN_VOTE_EXPIRY_SLOTS)
+        .ok_or_else(|| anyhow!("minimum NCN voting window exceeds one epoch"))?;
+    if snapshot_slot_offset > latest as i64 {
+        return Err(anyhow!(
+            "snapshot_slot_offset must be at most {latest} to leave {} slots before voting starts",
+            ncn_snapshot::MIN_VOTE_EXPIRY_SLOTS
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod schedule_tests {
+    use super::*;
+
+    #[test]
+    fn proposal_snapshot_slot_matches_program_schedule() {
+        assert_eq!(
+            proposal_snapshot_slot(5, 2_160_100, 2, 1, 1_000).unwrap(),
+            3_457_000
+        );
+    }
+
+    #[test]
+    fn snapshot_offset_accepts_latest_valid_boundary() {
+        let latest = (SLOTS_PER_EPOCH - ncn_snapshot::MIN_VOTE_EXPIRY_SLOTS) as i64;
+        assert!(validate_snapshot_slot_offset(latest).is_ok());
+        assert!(validate_snapshot_slot_offset(latest + 1).is_err());
+    }
+
+    #[test]
+    fn proposal_snapshot_slot_rejects_backdating_and_overflow() {
+        assert!(proposal_snapshot_slot(2, 864_000, 0, 0, 0).is_err());
+        assert!(proposal_snapshot_slot(u64::MAX, 0, 1, 0, 0).is_err());
+        assert!(proposal_snapshot_slot(0, 0, 0, 0, -1).is_err());
+    }
 }

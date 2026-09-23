@@ -112,9 +112,10 @@ struct FlowCtx {
     ballot_box: Address,
     consensus_result: Address,
     snapshot_slot: u64,
+    voting_start_epoch: u64,
     /// Clock values at ballot-box creation (activation of the proposal).
     activation_slot: u64,
-    activation_timestamp: i64,
+    vote_expiry_slot: u64,
     /// Compute units burned by the support that crossed the threshold — the
     /// call that runs the real `init_ballot_box` CPI.
     activation_compute_units: u64,
@@ -126,7 +127,7 @@ struct FlowCtx {
 /// governance program), then drives a proposal through support so the
 /// activation CPI creates the ballot box — the production `init_ballot_box`
 /// path, PDA gate included.
-fn setup_flow(operator_count: usize, vote_duration: i64) -> (Harness, FlowCtx) {
+fn setup_flow(operator_count: usize) -> (Harness, FlowCtx) {
     let mut h = setup_harness(CREATION_EPOCH, 3, 3);
     let mut nonce = 0u32;
 
@@ -172,7 +173,6 @@ fn setup_flow(operator_count: usize, vote_duration: i64) -> (Harness, FlowCtx) {
             None,
             Some(THRESHOLD_BPS),
             Some(&admin.pubkey()),
-            Some(vote_duration),
             None,
         )],
     );
@@ -189,9 +189,18 @@ fn setup_flow(operator_count: usize, vote_duration: i64) -> (Harness, FlowCtx) {
             .unwrap_or_else(|e| panic!("support #{i} failed: {:?}", e.err));
         activation_compute_units = meta.compute_units_consumed;
     }
+    let proposal_account = fetch_proposal(&h.svm, &proposal);
+    assert!(proposal_account.voting, "proposal must activate");
+    let ballot_box_account: BallotBox = fetch_ncn_account(&h.svm, &ballot_box);
+    let expected_vote_expiry_slot = proposal_account.start_epoch * SLOTS_PER_EPOCH;
+    assert_eq!(
+        ballot_box_account.vote_expiry_slot,
+        expected_vote_expiry_slot
+    );
     assert!(
-        fetch_proposal(&h.svm, &proposal).voting,
-        "proposal must activate"
+        expected_vote_expiry_slot.saturating_sub(snapshot_slot)
+            >= ncn_snapshot::MIN_VOTE_EXPIRY_SLOTS,
+        "snapshot must leave NCN the minimum consensus window"
     );
 
     let ctx = FlowCtx {
@@ -200,8 +209,9 @@ fn setup_flow(operator_count: usize, vote_duration: i64) -> (Harness, FlowCtx) {
         ballot_box,
         consensus_result: consensus_result_pda(snapshot_slot),
         snapshot_slot,
+        voting_start_epoch: proposal_account.start_epoch,
         activation_slot: clock.slot,
-        activation_timestamp: clock.unix_timestamp,
+        vote_expiry_slot: expected_vote_expiry_slot,
         activation_compute_units,
         nonce,
     };
@@ -270,7 +280,7 @@ fn program_config_lifecycle() {
     );
     assert!(config.whitelisted_operators.is_empty());
     assert_eq!(config.min_consensus_threshold_bps, 0);
-    assert_eq!(config.vote_duration, 0);
+    assert_eq!(config.reserved, [0; 8]);
     assert_eq!(config.svmgov_program_pubkey, to_pubkey(&svmgov_program_id));
 
     // Add 10 operators.
@@ -375,7 +385,6 @@ fn program_config_lifecycle() {
             Some(&new_authority.pubkey()),
             Some(THRESHOLD_BPS),
             Some(&admin.pubkey()),
-            Some(20),
             Some(&new_svmgov_program_id),
         )],
     );
@@ -387,7 +396,7 @@ fn program_config_lifecycle() {
     );
     assert_eq!(config.tie_breaker_admin, to_pubkey(&admin.pubkey()));
     assert_eq!(config.min_consensus_threshold_bps, THRESHOLD_BPS);
-    assert_eq!(config.vote_duration, 20);
+    assert_eq!(config.reserved, [0; 8]);
     assert_eq!(
         config.svmgov_program_pubkey,
         to_pubkey(&new_svmgov_program_id)
@@ -415,7 +424,6 @@ fn program_config_lifecycle() {
             None,
             None,
             None,
-            None,
         )],
     );
     send(
@@ -436,8 +444,7 @@ fn program_config_lifecycle() {
 
 #[test]
 fn balloting_reaches_consensus_and_finalizes() {
-    const VOTE_DURATION: i64 = 100_000;
-    let (mut h, mut ctx) = setup_flow(8, VOTE_DURATION);
+    let (mut h, mut ctx) = setup_flow(8);
 
     // The CPI-created ballot box snapshots the config at activation.
     let bb = fetch_ballot_box(&h, &ctx);
@@ -450,8 +457,11 @@ fn balloting_reaches_consensus_and_finalizes() {
     assert!(bb.operator_votes.is_empty());
     assert!(bb.ballot_tallies.is_empty());
     assert_eq!(
-        bb.vote_expiry_timestamp,
-        ctx.activation_timestamp + VOTE_DURATION
+        bb.vote_expiry_slot,
+        ctx.voting_start_epoch * SLOTS_PER_EPOCH
+    );
+    assert!(
+        bb.vote_expiry_slot.saturating_sub(bb.snapshot_slot) >= ncn_snapshot::MIN_VOTE_EXPIRY_SLOTS
     );
     let expected_voter_list: Vec<_> = ctx
         .operators
@@ -620,8 +630,7 @@ fn balloting_reaches_consensus_and_finalizes() {
 
 #[test]
 fn tie_breaker_decides_expired_vote() {
-    const VOTE_DURATION: i64 = 1_000;
-    let (mut h, mut ctx) = setup_flow(8, VOTE_DURATION);
+    let (mut h, mut ctx) = setup_flow(8);
     advance_past_snapshot_slot(&mut h);
 
     // Split vote: 2 + 4 of 8 — the best tally is 5000 bps, no consensus.
@@ -637,9 +646,10 @@ fn tie_breaker_decides_expired_vote() {
     assert_eq!(bb.slot_consensus_reached, 0);
     assert_eq!(bb.winning_ballot, Ballot::default());
 
-    // Tie breaking is only allowed after expiry, and only by the admin.
+    // Advancing wall-clock time alone must not expire slot-based voting.
     let admin = ctx.admin.insecure_clone();
     let winning = ballot(222, 222);
+    set_clock_timestamp(&mut h.svm, i64::MAX);
     let ix = set_tie_breaker_ix(&admin.pubkey(), ctx.ballot_box, &winning);
     assert_ncn_err(
         try_send(&mut h, &admin, &mut ctx.nonce, &[ix]),
@@ -653,8 +663,11 @@ fn tie_breaker_decides_expired_vote() {
         anchor_lang::error::ErrorCode::ConstraintHasOne,
     );
 
-    // Expire the vote; the admin may then decide with ANY ballot.
-    set_clock_timestamp(&mut h.svm, ctx.activation_timestamp + VOTE_DURATION + 1);
+    // Expiry is inclusive: at the exact expiry slot the admin may decide with
+    // any ballot.
+    let mut clock = h.svm.get_sysvar::<Clock>();
+    clock.slot = ctx.vote_expiry_slot;
+    h.svm.set_sysvar(&clock);
     let consensus_slot = h.svm.get_sysvar::<Clock>().slot;
     let ix = set_tie_breaker_ix(&admin.pubkey(), ctx.ballot_box, &winning);
     send(&mut h, &admin, &mut ctx.nonce, &[ix]);
@@ -691,8 +704,7 @@ fn tie_breaker_decides_expired_vote() {
 
 #[test]
 fn reset_ballot_box_clears_full_box() {
-    const VOTE_DURATION: i64 = 100_000;
-    let (mut h, mut ctx) = setup_flow(8, VOTE_DURATION);
+    let (mut h, mut ctx) = setup_flow(8);
     advance_past_snapshot_slot(&mut h);
 
     let admin = ctx.admin.insecure_clone();
@@ -743,10 +755,7 @@ fn reset_ballot_box_clears_full_box() {
     assert_eq!(bb.snapshot_slot, ctx.snapshot_slot);
     assert_eq!(bb.slot_consensus_reached, 0);
     assert!(!bb.tie_breaker_consensus);
-    assert_eq!(
-        bb.vote_expiry_timestamp,
-        ctx.activation_timestamp + VOTE_DURATION
-    );
+    assert_eq!(bb.vote_expiry_slot, ctx.vote_expiry_slot);
 }
 
 // ---------------------------------------------------------------------------
@@ -959,7 +968,7 @@ fn meta_merkle_proof_lifecycle() {
 /// against a gate-disabled program artifact ever ending up in target/deploy.
 #[test]
 fn direct_init_ballot_box_without_proposal_pda_rejected() {
-    let (mut h, mut ctx) = setup_flow(1, 1_000);
+    let (mut h, mut ctx) = setup_flow(1);
     let admin = ctx.admin.insecure_clone();
 
     // A fresh snapshot slot in the future, so only the gate can fail.
@@ -968,6 +977,11 @@ fn direct_init_ballot_box_without_proposal_pda_rejected() {
     data.extend(snapshot_slot.to_le_bytes());
     data.extend(7u64.to_le_bytes()); // proposal_seed
     data.extend(h.validators[0].vote.pubkey().to_bytes()); // spl_vote_account
+    data.extend(
+        snapshot_slot
+            .saturating_add(ncn_snapshot::MIN_VOTE_EXPIRY_SLOTS)
+            .to_le_bytes(),
+    ); // vote_expiry_slot
     let ix = Instruction {
         program_id: NCN_SNAPSHOT_PROGRAM_ID,
         accounts: vec![
@@ -996,7 +1010,7 @@ fn direct_init_ballot_box_without_proposal_pda_rejected() {
 /// ballot box and a longer list costs more to serialize.
 #[test_log::test]
 fn activation_cpi_fits_within_the_modelled_compute_limit() {
-    let (_h, ctx) = setup_flow(MAX_OPERATOR_WHITELIST, 100_000);
+    let (_h, ctx) = setup_flow(MAX_OPERATOR_WHITELIST);
 
     // Three supporters in the flow harness, so the activating call re-tallies
     // two prior entries.

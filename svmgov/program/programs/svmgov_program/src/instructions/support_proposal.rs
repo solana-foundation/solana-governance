@@ -13,8 +13,8 @@ use crate::{
     events::ProposalSupported,
     state::{GlobalConfig, Proposal, Support},
     utils::{
-        check_support_window, compute_future_snapshot_slot, min_stake_threshold,
-        proposal_target_epoch, tally_supporter_stakes,
+        check_support_window, compute_future_snapshot_slot, ensure_snapshot_before_voting_start,
+        min_stake_threshold, proposal_snapshot_epoch, tally_supporter_stakes, voting_start_epoch,
     },
 };
 
@@ -226,20 +226,22 @@ pub(crate) fn activate_voting<'info>(
     system_program: &Program<'info, System>,
     clock: &Clock,
 ) -> Result<u64> {
-    let target_epoch = proposal_target_epoch(
+    let snapshot_epoch = proposal_snapshot_epoch(
         clock.epoch,
         global_config.discussion_epochs,
         global_config.snapshot_epoch_extension,
     )?;
+    let voting_start_epoch = voting_start_epoch(snapshot_epoch)?;
     // SECURITY: enforce the future-slot invariant before mutating proposal
     // state. The init_ballot_box CPI below is skipped whenever `ballot_box`
     // already exists, so this re-check prevents a proposal from being bound
     // onto an already-finalized ConsensusResult for a past slot.
     let snapshot_slot = compute_future_snapshot_slot(
-        target_epoch,
+        snapshot_epoch,
         global_config.snapshot_slot_offset,
         clock.slot,
     )?;
+    let vote_expiry_slot = ensure_snapshot_before_voting_start(snapshot_slot, voting_start_epoch)?;
 
     // SECURITY: bind `ballot_box` to the exact PDA implied by the snapshot
     // slot so a caller cannot pass an arbitrary non-empty account to skip
@@ -256,8 +258,10 @@ pub(crate) fn activate_voting<'info>(
 
     // start voting 1 epoch after snapshot
     // checking in any vote or others is start_epoch <= current_epoch < end_epoch
-    proposal.start_epoch = target_epoch + 1;
-    proposal.end_epoch = target_epoch + 1 + global_config.voting_epochs;
+    proposal.start_epoch = voting_start_epoch;
+    proposal.end_epoch = voting_start_epoch
+        .checked_add(global_config.voting_epochs)
+        .ok_or(GovernanceError::ArithmeticOverflow)?;
     proposal.snapshot_slot = snapshot_slot; // 1000 slots into snapshot
 
     let (consensus_result_pda, _) = Pubkey::find_program_address(
@@ -296,6 +300,7 @@ pub(crate) fn activate_voting<'info>(
             snapshot_slot,
             proposal.proposal_seed,
             proposal.vote_account_pubkey,
+            vote_expiry_slot,
         )?;
     }
 

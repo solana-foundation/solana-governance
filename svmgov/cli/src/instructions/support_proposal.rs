@@ -17,7 +17,7 @@ use crate::{
     svmgov_program::client::{accounts, args},
     utils::utils::{
         create_spinner, derive_global_config_pda, derive_program_config_pda, derive_support_pda,
-        fetch_global_config, get_epoch_slot_range, setup_all,
+        fetch_global_config, proposal_snapshot_slot, setup_all,
     },
 };
 
@@ -32,11 +32,13 @@ pub async fn build_support_proposal_instructions(
     let global_config = fetch_global_config(program).await?;
 
     let epoch_info = program.rpc().get_epoch_info().await?;
-    let target_epoch =
-        epoch_info.epoch + global_config.discussion_epochs + global_config.snapshot_epoch_extension;
-
-    let (start_slot, _) = get_epoch_slot_range(target_epoch);
-    let snapshot_slot = ((start_slot as i64) + global_config.snapshot_slot_offset) as u64;
+    let snapshot_slot = proposal_snapshot_slot(
+        epoch_info.epoch,
+        epoch_info.absolute_slot,
+        global_config.discussion_epochs,
+        global_config.snapshot_epoch_extension,
+        global_config.snapshot_slot_offset,
+    )?;
 
     let ballot_box_pda = {
         let seeds = &[b"BallotBox".as_ref(), &snapshot_slot.to_le_bytes()];

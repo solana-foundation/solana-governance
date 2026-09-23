@@ -1488,7 +1488,6 @@ pub fn update_ncn_program_config_ix(
     proposed_authority: Option<&Address>,
     min_consensus_threshold_bps: Option<u16>,
     tie_breaker_admin: Option<&Address>,
-    vote_duration: Option<i64>,
     svmgov_program: Option<&Address>,
 ) -> Instruction {
     let mut data = anchor_discriminator("global", "update_program_config").to_vec();
@@ -1501,13 +1500,6 @@ pub fn update_ncn_program_config_ix(
         }
     }
     encode_opt_pubkey(&mut data, tie_breaker_admin);
-    match vote_duration {
-        None => data.push(0),
-        Some(duration) => {
-            data.push(1);
-            data.extend(duration.to_le_bytes());
-        }
-    }
     encode_opt_pubkey(&mut data, svmgov_program);
     Instruction {
         program_id: NCN_SNAPSHOT_PROGRAM_ID,

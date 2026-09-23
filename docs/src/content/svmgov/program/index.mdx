@@ -190,7 +190,7 @@ One-time initialization. Sets all governance parameters and stores the signer as
 | `discussion_epochs` | `u64` | Epochs of discussion | |
 | `voting_epochs` | `u64` | Epochs for voting | |
 | `snapshot_epoch_extension` | `u64` | Extension epochs before snapshot | |
-| `snapshot_slot_offset` | `i64` | Slot offset from epoch start for the snapshot | |
+| `snapshot_slot_offset` | `i64` | Slot offset from epoch start for the snapshot | ≤ 414,000 |
 
 ---
 
@@ -257,9 +257,9 @@ A validator signals support for a proposal.
 Adds the validator's stake to `proposal.cluster_support_lamports`. When the total crosses the cluster support threshold:
 - Sets `proposal.voting = true`
 - Calculates `snapshot_slot` from the target epoch start slot plus `GlobalConfig.snapshot_slot_offset`
-- Sets `start_epoch` and `end_epoch`
+- Sets `start_epoch` to the epoch after the snapshot and sets `end_epoch` from the voting duration
 - Derives `consensus_result` PDA
-- CPIs to `ncn-snapshot::init_ballot_box`
+- CPIs to `ncn-snapshot::init_ballot_box`, with ballot expiry at the first slot of `start_epoch`
 
 ---
 
