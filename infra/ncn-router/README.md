@@ -160,6 +160,11 @@ Push a `v*` tag or run **Deploy NCN Router** manually. The workflow:
 7. Waits for fresh mainnet and testnet whitelist files, router redirects, and nginx readiness.
 8. Restores the prior digest and runtime files if any readiness check fails.
 
+Docker sends container logs to journald, which is capped at 1 GiB of persistent storage and
+256 MiB of runtime storage. After a successful deployment, the VM also removes unused images
+older than seven days. These limits prevent request logs and old image layers from exhausting
+the 20 GiB boot disk.
+
 Terraform state contains no RPC URLs, certificates, private keys, or application image digest.
 
 ## Verify the first deployment

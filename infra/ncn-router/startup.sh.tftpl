@@ -9,6 +9,19 @@ apt-get install -y --no-install-recommends ca-certificates curl docker.io jq ngi
 apt-get clean
 rm -rf /var/lib/apt/lists/*
 
+install -d -o root -g root -m 0755 /etc/docker /etc/systemd/journald.conf.d
+cat > /etc/docker/daemon.json <<'JSON'
+{
+  "log-driver": "journald"
+}
+JSON
+cat > /etc/systemd/journald.conf.d/ncn-router.conf <<'CONF'
+[Journal]
+SystemMaxUse=1G
+RuntimeMaxUse=256M
+CONF
+systemctl restart systemd-journald.service
+
 if ! getent group 10001 >/dev/null; then
   groupadd --gid 10001 ncnrouter
 fi
@@ -135,7 +148,8 @@ ln -sfn /etc/nginx/sites-available/ncn-router /etc/nginx/sites-enabled/ncn-route
 rm -f /etc/nginx/sites-enabled/default
 
 systemctl daemon-reload
-systemctl enable --now docker.service
+systemctl enable docker.service
+systemctl restart docker.service
 
 if [[ ! -f /etc/ncn-router/deployment.env ]]; then
   systemctl disable --now nginx.service || true
