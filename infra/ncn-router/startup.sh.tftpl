@@ -22,6 +22,26 @@ RuntimeMaxUse=256M
 CONF
 systemctl restart systemd-journald.service
 
+ops_agent_installer=/tmp/add-google-cloud-ops-agent-repo.sh
+curl --fail --silent --show-error --location \
+  --output "$ops_agent_installer" \
+  https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
+bash "$ops_agent_installer" --also-install --version='2.*.*'
+rm -f "$ops_agent_installer"
+install -d -o root -g root -m 0755 /etc/google-cloud-ops-agent
+cat > /etc/google-cloud-ops-agent/config.yaml <<'YAML'
+logging:
+  receivers:
+    ncn_router_journal:
+      type: systemd_journald
+  service:
+    pipelines:
+      ncn_router:
+        receivers: [ncn_router_journal]
+YAML
+systemctl restart google-cloud-ops-agent.service
+systemctl is-active --quiet google-cloud-ops-agent.service
+
 if ! getent group 10001 >/dev/null; then
   groupadd --gid 10001 ncnrouter
 fi

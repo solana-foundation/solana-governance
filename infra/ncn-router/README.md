@@ -165,6 +165,10 @@ Docker sends container logs to journald, which is capped at 1 GiB of persistent 
 older than seven days. These limits prevent request logs and old image layers from exhausting
 the 20 GiB boot disk.
 
+The startup script installs the Google Cloud Ops Agent v2 and forwards journald to Cloud Logging.
+This includes the Docker logs for `ncn-router` and `ncn-meta-cron`; the runtime service account's
+`roles/logging.logWriter` grant authorizes that export.
+
 Terraform state contains no RPC URLs, certificates, private keys, or application image digest.
 
 ## Verify the first deployment
