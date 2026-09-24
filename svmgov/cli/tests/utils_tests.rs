@@ -87,3 +87,51 @@ fn test_cli_error_on_invalid_command() {
         "CLI should fail on invalid command"
     );
 }
+
+#[test]
+fn unsupported_squads_command_is_refused_before_rpc_or_signer_loading() {
+    let output = Command::new(env!("CARGO_BIN_EXE_svmgov"))
+        .args([
+            "finalize-proposal",
+            "--proposal-id",
+            "11111111111111111111111111111111",
+            "--squads",
+            "11111111111111111111111111111111",
+            "--rpc-url",
+            "http://127.0.0.1:1",
+            "--keypair",
+            "/nonexistent/svmgov-test-keypair.json",
+        ])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("no vault transaction was created"),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn local_config_command_does_not_resolve_squads() {
+    let output = Command::new(env!("CARGO_BIN_EXE_svmgov"))
+        .args([
+            "--squads",
+            "11111111111111111111111111111111",
+            "--rpc-url",
+            "http://127.0.0.1:1",
+            "config",
+            "get",
+            "program-id",
+        ])
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("program-id = "));
+}

@@ -9,12 +9,18 @@ Complete reference for all `svmgov` CLI command-line arguments and configuration
 | `--keypair <PATH>` | `-k` | `SVMGOV_KEY` | Path to signer keypair JSON |
 | `--rpc-url <URL>` | `-r` | `SVMGOV_RPC` | Solana RPC endpoint |
 | `--network <NETWORK>` | `-n` | — | Network for verifier/proof fetching; overrides config |
-| `--squads <PUBKEY>` | — | — | Route supported admin transactions through this Squads multisig |
-| `--squads-vault-index <U8>` | — | — | Squads vault index; defaults to `0` |
+| `--squads <PUBKEY>` | — | — | Squads vault address for supported transactions; multisig state addresses are also accepted |
+| `--squads-vault-index <U8>` | — | — | Squads vault index; defaults to `0` and must match the supplied vault |
 | `--squads-memo <TEXT>` | — | — | Optional memo for the Squads vault transaction |
 | `--squads-program-id <PUBKEY>` | — | — | Override the canonical Squads program ID |
 
 **Resolution order:** explicit flags → env vars → config file → built-in defaults
+
+`--squads` accepts the vault address shown in the Squads app. The CLI looks up its
+multisig on the selected RPC and verifies the vault derivation before loading the
+signer. Vault lookup requires an RPC that supports `getProgramAccounts`; it can
+take several seconds on mainnet. Existing multisig state addresses skip the lookup.
+For a sub-account, also supply its index with `--squads-vault-index`.
 
 ## Configuration File
 
