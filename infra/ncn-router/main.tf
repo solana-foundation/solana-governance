@@ -7,8 +7,9 @@ locals {
   )
   deployer_member = "serviceAccount:${local.deployer_service_account_email}"
   startup_script = templatefile("${path.module}/startup.sh.tftpl", {
-    deploy_script_base64 = base64encode(file("${path.module}/scripts/ncn-router-deploy"))
-    domain_name          = var.domain_name
+    cloudflare_origin_pull_ca_base64 = base64encode(file("${path.module}/cloudflare-origin-pull-ca.pem"))
+    deploy_script_base64             = base64encode(file("${path.module}/scripts/ncn-router-deploy"))
+    domain_name                      = var.domain_name
   })
 
   required_services = toset([

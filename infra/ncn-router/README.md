@@ -139,7 +139,10 @@ terraform -chdir=infra/ncn-router output -raw external_ipv4_address
 
 Create a proxied Cloudflare A record for `ncn-governance.solana.com` with that address. Issue a
 Cloudflare Origin CA certificate that covers the hostname, store the PEM certificate and private
-key in Doppler `prd`, and set Cloudflare SSL/TLS encryption mode to **Full (strict)**.
+key in Doppler `prd`, and set Cloudflare SSL/TLS encryption mode to **Full (strict)**. Enable
+**Global Authenticated Origin Pulls** for the zone before deploying: nginx requires Cloudflare's
+client certificate and rejects direct origin traffic. The public Cloudflare Origin Pull CA is
+bundled in this stack; it is distinct from the Origin CA certificate stored in Doppler.
 
 The GCP firewall accepts TCP 443 only from Cloudflare's published IPv4 ranges. It accepts TCP 22
 only from the IAP TCP-forwarding range. The VM exposes no application port directly.
