@@ -933,6 +933,9 @@ fn main() -> Result<()> {
             is_compressed,
         } => {
             let snapshot = MetaMerkleSnapshot::read(read_path.clone(), is_compressed)?;
+            snapshot
+                .ensure_slot(snapshot_slot)
+                .context("refusing to vote with a snapshot generated for a different slot")?;
             info!("Using snapshot for slot {}", snapshot.slot);
 
             let snapshot_hash =
