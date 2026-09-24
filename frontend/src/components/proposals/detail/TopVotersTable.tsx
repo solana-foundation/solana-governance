@@ -28,6 +28,7 @@ import {
   TablePaginationMobile,
 } from "@/components/governance/shared/TablePagination";
 import { cn } from "@/lib/utils";
+import { createTopVotersCsv } from "@/lib/governance/topVotersCsv";
 import type { ProposalRecord } from "@/types";
 
 const DEFAULT_SORTING: SortingState = [{ id: "stakedLamports", desc: true }];
@@ -93,6 +94,25 @@ export default function TopVotersTable({ proposal }: TopVotersTableProps) {
     table.setPageIndex(0);
   };
 
+  const handleDownload = () => {
+    const voters = table
+      .getPrePaginationRowModel()
+      .rows.map((row) => row.original);
+    if (voters.length === 0) return;
+
+    const blob = new Blob([createTopVotersCsv(voters)], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "top-voters.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="glass-card overflow-hidden rounded-3xl border border-white/10">
       <div className="flex flex-col gap-4 border-b border-white/10  px-6 py-5 md:flex-row md:items-center md:justify-between">
@@ -124,6 +144,11 @@ export default function TopVotersTable({ proposal }: TopVotersTableProps) {
             size="icon"
             className="hidden lg:flex bg-transparent text-white"
             aria-label="Download top voters"
+            onClick={handleDownload}
+            disabled={
+              isLoadingVotes ||
+              table.getPrePaginationRowModel().rows.length === 0
+            }
           >
             <Download className="size-4" />
           </AppButton>
