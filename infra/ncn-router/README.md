@@ -171,6 +171,20 @@ This includes the Docker logs for `ncn-router` and `ncn-meta-cron`; the runtime 
 
 Terraform state contains no RPC URLs, certificates, private keys, or application image digest.
 
+## Bootstrap replacement availability
+
+This is a single-VM deployment. Any change to `startup.sh.tftpl`,
+`scripts/ncn-router-deploy`, or another value embedded in the startup script deliberately replaces
+the VM so the bootstrap change runs. That replacement is a planned outage: the replacement boot
+disk has no deployment files, so nginx stays disabled until the workflow deploys a healthy image.
+
+The deployment script's rollback restores files on the current VM only. It cannot recover the
+previous VM or its boot disk after a bootstrap replacement. Schedule bootstrap changes in a
+maintenance window, retain the previous image digest in the workflow summary, and verify a
+replacement can receive both instance-level deployer IAM bindings before relying on this path.
+Moving to a managed instance group or a create-before-destroy rollout with an IP cutover is the
+future path to eliminate this outage.
+
 ## Verify the first deployment
 
 Confirm no broad project roles were granted:
