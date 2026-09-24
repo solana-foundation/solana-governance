@@ -146,7 +146,7 @@ export function StakeAccountVoteProposals({
                   Total:{" "}
                   {
                     formatLamportsDisplay(
-                      voteProposal.voteAccount.stakeAmount?.toNumber() || 0
+                      +(voteProposal.voteAccount.stakeAmount?.toString() ?? 0)
                     ).value
                   }
                 </div>

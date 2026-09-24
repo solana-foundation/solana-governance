@@ -44,7 +44,11 @@ export const getProposalVoteOverrides = async (
     return {
       ...mapped,
       voter: override.account.stakeAccount, // Use stake account as the voter identifier
-      activeStake: mapped.stakeAmount.toNumber() || 0,
+      // `+BN.toString()` rather than `BN.toNumber()`: toNumber throws once a
+      // value needs more than 53 bits (2^53 lamports ~ 9.007M SOL), and single
+      // stake accounts on mainnet already exceed 8.2M SOL. Matches how
+      // getProposals.ts reads the proposal's lamport totals.
+      activeStake: +mapped.stakeAmount.toString() || 0,
       identity: mapped.validator, // Map validator to identity for consistency
       voteTimestamp: mapped.voteOverrideTimestamp, // Map voteOverrideTimestamp to voteTimestamp
     };
