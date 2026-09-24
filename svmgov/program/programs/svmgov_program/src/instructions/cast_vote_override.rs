@@ -263,6 +263,17 @@ impl<'info> CastVoteOverride<'info> {
                 &mut self.validator_vote.data.borrow_mut().as_mut(),
             )?;
 
+            // On this path the override is booked on the validator's Vote and
+            // the cache is never read again. `init_if_needed` still allocated
+            // it above when no pre-vote override existed (total_stake == 0), so
+            // close it again and return the rent to the delegator instead of
+            // leaving an empty, unclosable account behind. A cache populated by
+            // pre-vote overrides (total_stake > 0) is left untouched.
+            if self.vote_override_cache.total_stake == 0 {
+                self.vote_override_cache
+                    .close(self.signer.to_account_info())?;
+            }
+
             // Store override
             self.vote_override.set_inner(VoteOverride {
                 delegator: self.signer.key(),
