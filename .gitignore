@@ -15,6 +15,17 @@ node_modules/
 # Env
 .env
 
+# Terraform
+**/.terraform/
+*.tfplan
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
 admin.json
 
 .surfpool

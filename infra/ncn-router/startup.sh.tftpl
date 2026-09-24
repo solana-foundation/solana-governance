@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export DEBIAN_FRONTEND=noninteractive
+rm -f /run/ncn-router-provisioned
+
+apt-get update
+apt-get install -y --no-install-recommends ca-certificates curl docker.io jq nginx
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+
+install -d -o root -g root -m 0755 /etc/docker /etc/systemd/journald.conf.d
+cat > /etc/docker/daemon.json <<'JSON'
+{
+  "log-driver": "journald"
+}
+JSON
+cat > /etc/systemd/journald.conf.d/ncn-router.conf <<'CONF'
+[Journal]
+SystemMaxUse=1G
+RuntimeMaxUse=256M
+CONF
+systemctl restart systemd-journald.service
+
+ops_agent_installer=/tmp/add-google-cloud-ops-agent-repo.sh
+curl --fail --silent --show-error --location \
+  --output "$ops_agent_installer" \
+  https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
+bash "$ops_agent_installer" --also-install --version='2.*.*'
+rm -f "$ops_agent_installer"
+install -d -o root -g root -m 0755 /etc/google-cloud-ops-agent
+cat > /etc/google-cloud-ops-agent/config.yaml <<'YAML'
+logging:
+  receivers:
+    ncn_router_journal:
+      type: systemd_journald
+  service:
+    pipelines:
+      ncn_router:
+        receivers: [ncn_router_journal]
+YAML
+systemctl restart google-cloud-ops-agent.service
+systemctl is-active --quiet google-cloud-ops-agent.service
+
+if ! getent group 10001 >/dev/null; then
+  groupadd --gid 10001 ncnrouter
+fi
+
+if ! getent passwd 10001 >/dev/null; then
+  useradd \
+    --uid 10001 \
+    --gid 10001 \
+    --home-dir /var/lib/ncn-router \
+    --shell /usr/sbin/nologin \
+    --system \
+    ncnrouter
+fi
+
+install -d -o 10001 -g 10001 -m 0750 /var/lib/ncn-router
+install -d -o root -g root -m 0700 /etc/ncn-router /etc/ncn-router/tls
+printf '%s\n' '${domain_name}' > /etc/ncn-router/domain
+chown root:root /etc/ncn-router/domain
+chmod 0600 /etc/ncn-router/domain
+
+printf '%s' '${cloudflare_origin_pull_ca_base64}' | base64 --decode > /etc/ncn-router/tls/cloudflare-origin-pull-ca.pem
+chown root:root /etc/ncn-router/tls/cloudflare-origin-pull-ca.pem
+chmod 0644 /etc/ncn-router/tls/cloudflare-origin-pull-ca.pem
+
+printf '%s' '${deploy_script_base64}' | base64 --decode > /usr/local/sbin/ncn-router-deploy
+chown root:root /usr/local/sbin/ncn-router-deploy
+chmod 0750 /usr/local/sbin/ncn-router-deploy
+
+cat > /etc/systemd/system/ncn-meta-cron.service <<'UNIT'
+[Unit]
+Description=NCN verifier metadata and whitelist generator
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+ConditionPathExists=/etc/ncn-router/deployment.env
+ConditionPathExists=/etc/ncn-router/runtime.env
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/ncn-router/deployment.env
+ExecStartPre=-/usr/bin/docker rm --force ncn-meta-cron
+ExecStart=/usr/bin/docker run --rm --name ncn-meta-cron --user 10001:10001 --read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m --cap-drop ALL --security-opt no-new-privileges --env-file /etc/ncn-router/runtime.env --volume /var/lib/ncn-router:/var/lib/ncn-router $${NCN_ROUTER_IMAGE} /usr/local/bin/ncn-meta-cron
+ExecStop=/usr/bin/docker stop --time 20 ncn-meta-cron
+Restart=always
+RestartSec=10
+TimeoutStartSec=0
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+cat > /etc/systemd/system/ncn-router.service <<'UNIT'
+[Unit]
+Description=NCN public HTTP router
+After=docker.service ncn-meta-cron.service network-online.target
+Wants=network-online.target ncn-meta-cron.service
+Requires=docker.service
+ConditionPathExists=/etc/ncn-router/deployment.env
+ConditionPathExists=/etc/ncn-router/runtime.env
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/ncn-router/deployment.env
+ExecStartPre=-/usr/bin/docker rm --force ncn-router
+ExecStart=/usr/bin/docker run --rm --name ncn-router --user 10001:10001 --read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m --cap-drop ALL --security-opt no-new-privileges --env-file /etc/ncn-router/runtime.env --publish 127.0.0.1:8080:8080 --volume /var/lib/ncn-router:/var/lib/ncn-router:ro $${NCN_ROUTER_IMAGE} /usr/local/bin/ncn-router
+ExecStop=/usr/bin/docker stop --time 20 ncn-router
+Restart=always
+RestartSec=5
+TimeoutStartSec=0
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+cat > /etc/nginx/sites-available/ncn-router <<'NGINX'
+server {
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    server_name _;
+
+    ssl_certificate /etc/ncn-router/tls/origin.crt;
+    ssl_certificate_key /etc/ncn-router/tls/origin.key;
+    ssl_client_certificate /etc/ncn-router/tls/cloudflare-origin-pull-ca.pem;
+    ssl_verify_client on;
+
+    return 444;
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name ${domain_name};
+
+    ssl_certificate /etc/ncn-router/tls/origin.crt;
+    ssl_certificate_key /etc/ncn-router/tls/origin.key;
+    ssl_client_certificate /etc/ncn-router/tls/cloudflare-origin-pull-ca.pem;
+    ssl_verify_client on;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 'ok\n';
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 65s;
+    }
+}
+NGINX
+
+ln -sfn /etc/nginx/sites-available/ncn-router /etc/nginx/sites-enabled/ncn-router
+rm -f /etc/nginx/sites-enabled/default
+
+systemctl daemon-reload
+systemctl enable docker.service
+systemctl restart docker.service
+
+if [[ ! -f /etc/ncn-router/deployment.env ]]; then
+  systemctl disable --now nginx.service || true
+fi
+
+touch /run/ncn-router-provisioned
