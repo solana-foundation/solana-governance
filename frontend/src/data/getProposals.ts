@@ -7,7 +7,12 @@ import {
   type EpochConstants,
 } from "@/lib/proposals";
 import type { ProposalRecord, RawProposalAccount } from "@/types";
-import { EpochInfo, VoteAccountInfo } from "@solana/web3.js";
+import {
+  Connection,
+  EpochInfo,
+  PublicKey,
+  VoteAccountInfo,
+} from "@solana/web3.js";
 
 export interface RawVoteAccountsData {
   current: VoteAccountInfo[];
@@ -18,9 +23,9 @@ export const getProposals = async (
   endpoint: string,
   filters:
     | {
-      voting?: boolean;
-      finalized?: boolean;
-    }
+        voting?: boolean;
+        finalized?: boolean;
+      }
     | undefined,
   epochInfo: EpochInfo,
   voteAccountsData: RawVoteAccountsData,
@@ -44,6 +49,12 @@ export const getProposals = async (
 
   const currentEpoch = epochInfo.epoch;
 
+  const consensusPending = await getConsensusPending(
+    program.provider.connection,
+    proposalAccs,
+    currentEpoch,
+  );
+
   let data = proposalAccs.map((acc, index) =>
     mapProposalDto(
       acc,
@@ -52,6 +63,7 @@ export const getProposals = async (
       totalStakedLamports,
       epochConstants,
       governanceConfig.clusterSupportPctMinBps,
+      !consensusPending.has(acc.publicKey.toBase58()),
     ),
   );
 
@@ -71,6 +83,73 @@ export const getProposals = async (
   return data;
 };
 
+/**
+ * Proposals store the ConsensusResult PDA as soon as support is reached, but
+ * the account only exists once the NCN has finalized the snapshot ballot;
+ * until then the program rejects every vote. Returns the set of proposal
+ * keys whose ConsensusResult account could not be confirmed to exist.
+ *
+ * Only proposals inside their voting window are checked. A lookup that
+ * still fails after a few retries (RPC error, rate limit) does not block the
+ * whole list; that proposal is reported as pending, since enabling vote
+ * controls without knowing the account exists would only produce failing
+ * transactions, and useProposals keeps polling while any proposal is
+ * pending so the status recovers without a reload.
+ */
+export async function getConsensusPending(
+  connection: Connection,
+  proposalAccs: RawProposalAccount[],
+  currentEpoch: number,
+): Promise<Set<string>> {
+  const candidates = proposalAccs.filter(
+    (acc) =>
+      acc.account.voting &&
+      !acc.account.finalized &&
+      acc.account.consensusResult &&
+      currentEpoch >= acc.account.startEpoch.toNumber() &&
+      currentEpoch < acc.account.endEpoch.toNumber(),
+  );
+  const results = await Promise.allSettled(
+    candidates.map((acc) =>
+      getAccountInfoWithRetry(
+        connection,
+        acc.account.consensusResult as PublicKey,
+      ),
+    ),
+  );
+  return new Set(
+    candidates
+      .filter((_, i) => {
+        const result = results[i];
+        return result.status === "rejected" || result.value === null;
+      })
+      .map((acc) => acc.publicKey.toBase58()),
+  );
+}
+
+const CONSENSUS_LOOKUP_ATTEMPTS = 3;
+const CONSENSUS_LOOKUP_BACKOFF_MS = 500;
+
+async function getAccountInfoWithRetry(
+  connection: Connection,
+  account: PublicKey,
+) {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < CONSENSUS_LOOKUP_ATTEMPTS; attempt++) {
+    if (attempt > 0) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, CONSENSUS_LOOKUP_BACKOFF_MS * attempt),
+      );
+    }
+    try {
+      return await connection.getAccountInfo(account);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
 export function mapProposalDto(
   rawAccount: RawProposalAccount,
   index: number,
@@ -78,6 +157,7 @@ export function mapProposalDto(
   totalStakedLamports: number,
   epochConstants: EpochConstants,
   clusterSupportPctMinBps: number,
+  consensusReached: boolean,
 ): ProposalRecord {
   const raw = rawAccount.account;
   const creationEpoch = raw.creationEpoch.toNumber();
@@ -96,6 +176,7 @@ export function mapProposalDto(
     totalStakedLamports,
     clusterSupportPctMinBps,
     consensusResult,
+    consensusReached,
     finalized,
     voting: raw.voting,
     epochConstants,
@@ -135,6 +216,7 @@ export function mapProposalDto(
     finalized,
 
     consensusResult,
+    consensusReached,
     snapshotSlot: raw.snapshotSlot.toNumber(),
 
     proposalBump: raw.proposalBump,

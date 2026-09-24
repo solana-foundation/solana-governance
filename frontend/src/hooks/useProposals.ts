@@ -6,6 +6,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useEpochInfo } from "./useEpochInfo";
 import { useRawVoteAccounts } from "./useRawVoteAccounts";
 
+const CONSENSUS_PENDING_REFETCH_MS = 30 * 1000;
+
 export const useProposals = (filters?: {
   voting?: boolean;
   finalized?: boolean;
@@ -28,6 +30,13 @@ export const useProposals = (filters?: {
 
   const query = useQuery({
     staleTime: 1000 * 120, // 2 minutes
+    // While a proposal in its voting window is still waiting for the NCN
+    // snapshot consensus (or its lookup failed), poll so the status flips to
+    // "voting" without a reload once the ConsensusResult account appears.
+    refetchInterval: (query) =>
+      query.state.data?.some((proposal) => !proposal.consensusReached)
+        ? CONSENSUS_PENDING_REFETCH_MS
+        : false,
     queryKey: [
       GET_ALL_PROPOSALS,
       endpoint,

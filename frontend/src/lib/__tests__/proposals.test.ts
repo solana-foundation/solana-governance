@@ -41,6 +41,7 @@ describe("getProposalStatus", () => {
     totalStakedLamports,
     clusterSupportPctMinBps,
     consensusResult: undefined,
+    consensusReached: true,
     finalized: false,
     voting: false,
     epochConstants: epochs,
@@ -314,6 +315,40 @@ describe("getProposalStatus", () => {
             finalized: false,
           },
           expected: "finalized" as const,
+        },
+      ],
+    },
+    {
+      describe:
+        "voting phase - ConsensusResult PDA set but account not yet created",
+      testCases: [
+        {
+          description:
+            "should return 'discussion' when voting flag is true and the PDA is set but the NCN has not reached consensus at voting start epoch",
+          params: {
+            currentEpoch: startEpochWhenSupportReached, // epoch 805 - voting start epoch
+            clusterSupportLamports: requiredThresholdLamports,
+            consensusResult: mockConsensusResult,
+            consensusReached: false,
+            voting: true,
+            startEpoch: startEpochWhenSupportReached,
+            endEpoch: endEpochWhenSupportReached,
+          },
+          expected: "discussion" as const,
+        },
+        {
+          description:
+            "should return 'discussion' when voting flag is true and the PDA is set but the NCN has not reached consensus mid-voting window",
+          params: {
+            currentEpoch: endEpochWhenSupportReached - 1, // epoch 808
+            clusterSupportLamports: requiredThresholdLamports,
+            consensusResult: mockConsensusResult,
+            consensusReached: false,
+            voting: true,
+            startEpoch: startEpochWhenSupportReached,
+            endEpoch: endEpochWhenSupportReached,
+          },
+          expected: "discussion" as const,
         },
       ],
     },

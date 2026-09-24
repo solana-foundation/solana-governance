@@ -48,6 +48,12 @@ export type ProposalRecord = {
   finalized: boolean; // Is finalized
 
   consensusResult: PublicKey | undefined;
+  /**
+   * Whether the ConsensusResult account behind `consensusResult` was seen on
+   * chain. False while the NCN has not finalized the snapshot ballot yet (or
+   * the lookup failed), in which case voting is not possible.
+   */
+  consensusReached: boolean;
   snapshotSlot: number;
 
   // Technical
