@@ -163,11 +163,11 @@ for f in "${TARGETS[@]}"; do
   fi
   modified=0
   if [ "$OLD_SVMGOV" != "$NEW_SVMGOV" ] && grep -q "$OLD_SVMGOV" "$f"; then
-    [ "$DRY_RUN" -eq 0 ] && sed -i "s|$OLD_SVMGOV|$NEW_SVMGOV|g" "$f"
+    [ "$DRY_RUN" -eq 0 ] && { tmp=$(mktemp) && sed "s|$OLD_SVMGOV|$NEW_SVMGOV|g" "$f" >"$tmp" && mv "$tmp" "$f"; }
     modified=1
   fi
   if [ "$OLD_NCN" != "$NEW_NCN" ] && grep -q "$OLD_NCN" "$f"; then
-    [ "$DRY_RUN" -eq 0 ] && sed -i "s|$OLD_NCN|$NEW_NCN|g" "$f"
+    [ "$DRY_RUN" -eq 0 ] && { tmp=$(mktemp) && sed "s|$OLD_NCN|$NEW_NCN|g" "$f" >"$tmp" && mv "$tmp" "$f"; }
     modified=1
   fi
   if [ $modified -eq 1 ]; then
