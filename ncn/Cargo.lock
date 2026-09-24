@@ -4813,6 +4813,7 @@ dependencies = [
  "solana-shred-version 3.0.1",
  "solana-stake-interface 4.3.0",
  "solana-unified-scheduler-pool",
+ "tempfile",
  "thiserror 2.0.18",
  "tokio",
 ]
