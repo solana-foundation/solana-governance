@@ -10,9 +10,13 @@ import {
   deriveProposalIndexPda,
   deriveGlobalConfigPda,
   signTransactionForWallet,
+  confirmTransactionByPolling,
 } from "./helpers";
 import { deriveProposalAccount } from "../helpers";
-import { assertValidProposalDocument, assertValidProposalUrl } from "@/lib/github";
+import {
+  assertValidProposalDocument,
+  assertValidProposalUrl,
+} from "@/lib/github";
 
 /**
  * Creates a new governance proposal
@@ -79,15 +83,26 @@ export async function createProposal(
   const transaction = new Transaction();
   transaction.add(proposalInstruction);
   transaction.feePayer = signer;
-  transaction.recentBlockhash = (
-    await program.provider.connection.getLatestBlockhash("confirmed")
-  ).blockhash;
+  const latestBlockhash =
+    await program.provider.connection.getLatestBlockhash("confirmed");
+  transaction.recentBlockhash = latestBlockhash.blockhash;
+  transaction.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
 
   const tx = await signTransactionForWallet(wallet, transaction, signer);
 
   const signature = await program.provider.connection.sendRawTransaction(
     tx.serialize(),
   );
+  const confirmation = await confirmTransactionByPolling(
+    program.provider.connection,
+    signature,
+    latestBlockhash.lastValidBlockHeight,
+  );
+  if (confirmation.value.err) {
+    throw new Error(
+      `Failed to create proposal: ${JSON.stringify(confirmation.value.err)}`,
+    );
+  }
 
   return {
     signature,

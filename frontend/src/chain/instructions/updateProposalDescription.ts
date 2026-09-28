@@ -6,6 +6,7 @@ import {
 } from "./types";
 import {
   createProgramWithWallet,
+  confirmTransactionByPolling,
   deriveGlobalConfigPda,
   signTransactionForWallet,
 } from "./helpers";
@@ -45,12 +46,23 @@ export async function updateProposalDescription(
 
   const transaction = new Transaction().add(instruction);
   transaction.feePayer = signer;
-  transaction.recentBlockhash = (
-    await program.provider.connection.getLatestBlockhash("confirmed")
-  ).blockhash;
+  const latestBlockhash =
+    await program.provider.connection.getLatestBlockhash("confirmed");
+  transaction.recentBlockhash = latestBlockhash.blockhash;
+  transaction.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
   const signed = await signTransactionForWallet(wallet, transaction, signer);
   const signature = await program.provider.connection.sendRawTransaction(
     signed.serialize(),
   );
+  const confirmation = await confirmTransactionByPolling(
+    program.provider.connection,
+    signature,
+    latestBlockhash.lastValidBlockHeight,
+  );
+  if (confirmation.value.err) {
+    throw new Error(
+      `Failed to update proposal document: ${JSON.stringify(confirmation.value.err)}`,
+    );
+  }
   return { signature, success: true };
 }
