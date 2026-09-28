@@ -46,6 +46,7 @@ export function CreateProposalModal({
   /** Keeps the field from turning red while the user is still typing the URL. */
   const [descriptionTouched, setDescriptionTouched] = React.useState(false);
   const [allowUnverified, setAllowUnverified] = React.useState(false);
+  const [canSkipVerification, setCanSkipVerification] = React.useState(false);
 
   const wallet = useAnchorWallet();
   const { mutate: createProposal } = useCreateProposal();
@@ -66,6 +67,7 @@ export function CreateProposalModal({
       setError(undefined);
       setDescriptionTouched(false);
       setAllowUnverified(false);
+      setCanSkipVerification(false);
     }
   }, [isOpen]);
 
@@ -77,7 +79,10 @@ export function CreateProposalModal({
 
   const handleError = (err: Error) => {
     if (err instanceof ProposalDocumentValidationError) {
-      setError(`${err.message} You may explicitly continue without document verification.`);
+      setError(
+        `${err.message} You may explicitly continue without document verification.`,
+      );
+      setCanSkipVerification(true);
       setIsLoading(false);
       return;
     }
@@ -101,6 +106,7 @@ export function CreateProposalModal({
 
     setIsLoading(true);
     setError(undefined);
+    setCanSkipVerification(false);
 
     createProposal(
       {
@@ -124,6 +130,7 @@ export function CreateProposalModal({
     setError(undefined);
     setDescriptionTouched(false);
     setAllowUnverified(false);
+    setCanSkipVerification(false);
     onClose();
   };
 
@@ -187,9 +194,11 @@ export function CreateProposalModal({
                   id="proposal-description"
                   type="url"
                   value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setFormData({ ...formData, description: e.target.value });
+                    setAllowUnverified(false);
+                    setCanSkipVerification(false);
+                  }}
                   onBlur={() => setDescriptionTouched(true)}
                   aria-invalid={
                     showDescriptionIssues && !descriptionValidation.ok
@@ -224,12 +233,14 @@ export function CreateProposalModal({
                       </p>
                     ))}
                 </div>
-                {error?.includes("without document verification") && (
+                {canSkipVerification && (
                   <label className="flex items-center gap-2 text-xs text-white/60">
                     <input
                       type="checkbox"
                       checked={allowUnverified}
-                      onChange={(event) => setAllowUnverified(event.target.checked)}
+                      onChange={(event) =>
+                        setAllowUnverified(event.target.checked)
+                      }
                     />
                     Create without document verification
                   </label>
