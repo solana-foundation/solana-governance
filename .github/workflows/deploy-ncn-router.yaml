@@ -141,16 +141,16 @@ jobs:
           auth-method: oidc
           doppler-identity-id: ${{ vars.DOPPLER_SERVICE_IDENTITY_ID }}
           doppler-project: solana-governance
-          doppler-config: prd
+          doppler-config: prd_ncn_router
           inject-env-vars: true
 
       - name: Validate deployment configuration
         run: |
-          : "${NCN_ROUTER_DEPLOY_SERVICE_ACCOUNT_KEY:?Set NCN_ROUTER_DEPLOY_SERVICE_ACCOUNT_KEY in Doppler prd}"
-          : "${CLOUDFLARE_ORIGIN_CA_CERTIFICATE:?Set CLOUDFLARE_ORIGIN_CA_CERTIFICATE in Doppler prd}"
-          : "${CLOUDFLARE_ORIGIN_CA_PRIVATE_KEY:?Set CLOUDFLARE_ORIGIN_CA_PRIVATE_KEY in Doppler prd}"
-          : "${SOLANA_RPC_URL_MAINNET:?Set SOLANA_RPC_URL_MAINNET in Doppler prd}"
-          : "${SOLANA_RPC_URL_TESTNET:?Set SOLANA_RPC_URL_TESTNET in Doppler prd}"
+          : "${NCN_ROUTER_DEPLOY_SERVICE_ACCOUNT_KEY:?Set NCN_ROUTER_DEPLOY_SERVICE_ACCOUNT_KEY in Doppler prd_ncn_router}"
+          : "${CLOUDFLARE_ORIGIN_CA_CERTIFICATE:?Set CLOUDFLARE_ORIGIN_CA_CERTIFICATE in Doppler prd_ncn_router}"
+          : "${CLOUDFLARE_ORIGIN_CA_PRIVATE_KEY:?Set CLOUDFLARE_ORIGIN_CA_PRIVATE_KEY in Doppler prd_ncn_router}"
+          : "${SOLANA_RPC_URL_MAINNET:?Set SOLANA_RPC_URL_MAINNET in Doppler prd_ncn_router}"
+          : "${SOLANA_RPC_URL_TESTNET:?Set SOLANA_RPC_URL_TESTNET in Doppler prd_ncn_router}"
 
       - name: Authenticate deployment service account
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
