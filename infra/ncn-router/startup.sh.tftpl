@@ -132,6 +132,7 @@ server {
     location = /healthz {
         access_log off;
         add_header Content-Type text/plain;
+        add_header Cache-Control 'no-store';
         return 200 'ok\n';
     }
 
@@ -169,6 +170,7 @@ server {
     location = /healthz {
         access_log off;
         add_header Content-Type text/plain;
+        add_header Cache-Control 'no-store';
         return 200 'ok\n';
     }
 
