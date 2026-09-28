@@ -70,18 +70,18 @@ Use the existing `solana-governance` Doppler project with two production configu
 | Config | Secret |
 |---|---|
 | `prd_infra` | `NCN_ROUTER_TERRAFORM_SERVICE_ACCOUNT_KEY` |
-| `prd` | `NCN_ROUTER_DEPLOY_SERVICE_ACCOUNT_KEY` |
-| `prd` | `CLOUDFLARE_ORIGIN_CA_CERTIFICATE` |
-| `prd` | `CLOUDFLARE_ORIGIN_CA_PRIVATE_KEY` |
-| `prd` | `SOLANA_RPC_URL_MAINNET` |
-| `prd` | `SOLANA_RPC_URL_TESTNET` |
+| `prd_ncn_router` | `NCN_ROUTER_DEPLOY_SERVICE_ACCOUNT_KEY` |
+| `prd_ncn_router` | `CLOUDFLARE_ORIGIN_CA_CERTIFICATE` |
+| `prd_ncn_router` | `CLOUDFLARE_ORIGIN_CA_PRIVATE_KEY` |
+| `prd_ncn_router` | `SOLANA_RPC_URL_MAINNET` |
+| `prd_ncn_router` | `SOLANA_RPC_URL_TESTNET` |
 
 Configure a Doppler service identity to trust GitHub OIDC for this repository. Add its
 non-secret identity ID as the GitHub Actions variable `DOPPLER_SERVICE_IDENTITY_ID`. Do not add
 GCP keys, RPC URLs, or the Origin CA private key to GitHub secrets or variables.
 
 The infrastructure job reads only `prd_infra`. The deployment job runs in a separate runner and
-reads only `prd`.
+reads only `prd_ncn_router`.
 
 ## Bootstrap remote state
 
@@ -95,7 +95,7 @@ just ncn-router-tf-bootstrap
 
 The Justfile runs Terraform through `doppler run` and maps
 `NCN_ROUTER_TERRAFORM_SERVICE_ACCOUNT_KEY` to `GOOGLE_CREDENTIALS` in the child process. It never
-loads the application secrets from `prd` into Terraform.
+loads the application secrets from `prd_ncn_router` into Terraform.
 
 The bucket uses uniform access, public-access prevention, object versioning, 7-day soft delete,
 `deletion_policy = "PREVENT"`, and Terraform `prevent_destroy`. The bootstrap stack grants
@@ -139,7 +139,7 @@ terraform -chdir=infra/ncn-router output -raw external_ipv4_address
 
 Create a proxied Cloudflare A record for `ncn-governance.solana.com` with that address. Issue a
 Cloudflare Origin CA certificate that covers the hostname, store the PEM certificate and private
-key in Doppler `prd`, and set Cloudflare SSL/TLS encryption mode to **Full (strict)**. Enable
+key in Doppler `prd_ncn_router`, and set Cloudflare SSL/TLS encryption mode to **Full (strict)**. Enable
 **Global Authenticated Origin Pulls** for the zone before deploying: nginx requires Cloudflare's
 client certificate and rejects direct origin traffic. The public Cloudflare Origin Pull CA is
 bundled in this stack; it is distinct from the Origin CA certificate stored in Doppler.
