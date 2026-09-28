@@ -101,8 +101,9 @@ const faqEntries: FaqEntry[] = [
             phase begins in the following epoch.
           </li>
           <li>
-            <strong>Review (discussion)</strong> — 7 epochs. The proposal text
-            is frozen at a specific GitHub commit; the community studies it.
+            <strong>Review (discussion)</strong> — 7 epochs. The author may
+            update the proposal&apos;s commit-pinned document as feedback is
+            incorporated. The document is frozen when voting begins.
           </li>
           <li>
             <strong>Snapshot</strong> — 1 epoch. The Node Consensus Network

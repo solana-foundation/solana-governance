@@ -1240,6 +1240,37 @@ export type SvmgovProgram = {
         },
       ];
     },
+    {
+      name: "updateProposalDescription";
+      discriminator: [252, 66, 166, 167, 49, 61, 123, 214];
+      accounts: [
+        {
+          name: "signer";
+          signer: true;
+        },
+        {
+          name: "proposal";
+          writable: true;
+        },
+        {
+          name: "globalConfig";
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [103, 108, 111, 98, 97, 108, 95, 99, 111, 110, 102, 105, 103];
+              },
+            ];
+          };
+        },
+      ];
+      args: [
+        {
+          name: "description";
+          type: "string";
+        },
+      ];
+    },
   ];
   accounts: [
     {
@@ -1287,6 +1318,10 @@ export type SvmgovProgram = {
     {
       name: "proposalCreated";
       discriminator: [186, 8, 160, 108, 81, 13, 51, 206];
+    },
+    {
+      name: "proposalDescriptionUpdated";
+      discriminator: [132, 184, 237, 78, 43, 19, 162, 248];
     },
     {
       name: "proposalFinalized";
@@ -1633,6 +1668,11 @@ export type SvmgovProgram = {
       name: "snapshotWindowTooShort";
       msg: "Snapshot slot must leave the minimum required voting window before voting starts";
     },
+    {
+      code: 6063;
+      name: "unauthorizedProposalUpdate";
+      msg: "Only the original proposal author can update the proposal description";
+    },
   ];
   types: [
     {
@@ -1927,6 +1967,34 @@ export type SvmgovProgram = {
           },
           {
             name: "creationTimestamp";
+            type: "i64";
+          },
+        ];
+      };
+    },
+    {
+      name: "proposalDescriptionUpdated";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "proposalId";
+            type: "pubkey";
+          },
+          {
+            name: "author";
+            type: "pubkey";
+          },
+          {
+            name: "previousDescription";
+            type: "string";
+          },
+          {
+            name: "newDescription";
+            type: "string";
+          },
+          {
+            name: "updateTimestamp";
             type: "i64";
           },
         ];

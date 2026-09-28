@@ -10,6 +10,15 @@ pub struct ProposalCreated {
 }
 
 #[event]
+pub struct ProposalDescriptionUpdated {
+    pub proposal_id: Pubkey,
+    pub author: Pubkey,
+    pub previous_description: String,
+    pub new_description: String,
+    pub update_timestamp: i64,
+}
+
+#[event]
 pub struct ProposalSupported {
     pub proposal_id: Pubkey,
     pub supporter: Pubkey,

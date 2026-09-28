@@ -1,5 +1,6 @@
 // Export all instruction functions
 export { createProposal } from "./createProposal";
+export { updateProposalDescription } from "./updateProposalDescription";
 export { castVote } from "./castVote";
 export { modifyVote } from "./modifyVote";
 export { castVoteOverride } from "./castVoteOverride";

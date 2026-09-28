@@ -16,7 +16,8 @@ use {
 const MAX_TITLE_LEN: usize = 200;
 const MAX_DESCRIPTION_LEN: usize = 500;
 
-const VALID_LINK: &str = "https://github.com/solana-foundation/solana-governance-proposals/blob/commit-sha/proposals/title.md";
+const VALID_LINK: &str = "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/title.md";
+const UPDATED_LINK: &str = "https://github.com/solana-foundation/solana-governance-proposals/blob/0123456789abcdef0123456789abcdef01234567/proposals/renamed.md";
 
 /// One funded validator is all these tests need.
 fn setup() -> Harness {
@@ -146,7 +147,7 @@ fn valid_proposal_accepted() {
 
     // Boundary: title exactly at the cap; valid link to a proposal document.
     let title = "t".repeat(MAX_TITLE_LEN);
-    let description = "https://github.com/solana-foundation/solana-governance-proposals/blob/main/proposals/sgp-0001-title.md";
+    let description = VALID_LINK;
     try_create(&mut h, 1, &title, description).unwrap_or_else(|e| {
         panic!(
             "create_proposal failed: {:#?}\nlogs: {:#?}",
@@ -162,8 +163,11 @@ fn valid_proposal_accepted() {
     assert!(!state.voting);
 
     // Boundary: description exactly at the cap.
-    const PREFIX: &str = "https://github.com/solana-foundation/solana-governance-proposals/";
-    let max_description = format!("{PREFIX}{}", "a".repeat(MAX_DESCRIPTION_LEN - PREFIX.len()));
+    const PREFIX: &str = "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/";
+    let max_description = format!(
+        "{PREFIX}{}.md",
+        "a".repeat(MAX_DESCRIPTION_LEN - PREFIX.len() - 3)
+    );
     assert_eq!(max_description.len(), MAX_DESCRIPTION_LEN);
     try_create(&mut h, 2, "second", &max_description).unwrap_or_else(|e| {
         panic!(
@@ -172,6 +176,155 @@ fn valid_proposal_accepted() {
         )
     });
     assert_eq!(fetch_proposal(&h.svm, &proposal_pda(&h, 2)).index, 2);
+}
+
+#[test]
+fn author_can_update_description_during_support() {
+    let mut h = setup();
+    let proposal = proposal_pda(&h, 1);
+    try_create(&mut h, 1, "title", VALID_LINK).expect("proposal creation must succeed");
+
+    let author = h.validators[0].identity.insecure_clone();
+    send_ix(
+        &mut h.svm,
+        &author,
+        &[update_proposal_description_ix(
+            &author.pubkey(),
+            proposal,
+            h.global_config,
+            UPDATED_LINK,
+        )],
+    );
+
+    assert_eq!(fetch_proposal(&h.svm, &proposal).description, UPDATED_LINK);
+}
+
+#[test]
+fn only_author_can_update_description() {
+    let mut h = setup();
+    let proposal = proposal_pda(&h, 1);
+    try_create(&mut h, 1, "title", VALID_LINK).expect("proposal creation must succeed");
+
+    let err = try_send_ix(
+        &mut h.svm,
+        &h.config_admin,
+        &[update_proposal_description_ix(
+            &h.config_admin.pubkey(),
+            proposal,
+            h.global_config,
+            UPDATED_LINK,
+        )],
+    )
+    .expect_err("non-author must not update proposal description");
+    assert_eq!(
+        err.err,
+        TransactionError::InstructionError(
+            0,
+            anchor_custom_error(GovernanceError::UnauthorizedProposalUpdate)
+        )
+    );
+}
+
+#[test]
+fn description_update_closes_when_voting_starts_and_preserves_supporters() {
+    let mut h = setup();
+    let proposal = proposal_pda(&h, 1);
+    try_create(&mut h, 1, "title", VALID_LINK).expect("proposal creation must succeed");
+
+    let creation_epoch = h.svm.get_sysvar::<solana_clock::Clock>().epoch;
+    let ballot_box = seed_ballot_box(&mut h.svm, expected_snapshot_slot(creation_epoch));
+    support_one(&mut h, proposal, 0, ballot_box);
+    let activated = fetch_proposal(&h.svm, &proposal);
+    assert!(activated.voting);
+    let account_len = h.svm.get_account(&proposal).unwrap().data.len();
+
+    set_clock(&mut h.svm, activated.start_epoch - 1);
+    let author = h.validators[0].identity.insecure_clone();
+    send_ix(
+        &mut h.svm,
+        &author,
+        &[update_proposal_description_ix(
+            &author.pubkey(),
+            proposal,
+            h.global_config,
+            UPDATED_LINK,
+        )],
+    );
+    let updated = fetch_proposal(&h.svm, &proposal);
+    assert_eq!(updated.description, UPDATED_LINK);
+    assert_eq!(updated.supporters, activated.supporters);
+    assert_eq!(
+        h.svm.get_account(&proposal).unwrap().data.len(),
+        account_len
+    );
+
+    set_clock(&mut h.svm, activated.start_epoch);
+    let err = try_send_ix(
+        &mut h.svm,
+        &author,
+        &[update_proposal_description_ix(
+            &author.pubkey(),
+            proposal,
+            h.global_config,
+            VALID_LINK,
+        )],
+    )
+    .expect_err("description must freeze once voting starts");
+    assert_eq!(
+        err.err,
+        TransactionError::InstructionError(
+            0,
+            anchor_custom_error(GovernanceError::CannotModifyAfterStart)
+        )
+    );
+}
+
+#[test]
+fn description_update_reuses_canonical_url_validation_and_support_window() {
+    let mut h = setup();
+    let proposal = proposal_pda(&h, 1);
+    try_create(&mut h, 1, "title", VALID_LINK).expect("proposal creation must succeed");
+    let author = h.validators[0].identity.insecure_clone();
+
+    let err = try_send_ix(
+        &mut h.svm,
+        &author,
+        &[update_proposal_description_ix(
+            &author.pubkey(),
+            proposal,
+            h.global_config,
+            "https://github.com/solana-foundation/solana-governance-proposals/blob/main/proposals/sgp-0001.md",
+        )],
+    )
+    .expect_err("branch refs must be rejected");
+    assert_eq!(
+        err.err,
+        TransactionError::InstructionError(
+            0,
+            anchor_custom_error(GovernanceError::DescriptionInvalid)
+        )
+    );
+
+    let creation_epoch = fetch_proposal(&h.svm, &proposal).creation_epoch;
+    set_clock(&mut h.svm, creation_epoch + MAX_SUPPORT_EPOCHS + 1);
+    let err = try_send_ix(
+        &mut h.svm,
+        &author,
+        &[update_proposal_description_ix(
+            &author.pubkey(),
+            proposal,
+            h.global_config,
+            UPDATED_LINK,
+        )],
+    )
+    .expect_err("unsupported proposals must freeze after support closes");
+    assert_eq!(
+        err.err,
+        TransactionError::InstructionError(
+            0,
+            anchor_custom_error(GovernanceError::SupportPeriodExpired)
+        )
+    );
 }
 
 #[test]
@@ -272,7 +425,7 @@ fn new_proposals_rejected_if_new_proposals_allowed_is_false() {
     // Valid proposal creation should now be rejected.
     {
         let title = "t".repeat(MAX_TITLE_LEN);
-        let description = "https://github.com/solana-foundation/solana-governance-proposals/blob/main/proposals/sgp-0001-title.md";
+        let description = VALID_LINK;
         let err = try_create(&mut h, 1, &title, description)
             .expect_err("proposal should be rejected when new_proposals_allowed is false");
         assert_eq!(
@@ -301,7 +454,7 @@ fn new_proposals_rejected_if_new_proposals_allowed_is_false() {
     // Valid proposal creation should now succeed.
     {
         let title = "x".repeat(MAX_TITLE_LEN);
-        let description = "https://github.com/solana-foundation/solana-governance-proposals/blob/main/proposals/sgp-0001-title.md";
+        let description = VALID_LINK;
         let _ = try_create(&mut h, 1, &title, description)
             .expect("proposal should succeed when new_proposals_allowed is true");
     }

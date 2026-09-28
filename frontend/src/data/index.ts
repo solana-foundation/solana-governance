@@ -19,6 +19,7 @@ export * from "./castVoteOverrideMutation";
 export * from "./modifyVoteOverrideMutation";
 
 export * from "./createProposalMutation";
+export * from "./updateProposalDescriptionMutation";
 export * from "./supportProposalMutation";
 
 export * from "./getVoterWalletSummary";

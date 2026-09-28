@@ -8,6 +8,7 @@ pub mod modify_vote;
 pub mod modify_vote_override;
 pub mod retally_support;
 pub mod support_proposal;
+pub mod update_proposal_description;
 
 pub use cast_vote::cast_vote;
 pub use cast_vote_override::cast_vote_override;
@@ -22,3 +23,4 @@ pub use modify_vote::modify_vote;
 pub use modify_vote_override::modify_vote_override;
 pub use retally_support::retally_support;
 pub use support_proposal::support_proposal;
+pub use update_proposal_description::update_proposal_description;
