@@ -4,7 +4,7 @@ import { makeProposalRef, type ProposalRef } from "./proposalUrl";
  * Frontmatter must open on the very first line. Tolerates CRLF, since GitHub serves whatever
  * line endings the author committed.
  */
-const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---/;
+const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---(?=\r?\n|$)/;
 
 /**
  * One rule covers both repos: SIMDs write `simd: '0022'` and SGPs write `sgp: 0001`.

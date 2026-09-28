@@ -33,10 +33,6 @@ export interface ProposalUrlValidation {
   parsed: ParsedProposalUrl;
   /**
    * The exact string that was validated, and the one that must be sent on chain.
-   *
-   * Validation trims, but the on-chain check requires a literal `https://github.com/` prefix
-   * with no leading whitespace — so submitting the raw input instead would be rejected by the
-   * program after the frontend had already accepted it.
    */
   normalized: string;
 }
@@ -45,7 +41,7 @@ export interface ProposalUrlValidation {
  * Soft mirror of the program's `global_config.max_description_length`. That value is
  * configurable on chain, so this is a client-side courtesy check, not the authority.
  */
-const MAX_DESCRIPTION_BYTES = 500;
+const MAX_DESCRIPTION_BYTES = 200;
 
 const COMMIT_SHA = /^[0-9a-f]{40}$/i;
 
@@ -64,7 +60,7 @@ const ON_CHAIN_PREFIX = "https://github.com/";
  */
 const ON_CHAIN_DISALLOWED_CHAR = /[^A-Za-z0-9\-_./]/;
 
-const ON_CHAIN_MIN_SEGMENTS = 2;
+const ON_CHAIN_MIN_SEGMENTS = 5;
 const ON_CHAIN_MAX_SEGMENTS = 10;
 
 const PULL_REQUEST_MESSAGE = [
@@ -88,12 +84,12 @@ const PULL_REQUEST_MESSAGE = [
 export function validateProposalUrl(url: string): ProposalUrlValidation {
   const errors: ProposalUrlIssue<ProposalUrlErrorCode>[] = [];
   const warnings: ProposalUrlIssue<ProposalUrlWarningCode>[] = [];
-  const trimmed = url?.trim() ?? "";
-  const parsed = parseProposalUrl(trimmed);
+  const value = url ?? "";
+  const parsed = parseProposalUrl(value);
 
   const fail = (code: ProposalUrlErrorCode, message: string) => {
     errors.push({ code, message });
-    return { ok: false, errors, warnings, parsed, normalized: trimmed };
+    return { ok: false, errors, warnings, parsed, normalized: value };
   };
 
   // `parseProposalUrl` distinguishes pull requests and unsupported URL shapes.
@@ -126,21 +122,21 @@ export function validateProposalUrl(url: string): ProposalUrlValidation {
 
   // `parseProposalUrl` is deliberately lenient about the host so that existing
   // on-chain descriptions still render. Creation has to be stricter than that.
-  if (!trimmed.startsWith(ON_CHAIN_PREFIX)) {
+  if (!value.startsWith(ON_CHAIN_PREFIX)) {
     return fail(
       "not-github",
       `The link must start with ${ON_CHAIN_PREFIX} — no "www.", and not raw.githubusercontent.com.`,
     );
   }
 
-  if (!/\.md$/i.test(parsed.fileName)) {
+  if (parsed.fileName.length <= 3 || !/\.md$/i.test(parsed.fileName)) {
     errors.push({
       code: "not-markdown",
       message: "The link must point at a .md file.",
     });
   }
 
-  if (/[?#]/.test(trimmed)) {
+  if (/[?#]/.test(value)) {
     errors.push({
       code: "query-or-fragment",
       message:
@@ -148,7 +144,7 @@ export function validateProposalUrl(url: string): ProposalUrlValidation {
     });
   }
 
-  if (byteLength(trimmed) > MAX_DESCRIPTION_BYTES) {
+  if (byteLength(value) > MAX_DESCRIPTION_BYTES) {
     errors.push({
       code: "too-long",
       message: `The link must be at most ${MAX_DESCRIPTION_BYTES} bytes.`,
@@ -157,7 +153,7 @@ export function validateProposalUrl(url: string): ProposalUrlValidation {
 
   // Re-check the on-chain grammar directly rather than assuming the shape above implies it,
   // so anything accepted here is guaranteed to be accepted by the program.
-  const onChainIssue = describeOnChainViolation(trimmed);
+  const onChainIssue = describeOnChainViolation(value);
   if (onChainIssue) {
     errors.push({ code: "rejected-on-chain", message: onChainIssue });
   }
@@ -187,14 +183,13 @@ export function validateProposalUrl(url: string): ProposalUrlValidation {
     });
   }
 
-  return { ok: errors.length === 0, errors, warnings, parsed, normalized: trimmed };
+  return { ok: errors.length === 0, errors, warnings, parsed, normalized: value };
 }
 
 /**
  * Enforcement backstop for the SDK path; throws with the first error's user-facing message.
  *
- * Returns the normalized URL, which callers must use in place of their raw input so the string
- * that was checked is the string that reaches the program.
+ * Returns the exact URL that was checked so callers submit the same string to the program.
  */
 export function assertValidProposalUrl(url: string): string {
   const { ok, errors, normalized } = validateProposalUrl(url);
@@ -208,7 +203,7 @@ function byteLength(value: string): number {
 
 /** Mirrors `svmgov_program::utils::is_valid_github_link`. */
 function describeOnChainViolation(url: string): string | undefined {
-  const path = url.slice(ON_CHAIN_PREFIX.length).replace(/\/$/, "");
+  const path = url.slice(ON_CHAIN_PREFIX.length);
   const segments = path.split("/");
 
   if (segments.some((segment) => segment === "")) {
@@ -219,8 +214,8 @@ function describeOnChainViolation(url: string): string | undefined {
     return "The link must use the canonical /blob/<commit-sha>/ path; /raw/ is only used internally to fetch document content.";
   }
 
-  if (segments.some((segment) => segment === "..")) {
-    return 'The link contains a ".." path-traversal segment, which the on-chain program rejects.';
+  if (segments.some((segment) => segment === "." || segment === "..")) {
+    return 'The link contains a "." or ".." path segment, which the on-chain program rejects.';
   }
 
   if (

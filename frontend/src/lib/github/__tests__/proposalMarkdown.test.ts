@@ -171,4 +171,11 @@ describe("hasNonEmptyFrontmatter", () => {
     expect(hasNonEmptyFrontmatter("---\n---\n# Title")).toBe(false);
     expect(hasNonEmptyFrontmatter("# Title\n---\nsgp: 1\n---")).toBe(false);
   });
+
+  it("requires exact standalone delimiter lines", () => {
+    expect(hasNonEmptyFrontmatter("---   \nsgp: 1\n---\n# Title")).toBe(false);
+    expect(hasNonEmptyFrontmatter("---\nsgp: 1\n---   \n# Title")).toBe(false);
+    expect(hasNonEmptyFrontmatter("---\nsgp: 1\n---oops\n# Title")).toBe(false);
+    expect(hasNonEmptyFrontmatter("---\nsgp: 1\n----\n# Title")).toBe(false);
+  });
 });

@@ -16,12 +16,12 @@ const PROPOSAL_OWNER: &str = "solana-foundation";
 const PROPOSAL_REPOSITORY: &str = "solana-governance-proposals";
 
 /// Mirrors `svmgov_program::utils::is_valid_github_link`.
-const MIN_PATH_SEGMENTS: usize = 2;
+const MIN_PATH_SEGMENTS: usize = 5;
 const MAX_PATH_SEGMENTS: usize = 10;
 
 /// Soft mirror of `global_config.max_description_length`. That value is configurable on chain,
 /// so this is a client-side courtesy check rather than the authority.
-const MAX_DESCRIPTION_BYTES: usize = 500;
+const MAX_DESCRIPTION_BYTES: usize = 200;
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -97,9 +97,9 @@ pub fn classify_github_link(link: &str) -> GithubLinkKind {
 /// approved repository at a full commit SHA. Rejects pull requests, directory URLs, query
 /// strings, fragments, and any URL that would fail the program's canonical URL grammar.
 pub fn validate_description_structure(description: &str) -> Result<GithubLinkKind> {
-    let link = description.trim();
+    let link = description;
 
-    if link.is_empty() {
+    if link.trim().is_empty() {
         return Err(anyhow!(
             "`--description` must be a GitHub link to the proposal markdown file"
         ));
@@ -107,7 +107,7 @@ pub fn validate_description_structure(description: &str) -> Result<GithubLinkKin
 
     if link.len() > MAX_DESCRIPTION_BYTES {
         return Err(anyhow!(
-            "`--description` is {} bytes; the on-chain limit is {MAX_DESCRIPTION_BYTES}",
+            "`--description` is {} bytes; the configured limit is {MAX_DESCRIPTION_BYTES}",
             link.len()
         ));
     }
@@ -165,7 +165,7 @@ pub fn validate_description_structure(description: &str) -> Result<GithubLinkKin
     }
 
     let file_name = path.rsplit('/').next().unwrap_or_default();
-    if !file_name.to_ascii_lowercase().ends_with(".md") {
+    if file_name.len() <= 3 || !file_name.to_ascii_lowercase().ends_with(".md") {
         return Err(anyhow!(
             "`--description` must link to a .md file\n\n  got: {link}"
         ));
@@ -195,12 +195,10 @@ pub fn validate_description_structure(description: &str) -> Result<GithubLinkKin
 /// Structural validation plus an optional check that the file exists and has
 /// non-empty frontmatter.
 ///
-/// Returns the normalized link, which the caller must submit in place of the raw argument:
-/// validation trims, and the program requires a literal `https://github.com/` prefix, so a
-/// value with surrounding whitespace would be rejected on chain despite passing here.
+/// Returns the exact validated link for submission.
 pub async fn validate_description(description: &str, skip_network: bool) -> Result<String> {
     let kind = validate_description_structure(description)?;
-    let normalized = description.trim().to_string();
+    let normalized = description.to_string();
 
     if skip_network {
         log::debug!("skipping proposal link reachability check");
@@ -274,13 +272,13 @@ async fn check_reachable(raw_url: &str) -> Result<()> {
 /// document's first line and is closed by a standalone delimiter.
 pub fn has_nonempty_frontmatter(markdown: &str) -> bool {
     let mut lines = markdown.lines();
-    if lines.next().map(str::trim_end) != Some("---") {
+    if lines.next() != Some("---") {
         return false;
     }
 
     let mut non_empty = false;
     for line in lines {
-        if line.trim_end() == "---" {
+        if line == "---" {
             return non_empty;
         }
         non_empty |= !line.trim().is_empty();
@@ -290,7 +288,7 @@ pub fn has_nonempty_frontmatter(markdown: &str) -> bool {
 
 /// Proves the claim in this module's docs: anything accepted here is accepted on chain.
 fn assert_on_chain_compatible(link: &str) -> Result<()> {
-    let path = link.trim_start_matches(GITHUB_PREFIX).trim_end_matches('/');
+    let path = link.strip_prefix(GITHUB_PREFIX).unwrap_or_default();
     let segments: Vec<&str> = path.split('/').collect();
 
     if segments.get(0) != Some(&PROPOSAL_OWNER) || segments.get(1) != Some(&PROPOSAL_REPOSITORY) {
@@ -311,9 +309,12 @@ fn assert_on_chain_compatible(link: &str) -> Result<()> {
         ));
     }
 
-    if segments.iter().any(|segment| *segment == "..") {
+    if segments
+        .iter()
+        .any(|segment| matches!(*segment, "." | ".."))
+    {
         return Err(anyhow!(
-            "`--description` contains a `..` path-traversal segment, which the on-chain program rejects\n\n  got: {link}"
+            "`--description` contains a `.` or `..` path segment, which the on-chain program rejects\n\n  got: {link}"
         ));
     }
 
@@ -439,8 +440,39 @@ mod tests {
                 "should accept {link}"
             );
         }
-        // Surrounding whitespace is tolerated.
-        assert!(validate_description_structure(&format!("  {SGP_FILE}  ")).is_ok());
+    }
+
+    #[test]
+    fn shared_program_url_validation_fixture() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../test-fixtures/proposal-url-validation.json"
+        )))
+        .expect("shared proposal URL fixture must be valid JSON");
+
+        for case in fixture["valid"]
+            .as_array()
+            .expect("valid cases must be an array")
+        {
+            let name = case["name"].as_str().expect("case name must be a string");
+            let url = case["url"].as_str().expect("case URL must be a string");
+            assert!(
+                validate_description_structure(url).is_ok(),
+                "shared fixture should accept {name}: {url}"
+            );
+        }
+
+        for case in fixture["invalid"]
+            .as_array()
+            .expect("invalid cases must be an array")
+        {
+            let name = case["name"].as_str().expect("case name must be a string");
+            let url = case["url"].as_str().expect("case URL must be a string");
+            assert!(
+                validate_description_structure(url).is_err(),
+                "shared fixture should reject {name}: {url}"
+            );
+        }
     }
 
     #[test]
@@ -518,7 +550,7 @@ mod tests {
         let error = validate_description_structure(&link)
             .unwrap_err()
             .to_string();
-        assert!(error.contains("on-chain limit"), "got: {error}");
+        assert!(error.contains("configured limit"), "got: {error}");
     }
 
     #[test]
@@ -528,7 +560,9 @@ mod tests {
             "https://github.com/solana-foundation/solana-governance-proposals/blob/main/proposals/sgp-0001-café.md",
             "https://github.com/solana-foundation/solana-governance-proposals/blob/main/proposals/sgp-0001-测试.md",
         ] {
-            let error = validate_description_structure(link).unwrap_err().to_string();
+            let error = validate_description_structure(link)
+                .unwrap_err()
+                .to_string();
             assert!(error.contains("on-chain program rejects"), "got: {error}");
         }
     }
@@ -601,14 +635,11 @@ mod tests {
         assert_eq!(proposal_number("0001abc.md"), None);
     }
 
-    /// The program requires a literal `https://github.com/` prefix, so submitting the raw
-    /// argument after validating its trimmed form would be rejected on chain despite the CLI
-    /// having accepted it. Callers must submit what `validate_description` returns.
     #[tokio::test]
-    async fn returns_the_trimmed_link_for_submission() {
-        let normalized = validate_description(&format!("\n  {SGP_FILE}\t "), true)
+    async fn returns_the_exact_validated_link_for_submission() {
+        let normalized = validate_description(SGP_FILE, true)
             .await
-            .expect("should accept a link with surrounding whitespace");
+            .expect("should accept the canonical link");
         assert_eq!(normalized, SGP_FILE);
     }
 
@@ -621,10 +652,18 @@ mod tests {
 
     #[test]
     fn detects_nonempty_frontmatter() {
-        assert!(has_nonempty_frontmatter("---\r\nsgp: 0001\r\n---\r\n# Title"));
+        assert!(has_nonempty_frontmatter(
+            "---\r\nsgp: 0001\r\n---\r\n# Title"
+        ));
         assert!(!has_nonempty_frontmatter("# Title\n---\nsgp: 0001\n---"));
         assert!(!has_nonempty_frontmatter("---\n---\n# Title"));
         assert!(!has_nonempty_frontmatter("---\nsgp: 0001\n# Title"));
+        assert!(!has_nonempty_frontmatter("---   \nsgp: 0001\n---\n# Title"));
+        assert!(!has_nonempty_frontmatter("---\nsgp: 0001\n---   \n# Title"));
+        assert!(!has_nonempty_frontmatter(
+            "---\nsgp: 0001\n---oops\n# Title"
+        ));
+        assert!(!has_nonempty_frontmatter("---\nsgp: 0001\n----\n# Title"));
     }
 
     #[test]
@@ -649,6 +688,6 @@ mod tests {
         )
         .unwrap_err()
         .to_string();
-        assert!(error.contains("path-traversal"), "got: {error}");
+        assert!(error.contains("path segment"), "got: {error}");
     }
 }

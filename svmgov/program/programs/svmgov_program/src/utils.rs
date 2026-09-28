@@ -363,6 +363,39 @@ mod tests {
         }
     }
 
+    #[test]
+    fn github_link_matches_shared_validation_fixture() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../test-fixtures/proposal-url-validation.json"
+        )))
+        .expect("shared proposal URL fixture must be valid JSON");
+
+        for case in fixture["valid"]
+            .as_array()
+            .expect("valid cases must be an array")
+        {
+            let name = case["name"].as_str().expect("case name must be a string");
+            let url = case["url"].as_str().expect("case URL must be a string");
+            assert!(
+                is_valid_github_link(url),
+                "shared fixture should accept {name}: {url}"
+            );
+        }
+
+        for case in fixture["invalid"]
+            .as_array()
+            .expect("invalid cases must be an array")
+        {
+            let name = case["name"].as_str().expect("case name must be a string");
+            let url = case["url"].as_str().expect("case URL must be a string");
+            assert!(
+                !is_valid_github_link(url),
+                "shared fixture should reject {name}: {url}"
+            );
+        }
+    }
+
     // --- check_support_window ---
 
     #[test]

@@ -1,4 +1,5 @@
 import { SGP_REPO, SIMD_REPO } from "../proposalUrl";
+import validationFixture from "../../../../../test-fixtures/proposal-url-validation.json";
 import {
   assertValidProposalUrl,
   validateProposalUrl,
@@ -17,27 +18,32 @@ describe("validateProposalUrl - accepted", () => {
     expect(result.warnings).toEqual([]);
   });
 
-  it("trims surrounding whitespace", () => {
-    expect(validateProposalUrl(`  ${VALID_SGP}  `).ok).toBe(true);
+  it("rejects surrounding whitespace like the program", () => {
+    expect(validateProposalUrl(`  ${VALID_SGP}  `).ok).toBe(false);
   });
 });
 
-// The on-chain check requires a literal https://github.com/ prefix, so submitting the raw
-// input after validating its trimmed form would be rejected by the program despite the
-// frontend having accepted it. Callers must send `normalized`.
 describe("validateProposalUrl - normalization", () => {
-  it("returns the trimmed URL as the value to submit", () => {
-    expect(validateProposalUrl(`\n  ${VALID_SGP}\t `).normalized).toBe(
-      VALID_SGP,
-    );
+  it("returns the exact validated URL as the value to submit", () => {
+    expect(validateProposalUrl(VALID_SGP).normalized).toBe(VALID_SGP);
   });
 
   it("returns the normalized URL from the assert helper", () => {
-    expect(assertValidProposalUrl(`  ${VALID_SGP}  `)).toBe(VALID_SGP);
+    expect(assertValidProposalUrl(VALID_SGP)).toBe(VALID_SGP);
   });
 
-  it("normalizes even when validation fails, so errors can quote the real value", () => {
-    expect(validateProposalUrl("  not a url  ").normalized).toBe("not a url");
+  it("preserves invalid input so errors can quote the submitted value", () => {
+    expect(validateProposalUrl("  not a url  ").normalized).toBe("  not a url  ");
+  });
+});
+
+describe("validateProposalUrl - shared program fixture", () => {
+  it.each(validationFixture.valid)("accepts $name", ({ url }) => {
+    expect(validateProposalUrl(url).ok).toBe(true);
+  });
+
+  it.each(validationFixture.invalid)("rejects $name", ({ url }) => {
+    expect(validateProposalUrl(url).ok).toBe(false);
   });
 });
 
@@ -116,7 +122,7 @@ describe("validateProposalUrl - rejected", () => {
   });
 
   it("rejects a link longer than the on-chain description limit", () => {
-    const url = `https://github.com/${SGP_REPO}/blob/main/proposals/${"a".repeat(500)}/sgp-0001-x.md`;
+    const url = `https://github.com/${SGP_REPO}/blob/main/proposals/${"a".repeat(200)}/sgp-0001-x.md`;
     expect(codes(validateProposalUrl(url).errors)).toContain("too-long");
   });
 
