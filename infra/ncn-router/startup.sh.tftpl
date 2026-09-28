@@ -120,6 +120,27 @@ UNIT
 
 cat > /etc/nginx/sites-available/ncn-router <<'NGINX'
 server {
+    # Client verification is connection-level. Keep the deployment health
+    # probe on a TLS listener that cannot be reached off the VM.
+    listen 127.0.0.1:8443 ssl;
+    server_name localhost;
+
+    ssl_certificate /etc/ncn-router/tls/origin.crt;
+    ssl_certificate_key /etc/ncn-router/tls/origin.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 'ok\n';
+    }
+
+    location / {
+        return 444;
+    }
+}
+
+server {
     listen 443 ssl default_server;
     listen [::]:443 ssl default_server;
     server_name _;
