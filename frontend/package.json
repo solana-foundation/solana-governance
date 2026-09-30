@@ -84,7 +84,9 @@
     "overrides": {
       "protobufjs": "^7.5.5",
       "brace-expansion@<1.1.20": "^1.1.20",
-      "brace-expansion@>=2.0.0 <2.1.6": "^2.1.6"
+      "brace-expansion@>=2.0.0 <2.1.6": "^2.1.6",
+      "js-yaml@>=3.0.0 <3.15.2": "^3.15.2",
+      "js-yaml@>=4.0.0 <4.3.2": "^4.3.2"
     }
   },
   "packageManager": "pnpm@9.0.6+sha1.648f6014eb363abb36618f2ba59282a9eeb3e879"
