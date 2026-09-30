@@ -5,6 +5,7 @@
 name = "ncn-cli"
 version = "0.6.0-40200"
 edition = "2021"
+rust-version = "1.97.1"
 description = "CLI for the Solana governance NCN: ledger replay, stake snapshots, merkle tree generation and vote verification"
 license = "Apache-2.0"
 repository = "https://github.com/solana-foundation/solana-governance"
@@ -24,13 +25,13 @@ anchor-client = "0.31.1"
 clap = { version = "4", features = ["derive", "env"] }
 ncn-ledger = { path = "../ledger", version = "0.6.0-40200" }
 ncn-merkle-tree = { path = "../merkle-tree", version = "0.6.0-40200" }
-solana-accounts-db            = { version = "=4.2.0", features = ["agave-unstable-api"] }
-solana-runtime                = { version = "=4.2.0", features = ["agave-unstable-api"] }
-solana-vote                   = { version = "=4.2.0", features = ["agave-unstable-api"] }
-solana-vote-program           = { version = "=4.2.0", default-features = false, features = ["agave-unstable-api"] }
+solana-accounts-db            = { version = "=4.3.0", features = ["agave-unstable-api"] }
+solana-runtime                = { version = "=4.3.0", features = ["agave-unstable-api"] }
+solana-vote                   = { version = "=4.3.0", features = ["agave-unstable-api"] }
+solana-vote-program           = { version = "=4.3.0", default-features = false, features = ["agave-unstable-api"] }
 solana-program = { version = "4.0.0", default-features = false, features = [] }
 solana-sdk = "=4.0.1"
-solana-stake-interface = { version = "=4.3.0", features = ["sysvar", "serde"] }
+solana-stake-interface = { version = "=4.4.0", features = ["sysvar", "serde"] }
 bincode = "1.3"
 anchor-lang = "0.31.1"
 log = "0.4.22"
@@ -46,4 +47,5 @@ spl-stake-pool = { version = "2.0.0", default-features = false, features = ["no-
 borsh_stake = { package = "borsh", version = "1.5", default-features = false }
 
 [dev-dependencies]
+agave-snapshots = { version = "=4.3.0", features = ["agave-unstable-api"] }
 tempfile = "3"
