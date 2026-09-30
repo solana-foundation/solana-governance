@@ -1,10 +1,6 @@
 use {
     agave_snapshots::{
-        paths::{full_snapshot_archives_iter, incremental_snapshot_archives_iter},
-        snapshot_archive_info::{
-            FullSnapshotArchiveInfo, IncrementalSnapshotArchiveInfo, SnapshotArchiveInfoGetter,
-        },
-        snapshot_config::SnapshotConfig,
+        snapshot_archive_info::SnapshotArchiveInfoGetter, snapshot_config::SnapshotConfig,
         snapshot_hash::StartingSnapshotHashes,
     },
     clap_old::ArgMatches,
@@ -54,6 +50,8 @@ use {
     },
     thiserror::Error,
 };
+
+use super::snapshot_selection::{select_snapshot_archives, SelectedSnapshots};
 
 pub const LEDGER_TOOL_DIRECTORY: &str = "ledger_tool";
 
@@ -151,21 +149,26 @@ pub fn load_and_process_ledger(
     // Here we configure the SnapshotConfig. It uses the directories the operator has passed in to
     // find the best full and incremental snapshot files to use for a desired slot. TipRouter
     // operators Directories often use different directories than their RPC node's.
+    //
+    // The chosen archives are staged into their own directory so that anything else sitting in the
+    // operator's snapshot directory cannot be picked up by the loader further down.
     let (snapshot_config, starting_slot) = {
         let full_snapshot_archives_dir =
             snapshot_archive_path.unwrap_or_else(|| blockstore.ledger_path().to_path_buf());
         let incremental_snapshot_archives_dir =
             incremental_snapshot_archive_path.unwrap_or_else(|| full_snapshot_archives_dir.clone());
 
-        let selected_full_snapshot_archive: Option<FullSnapshotArchiveInfo> =
-            full_snapshot_archives_iter(&full_snapshot_archives_dir)
-                .filter(|archive| {
-                    snapshot_halt_at_slot.is_none_or(|max_slot| archive.slot() <= max_slot)
-                })
-                .max_by_key(|archive| archive.slot());
+        let selected = select_snapshot_archives(
+            &full_snapshot_archives_dir,
+            &incremental_snapshot_archives_dir,
+            snapshot_halt_at_slot,
+        );
 
-        let selected_full_snapshot_archive = match selected_full_snapshot_archive {
-            Some(selected_full_snapshot_archive) => selected_full_snapshot_archive,
+        let SelectedSnapshots {
+            full: selected_full_snapshot_archive,
+            incremental: selected_incremental_snapshot_archive,
+        } = match selected {
+            Some(selected) => selected,
             None => {
                 return Err(if let Some(halt_slot) = snapshot_halt_at_slot {
                     LoadAndProcessLedgerError::NoSnapshotAtOrBeforeHaltSlot {
@@ -179,14 +182,6 @@ pub fn load_and_process_ledger(
                 });
             }
         };
-
-        let selected_incremental_snapshot_archive: Option<IncrementalSnapshotArchiveInfo> =
-            incremental_snapshot_archives_iter(&incremental_snapshot_archives_dir)
-                .filter(|archive| archive.base_slot() == selected_full_snapshot_archive.slot())
-                .filter(|archive| {
-                    snapshot_halt_at_slot.is_none_or(|max_slot| archive.slot() <= max_slot)
-                })
-                .max_by_key(|archive| archive.slot());
 
         let starting_slot = std::cmp::max(
             selected_full_snapshot_archive.slot(),

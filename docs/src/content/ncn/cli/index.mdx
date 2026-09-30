@@ -122,6 +122,7 @@ Budget roughly **350GB free** for a mainnet run: a ~118GB full-snapshot copy, ~9
 | `unexpected argument '--allow-dead-slots'` | `agave-ledger-tool` is older than the validator | Rebuild the ledger-tool from the validator's own source tree (`--manifest-path dev-bins/Cargo.toml`) and pass it via `--agave-ledger-tool-path` |
 | `Missing snapshot at slot <X>` right after `Extracting genesis.tar.bz2` | genesis files missing from `--backup-ledger-dir` | Copy `genesis.tar.bz2` + `genesis.bin` from the live ledger dir and re-run |
 | `Missing snapshot at slot <X>` with `Blockstore missing data to replay` above it | blockstore no longer covers the slot range | Pick a target inside the retained window, or recover via `snapshot-slot` while the blocks are still present |
+| `Blockstore missing data to replay to slot <X>` when the ledger does cover the target | the replay base and the copied ledger range disagree | Check the `Selected full snapshot` log line. It names the archives the replay starts from, and both must sit inside the copied range |
 | `generate-meta-merkle` fails instantly with `Missing snapshot at slot <X>` | no exact-slot snapshot in `--backup-snapshots-dir` | See **Full-snapshot lookup** below — produce one with `snapshot-slot`, or run the full `await-snapshot` flow |
 | `await-snapshot` polls forever | no retained incremental covers the target | See **Recovery** above |
 | The final error line looks unrelated | the causal error is usually 2-4 lines earlier in the log | Read upward — error propagation was improved by #125 |
@@ -180,6 +181,8 @@ Waits for a target slot to pass and snapshots it from on-disk snapshots. Polls `
 >
 > Always create a **new backup directory** for `--backup-snapshots-dir`.  
 > Do **not** point it to the source snapshots directory (for example, do not reuse `/mnt/snapshots`).
+
+The replay starts from the full and incremental snapshot pair that reaches closest to `--slot`. Snapshots left in `--backup-snapshots-dir` by earlier runs, including the snapshots this command writes itself, are ranked the same way and cannot pull the start slot backwards. The `Selected full snapshot` line in the log names the pair that was chosen.
 
 #### Initial setup (once)
 

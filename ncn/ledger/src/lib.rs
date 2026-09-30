@@ -12,6 +12,7 @@ pub mod arg_matches;
 pub mod ledger_utils;
 pub mod load_and_process_ledger;
 pub mod resource_limits;
+pub mod snapshot_selection;
 
 /// spl-stake-pool program id
 pub const STAKE_POOL_PROGRAM_ID: Pubkey =
