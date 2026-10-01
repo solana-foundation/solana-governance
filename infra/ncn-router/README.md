@@ -157,7 +157,7 @@ Push a `v*` tag or run **Deploy NCN Router** manually. The workflow:
 4. Waits for VM startup provisioning to finish.
 5. Sends the digest, RPC URLs, and Origin CA material over SSH standard input through IAP.
 6. Installs runtime files as root with mode `0600` and starts separate cron/router systemd units.
-7. Waits for fresh mainnet and testnet whitelist files, router redirects, and nginx readiness.
+7. Waits for fresh mainnet and testnet whitelist files, a mainnet router redirect, and nginx readiness. A valid testnet snapshot with no `ok` verifier is accepted only when the router returns its explicit `503 no_ok_verifiers` response; otherwise testnet must redirect too.
 8. Restores the prior digest and runtime files if any readiness check fails.
 
 Docker sends container logs to journald, which is capped at 1 GiB of persistent storage and

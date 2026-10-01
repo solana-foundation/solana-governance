@@ -119,15 +119,20 @@ install -o root -g root -m 0600 "$work_dir/runtime.env.new" /etc/ncn-router/runt
 install -o root -g root -m 0600 "$work_dir/origin.crt.new" /etc/ncn-router/tls/origin.crt
 install -o root -g root -m 0600 "$work_dir/origin.key.new" /etc/ncn-router/tls/origin.key
 
-activate_deployment() {
-  local deadline mainnet_status readiness_marker testnet_status
-  local fresh_whitelists=false
+# Keep these available to the failure handler even if readiness fails before a
+# probe runs.
+mainnet_status=not_checked
+testnet_status=not_checked
 
-  nginx -t
+activate_deployment() {
+  local deadline readiness_marker
+  local fresh_whitelists=false testnet_has_matched_verifier=false
+
+  nginx -t || return 1
   readiness_marker="$work_dir/readiness-started"
-  touch "$readiness_marker"
-  systemctl enable ncn-meta-cron.service ncn-router.service nginx.service
-  systemctl restart ncn-meta-cron.service ncn-router.service nginx.service
+  touch "$readiness_marker" || return 1
+  systemctl enable ncn-meta-cron.service ncn-router.service nginx.service || return 1
+  systemctl restart ncn-meta-cron.service ncn-router.service nginx.service || return 1
 
   deadline=$((SECONDS + 600))
   while (( SECONDS < deadline )); do
@@ -142,27 +147,43 @@ activate_deployment() {
       fresh_whitelists=true
       break
     fi
-    sleep 3
+    sleep 3 || return 1
   done
 
   [[ $fresh_whitelists == true ]] || return 1
 
   jq -e '.network == "mainnet" and (.verifiers | type == "array")' \
-    /var/lib/ncn-router/ncn_whitelist.mainnet.json >/dev/null
+    /var/lib/ncn-router/ncn_whitelist.mainnet.json >/dev/null || return 1
   jq -e '.network == "testnet" and (.verifiers | type == "array")' \
-    /var/lib/ncn-router/ncn_whitelist.testnet.json >/dev/null
+    /var/lib/ncn-router/ncn_whitelist.testnet.json >/dev/null || return 1
+
+  # This exactly mirrors ncn-router's routing eligibility predicate: only
+  # status="ok" entries are eligible. A fresh, valid snapshot without one is
+  # an expected testnet state, but must produce the router's explicit response.
+  if jq -e 'any(.verifiers[]; .status == "ok")' \
+    /var/lib/ncn-router/ncn_whitelist.testnet.json >/dev/null 2>&1; then
+    testnet_has_matched_verifier=true
+  fi
 
   mainnet_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
-    'http://127.0.0.1:8080/?network=mainnet')"
-  testnet_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
-    'http://127.0.0.1:8080/?network=testnet')"
+    'http://127.0.0.1:8080/?network=mainnet')" || return 1
+  testnet_status="$(curl --silent --show-error --output "$work_dir/testnet-router-response.json" \
+    --write-out '%{http_code}' \
+    'http://127.0.0.1:8080/?network=testnet')" || return 1
   [[ $mainnet_status == 302 ]] || return 1
-  [[ $testnet_status == 302 ]] || return 1
+  if [[ $testnet_has_matched_verifier == true ]]; then
+    [[ $testnet_status == 302 ]] || return 1
+  else
+    [[ $testnet_status == 503 ]] || return 1
+    jq -e '.error == "no_ok_verifiers" and .network == "testnet" and (.slot | type == "number")' \
+      "$work_dir/testnet-router-response.json" >/dev/null || return 1
+    echo "ncn-router-deploy: testnet has no matched verifiers; skipping testnet redirect check" >&2
+  fi
 
   curl --fail --silent --show-error --insecure \
     --connect-timeout 10 \
     --max-time 20 \
-    https://127.0.0.1:8443/healthz >/dev/null
+    https://127.0.0.1:8443/healthz >/dev/null || return 1
 
   public_health="$(
     curl --fail --silent --show-error \
@@ -179,7 +200,7 @@ status=$?
 set -e
 
 if (( status != 0 )); then
-  echo "ncn-router-deploy: readiness checks failed; restoring the previous image digest" >&2
+  echo "ncn-router-deploy: readiness checks failed (mainnet HTTP status: $mainnet_status; testnet HTTP status: $testnet_status); restoring the previous image digest" >&2
   exit "$status"
 fi
 
