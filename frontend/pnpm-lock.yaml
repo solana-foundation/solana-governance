@@ -33,7 +33,6 @@ overrides:
   ua-parser-js@>=2.0.1 <2.0.10: 2.0.10
   bn.js@<4.12.3: 4.12.3
   decode-uri-component@<=0.4.2: 0.5.0
-  uuid@>=8.0.0 <11.1.1: 11.1.1
   jws@<4.0.1: ^4.0.1
   glob@>=10.2.0 <10.5.0: ^10.5.0
   isomorphic-ws>ws: '*'
@@ -8001,8 +8000,14 @@ packages:
     resolution: {integrity: sha512-pMZTvIkT1d+TFGvDOqodOclx0QWkkgi6Tdoa8gC8ffGAAqz9pzPTZWAybbsHHoED/ztMtkv/VoYTYyShUn81hA==}
     engines: {node: '>= 0.4.0'}
 
-  uuid@11.1.1:
-    resolution: {integrity: sha512-vIYxrBCC/N/K+Js3qSN88go7kIfNPssr/hHCesKCQNAjmgvYS2oqr69kIufEG+O4+PfezOH4EbIeHCfFov8ZgQ==}
+  uuid@8.3.2:
+    resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+    hasBin: true
+
+  uuid@9.0.1:
+    resolution: {integrity: sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   uuidv4@6.2.13:
@@ -9162,7 +9167,7 @@ snapshots:
     dependencies:
       '@keystonehq/bc-ur-registry': 0.7.1
       bs58check: 2.1.2
-      uuid: 11.1.1
+      uuid: 8.3.2
 
   '@keystonehq/bc-ur-registry@0.5.4':
     dependencies:
@@ -9193,7 +9198,7 @@ snapshots:
       '@keystonehq/sdk': 0.19.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@solana/web3.js': 1.98.4(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
       bs58: 5.0.0
-      uuid: 11.1.1
+      uuid: 8.3.2
     transitivePeerDependencies:
       - bufferutil
       - encoding
@@ -10753,7 +10758,7 @@ snapshots:
     dependencies:
       '@sentry/bundler-plugin-core': 4.9.0
       unplugin: 1.0.1
-      uuid: 11.1.1
+      uuid: 9.0.1
       webpack: 5.103.0
     transitivePeerDependencies:
       - encoding
@@ -11732,14 +11737,14 @@ snapshots:
       '@wallet-standard/base': 1.1.0
       bs58: 5.0.0
       eventemitter3: 5.0.1
-      uuid: 11.1.1
+      uuid: 9.0.1
 
   '@solflare-wallet/sdk@1.4.2(@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10))':
     dependencies:
       '@solana/web3.js': 1.98.4(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
       bs58: 5.0.0
       eventemitter3: 5.0.1
-      uuid: 11.1.1
+      uuid: 9.0.1
 
   '@stellar/js-xdr@3.1.2': {}
 
@@ -15636,7 +15641,7 @@ snapshots:
       isomorphic-ws: 4.0.1(ws@7.5.13(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       json-stringify-safe: 5.0.1
       stream-json: 1.9.1
-      uuid: 11.1.1
+      uuid: 8.3.2
       ws: 7.5.13(bufferutil@4.0.9)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - bufferutil
@@ -17604,7 +17609,7 @@ snapshots:
       '@types/ws': 8.18.1
       buffer: 6.0.3
       eventemitter3: 5.0.1
-      uuid: 11.1.1
+      uuid: 8.3.2
       ws: 8.22.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
     optionalDependencies:
       bufferutil: 4.0.9
@@ -18441,12 +18446,14 @@ snapshots:
 
   utils-merge@1.0.1: {}
 
-  uuid@11.1.1: {}
+  uuid@8.3.2: {}
+
+  uuid@9.0.1: {}
 
   uuidv4@6.2.13:
     dependencies:
       '@types/uuid': 8.3.4
-      uuid: 11.1.1
+      uuid: 8.3.2
 
   v8-compile-cache-lib@3.0.1: {}
 
