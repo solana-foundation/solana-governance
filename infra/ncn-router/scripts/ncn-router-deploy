@@ -56,6 +56,11 @@ for name in "${!managed_files[@]}"; do
   fi
 done
 
+has_previous_deployment=false
+if [[ -f $work_dir/deployment.env.present ]]; then
+  has_previous_deployment=true
+fi
+
 restore_previous_deployment() {
   local name path
 
@@ -185,13 +190,17 @@ activate_deployment() {
     --max-time 20 \
     https://127.0.0.1:8443/healthz >/dev/null || return 1
 
-  public_health="$(
-    curl --fail --silent --show-error \
+  if [[ $has_previous_deployment == true ]]; then
+    public_health="$(
+      curl --fail --silent --show-error \
       --connect-timeout 10 \
       --max-time 20 \
-      "https://$domain_name/healthz"
-  )" || return 1
-  [[ $public_health == "ok" ]] || return 1
+        "https://$domain_name/healthz"
+    )" || return 1
+    [[ $public_health == "ok" ]] || return 1
+  else
+    echo "ncn-router-deploy: no previous deployment; skipping public health check until domain routing is configured" >&2
+  fi
 }
 
 set +e
