@@ -2,7 +2,7 @@
 name = "svmgov"
 version = "0.6.0-40200"
 edition = "2024"
-rust-version = "1.85.0"
+rust-version = "1.88.0"
 authors = ["bergabman", "berg@turbin3.org"]
 description = "CLI for SVM governance: create, browse and vote on Solana governance proposals as a validator or staker"
 license = "Apache-2.0"
