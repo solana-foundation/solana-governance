@@ -15,6 +15,11 @@ exclude = [
 
 resolver = "2"
 
+[patch.crates-io]
+# Match Agave v4.3.0: its ledger requires APIs not in rocksdb 0.24.0.
+librocksdb-sys = { git = "https://github.com/anza-xyz/rust-rocksdb", rev = "4dba80dfe9434e595a971f5b2985ff9ba4fb31e7" }
+rocksdb = { git = "https://github.com/anza-xyz/rust-rocksdb", rev = "4dba80dfe9434e595a971f5b2985ff9ba4fb31e7" }
+
 [profile.release]
 overflow-checks = true
 lto = "fat"
@@ -23,4 +28,3 @@ codegen-units = 1
 opt-level = 3
 incremental = false
 codegen-units = 1
-

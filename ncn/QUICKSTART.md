@@ -12,11 +12,11 @@ Before starting, ensure you have:
 
 1. **Operator keypair** — your Solana keypair used for voting
 2. **Whitelisted status** — your operator pubkey must be added to the program's operator whitelist by the admin
-3. **Rust 1.89.0** — the version pinned by the repo's dependency set
+3. **Rust 1.97.1** — required by Agave 4.3
    ```bash
-   rustup toolchain install 1.89.0
-   rustup default 1.89.0
-   rustc --version  # verify: rustc 1.89.0
+   rustup toolchain install 1.97.1
+   rustup override set 1.97.1
+   rustc --version  # verify: rustc 1.97.1
    ```
 4. **Running validator** with access to ledger data at a known path (e.g., `/mnt/ledger`)
 
