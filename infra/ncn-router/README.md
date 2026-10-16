@@ -159,13 +159,6 @@ Push a `v*` tag or run **Deploy NCN Router** manually. The workflow:
 6. Installs runtime files as root with mode `0600` and starts separate cron/router systemd units.
 7. Waits for fresh mainnet and testnet whitelist files, a mainnet router redirect, and nginx readiness. A valid testnet snapshot with no `ok` verifier is accepted only when the router returns its explicit `503 no_ok_verifiers` response; otherwise testnet must redirect too.
 8. Restores the prior digest and runtime files if any readiness check fails.
-9. Runs Chromium and WebKit probes from the frontend origin through the public router.
-   The probes read latest, pinned-slot, and batched metadata as JSON. They sample randomly
-   selected operators, not every operator. A probe failure fails the workflow after activation
-   and does not automatically roll back the deployment.
-
-Readiness now checks CORS on mainnet and testnet responses and a local OPTIONS preflight.
-On an existing VM it also checks the public mainnet redirect for a single valid CORS header.
 
 Docker sends container logs to journald, which is capped at 1 GiB of persistent storage and
 256 MiB of runtime storage. After a successful deployment, the VM also removes unused images
@@ -201,10 +194,10 @@ single policy with `always`, including on nginx-generated errors. Cloudflare-gen
 errors can still bypass nginx; inspect edge rules and logs if those fail CORS.
 
 Deploy both the image and infrastructure changes. An image-only deployment will not update
-nginx or the installed deployment checks. No frontend deployment is required.
+nginx. No frontend deployment is required.
 
-1. Merge these changes to `main` and reserve a maintenance window. The bootstrap and deploy
-   script changes replace the single VM. Record the previous workflow's image digest.
+1. Merge these changes to `main` and reserve a maintenance window. The bootstrap changes
+   replace the single VM. Record the previous workflow's image digest.
 2. Review the infrastructure plan with `just ncn-router-tf-plan` from the repository root.
    Expect replacement of `ncn-router-managed`. This needs the infrastructure Doppler
    credentials described above and does not apply the plan.
@@ -237,24 +230,10 @@ nginx or the installed deployment checks. No frontend deployment is required.
    ```
 
    Expect HTTP 204, the wildcard origin, and allowed methods `GET, OPTIONS`.
-5. Confirm both workflow browser probes pass, then reload `/proposals` in the affected
-   browser with DevTools open. Check the previously failing pinned slot if it is still
-   retained. Every redirect and final response must permit CORS. Review new Sentry events.
-
-To repeat the browser probe locally with Node.js and npm:
-
-```bash
-cors_probe_dir="$(mktemp -d /tmp/ncn-cors-probe.XXXXXX)"
-npm install --prefix "$cors_probe_dir" --no-audit --no-fund --ignore-scripts playwright@1.56.1
-"$cors_probe_dir/node_modules/.bin/playwright" install --with-deps chromium webkit
-NODE_PATH="$cors_probe_dir/node_modules" node infra/ncn-router/scripts/check-browser-cors.cjs
-```
-
-Browser system dependency installation may require administrator access. The probe intercepts
-the frontend navigation to serve a minimal document at its production origin, then makes real
-cross-origin requests without running app queries in parallel. It prints the responding
-operators. If it fails after the router's 302 passes, inspect the selected operator's CORS,
-TLS, and availability. Missing historical snapshots should return readable HTTP errors.
+5. Reload `/proposals` in the affected browser with DevTools open. Check the previously
+   failing pinned slot if it is still retained. Every redirect and final response must
+   permit CORS. Review new Sentry events. If a verifier response fails after the router's
+   redirect succeeds, inspect that verifier's CORS, TLS, and availability separately.
 
 If rollout fails, inspect the workflow and VM logs before retrying. The deploy script can
 restore an earlier image on the current VM; a replacement VM has no prior deployment to
