@@ -176,6 +176,14 @@ server {
 
     location / {
         proxy_pass http://127.0.0.1:8080;
+        # nginx owns CORS on the public response, including locally generated 502/504s.
+        # Hide application headers so browsers never receive duplicate CORS policies.
+        proxy_hide_header Access-Control-Allow-Origin;
+        proxy_hide_header Access-Control-Allow-Methods;
+        proxy_hide_header Access-Control-Allow-Headers;
+        add_header Access-Control-Allow-Origin '*' always;
+        add_header Access-Control-Allow-Methods 'GET, OPTIONS' always;
+        add_header Access-Control-Allow-Headers 'Accept, Content-Type, sentry-trace, baggage' always;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

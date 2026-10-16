@@ -185,6 +185,61 @@ replacement can receive both instance-level deployer IAM bindings before relying
 Moving to a managed instance group or a create-before-destroy rollout with an IP cutover is the
 future path to eliminate this outage.
 
+## Deploy the CORS fix
+
+The router adds `Access-Control-Allow-Origin: *` to all application responses, including
+302 redirects and errors. OPTIONS returns without consulting a whitelist. This public API
+uses credential-free requests. nginx hides the application's CORS headers and supplies a
+single policy with `always`, including on nginx-generated errors. Cloudflare-generated
+errors can still bypass nginx; inspect edge rules and logs if those fail CORS.
+
+Deploy both the image and infrastructure changes. An image-only deployment will not update
+nginx. No frontend deployment is required.
+
+1. Merge these changes to `main` and reserve a maintenance window. The bootstrap changes
+   replace the single VM. Record the previous workflow's image digest.
+2. Review the infrastructure plan with `just ncn-router-tf-plan` from the repository root.
+   Expect replacement of `ncn-router-managed`. This needs the infrastructure Doppler
+   credentials described above and does not apply the plan.
+3. Start the production workflow:
+
+   ```bash
+   gh workflow run deploy-ncn-router.yaml --ref main
+   gh run list --workflow deploy-ncn-router.yaml --limit 1
+   ```
+
+   Watch the returned run with `gh run watch RUN_ID`. The workflow applies Terraform,
+   provisions nginx, builds the image, and deploys its immutable digest.
+4. Verify the public redirect without following it:
+
+   ```bash
+   curl --silent --show-error --dump-header - --output /dev/null \
+     --header 'Origin: https://governance.solana.com' \
+     'https://ncn-governance.solana.com/meta?network=mainnet'
+   ```
+
+   Expect HTTP 302, a verifier `Location`, and exactly one
+   `Access-Control-Allow-Origin: *` header. Verify public OPTIONS too:
+
+   ```bash
+   curl --silent --show-error --dump-header - --output /dev/null \
+     --request OPTIONS \
+     --header 'Origin: https://governance.solana.com' \
+     --header 'Access-Control-Request-Method: GET' \
+     'https://ncn-governance.solana.com/meta?network=mainnet'
+   ```
+
+   Expect HTTP 204, the wildcard origin, and allowed methods `GET, OPTIONS`.
+5. Reload `/proposals` in the affected browser with DevTools open. Check the previously
+   failing pinned slot if it is still retained. Every redirect and final response must
+   permit CORS. Review new Sentry events. If a verifier response fails after the router's
+   redirect succeeds, inspect that verifier's CORS, TLS, and availability separately.
+
+If rollout fails, inspect the workflow and VM logs before retrying. The deploy script can
+restore an earlier image on the current VM; a replacement VM has no prior deployment to
+restore. Recover by fixing and rerunning the workflow. Reverting bootstrap changes causes
+another replacement; reverting only the image cannot repair an infrastructure CORS gap.
+
 ## Verify the first deployment
 
 Confirm no broad project roles were granted:
