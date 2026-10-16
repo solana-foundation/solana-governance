@@ -229,6 +229,14 @@ jobs:
               --quiet \
               --command 'sudo /usr/local/sbin/ncn-router-deploy'
 
+      # This runs after activation, including on replacement VMs whose local deploy
+      # script cannot check public routing before their first deployment.
+      - name: Check browser CORS through Cloudflare and routed operators
+        run: |
+          npm install --prefix "$RUNNER_TEMP/ncn-cors" --no-audit --no-fund --ignore-scripts playwright@1.56.1
+          "$RUNNER_TEMP/ncn-cors/node_modules/.bin/playwright" install --with-deps chromium webkit
+          NODE_PATH="$RUNNER_TEMP/ncn-cors/node_modules" node infra/ncn-router/scripts/check-browser-cors.cjs
+
       - name: Deployment summary
         env:
           IMAGE_REF: ${{ steps.image.outputs.ref }}
