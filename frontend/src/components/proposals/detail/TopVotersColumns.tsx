@@ -104,8 +104,11 @@ export const topVoterColumns: ColumnDef<TopVoterRecord>[] = [
     sortingFn: "basic",
   },
   {
-    accessorKey: "voteOutcome",
-    header: "Voter Split",
+    id: "voteSplit",
+    accessorFn: (row) => row.voteData.forVotesBp.toNumber(),
+    header: ({ column }) => (
+      <SortableHeaderButton column={column} label="Voter Split" />
+    ),
     cell: ({ row }) => {
       const { forVotesBp, againstVotesBp, abstainVotesBp } =
         row.original.voteData;
@@ -129,8 +132,7 @@ export const topVoterColumns: ColumnDef<TopVoterRecord>[] = [
         </div>
       );
     },
-    sortingFn: "alphanumeric",
-    enableSorting: false,
+    sortingFn: "basic",
   },
   {
     accessorKey: "votePercentage",

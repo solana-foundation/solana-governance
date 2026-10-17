@@ -22,15 +22,42 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AppButton } from "@/components/ui/AppButton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 import {
   TablePaginationDesktop,
   TablePaginationMobile,
 } from "@/components/governance/shared/TablePagination";
 import { cn } from "@/lib/utils";
-import type { ProposalRecord } from "@/types";
+import type { ProposalRecord, TopVoterRecord } from "@/types";
 
 const DEFAULT_SORTING: SortingState = [{ id: "stakedLamports", desc: true }];
+
+type VoteFilter = "all" | "for" | "against" | "abstain";
+
+const VOTE_FILTER_OPTIONS: { value: VoteFilter; label: string }[] = [
+  { value: "all", label: "All votes" },
+  { value: "for", label: "For" },
+  { value: "against", label: "Against" },
+  { value: "abstain", label: "Abstain" },
+];
+
+// A split vote matches every side it put a share on.
+function matchesVoteFilter(
+  { forVotesBp, againstVotesBp, abstainVotesBp }: TopVoterRecord["voteData"],
+  filter: VoteFilter,
+) {
+  if (filter === "for") return !forVotesBp.isZero();
+  if (filter === "against") return !againstVotesBp.isZero();
+  if (filter === "abstain") return !abstainVotesBp.isZero();
+  return true;
+}
 
 const TABLE_COLUMNS = topVoterColumns;
 
@@ -40,6 +67,7 @@ interface TopVotersTableProps {
 
 export default function TopVotersTable({ proposal }: TopVotersTableProps) {
   const [searchValue, setSearchValue] = React.useState("");
+  const [voteFilter, setVoteFilter] = React.useState<VoteFilter>("all");
   const [sorting, setSorting] = React.useState<SortingState>(() => [
     ...DEFAULT_SORTING,
   ]);
@@ -50,11 +78,15 @@ export default function TopVotersTable({ proposal }: TopVotersTableProps) {
 
   const filteredData = React.useMemo(() => {
     const searchTerm = searchValue.trim().toLowerCase();
-    if (searchTerm.length === 0) {
+    if (searchTerm.length === 0 && voteFilter === "all") {
       return topVoters;
     }
 
     return topVoters.filter((voter) => {
+      if (!matchesVoteFilter(voter.voteData, voteFilter)) {
+        return false;
+      }
+
       const name = voter.validatorName.toLowerCase();
       const identity = voter.validatorIdentity.toLowerCase();
       const stakeAccount = voter.stakeAccount?.toLowerCase() ?? "";
@@ -65,7 +97,7 @@ export default function TopVotersTable({ proposal }: TopVotersTableProps) {
         stakeAccount.includes(searchTerm)
       );
     });
-  }, [searchValue, topVoters]);
+  }, [searchValue, voteFilter, topVoters]);
 
   const table = useReactTable({
     data: filteredData,
@@ -89,6 +121,7 @@ export default function TopVotersTable({ proposal }: TopVotersTableProps) {
   const handleReset = () => {
     const nextSorting: SortingState = [...DEFAULT_SORTING];
     setSearchValue("");
+    setVoteFilter("all");
     table.setSorting(nextSorting);
     table.setPageIndex(0);
   };
@@ -110,6 +143,31 @@ export default function TopVotersTable({ proposal }: TopVotersTableProps) {
               className="w-full pl-10 pr-4 py-2 input"
             />
           </div>
+          <Select
+            value={voteFilter}
+            onValueChange={(value) => {
+              setVoteFilter(value as VoteFilter);
+              table.setPageIndex(0);
+            }}
+          >
+            <SelectTrigger
+              className="w-full sm:w-[140px] text-white/60"
+              aria-label="Filter by vote"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="select-background">
+              {VOTE_FILTER_OPTIONS.map((option) => (
+                <SelectItem
+                  key={option.value}
+                  value={option.value}
+                  className="text-foreground"
+                >
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <div className="flex gap-3 w-full sm:w-auto">
             <AppButton
               variant="outline"
@@ -202,8 +260,8 @@ export default function TopVotersTable({ proposal }: TopVotersTableProps) {
                   colSpan={TABLE_COLUMNS.length}
                   className="h-28 text-center text-sm text-white/60"
                 >
-                  {searchValue.trim()
-                    ? "No voters match your search."
+                  {searchValue.trim() || voteFilter !== "all"
+                    ? "No voters match your filters."
                     : "No votes found for this proposal."}
                 </TableCell>
               </TableRow>
