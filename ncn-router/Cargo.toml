@@ -25,3 +25,18 @@ dotenvy = "0.15"
 rand = "0.8"
 tiny_http = "0.12"
 form_urlencoded = "1"
+
+[patch.crates-io]
+# Legacy Solana TLS clients need root bundles with the compromised eMudhra paths removed.
+webpki-roots-24 = { package = "webpki-roots", path = "vendor/webpki-roots-0.24.0" }
+webpki-roots-25 = { package = "webpki-roots", path = "vendor/webpki-roots-0.25.4" }
+
+[dev-dependencies]
+webpki-legacy = { package = "rustls-webpki", version = "0.101.7", features = ["alloc"] }
+webpki = { package = "rustls-webpki", version = "0.103.16", features = ["ring"] }
+webpki-roots-24 = { package = "webpki-roots", version = "0.24.0" }
+webpki-roots-25 = { package = "webpki-roots", version = "0.25.4" }
+webpki-roots = "1.0.10"
+webpki-root-certs = "1.0.10"
+rustls-pemfile = "2"
+rustls-pki-types = "1"

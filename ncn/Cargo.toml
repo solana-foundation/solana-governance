@@ -16,6 +16,10 @@ exclude = [
 resolver = "2"
 
 [patch.crates-io]
+# Legacy Solana TLS clients need root bundles with the compromised eMudhra paths removed.
+webpki-roots-24 = { package = "webpki-roots", path = "../ncn-router/vendor/webpki-roots-0.24.0" }
+webpki-roots-25 = { package = "webpki-roots", path = "../ncn-router/vendor/webpki-roots-0.25.4" }
+
 # Match Agave v4.3.0: its ledger requires APIs not in rocksdb 0.24.0.
 librocksdb-sys = { git = "https://github.com/anza-xyz/rust-rocksdb", rev = "4dba80dfe9434e595a971f5b2985ff9ba4fb31e7" }
 rocksdb = { git = "https://github.com/anza-xyz/rust-rocksdb", rev = "4dba80dfe9434e595a971f5b2985ff9ba4fb31e7" }

@@ -43,3 +43,8 @@ comfy-table = "7.1"
 [dev-dependencies]
 tempfile = "3.0"
 borsh = "1.5"
+
+[patch.crates-io]
+# Legacy Solana TLS clients need root bundles with the compromised eMudhra paths removed.
+webpki-roots-24 = { package = "webpki-roots", path = "../../ncn-router/vendor/webpki-roots-0.24.0" }
+webpki-roots-25 = { package = "webpki-roots", path = "../../ncn-router/vendor/webpki-roots-0.25.4" }

@@ -10,6 +10,7 @@ RUN test "$TARGETARCH" = amd64 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY Cargo.toml Cargo.lock ./
+COPY vendor ./vendor
 RUN cargo fetch --locked
 
 COPY src ./src
@@ -19,6 +20,7 @@ FROM debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates libssl3 tini \
+    && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' ca-certificates)" ge '20250419~deb12u2' \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 10001 ncn-router \
     && useradd --uid 10001 --gid 10001 --no-create-home --home-dir /var/lib/ncn-router --shell /usr/sbin/nologin ncn-router \
