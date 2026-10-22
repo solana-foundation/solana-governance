@@ -11,6 +11,10 @@ path = "src/main.rs"
 name = "ncn-router"
 path = "src/router.rs"
 
+[[bin]]
+name = "ncn-network-loadtest"
+path = "src/bin/network_loadtest.rs"
+
 [dependencies]
 reqwest = { version = "0.12", features = ["blocking", "json"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -25,6 +29,13 @@ dotenvy = "0.15"
 rand = "0.8"
 tiny_http = "0.12"
 form_urlencoded = "1"
+clap = { version = "4", features = ["derive", "env"] }
+sha2 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time"] }
+tokio-util = "0.7"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [patch.crates-io]
 # Legacy Solana TLS clients need root bundles with the compromised eMudhra paths removed.
@@ -32,6 +43,7 @@ webpki-roots-24 = { package = "webpki-roots", path = "vendor/webpki-roots-0.24.0
 webpki-roots-25 = { package = "webpki-roots", path = "vendor/webpki-roots-0.25.4" }
 
 [dev-dependencies]
+tempfile = "3"
 webpki-legacy = { package = "rustls-webpki", version = "0.101.7", features = ["alloc"] }
 webpki = { package = "rustls-webpki", version = "0.103.16", features = ["ring"] }
 webpki-roots-24 = { package = "webpki-roots", version = "0.24.0" }
