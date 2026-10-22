@@ -3,14 +3,14 @@ name: sf-add-svmgov-postmortem
 description: Add a completed SVMGov proposal vote postmortem to this repository using the svmgov CLI, finalized Solana mainnet program accounts, and exact stake-weighted accounting. Use when the user asks to "add a proposal postmortem", "write an SVMGov vote postmortem", "analyze a completed governance proposal", or extend `vote-postmortem/` with another proposal.
 metadata:
   author: Solana Foundation
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # Add an SVMGov vote postmortem
 
 Create one Markdown postmortem in `vote-postmortem/` from finalized mainnet data. Keep the workflow read-only: do not sign or send transactions.
 
-Requires the `svmgov` CLI, Solana mainnet RPC access, and the Solana MCP server.
+Requires the `svmgov` CLI with the `vote-breakdown` command and Solana mainnet RPC access.
 
 ## Inputs and defaults
 
@@ -22,77 +22,23 @@ Requires the `svmgov` CLI, Solana mainnet RPC access, and the Solana MCP server.
 
 ## Workflow
 
-1. Inspect the current SVMGov IDL and account structs before querying:
-   - `svmgov/cli/idls/svmgov_program.json`
-   - `svmgov/program/programs/svmgov_program/src/state/vote.rs`
-   - `svmgov/program/programs/svmgov_program/src/state/vote_override.rs`
-   - `svmgov/program/programs/svmgov_program/src/instructions/cast_vote_override.rs`
-
-   If their layouts differ from the account layout reference below, derive the new offsets, use those values for the query, and update this skill. Do not decode live data with stale offsets.
-
-2. Use the Solana MCP for current RPC documentation. Call `list_sections` first, then use a narrow documentation search when `getProgramAccounts`, filter, data-slice, or commitment semantics need confirmation.
-
-3. Fetch the proposal summary:
+1. Fetch the exact vote breakdown:
 
    ```bash
-   NO_DNA=1 svmgov --rpc-url <MAINNET_RPC_URL> proposal <PROPOSAL_ID>
+   NO_DNA=1 svmgov --rpc-url <MAINNET_RPC_URL> vote-breakdown <PROPOSAL_ID>
    ```
 
-   Record the title, status, total for/against/abstain lamports, vote count, and query date.
+   For machine-readable data, append `--json`. Lamport amounts in JSON are decimal strings; preserve them as integers when processing the result.
 
-4. Fetch the proposal's `Vote` and `VoteOverride` accounts with finalized `getProgramAccounts` calls. Apply the program owner, discriminator, data-size, and proposal filters in the account layout reference. Use compact data slices to reduce public RPC load. Retry HTTP 429 responses with bounded backoff and issue sequential queries rather than a large batch.
+   The command derives account sizes and proposal filters from its bundled IDL, decodes accounts with Anchor-generated types, and queries sequentially at finalized commitment. It reports validator and staker category amounts, original validator stake, overridden stake, account counts, rounding differences, proposal status, and query time. It checks category totals and account counts against the proposal before printing a report. Unsupported account layouts and failed reconciliations return an error; investigate rather than publishing inconsistent totals. If the command is unavailable, build the current CLI from `svmgov/cli/`.
 
-5. Decode little-endian `u64` fields and aggregate with integer arithmetic:
-   - Validator for, against, abstain, original stake, and overridden stake.
-   - Staker-override for, against, abstain, and stake.
-   - Validator and staker account counts.
+2. Record the title, exact status, query date, vote breakdown, validator vote overridden, and account reconciliation from the output. Check that voting has ended before writing a postmortem. A finalized RPC commitment describes the data's confirmation level; it does not mean the proposal's voting period has ended.
 
-6. Calculate category percentages within each source row:
-   - Total category percentage = category proposal lamports / total proposal vote lamports.
-   - Validator category percentage = category validator lamports / total effective validator vote lamports.
-   - Staker category percentage = category override lamports / total staker override vote lamports.
-   - Validator vote overridden = total `Vote.override_lamports` / total `Vote.stake`.
+3. Preserve all nine decimal places in SOL amounts and four decimal places in percentages. Each source row uses its own category sum as the denominator. Rows with no votes show `0.0000%` for every category.
 
-   Use integer or arbitrary-precision decimal arithmetic. Round displayed percentages to four decimal places; do not convert raw lamport totals to an IEEE-754 number before calculating.
+4. Run the validation gates below. The command performs category and account-count reconciliation; review the report's status, formatting, and rounding differences before publishing.
 
-7. Convert lamports to SOL without floating-point arithmetic. Divide by `1_000_000_000`, zero-pad the remainder to nine digits, and retain all nine decimal places. This preserves the exact atomic value.
-
-8. Run the validation gates below. Stop and investigate any failed reconciliation instead of publishing inconsistent totals.
-
-9. Add `vote-postmortem/<proposal-slug>.md` using the output format below. Do not modify existing postmortems unless the user asks for refreshed data or format changes.
-
-## Current account layout reference
-
-Program ID: `govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU`
-
-### Validator `Vote`
-
-- Account size: 145 bytes
-- Discriminator filter: offset 0, base58 `H7nUxx34RXx`
-- Proposal filter: offset 40, proposal public key
-- Compact data slice: offset 96, length 40
-
-| Slice offset | Field |
-| ---: | --- |
-| 0 | For vote lamports |
-| 8 | Against vote lamports |
-| 16 | Abstain vote lamports |
-| 24 | Original validator stake lamports |
-| 32 | Overridden validator stake lamports |
-
-### Staker `VoteOverride`
-
-- Account size: 233 bytes
-- Discriminator filter: offset 0, base58 `NoiLFMSoFVm`
-- Proposal filter: offset 104, proposal public key
-- Compact data slice: offset 192, length 32
-
-| Slice offset | Field |
-| ---: | --- |
-| 0 | For override lamports |
-| 8 | Against override lamports |
-| 16 | Abstain override lamports |
-| 24 | Override stake lamports |
+5. Add `vote-postmortem/<proposal-slug>.md` using the output format below. Do not modify existing postmortems unless the user asks for refreshed data or format changes.
 
 ## Accounting methodology
 
@@ -142,7 +88,7 @@ Account reconciliation: <VALIDATOR_COUNT> validator votes + <STAKER_COUNT> stake
 
 - Confirm each proposal total exactly equals validator plus staker override lamports for the same category.
 - Confirm validator account count plus staker override account count equals the proposal vote count.
-- Confirm the Total, Validators, and Staker overrides rows each have three displayed percentages that sum to 100% within four-decimal rounding tolerance.
+- Confirm the Total, Validators, and Staker overrides rows each have three displayed percentages that sum to 100% within four-decimal rounding tolerance, or all zero when the row has no votes.
 - Confirm every SOL value round-trips to the original lamport integer.
 - Confirm the proposal status and query date are explicit.
 - Run `git diff --check` on the new postmortem.

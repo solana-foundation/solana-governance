@@ -261,6 +261,24 @@ enum Commands {
     },
 
     #[command(
+        about = "Display exact validator and staker vote totals at finalized commitment",
+        long_about = "Fetch the proposal's validator votes and staker overrides at finalized commitment. \
+                      Derives account filters from the bundled IDL and decodes Anchor account types. \
+                      Checks category totals and account counts against the proposal before printing a Markdown report. \
+                      No signing keypair is required. Finalized commitment does not imply voting has ended.\n\n\
+                      Amounts retain nine SOL decimal places; percentages use each row's category sum. \
+                      Zero-total rows show 0.0000%. Use --json for decimal-string lamport amounts, \
+                      original stake, overridden stake, and stake minus category rounding differences."
+    )]
+    VoteBreakdown {
+        /// Proposal public key.
+        proposal_id: Pubkey,
+        /// Print JSON with exact lamport amounts encoded as decimal strings.
+        #[arg(long)]
+        json: bool,
+    },
+
+    #[command(
         about = "List all proposals",
         long_about = "This command retrieves and displays all governance proposals from the Solana Validator Governance program. \
                       An optional RPC URL can be provided to connect to the chain; otherwise, a default URL is used.\n\n\
@@ -628,6 +646,7 @@ fn squads_refusal_for(command: &Commands) -> Option<String> {
         | Commands::UpdateGlobalConfig { .. }
         | Commands::Proposal { .. }
         | Commands::ListProposals { .. }
+        | Commands::VoteBreakdown { .. }
         | Commands::ShowGlobalConfig
         | Commands::Init
         | Commands::Config { .. }
@@ -759,6 +778,9 @@ async fn handle_command(cli: Cli) -> Result<()> {
         }
         Commands::Proposal { proposal_id } => {
             commands::get_proposal(cli.rpc_url.clone(), proposal_id).await?;
+        }
+        Commands::VoteBreakdown { proposal_id, json } => {
+            utils::vote_breakdown::vote_breakdown(cli.rpc_url.clone(), *proposal_id, *json).await?;
         }
         Commands::ListProposals {
             status,
