@@ -42,13 +42,18 @@ The runner writes `loadtest-results/` at the repository root:
 - `requests.jsonl`: one record per logical request, including discovery.
   Records contain a request ID, timestamp, path, intended target, resolved
   verifier, each redirect and its timing, final status, total latency,
-  normalized response hash, response evidence path, and errors.
+  expected status/format/body, normalized response hash, response evidence path,
+  and errors.
   Discovery records also identify the HTTP method; the RPC lookup uses POST.
 - `responses/`: response bodies addressed by their raw body hash. Records with
   different normalized hashes can be inspected here to see the actual differences.
 
 `request_failed` findings link directly to journal IDs. `response_mismatch`
-findings list each normalized hash and the request IDs that returned it.
+findings identify the rendered request and expected response settings, list every
+case name in the comparison, and list each normalized hash with the request IDs
+that returned it. Responses are grouped by method, rendered path/query, expected
+status, response format, and expected body, regardless of case name or load/sampling
+phase. Per-case request counts and latency tables include only the load phase.
 Differences are reported without assuming that the largest response group is correct.
 Reports are overwritten on each run; use a different `--output` to retain runs.
 

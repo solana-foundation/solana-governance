@@ -1,5 +1,5 @@
 use super::{
-    config::{Args, Case, Kind, Target},
+    config::{Args, BodyFormat, Case, Kind, Target},
     http::{hash, Record},
     sampling, Result,
 };
@@ -7,13 +7,34 @@ use chrono::Utc;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fs::{self, File},
     io::Write,
     path::PathBuf,
 };
 
 const ROUTER_FAILURES_FILE: &str = "router-failures.json";
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Serialize)]
+struct ComparisonKey<'a> {
+    method: &'a str,
+    path: &'a str,
+    expected_status: u16,
+    format: BodyFormat,
+    expected_body: Option<&'a str>,
+}
+
+impl<'a> From<&'a Record> for ComparisonKey<'a> {
+    fn from(record: &'a Record) -> Self {
+        Self {
+            method: record.method,
+            path: &record.path,
+            expected_status: record.expected_status,
+            format: record.format,
+            expected_body: record.expected_body.as_deref(),
+        }
+    }
+}
 
 pub struct Journal {
     file: File,
@@ -117,7 +138,7 @@ impl Report {
 
     /// Aggregate request failures, response variants, coverage, and peer-relative latency.
     pub fn analyze(&mut self, records: &[Record], targets: &[Target], cases: &[Case]) {
-        let mut variants: BTreeMap<&str, BTreeMap<&str, Vec<usize>>> = BTreeMap::new();
+        let mut comparisons: BTreeMap<ComparisonKey<'_>, Vec<&Record>> = BTreeMap::new();
         for record in records {
             self.http_attempts += record.hops.len();
             // A current RPC account can legitimately be absent from an older snapshot.
@@ -134,15 +155,11 @@ impl Report {
             if record.phase != "load" && record.phase != "router_sampling" {
                 continue;
             }
-            if record.ok {
-                if let Some(hash) = &record.response_sha256 {
-                    variants
-                        .entry(&record.request)
-                        .or_default()
-                        .entry(hash)
-                        .or_default()
-                        .push(record.id);
-                }
+            if record.ok && record.response_sha256.is_some() {
+                comparisons
+                    .entry(ComparisonKey::from(record))
+                    .or_default()
+                    .push(record);
             }
             if record.kind == Kind::Router {
                 self.router_attempts += 1;
@@ -157,11 +174,25 @@ impl Report {
                 self.failed_requests += usize::from(!record.ok);
             }
         }
-        for (request, variants) in variants {
+        for (comparison, rows) in comparisons {
+            let mut variants: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+            let mut requests = BTreeSet::new();
+            for record in rows {
+                requests.insert(&record.request);
+                variants
+                    .entry(
+                        record
+                            .response_sha256
+                            .as_deref()
+                            .expect("successful response hash"),
+                    )
+                    .or_default()
+                    .push(record.id);
+            }
             if variants.len() > 1 {
-                self.findings.push(
-                    json!({"type":"response_mismatch", "request":request, "variants":variants}),
-                );
+                self.findings
+                    .push(json!({"type":"response_mismatch", "comparison":comparison,
+                    "requests":requests, "variants":variants}));
             }
         }
         for target in targets {

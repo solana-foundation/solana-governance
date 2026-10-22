@@ -375,6 +375,152 @@ async fn analysis_reports_disagreement_slow_verifiers_and_missing_coverage() {
 }
 
 #[tokio::test]
+async fn sampling_metadata_is_compared_with_load_metadata_despite_case_names() {
+    let upstream = Fixture::response(200, META);
+    let identity = upstream.url.clone();
+    let router = Fixture::new(move |request| {
+        request
+            .respond(
+                Response::from_string(META.replace("root", "changed-root")).with_header(
+                    Header::from_bytes("X-NCN-Verifier", identity.as_bytes()).unwrap(),
+                ),
+            )
+            .unwrap();
+    });
+    let targets = vec![
+        verifier("alice", &upstream.url),
+        Target {
+            name: "router".into(),
+            url: router.url.clone(),
+            kind: Kind::Router,
+        },
+    ];
+    let load_case = Case {
+        name: "snapshot_meta".into(),
+        targets: vec![Kind::Verifier],
+        ..case()
+    };
+    let sampling_case = Case {
+        name: "router_selection".into(),
+        targets: vec![Kind::Router],
+        ..case()
+    };
+    let client = client(1.0);
+    let mut records = vec![fetch(&client, &targets[0], &load_case, &targets, "load").await];
+    for _ in 0..2 {
+        records.push(
+            fetch(
+                &client,
+                &targets[1],
+                &sampling_case,
+                &targets,
+                "router_sampling",
+            )
+            .await,
+        );
+    }
+    for (index, record) in records.iter_mut().enumerate() {
+        record.id = index + 1;
+        assert!(record.ok, "{:?}", record.issues);
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let mut report = Report::new(args(&directory));
+    report.analyze(&records, &targets, &[load_case]);
+    assert_eq!(report.findings.len(), 1, "{:?}", report.findings);
+    let mismatch = &report.findings[0];
+    assert_eq!(mismatch["type"], "response_mismatch");
+    assert_eq!(mismatch["comparison"]["path"], sampling_case.path);
+    assert_eq!(
+        mismatch["requests"],
+        json!(["router_selection", "snapshot_meta"])
+    );
+    let mut groups: Vec<_> = mismatch["variants"]
+        .as_object()
+        .unwrap()
+        .values()
+        .cloned()
+        .collect();
+    groups.sort_by_key(|group| group.as_array().unwrap().len());
+    assert_eq!(groups, vec![json!([1]), json!([2, 3])]);
+    assert_eq!(report.load_requests, 1);
+    assert_eq!(report.targets.len(), 1);
+    assert_eq!(report.targets[0].attempts, 1);
+    assert_eq!(report.router_attempts, 2);
+}
+
+#[tokio::test]
+async fn custom_router_selection_cases_are_separate_from_incompatible_sampling_requests() {
+    let changed_meta = META.replace("root", "custom-root");
+    for (path, format, status, expected_body, body) in [
+        ("/healthz", BodyFormat::Text, 200, None, "ok"),
+        (&case().path, BodyFormat::Text, 200, None, META),
+        (&case().path, BodyFormat::Json, 201, None, &changed_meta),
+        (
+            &case().path,
+            BodyFormat::Json,
+            200,
+            Some(changed_meta.clone()),
+            &changed_meta,
+        ),
+    ] {
+        let body = body.to_owned();
+        let upstream = Fixture::new(move |request| {
+            request
+                .respond(Response::from_string(&body).with_status_code(status))
+                .unwrap();
+        });
+        let identity = upstream.url.clone();
+        let router = Fixture::new(move |request| {
+            request
+                .respond(Response::from_string(META).with_header(
+                    Header::from_bytes("X-NCN-Verifier", identity.as_bytes()).unwrap(),
+                ))
+                .unwrap();
+        });
+        let targets = vec![
+            verifier("alice", &upstream.url),
+            Target {
+                name: "router".into(),
+                url: router.url.clone(),
+                kind: Kind::Router,
+            },
+        ];
+        let load_case = Case {
+            name: "router_selection".into(),
+            path: path.into(),
+            format,
+            expected_status: status,
+            expected_body,
+            targets: vec![Kind::Verifier],
+        };
+        let sampling_case = Case {
+            name: "router_selection".into(),
+            ..case()
+        };
+        let client = client(1.0);
+        let records = vec![
+            fetch(&client, &targets[0], &load_case, &targets, "load").await,
+            fetch(
+                &client,
+                &targets[1],
+                &sampling_case,
+                &targets,
+                "router_sampling",
+            )
+            .await,
+        ];
+        assert!(records.iter().all(|record| record.ok), "{records:?}");
+        let directory = tempfile::tempdir().unwrap();
+        let mut report = Report::new(args(&directory));
+        report.analyze(&records, &targets, &[load_case]);
+        assert!(report.passed, "{:?}", report.findings);
+        assert_eq!(report.load_requests, 1);
+        assert_eq!(report.targets[0].attempts, 1);
+        assert_eq!(report.router_attempts, 1);
+    }
+}
+
+#[tokio::test]
 async fn failed_discovery_writes_a_failing_report_and_journal() {
     let server = Fixture::response(503, "unavailable");
     let directory = tempfile::tempdir().unwrap();
