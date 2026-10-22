@@ -239,12 +239,9 @@ function VotingPanel({ proposal }: { proposal: ProposalRecord }) {
           />
         )
       ) : (
-        // data-no-card-nav: a missed click on a disabled action should not
-        // navigate away, and browsers differ in whether clicks on disabled
-        // buttons reach their ancestors.
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="block cursor-auto" data-no-card-nav>
+            <span>
               {(isSupporting || isVoting) && (
                 <VoteActions state={proposal.status} disabled />
               )}
@@ -275,15 +272,31 @@ export default function ExternalProposalPanel({
   // Whole-card click navigation is a mouse convenience; keyboard and
   // assistive-technology users navigate via the proposal title link, which
   // avoids nesting the card's buttons inside another focusable control.
-  // Clicks on interactive elements or inside [data-no-card-nav] regions, and
-  // clicks that end a text selection, are left alone.
+  // Clicks on links and buttons (including disabled ones), and clicks that
+  // end a text selection, are left alone.
   const handleCardClick = (e: MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
     // React bubbles events from portals (tooltips, modals) through the card.
     if (!e.currentTarget.contains(target)) {
       return;
     }
-    if (target.closest("a, button, [data-no-card-nav]")) {
+    if (target.closest("a, button")) {
+      return;
+    }
+    // Disabled buttons have pointer-events: none, so their clicks land on
+    // whatever is behind them; hit-test them by position instead.
+    const disabledButtons =
+      e.currentTarget.querySelectorAll<HTMLElement>("button:disabled");
+    const hitDisabledButton = Array.from(disabledButtons).some((button) => {
+      const rect = button.getBoundingClientRect();
+      return (
+        e.clientX >= rect.left &&
+        e.clientX <= rect.right &&
+        e.clientY >= rect.top &&
+        e.clientY <= rect.bottom
+      );
+    });
+    if (hitDisabledButton) {
       return;
     }
     if (window.getSelection()?.toString()) {

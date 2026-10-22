@@ -78,7 +78,7 @@ export const SupportButton = ({
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <span onClick={handleDisabledClick} data-no-card-nav>
+          <span onClick={handleDisabledClick}>
             <AppButton
               variant="gradient"
               text="Support"
