@@ -211,13 +211,7 @@ function VotingPanel({ proposal }: { proposal: ProposalRecord }) {
   const isDiscussion = proposal.status === "discussion";
 
   return (
-    // data-no-card-nav: the voting panel is an action area, not part of the
-    // card's click-to-navigate surface; cursor-auto undoes the card's
-    // inherited cursor-pointer so the panel doesn't look clickable
-    <aside
-      className="w-full cursor-auto glass-card p-6 lg:w-80 xl:w-80"
-      data-no-card-nav
-    >
+    <aside className="w-full glass-card p-6 lg:w-80 xl:w-80">
       <header className="mb-6">
         <span className="block text-[11px] uppercase tracking-[0.24em] text-white/45 mb-3">
           {getHeaderLabel(proposal)}
@@ -245,9 +239,12 @@ function VotingPanel({ proposal }: { proposal: ProposalRecord }) {
           />
         )
       ) : (
+        // data-no-card-nav: a missed click on a disabled action should not
+        // navigate away, and browsers differ in whether clicks on disabled
+        // buttons reach their ancestors.
         <Tooltip>
           <TooltipTrigger asChild>
-            <span>
+            <span className="block cursor-auto" data-no-card-nav>
               {(isSupporting || isVoting) && (
                 <VoteActions state={proposal.status} disabled />
               )}
@@ -276,12 +273,17 @@ export default function ExternalProposalPanel({
   const router = useRouter();
 
   // Whole-card click navigation is a mouse convenience; keyboard and
-  // assistive-technology users navigate via the proposal title link.
-  // Clicks that originate on interactive elements or inside opted-out
-  // regions ([data-no-card-nav], e.g. the voting panel) and clicks that
-  // end a text selection are left alone.
+  // assistive-technology users navigate via the proposal title link, which
+  // avoids nesting the card's buttons inside another focusable control.
+  // Clicks on interactive elements or inside [data-no-card-nav] regions, and
+  // clicks that end a text selection, are left alone.
   const handleCardClick = (e: MouseEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).closest("a, button, [data-no-card-nav]")) {
+    const target = e.target as HTMLElement;
+    // React bubbles events from portals (tooltips, modals) through the card.
+    if (!e.currentTarget.contains(target)) {
+      return;
+    }
+    if (target.closest("a, button, [data-no-card-nav]")) {
       return;
     }
     if (window.getSelection()?.toString()) {
