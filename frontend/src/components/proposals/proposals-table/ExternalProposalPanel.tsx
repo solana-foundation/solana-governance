@@ -1,5 +1,7 @@
 "use client";
 
+import type { MouseEvent } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AppButton } from "@/components/ui/AppButton";
 import { GitHubIcon } from "@/components/icons/SvgIcons";
@@ -265,8 +267,49 @@ type ExternalProposalPanelProps = {
 export default function ExternalProposalPanel({
   proposal,
 }: ExternalProposalPanelProps) {
+  const router = useRouter();
+
+  // Whole-card click navigation is a mouse convenience; keyboard and
+  // assistive-technology users navigate via the proposal title link, which
+  // avoids nesting the card's buttons inside another focusable control.
+  // Clicks on links and buttons (including disabled ones), and clicks that
+  // end a text selection, are left alone.
+  const handleCardClick = (e: MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    // React bubbles events from portals (tooltips, modals) through the card.
+    if (!e.currentTarget.contains(target)) {
+      return;
+    }
+    if (target.closest("a, button")) {
+      return;
+    }
+    // Disabled buttons have pointer-events: none, so their clicks land on
+    // whatever is behind them; hit-test them by position instead.
+    const disabledButtons =
+      e.currentTarget.querySelectorAll<HTMLElement>("button:disabled");
+    const hitDisabledButton = Array.from(disabledButtons).some((button) => {
+      const rect = button.getBoundingClientRect();
+      return (
+        e.clientX >= rect.left &&
+        e.clientX <= rect.right &&
+        e.clientY >= rect.top &&
+        e.clientY <= rect.bottom
+      );
+    });
+    if (hitDisabledButton) {
+      return;
+    }
+    if (window.getSelection()?.toString()) {
+      return;
+    }
+    router.push(getProposalDetailPagePath(proposal.publicKey));
+  };
+
   return (
-    <div className="flex min-w-0 w-full flex-col gap-6 p-6 lg:flex-row lg:items-stretch xl:gap-8">
+    <div
+      className="flex min-w-0 w-full flex-col gap-6 p-6 cursor-pointer lg:flex-row lg:items-stretch xl:gap-8"
+      onClick={handleCardClick}
+    >
       <div className="w-32 shrink-0 self-stretch flex items-center justify-center">
         <Spade className="size-15 text-muted/70 animate-pulse" />
       </div>
