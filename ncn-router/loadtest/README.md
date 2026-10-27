@@ -42,15 +42,15 @@ The runner writes `loadtest-results/` at the repository root:
 - `requests.jsonl`: one record per logical request, including discovery.
   Records contain a request ID, timestamp, path, intended target, resolved
   verifier, each redirect and its timing, final status, total latency,
-  expected status/format/body, normalized response hash, response evidence path,
+  expected status/format/body, comparison hash, response evidence path,
   and errors.
   Discovery records also identify the HTTP method; the RPC lookup uses POST.
 - `responses/`: response bodies addressed by their raw body hash. Records with
-  different normalized hashes can be inspected here to see the actual differences.
+  different comparison hashes can be inspected here to see the actual differences.
 
 `request_failed` findings link directly to journal IDs. `response_mismatch`
 findings identify the rendered request and expected response settings, list every
-case name in the comparison, and list each normalized hash with the request IDs
+case name in the comparison, and list each comparison hash with the request IDs
 that returned it. Responses are grouped by method, rendered path/query, expected
 status, response format, and expected body, regardless of case name or load/sampling
 phase. Per-case request counts and latency tables include only the load phase.
@@ -237,7 +237,7 @@ Each `[[requests]]` entry accepts:
 | `name`            | string       | required                 | Unique case name used for grouping and reports                                    |
 | `path`            | string       | required                 | Explicit path with `{network}` and `{slot}`, or `latest` for `vote_proof`/`voter` |
 | `expected_status` | integer      | `200`                    | Expected final HTTP status                                                        |
-| `format`          | string       | `json`                   | `json` for semantic comparisons, or `text` for exact bytes                        |
+| `format`          | string       | `json`                   | `json` for semantic comparisons, `text` for exact bytes, or `status` to compare only the expected status |
 | `expected_body`   | string       | unset                    | Optional exact UTF-8 body assertion                                               |
 | `targets`         | string array | `["router", "verifier"]` | Send through the router, directly to all verifiers, or both                       |
 
@@ -245,6 +245,24 @@ Data paths must include the selected network and pinned slot. `/metas` uses
 `slots={slot}`. Use distinct case names for different requests, including negative
 cases with an expected non-200 status. `latest` cases must use JSON format and
 expect HTTP 200; explicit paths retain their normal format/status options.
+
+Use `format = "status"` for a negative test whose error body may differ between
+verifiers or contain plain text, HTML, or no content:
+
+```toml
+[[requests]]
+name = "missing_vote_proof"
+path = "/proof/vote_account/ABSENT_ACCOUNT?network={network}&slot={slot}"
+expected_status = 404
+format = "status"
+```
+
+Status comparisons hash the expected status after checking that the actual status
+matches it. They skip body parsing and body comparisons, but still read and save
+the response under the normal size and timeout limits. An explicit `expected_body`
+continues to assert the exact body. Unexpected statuses remain failures in every
+format. JSON and text cases, including those expecting 201 or error statuses,
+continue to compare bodies.
 
 ## GitHub Actions
 

@@ -17,6 +17,7 @@ pub enum Kind {
 pub enum BodyFormat {
     Json,
     Text,
+    Status,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, ValueEnum)]

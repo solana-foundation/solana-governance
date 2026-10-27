@@ -259,8 +259,12 @@ fn validate(value: &Value, url: &Url) -> Result<()> {
     Ok(())
 }
 
-/// Return a stable response hash, ignoring only verifier-local metadata upload times.
+/// Hash the expected status or response body according to the case format.
+/// JSON comparisons ignore verifier-local metadata upload times.
 pub fn response_hash(body: &[u8], case: &Case, validate_status: bool) -> Result<String> {
+    if case.format == BodyFormat::Status {
+        return Ok(hash(case.expected_status.to_string().as_bytes()));
+    }
     if case.format == BodyFormat::Text {
         return Ok(hash(body));
     }

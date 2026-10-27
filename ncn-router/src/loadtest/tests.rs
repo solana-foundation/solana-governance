@@ -312,6 +312,107 @@ fn normalization_preserves_proof_order_and_integer_precision() {
 }
 
 #[tokio::test]
+async fn status_only_negative_cases_accept_different_bodies_and_preserve_evidence() {
+    let request: Case = toml::from_str(
+        "name='missing_proof'\npath='/proof/vote_account/absent?network=mainnet&slot=42'\nexpected_status=404\nformat='status'\ntargets=['verifier']",
+    ).unwrap();
+    let servers = [
+        Fixture::response(404, "not found on alice"),
+        Fixture::response(404, "<html>missing on bob</html>"),
+    ];
+    let targets = [
+        verifier("alice", &servers[0].url),
+        verifier("bob", &servers[1].url),
+    ];
+    let directory = tempfile::tempdir().unwrap();
+    let args = args(&directory);
+    let mut journal = Journal::new(&args).unwrap();
+    let client = client(1.0);
+    for target in &targets {
+        let record = fetch(&client, target, &request, &targets, "load").await;
+        assert!(record.ok, "{:?}", record.issues);
+        journal.consume(record).unwrap();
+    }
+    let mut report = Report::new(args.clone());
+    report.analyze(&journal.records, &targets, &[request.clone()]);
+    assert!(report.passed, "{:?}", report.findings);
+    assert_eq!(
+        journal.records[0].response_sha256,
+        journal.records[1].response_sha256
+    );
+    let paths: Vec<_> = journal
+        .records
+        .iter()
+        .map(|record| args.output.join(record.response_file.as_ref().unwrap()))
+        .collect();
+    assert_ne!(paths[0], paths[1]);
+    assert_eq!(fs::read_to_string(&paths[0]).unwrap(), "not found on alice");
+    assert_eq!(
+        fs::read_to_string(&paths[1]).unwrap(),
+        "<html>missing on bob</html>"
+    );
+
+    for status in [200, 500] {
+        let server = Fixture::response(status, "not found");
+        let record = fetch(
+            &client,
+            &verifier("wrong_status", &server.url),
+            &request,
+            &[],
+            "load",
+        )
+        .await;
+        assert!(!record.ok);
+        assert!(record.response_sha256.is_none());
+        assert!(record
+            .issues
+            .iter()
+            .any(|issue| issue == &format!("expected HTTP 404, got {status}")));
+    }
+    let mut exact_body = request;
+    exact_body.expected_body = Some("expected error".into());
+    let record = fetch(&client, &targets[0], &exact_body, &targets, "load").await;
+    assert!(!record.ok);
+    assert!(record
+        .issues
+        .iter()
+        .any(|issue| issue == "response body differs from expected_body"));
+}
+
+#[tokio::test]
+async fn json_cases_compare_bodies_for_created_and_error_responses() {
+    for status in [201, 404] {
+        let servers = [
+            Fixture::response(status, r#"{"message":"alice"}"#),
+            Fixture::response(status, r#"{"message":"bob"}"#),
+        ];
+        let targets = [
+            verifier("alice", &servers[0].url),
+            verifier("bob", &servers[1].url),
+        ];
+        let request = Case {
+            expected_status: status,
+            targets: vec![Kind::Verifier],
+            ..case()
+        };
+        let client = client(1.0);
+        let records = vec![
+            fetch(&client, &targets[0], &request, &targets, "load").await,
+            fetch(&client, &targets[1], &request, &targets, "load").await,
+        ];
+        assert!(records.iter().all(|record| record.ok), "{records:?}");
+        let directory = tempfile::tempdir().unwrap();
+        let mut report = Report::new(args(&directory));
+        report.analyze(&records, &targets, &[request]);
+        assert!(!report.passed);
+        assert!(report
+            .findings
+            .iter()
+            .any(|finding| finding["type"] == "response_mismatch"));
+    }
+}
+
+#[tokio::test]
 async fn successful_http_status_cannot_hide_wrong_snapshot_or_empty_batch() {
     for (body, path) in [
         (
