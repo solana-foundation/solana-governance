@@ -44,7 +44,13 @@ pub struct Journal {
 
 impl Journal {
     pub fn new(args: &Args) -> Result<Self> {
-        fs::create_dir_all(args.output.join("responses"))?;
+        let responses = args.output.join("responses");
+        match fs::remove_dir_all(&responses) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        fs::create_dir_all(responses)?;
         Ok(Self {
             file: File::create(args.output.join("requests.jsonl"))?,
             output: args.output.clone(),

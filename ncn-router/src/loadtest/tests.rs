@@ -1052,6 +1052,57 @@ async fn unattributed_router_responses_have_a_bounded_budget_and_report_insuffic
 }
 
 #[tokio::test]
+async fn reruns_replace_response_evidence_without_removing_other_output_files() {
+    let directory = tempfile::tempdir().unwrap();
+    let args = args(&directory);
+    let notes = args.output.join("notes.txt");
+    fs::write(&notes, "keep these notes").unwrap();
+    let mut previous_response: Option<std::path::PathBuf> = None;
+    let client = client(1.0);
+    for body in [META.to_owned(), META.replace("root", "next-root")] {
+        let mut journal = Journal::new(&args).unwrap();
+        if let Some(previous) = previous_response {
+            assert!(!previous.exists());
+        }
+        assert!(fs::read_to_string(args.output.join("requests.jsonl"))
+            .unwrap()
+            .is_empty());
+        let response = body.clone();
+        let server = Fixture::new(move |request| {
+            request.respond(Response::from_string(&response)).unwrap();
+        });
+        let target = verifier("alice", &server.url);
+        let record = fetch(&client, &target, &case(), &[], "load").await;
+        assert!(record.ok, "{:?}", record.issues);
+        journal.consume(record).unwrap();
+        let evidence = args
+            .output
+            .join(journal.records[0].response_file.as_ref().unwrap());
+        assert_eq!(fs::read_to_string(&evidence).unwrap(), body);
+        assert_eq!(
+            fs::read_dir(args.output.join("responses")).unwrap().count(),
+            1
+        );
+        assert_eq!(
+            fs::read_to_string(args.output.join("requests.jsonl"))
+                .unwrap()
+                .lines()
+                .count(),
+            1
+        );
+        assert_eq!(fs::read_to_string(&notes).unwrap(), "keep these notes");
+        previous_response = Some(evidence);
+    }
+    let journal = Journal::new(&args).unwrap();
+    assert!(journal.records.is_empty());
+    assert_eq!(
+        fs::read_dir(args.output.join("responses")).unwrap().count(),
+        0
+    );
+    assert_eq!(fs::read_to_string(&notes).unwrap(), "keep these notes");
+}
+
+#[tokio::test]
 async fn router_failure_details_are_complete_linked_and_cleared_after_a_clean_run() {
     let upstream = Fixture::response(503, "unavailable");
     let router = rotating_router(vec![upstream.url.clone()]);

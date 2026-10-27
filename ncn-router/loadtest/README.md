@@ -56,6 +56,7 @@ status, response format, and expected body, regardless of case name or load/samp
 phase. Per-case request counts and latency tables include only the load phase.
 Differences are reported without assuming that the largest response group is correct.
 Reports are overwritten on each run; use a different `--output` to retain runs.
+The generated `responses/` directory is cleared at the start of each run.
 
 ## What is checked
 
