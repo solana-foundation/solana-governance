@@ -7,6 +7,20 @@ ncn_router_plan := env_var_or_default("NCN_ROUTER_TF_PLAN", "/tmp/ncn-router.tfp
 ncn_router_doppler_project := "solana-governance"
 ncn_router_doppler_config := "prd_infra"
 
+# Run paced requests through the router and against every configured verifier.
+[positional-arguments]
+ncn-network-loadtest *args:
+    cargo run --locked --manifest-path ncn-router/Cargo.toml --bin ncn-network-loadtest -- "$@"
+
+# Exercise reporting and network failures using local HTTP fixtures.
+ncn-network-loadtest-test:
+    cargo test --locked --manifest-path ncn-router/Cargo.toml --bin ncn-network-loadtest
+
+# Check formatting and lint the load test binary.
+ncn-network-loadtest-check:
+    rustfmt --edition 2021 --check ncn-router/src/bin/network_loadtest.rs
+    cargo clippy --locked --manifest-path ncn-router/Cargo.toml --bin ncn-network-loadtest -- -D warnings
+
 # Create the remote-state bucket once with the infrastructure service account.
 ncn-router-tf-bootstrap:
     doppler run --project {{ncn_router_doppler_project}} --config {{ncn_router_doppler_config}} -- bash -euo pipefail -c ': "${NCN_ROUTER_TERRAFORM_SERVICE_ACCOUNT_KEY:?Set NCN_ROUTER_TERRAFORM_SERVICE_ACCOUNT_KEY in Doppler prd_infra}"; export GOOGLE_CREDENTIALS="$NCN_ROUTER_TERRAFORM_SERVICE_ACCOUNT_KEY"; unset NCN_ROUTER_TERRAFORM_SERVICE_ACCOUNT_KEY; TF_VAR_state_bucket_name="{{ncn_router_state_bucket}}" terraform -chdir={{ncn_router_bootstrap}} init -input=false; TF_VAR_state_bucket_name="{{ncn_router_state_bucket}}" terraform -chdir={{ncn_router_bootstrap}} apply -input=false'
