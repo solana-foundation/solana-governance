@@ -37,7 +37,6 @@ pub mod ncn_snapshot {
         proposed_authority: Option<Pubkey>,
         min_consensus_threshold_bps: Option<u16>,
         tie_breaker_admin: Option<Pubkey>,
-        vote_duration: Option<i64>,
         svmgov_program_pubkey: Option<Pubkey>,
     ) -> Result<()> {
         update_program_config::handler(
@@ -45,7 +44,6 @@ pub mod ncn_snapshot {
             proposed_authority,
             min_consensus_threshold_bps,
             tie_breaker_admin,
-            vote_duration,
             svmgov_program_pubkey,
         )
     }
@@ -59,8 +57,15 @@ pub mod ncn_snapshot {
         snapshot_slot: u64,
         proposal_seed: u64,
         spl_vote_account: Pubkey,
+        vote_expiry_slot: u64,
     ) -> Result<()> {
-        init_ballot_box::handler(ctx, snapshot_slot, proposal_seed, spl_vote_account)
+        init_ballot_box::handler(
+            ctx,
+            snapshot_slot,
+            proposal_seed,
+            spl_vote_account,
+            vote_expiry_slot,
+        )
     }
 
     pub fn cast_vote(ctx: Context<CastVote>, ballot: Ballot) -> Result<()> {

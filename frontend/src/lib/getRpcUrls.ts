@@ -1,62 +1,42 @@
-import type { RPCEndpoint } from "@/types";
+import "server-only";
+import type { RpcNetwork } from "@/types";
 
 /** Default RPC URLs when env vars are not set. Single source of truth for mainnet/testnet/devnet. */
-export const DEFAULT_RPC_URLS: Record<
-  Exclude<RPCEndpoint, "custom">,
-  string
-> = {
+export const DEFAULT_RPC_URLS: Record<RpcNetwork, string> = {
   mainnet: "https://api.mainnet-beta.solana.com",
   testnet: "https://api.testnet.solana.com",
   devnet: "https://api.devnet.solana.com",
 };
 
 export interface RpcEnvSource {
-  NEXT_PUBLIC_SOLANA_RPC_MAINNET?: string;
-  NEXT_PUBLIC_SOLANA_RPC_TESTNET?: string;
-  NEXT_PUBLIC_SOLANA_RPC_DEVNET?: string;
+  SOLANA_RPC_URL_MAINNET?: string;
+  SOLANA_RPC_URL_TESTNET?: string;
+  SOLANA_RPC_URL_DEVNET?: string;
 }
 
 /**
- * Returns RPC URLs for mainnet, testnet, devnet (env overrides with defaults).
- * Use from client with getRpcUrls(env) or from server with getRpcUrls(process.env).
+ * Returns server-side RPC URLs for mainnet, testnet, and devnet.
  */
 export function getRpcUrls(
   envSource: RpcEnvSource = {},
-): Record<Exclude<RPCEndpoint, "custom">, string> {
+): Record<RpcNetwork, string> {
   return {
-    mainnet:
-      envSource.NEXT_PUBLIC_SOLANA_RPC_MAINNET ?? DEFAULT_RPC_URLS.mainnet,
-    testnet:
-      envSource.NEXT_PUBLIC_SOLANA_RPC_TESTNET ?? DEFAULT_RPC_URLS.testnet,
-    devnet: envSource.NEXT_PUBLIC_SOLANA_RPC_DEVNET ?? DEFAULT_RPC_URLS.devnet,
+    mainnet: envSource.SOLANA_RPC_URL_MAINNET ?? DEFAULT_RPC_URLS.mainnet,
+    testnet: envSource.SOLANA_RPC_URL_TESTNET ?? DEFAULT_RPC_URLS.testnet,
+    devnet: envSource.SOLANA_RPC_URL_DEVNET ?? DEFAULT_RPC_URLS.devnet,
   };
 }
 
 /**
- * Resolves the effective RPC URL for an endpoint type.
- * For custom, pass the URL in customRpcUrl (validated as URL).
+ * Resolves the server-side upstream RPC URL for a supported cluster.
  */
-export function getRpcUrlForEndpoint(
-  endpoint: RPCEndpoint,
-  customRpcUrl?: string | null,
+export function getRpcUrlForNetwork(
+  network: RpcNetwork,
   envSource?: RpcEnvSource,
 ): string {
-  if (endpoint === "custom") {
-    if (!customRpcUrl || typeof customRpcUrl !== "string") {
-      throw new Error("rpcUrl is required when endpoint is custom");
-    }
-    try {
-      new URL(customRpcUrl);
-    } catch {
-      throw new Error("Invalid rpcUrl for custom endpoint");
-    }
-    return customRpcUrl;
-  }
   const urls = getRpcUrls(
     envSource ??
-      (typeof process !== "undefined"
-        ? (process.env as RpcEnvSource)
-        : {}),
+      (typeof process !== "undefined" ? (process.env as RpcEnvSource) : {}),
   );
-  return urls[endpoint];
+  return urls[network];
 }

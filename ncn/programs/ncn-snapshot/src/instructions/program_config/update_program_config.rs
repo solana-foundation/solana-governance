@@ -17,10 +17,11 @@ pub fn handler(
     proposed_authority: Option<Pubkey>,
     min_consensus_threshold_bps: Option<u16>,
     tie_breaker_admin: Option<Pubkey>,
-    vote_duration: Option<i64>,
     svmgov_program_pubkey: Option<Pubkey>,
 ) -> Result<()> {
     let program_config = &mut ctx.accounts.program_config;
+    program_config.clear_reserved();
+
     if let Some(proposed_authority) = proposed_authority {
         program_config.proposed_authority = Some(proposed_authority);
     }
@@ -31,10 +32,6 @@ pub fn handler(
     }
     if let Some(tie_breaker_admin) = tie_breaker_admin {
         program_config.tie_breaker_admin = tie_breaker_admin;
-    }
-    if let Some(vote_duration) = vote_duration {
-        require_gt!(vote_duration, 0);
-        program_config.vote_duration = vote_duration;
     }
     if let Some(svmgov_program_pubkey) = svmgov_program_pubkey {
         program_config.svmgov_program_pubkey = svmgov_program_pubkey;

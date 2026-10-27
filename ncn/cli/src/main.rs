@@ -357,11 +357,6 @@ pub enum Commands {
         )]
         tie_breaker_admin: Option<Pubkey>,
 
-        /// Vote duration in seconds. Operators have this long after a
-        /// ballot box is created to cast votes.
-        #[arg(long, help = "Voting window duration, in seconds")]
-        vote_duration: Option<i64>,
-
         /// New svmgov governance program id (base58). Retargets which svmgov
         /// program may open ballot boxes — no ncn redeploy required.
         #[arg(
@@ -668,7 +663,6 @@ fn main() -> Result<()> {
             config.min_consensus_threshold_bps
         );
         println!("  Tie Breaker Admin: {}", config.tie_breaker_admin);
-        println!("  Vote Duration: {}", config.vote_duration);
         println!("  Svmgov Program: {}", config.svmgov_program_pubkey);
         println!(
             "  Whitelisted Operators: {}",
@@ -689,10 +683,7 @@ fn main() -> Result<()> {
             "  Min Consensus Threshold (bps): {}",
             ballot_box.min_consensus_threshold_bps
         );
-        println!(
-            "  Vote Expiry Timestamp: {}",
-            ballot_box.vote_expiry_timestamp
-        );
+        println!("  Vote Expiry Slot: {}", ballot_box.vote_expiry_slot);
         println!(
             "  Tie Breaker Consensus: {}",
             ballot_box.tie_breaker_consensus
@@ -886,7 +877,6 @@ fn main() -> Result<()> {
             proposed_authority,
             min_consensus_threshold_bps,
             tie_breaker_admin,
-            vote_duration,
             svmgov_program_id,
         } => {
             info!("UpdateProgramConfig...");
@@ -909,7 +899,6 @@ fn main() -> Result<()> {
                 proposed_authority,
                 min_consensus_threshold_bps,
                 tie_breaker_admin,
-                vote_duration,
                 svmgov_program_id,
             )?;
             println!("{}", outcome.format_structured());

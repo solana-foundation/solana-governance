@@ -23,7 +23,9 @@ Next.js web interface for the Solana Validator Governance System. Provides a das
    cp .env.example .env.local
    ```
 
-2. Configure your RPC endpoint in `.env.local`
+2. Configure the server-only `SOLANA_RPC_*` endpoints in `.env.local`. Do not
+   prefix them with `NEXT_PUBLIC_`; browser RPC traffic is sent through the
+   allowlisted `/api/rpc` proxy.
 
 3. Install dependencies:
    ```bash
@@ -49,3 +51,6 @@ See [`.env.example`](./.env.example) for required configuration.
 - `src/hooks/` — Custom React hooks for data fetching and state
 - `src/data/` — API and data layer
 - `src/contexts/` — React contexts (wallet, endpoints, modals)
+
+See [docs/rpc-proxy.md](./docs/rpc-proxy.md) for the RPC allowlist, caching,
+and deployment protections.

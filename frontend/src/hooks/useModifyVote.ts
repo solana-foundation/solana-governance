@@ -2,7 +2,6 @@ import { ModifyVoteParams } from "@/chain";
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { useNcnApi } from "@/contexts/NcnApiContext";
 import { modifyVoteMutation } from "@/data";
-import { requireKnownSnapshotNetwork } from "@/lib/snapshotNetwork";
 import { useMutation } from "@tanstack/react-query";
 import { track } from "@vercel/analytics";
 
@@ -15,7 +14,7 @@ export function useModifyVote() {
     mutationFn: (params: ModifyVoteParams) =>
       modifyVoteMutation(params, {
         endpoint,
-        network: requireKnownSnapshotNetwork(network),
+        network,
         ncnApiUrl,
       }),
     onMutate: (params) => {

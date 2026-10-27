@@ -4,7 +4,7 @@ import { BN } from "@coral-xyz/anchor";
 
 import svmgovProgramIdl from "@/chain/idl/svmgov_program.json";
 import govV1idl from "@/chain/idl/gov-v1.json";
-import { RPCEndpoint } from "@/types";
+import { RpcNetwork } from "@/types";
 
 // Common types
 export interface TransactionResult {
@@ -14,7 +14,7 @@ export interface TransactionResult {
 }
 
 export interface BlockchainParams {
-  network: RPCEndpoint;
+  network: RpcNetwork;
   endpoint: string;
   ncnApiUrl?: string;
 }

@@ -1,12 +1,16 @@
 use anyhow::Result;
 use axum::http::StatusCode;
 use serde_json;
-use sqlx::{sqlite::SqlitePool, Executor, Row as SqlxRow, Sqlite};
+use sqlx::{
+    sqlite::{SqlitePool, SqliteRow},
+    Executor, Row as SqlxRow, Sqlite,
+};
 use std::convert::TryFrom;
 use tracing::debug;
 use tracing::info;
 
 use super::models::*;
+use super::sql::{SNAPSHOT_META_COLUMNS, STAKE_ACCOUNT_COLUMNS, VOTE_ACCOUNT_COLUMNS};
 
 /// Database operations for vote accounts
 impl VoteAccountRecord {
@@ -91,10 +95,10 @@ impl VoteAccountRecord {
         vote_account: &str,
         snapshot_slot: u64,
     ) -> Result<Option<VoteAccountRecord>> {
-        let row_opt = sqlx::query(
-            "SELECT * FROM vote_accounts \
-                   WHERE network = ? AND vote_account = ? AND snapshot_slot = ?",
-        )
+        let row_opt = sqlx::query(&format!(
+            "SELECT {VOTE_ACCOUNT_COLUMNS} FROM vote_accounts \
+             WHERE network = ? AND vote_account = ? AND snapshot_slot = ?"
+        ))
         .bind(network)
         .bind(vote_account)
         .bind(i64::try_from(snapshot_slot)?)
@@ -203,10 +207,10 @@ impl StakeAccountRecord {
         stake_account: &str,
         snapshot_slot: u64,
     ) -> Result<Option<StakeAccountRecord>> {
-        let row_opt = sqlx::query(
-            "SELECT * FROM stake_accounts \
-                   WHERE network = ? AND stake_account = ? AND snapshot_slot = ?",
-        )
+        let row_opt = sqlx::query(&format!(
+            "SELECT {STAKE_ACCOUNT_COLUMNS} FROM stake_accounts \
+             WHERE network = ? AND stake_account = ? AND snapshot_slot = ?"
+        ))
         .bind(network)
         .bind(stake_account)
         .bind(i64::try_from(snapshot_slot)?)
@@ -264,37 +268,92 @@ impl SnapshotMetaRecord {
         Ok(())
     }
 
+    /// Build a record from a row selected with [`SNAPSHOT_META_COLUMNS`].
+    fn from_row(row: &SqliteRow) -> Result<SnapshotMetaRecord> {
+        Ok(SnapshotMetaRecord {
+            network: row.get("network"),
+            slot: row.get::<i64, _>("slot") as u64,
+            merkle_root: row.get("merkle_root"),
+            snapshot_hash: row.get("snapshot_hash"),
+            created_at: row.get("created_at"),
+            // Checked, mirroring the write side. A negative value cannot
+            // be written, but `as u64` would turn one into an enormous
+            // quorum denominator, silently reporting participation as ~0%.
+            total_active_stake: row
+                .get::<Option<i64>, _>("total_active_stake")
+                .map(u64::try_from)
+                .transpose()?,
+        })
+    }
+
     /// Get the latest snapshot metadata for a network
     pub async fn get_latest(
         pool: &SqlitePool,
         network: &str,
     ) -> Result<Option<SnapshotMetaRecord>> {
-        let row_opt = sqlx::query(
-            "SELECT * FROM snapshot_meta
-             WHERE network = ? ORDER BY slot DESC LIMIT 1",
-        )
+        let row_opt = sqlx::query(&format!(
+            "SELECT {SNAPSHOT_META_COLUMNS} FROM snapshot_meta \
+             WHERE network = ? ORDER BY slot DESC LIMIT 1"
+        ))
         .bind(network)
         .fetch_optional(pool)
         .await?;
 
-        if let Some(row) = row_opt {
-            Ok(Some(SnapshotMetaRecord {
-                network: row.get("network"),
-                slot: row.get::<i64, _>("slot") as u64,
-                merkle_root: row.get("merkle_root"),
-                snapshot_hash: row.get("snapshot_hash"),
-                created_at: row.get("created_at"),
-                // Checked, mirroring the write side. A negative value cannot
-                // be written, but `as u64` would turn one into an enormous
-                // quorum denominator, silently reporting participation as ~0%.
-                total_active_stake: row
-                    .get::<Option<i64>, _>("total_active_stake")
-                    .map(u64::try_from)
-                    .transpose()?,
-            }))
-        } else {
-            Ok(None)
+        row_opt.as_ref().map(Self::from_row).transpose()
+    }
+
+    /// Get the metadata for one snapshot.
+    ///
+    /// A proposal votes against the snapshot frozen at activation, which stops
+    /// being the newest as soon as another is uploaded, so quorum for it cannot
+    /// be read from [`get_latest`].
+    pub async fn get_by_slot(
+        pool: &SqlitePool,
+        network: &str,
+        slot: u64,
+    ) -> Result<Option<SnapshotMetaRecord>> {
+        let row_opt = sqlx::query(&format!(
+            "SELECT {SNAPSHOT_META_COLUMNS} FROM snapshot_meta \
+             WHERE network = ? AND slot = ?"
+        ))
+        .bind(network)
+        .bind(i64::try_from(slot)?)
+        .fetch_optional(pool)
+        .await?;
+
+        row_opt.as_ref().map(Self::from_row).transpose()
+    }
+
+    /// Get the metadata for several snapshots in one query.
+    ///
+    /// Slots that have no snapshot are absent from the result rather than being
+    /// an error, so a caller listing proposals gets whatever is retained
+    /// alongside the ones the cleanup job has already pruned.
+    pub async fn get_by_slots(
+        pool: &SqlitePool,
+        network: &str,
+        slots: &[u64],
+    ) -> Result<Vec<SnapshotMetaRecord>> {
+        if slots.is_empty() {
+            return Ok(Vec::new());
         }
+
+        let placeholders = vec!["?"; slots.len()].join(", ");
+        let sql = format!(
+            "SELECT {SNAPSHOT_META_COLUMNS} FROM snapshot_meta \
+             WHERE network = ? AND slot IN ({placeholders}) ORDER BY slot"
+        );
+        let mut query = sqlx::query(&sql).bind(network);
+        for slot in slots {
+            query = query.bind(i64::try_from(*slot)?);
+        }
+
+        query
+            .fetch_all(pool)
+            .await?
+            .iter()
+            .map(Self::from_row)
+            .collect()
     }
 
     /// Get the latest slot for a network

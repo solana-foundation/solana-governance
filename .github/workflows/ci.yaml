@@ -21,19 +21,21 @@ concurrency:
 env:
   RUST_VERSION: "1.93.1"
   # Agave release providing cargo-build-sbf for the on-chain program build.
-  AGAVE_VERSION: "3.1.10"
+  AGAVE_VERSION: "4.1.2"
 
 jobs:
   build:
     name: Build & test CLIs
     runs-on: ubuntu-22.04
+    env:
+      RUST_VERSION: "1.97.1"
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev libclang-dev
+          sudo apt-get install -y pkg-config libssl-dev libclang-dev libudev-dev
 
       - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
         with:
@@ -94,11 +96,19 @@ jobs:
 
       # Both programs live in the repo-root workspace; artifacts land in
       # target/deploy/ at the repo root, where the LiteSVM suites load them.
+      # Keep SBF intermediates out of the Rust target cache. cargo-build-sbf's
+      # platform-tools are not part of rust-cache's key, and restoring
+      # target/sbpf-solana-solana across Agave versions can produce an invalid
+      # program binary. The final artifacts still go to target/deploy below.
       - name: Build ncn-snapshot program
-        run: cargo-build-sbf --manifest-path ncn/programs/ncn-snapshot/Cargo.toml -- --locked
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/sbpf-target
+        run: cargo-build-sbf --sbf-out-dir target/deploy --manifest-path ncn/programs/ncn-snapshot/Cargo.toml -- --locked
 
       - name: Build svmgov program
-        run: cargo-build-sbf --manifest-path svmgov/program/programs/svmgov_program/Cargo.toml -- --locked
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/sbpf-target
+        run: cargo-build-sbf --sbf-out-dir target/deploy --manifest-path svmgov/program/programs/svmgov_program/Cargo.toml -- --locked
 
       # ncn-merkle-tree is a root-workspace member both programs' proof
       # verification depends on, so its unit tests ride along here.
@@ -119,6 +129,7 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
         with:
           toolchain: ${{ env.RUST_VERSION }}
+          components: rustfmt, clippy
           # See the note on rustflags in the build job above.
           rustflags: ""
 
@@ -137,7 +148,13 @@ jobs:
         working-directory: squads-client
         run: cargo test --locked --lib --test regression
 
-      - name: Test ncn-router
+      - name: Set up Just
+        uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3.1.0
+
+      - name: Check NCN load runner
+        run: just ncn-network-loadtest-check
+
+      - name: Test ncn-router and network load runner
         working-directory: ncn-router
         run: cargo test --locked
 

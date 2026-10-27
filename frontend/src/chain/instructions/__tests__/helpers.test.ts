@@ -7,10 +7,15 @@ jest.mock("@/contexts/EndpointContext", () => ({
 }));
 
 import { BN } from "@coral-xyz/anchor";
-import { PublicKey } from "@solana/web3.js";
+import {
+  PublicKey,
+  TransactionExpiredBlockheightExceededError,
+} from "@solana/web3.js";
 
 import {
+  assertMetaMerkleProofInitialized,
   assertOverrideProofLineage,
+  confirmTransactionByPolling,
   computeProofCloseTimestamp,
   resolveProposalSnapshotSlot,
   resolveSnapshotVoteAccount,
@@ -19,6 +24,96 @@ import type {
   StakeAccountProofResponse,
   VoteAccountProofResponse,
 } from "../types";
+
+describe("confirmTransactionByPolling", () => {
+  it("returns after an HTTP status reaches confirmed", async () => {
+    const getSignatureStatuses = jest.fn().mockResolvedValue({
+      value: [
+        {
+          confirmationStatus: "confirmed",
+          confirmations: 1,
+          err: null,
+          slot: 123,
+        },
+      ],
+    });
+    const connection = { getSignatureStatuses } as unknown as Connection;
+
+    await expect(
+      confirmTransactionByPolling(connection, "signature", 123),
+    ).resolves.toEqual({ value: { err: null } });
+    expect(getSignatureStatuses).toHaveBeenCalledWith(["signature"]);
+  });
+
+  it("returns the transaction error from status polling", async () => {
+    const err = { InstructionError: [0, "Custom"] };
+    const connection = {
+      getSignatureStatuses: jest.fn().mockResolvedValue({
+        value: [{ confirmationStatus: "confirmed", confirmations: 1, err }],
+      }),
+    } as unknown as Connection;
+
+    await expect(
+      confirmTransactionByPolling(connection, "signature", 123),
+    ).resolves.toEqual({ value: { err } });
+  });
+
+  it("stops polling only after the transaction's blockhash expires", async () => {
+    const getSignatureStatuses = jest.fn().mockResolvedValue({ value: [null] });
+    const getBlockHeight = jest.fn().mockResolvedValue(124);
+    const connection = {
+      getSignatureStatuses,
+      getBlockHeight,
+    } as unknown as Connection;
+
+        await expect(
+      confirmTransactionByPolling(connection, "signature", 123),
+    ).rejects.toBeInstanceOf(TransactionExpiredBlockheightExceededError);
+    expect(getBlockHeight).toHaveBeenCalledWith("confirmed");
+  });
+});
+
+describe("assertMetaMerkleProofInitialized", () => {
+  const proofPda = new PublicKey(new Uint8Array(32).fill(9));
+  const initializationError = { InstructionError: [0, "Custom"] };
+
+  it("accepts a failed initialization when a competing transaction created the proof", async () => {
+    const getAccountInfo = jest.fn().mockResolvedValue({ data: Buffer.alloc(0) });
+    const connection = { getAccountInfo } as unknown as Connection;
+
+    await expect(
+      assertMetaMerkleProofInitialized(
+        connection,
+        proofPda,
+        initializationError
+      )
+    ).resolves.toBeUndefined();
+    expect(getAccountInfo).toHaveBeenCalledWith(proofPda, "confirmed");
+  });
+
+  it("preserves an initialization failure when the proof is still absent", async () => {
+    const getAccountInfo = jest.fn().mockResolvedValue(null);
+    const connection = { getAccountInfo } as unknown as Connection;
+
+    await expect(
+      assertMetaMerkleProofInitialized(
+        connection,
+        proofPda,
+        initializationError
+      )
+    ).rejects.toThrow(/Failed to initialize meta merkle proof/);
+  });
+
+  it("does not issue an account read after successful initialization", async () => {
+    const getAccountInfo = jest.fn();
+    const connection = { getAccountInfo } as unknown as Connection;
+
+    await expect(
+      assertMetaMerkleProofInitialized(connection, proofPda, null)
+    ).resolves.toBeUndefined();
+    expect(getAccountInfo).not.toHaveBeenCalled();
+  });
+});
 
 /**
  * Builds a minimal Connection stand-in exposing only the two methods

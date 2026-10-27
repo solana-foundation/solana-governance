@@ -27,9 +27,8 @@ pub struct BallotBox {
     /// one vote; tallies are not stake-weighted.
     #[max_len(MAX_BALLOT_TALLIES)]
     pub ballot_tallies: Vec<BallotTally>,
-    /// Timestamp when voting ends. Tie breaker admin will decide the results
-    /// if no consensus is reached by then.
-    pub vote_expiry_timestamp: i64,
+    /// Slot when voting ends.
+    pub vote_expiry_slot: u64,
     /// Slot for which the snapshot is taken
     pub snapshot_slot: u64,
     /// Snapshot of whitelisted operators at BallotBox creation
@@ -44,12 +43,43 @@ impl BallotBox {
         Pubkey::find_program_address(&[b"BallotBox", &snapshot_slot.to_le_bytes()], &crate::ID)
     }
 
-    pub fn has_vote_expired(&self, current_timestamp: i64) -> bool {
-        current_timestamp >= self.vote_expiry_timestamp
+    pub fn has_vote_expired(&self, current_slot: u64) -> bool {
+        current_slot >= self.vote_expiry_slot
     }
 
     pub fn has_consensus_reached(&self) -> bool {
         self.slot_consensus_reached != 0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ballot_box_with_expiry(vote_expiry_slot: u64) -> BallotBox {
+        BallotBox {
+            bump: 0,
+            epoch: 0,
+            slot_created: 0,
+            slot_consensus_reached: 0,
+            min_consensus_threshold_bps: 0,
+            winning_ballot: Ballot::default(),
+            operator_votes: Vec::new(),
+            ballot_tallies: Vec::new(),
+            vote_expiry_slot,
+            snapshot_slot: 0,
+            voter_list: Vec::new(),
+            tie_breaker_consensus: false,
+        }
+    }
+
+    #[test]
+    fn vote_expiry_is_inclusive_at_the_expiry_slot() {
+        let ballot_box = ballot_box_with_expiry(100);
+
+        assert!(!ballot_box.has_vote_expired(99));
+        assert!(ballot_box.has_vote_expired(100));
+        assert!(ballot_box.has_vote_expired(101));
     }
 }
 

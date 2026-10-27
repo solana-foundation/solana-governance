@@ -1,116 +1,106 @@
-jest.mock("@/env", () => ({
-  env: {
-    NEXT_PUBLIC_SOLANA_RPC_MAINNET: "https://api.mainnet-beta.solana.com",
-    NEXT_PUBLIC_SOLANA_RPC_TESTNET: "https://api.testnet.solana.com",
-    NEXT_PUBLIC_SOLANA_RPC_DEVNET: "https://api.devnet.solana.com",
-  },
-}));
+jest.mock("@sentry/nextjs", () => ({ setTag: jest.fn() }));
 
-jest.mock("@sentry/nextjs", () => ({
-  setTag: jest.fn(),
-}));
-
-const mockGetGenesisHash = jest.fn();
-jest.mock("@solana/web3.js", () => ({
-  ...jest.requireActual("@solana/web3.js"),
-  Connection: jest.fn().mockImplementation(() => ({
-    getGenesisHash: () => mockGetGenesisHash(),
-  })),
-}));
-
-import React, { type ReactNode } from "react";
-import { renderHook, waitFor, act } from "@testing-library/react";
+import React from "react";
+import { act, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-
-import { CLUSTER_GENESIS_HASHES } from "@/lib/snapshotNetwork";
 import { EndpointProvider, useEndpoint } from "../EndpointContext";
 
-const STORAGE_KEY = "solana-rpc-endpoint";
+const STORAGE_KEY = "solana-rpc-cluster";
+const LEGACY_STORAGE_KEY = "solana-rpc-endpoint";
 
 function createWrapper() {
   const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
-    },
+    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>
+      <EndpointProvider>{children}</EndpointProvider>
+    </QueryClientProvider>
+  );
 
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <EndpointProvider>{children}</EndpointProvider>
-      </QueryClientProvider>
-    );
-  };
+  return { queryClient, wrapper };
 }
 
-describe("EndpointProvider network resolution", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    mockGetGenesisHash.mockReset();
-  });
+describe("EndpointProvider", () => {
+  beforeEach(() => localStorage.clear());
 
-  it("uses the preset endpoint type as the network without calling RPC", () => {
-    const { result } = renderHook(() => useEndpoint(), {
-      wrapper: createWrapper(),
-    });
+  it("uses the same-origin mainnet proxy by default", () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useEndpoint(), { wrapper });
 
-    expect(result.current.endpointType).toBe("mainnet");
     expect(result.current.network).toBe("mainnet");
-    expect(result.current.isResolvingNetwork).toBe(false);
-    expect(mockGetGenesisHash).not.toHaveBeenCalled();
-  });
-
-  it("resolves a custom RPC from its genesis hash", async () => {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ type: "custom", url: "https://my-rpc.example" }),
+    expect(result.current.endpointUrl).toBe(
+      "http://localhost/api/rpc?cluster=mainnet",
     );
-    mockGetGenesisHash.mockResolvedValue(CLUSTER_GENESIS_HASHES.devnet);
-
-    const { result } = renderHook(() => useEndpoint(), {
-      wrapper: createWrapper(),
-    });
-
-    expect(result.current.endpointType).toBe("custom");
-    expect(result.current.network).toBeUndefined();
-
-    await waitFor(() => {
-      expect(result.current.network).toBe("devnet");
-    });
-    expect(result.current.isResolvingNetwork).toBe(false);
   });
 
-  it("leaves network unset when a custom RPC genesis hash is unrecognized", async () => {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ type: "custom", url: "http://localhost:8899" }),
+  it("switches clusters without accepting or storing an upstream URL", () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useEndpoint(), { wrapper });
+
+    act(() => result.current.setEndpoint("devnet"));
+
+    expect(result.current.network).toBe("devnet");
+    expect(result.current.endpointUrl).toBe(
+      "http://localhost/api/rpc?cluster=devnet",
     );
-    mockGetGenesisHash.mockResolvedValue("localnet-genesis");
-
-    const { result } = renderHook(() => useEndpoint(), {
-      wrapper: createWrapper(),
-    });
-
-    await waitFor(() => {
-      expect(result.current.isResolvingNetwork).toBe(false);
-    });
-    expect(result.current.network).toBeUndefined();
+    expect(localStorage.getItem(STORAGE_KEY)).toBe("devnet");
   });
 
-  it("re-resolves when switching to a custom RPC", async () => {
-    mockGetGenesisHash.mockResolvedValue(CLUSTER_GENESIS_HASHES.mainnet);
-
-    const { result } = renderHook(() => useEndpoint(), {
-      wrapper: createWrapper(),
+  it("clears cached derived data when the cluster changes", () => {
+    const { queryClient, wrapper } = createWrapper();
+    queryClient.setQueryData(["validatorsTable", "weight"], ["mainnet-row"]);
+    queryClient.setQueryData(["validatorsVoterSplits"], { mainnet: true });
+    queryClient.setQueryData(["vote-accounts-with-validators"], {
+      mainnet: true,
     });
+    const { result } = renderHook(() => useEndpoint(), { wrapper });
 
-    act(() => {
-      result.current.setEndpoint("custom", "https://mainnet-rpc.example");
-    });
+    act(() => result.current.setEndpoint("devnet"));
 
-    await waitFor(() => {
-      expect(result.current.network).toBe("mainnet");
-    });
-    expect(result.current.endpointType).toBe("custom");
+    expect(
+      queryClient.getQueryData(["validatorsTable", "weight"]),
+    ).toBeUndefined();
+    expect(queryClient.getQueryData(["validatorsVoterSplits"])).toBeUndefined();
+    expect(
+      queryClient.getQueryData(["vote-accounts-with-validators"]),
+    ).toBeUndefined();
+
+    queryClient.setQueryData(["validatorsVoterSplits"], { devnet: true });
+    act(() => result.current.resetToDefault());
+    expect(queryClient.getQueryData(["validatorsVoterSplits"])).toBeUndefined();
+    expect(result.current.network).toBe("mainnet");
+  });
+
+  it("migrates the cluster from legacy storage and discards its URL", () => {
+    localStorage.setItem(
+      LEGACY_STORAGE_KEY,
+      JSON.stringify({
+        type: "testnet",
+        url: "https://secret-rpc.example/key",
+      }),
+    );
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useEndpoint(), { wrapper });
+
+    expect(result.current.network).toBe("testnet");
+    expect(result.current.endpointUrl).toBe(
+      "http://localhost/api/rpc?cluster=testnet",
+    );
+    expect(localStorage.getItem(LEGACY_STORAGE_KEY)).toBeNull();
+  });
+
+  it("does not restore a legacy custom RPC", () => {
+    localStorage.setItem(
+      LEGACY_STORAGE_KEY,
+      JSON.stringify({ type: "custom", url: "https://secret-rpc.example/key" }),
+    );
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useEndpoint(), { wrapper });
+
+    expect(result.current.network).toBe("mainnet");
+    expect(localStorage.getItem(LEGACY_STORAGE_KEY)).toBeNull();
   });
 });

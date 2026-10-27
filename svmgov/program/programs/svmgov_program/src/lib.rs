@@ -34,6 +34,7 @@ pub mod svmgov_program {
         snapshot_epoch_extension: u64,
         snapshot_slot_offset: i64,
         max_supporters: u32,
+        new_proposals_allowed: Option<bool>,
     ) -> Result<()> {
         ctx.accounts.initialize_config(
             max_title_length,
@@ -46,6 +47,7 @@ pub mod svmgov_program {
             snapshot_epoch_extension,
             snapshot_slot_offset,
             max_supporters,
+            new_proposals_allowed,
             &ctx.bumps,
         )?;
         Ok(())
@@ -63,6 +65,7 @@ pub mod svmgov_program {
         snapshot_epoch_extension: Option<u64>,
         snapshot_slot_offset: Option<i64>,
         max_supporters: Option<u32>,
+        new_proposals_allowed: Option<bool>,
     ) -> Result<()> {
         ctx.accounts.update_config(
             max_title_length,
@@ -75,6 +78,7 @@ pub mod svmgov_program {
             snapshot_epoch_extension,
             snapshot_slot_offset,
             max_supporters,
+            new_proposals_allowed,
         )?;
         Ok(())
     }

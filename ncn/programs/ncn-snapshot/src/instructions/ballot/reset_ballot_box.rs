@@ -21,7 +21,7 @@ pub fn handler(ctx: Context<ResetBallotBox>) -> Result<()> {
         ErrorCode::ConsensusReached
     );
     require!(
-        !ballot_box.has_vote_expired(clock.unix_timestamp),
+        !ballot_box.has_vote_expired(clock.slot),
         ErrorCode::VotingExpired
     );
 

@@ -190,7 +190,7 @@ One-time initialization. Sets all governance parameters and stores the signer as
 | `discussion_epochs` | `u64` | Epochs of discussion | |
 | `voting_epochs` | `u64` | Epochs for voting | |
 | `snapshot_epoch_extension` | `u64` | Extension epochs before snapshot | |
-| `snapshot_slot_offset` | `i64` | Slot offset from epoch start for the snapshot | |
+| `snapshot_slot_offset` | `i64` | Slot offset from epoch start for the snapshot | ≤ 414,000 |
 
 ---
 
@@ -257,9 +257,9 @@ A validator signals support for a proposal.
 Adds the validator's stake to `proposal.cluster_support_lamports`. When the total crosses the cluster support threshold:
 - Sets `proposal.voting = true`
 - Calculates `snapshot_slot` from the target epoch start slot plus `GlobalConfig.snapshot_slot_offset`
-- Sets `start_epoch` and `end_epoch`
+- Sets `start_epoch` to the epoch after the snapshot and sets `end_epoch` from the voting duration
 - Derives `consensus_result` PDA
-- CPIs to `ncn-snapshot::init_ballot_box`
+- CPIs to `ncn-snapshot::init_ballot_box`, with ballot expiry at the first slot of `start_epoch`
 
 ---
 
@@ -279,7 +279,7 @@ A validator votes on an active proposal.
 1. Verifies proposal is in voting phase and epoch range
 2. Reads `MetaMerkleProof` PDA
 3. CPIs to `ncn-snapshot::verify_merkle_proof`
-4. If `VoteOverrideCache` exists: applies cached delegator votes, reduces validator's effective stake
+4. If `VoteOverrideCache` exists: reduces validator's effective stake by the cached delegator stake (those delegator votes were already added to the proposal totals when they were cast)
 5. Records `Vote` PDA with lamport amounts
 
 ---
@@ -310,7 +310,7 @@ A delegator overrides their validator's vote using a stake account proof.
 
 **Two paths:**
 - **Path A (validator has voted):** Immediately adjusts the validator's `Vote` — subtracts delegator's portion from old vote, adds delegator's preferred allocation, updates `override_lamports`
-- **Path B (validator hasn't voted yet):** Stores in `VoteOverrideCache` to be applied when the validator votes
+- **Path B (validator hasn't voted yet):** Adds the delegator's vote to the proposal totals immediately and records the overridden stake in `VoteOverrideCache`, so the validator's later `cast_vote` excludes it from their weight
 
 ---
 

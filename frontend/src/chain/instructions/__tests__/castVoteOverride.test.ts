@@ -24,6 +24,7 @@ const mockGetMetaMerkleProofPda = jest.fn();
 const mockDeriveVotePda = jest.fn();
 const mockDeriveVoteOverridePda = jest.fn();
 const mockDeriveVoteOverrideCachePda = jest.fn();
+const mockConfirmTransactionByPolling = jest.fn();
 
 jest.mock("../helpers", () => {
   const actual = jest.requireActual("../helpers");
@@ -46,6 +47,8 @@ jest.mock("../helpers", () => {
       mockDeriveVoteOverridePda(...args),
     deriveVoteOverrideCachePda: (...args: unknown[]) =>
       mockDeriveVoteOverrideCachePda(...args),
+    confirmTransactionByPolling: (...args: unknown[]) =>
+      mockConfirmTransactionByPolling(...args),
   };
 });
 
@@ -54,7 +57,7 @@ import type { AnchorWallet } from "@solana/wallet-adapter-react";
 
 import { castVoteOverride } from "../castVoteOverride";
 import { SVMGOV_PROGRAM_ID } from "../types";
-import type { RPCEndpoint } from "@/types";
+import type { RpcNetwork } from "@/types";
 
 // Distinct, valid 32-byte public keys used as stand-ins (byte-filled so PDA derivation always
 // resolves a viable nonce).
@@ -85,7 +88,6 @@ describe("castVoteOverride", () => {
   const mockGetAccountInfo = jest.fn();
   const mockGetLatestBlockhash = jest.fn();
   const mockSendRawTransaction = jest.fn();
-  const mockConfirmTransaction = jest.fn();
 
   function buildFakeProgram() {
     recordedAccounts = {};
@@ -108,7 +110,6 @@ describe("castVoteOverride", () => {
           getAccountInfo: mockGetAccountInfo,
           getLatestBlockhash: mockGetLatestBlockhash,
           sendRawTransaction: mockSendRawTransaction,
-          confirmTransaction: mockConfirmTransaction,
         },
       },
       account: {
@@ -146,7 +147,7 @@ describe("castVoteOverride", () => {
   function signedTransactionResponse(
     signatures: { publicKey: PublicKey; signature: Buffer | null }[] = [
       { publicKey: new PublicKey(SIGNER), signature: Buffer.alloc(64) },
-    ]
+    ],
   ): Transaction {
     return {
       signatures,
@@ -168,7 +169,7 @@ describe("castVoteOverride", () => {
       lastValidBlockHeight: 123,
     });
     mockSendRawTransaction.mockResolvedValue("test-signature");
-    mockConfirmTransaction.mockResolvedValue({ value: { err: null } });
+    mockConfirmTransactionByPolling.mockResolvedValue({ value: { err: null } });
     mockGetMetaMerkleProofPda.mockReturnValue(META_MERKLE_PROOF_PDA);
     mockDeriveVotePda.mockReturnValue(VALIDATOR_VOTE_PDA);
     mockDeriveVoteOverridePda.mockReturnValue(VOTE_OVERRIDE_PDA);
@@ -214,7 +215,7 @@ describe("castVoteOverride", () => {
     consensusResult: new PublicKey(CONSENSUS_RESULT),
   };
   const blockchainParams = {
-    network: "testnet" as RPCEndpoint,
+    network: "testnet" as RpcNetwork,
     endpoint: "http://localhost:8899",
     ncnApiUrl: "http://localhost:9000",
   };
@@ -228,19 +229,19 @@ describe("castVoteOverride", () => {
       STAKE_ACCOUNT,
       "testnet",
       PROPOSAL_SNAPSHOT_SLOT,
-      blockchainParams.ncnApiUrl
+      blockchainParams.ncnApiUrl,
     );
     expect(mockGetVoteAccountProof).toHaveBeenCalledWith(
       SNAPSHOT_VOTE_ACCOUNT,
       "testnet",
       PROPOSAL_SNAPSHOT_SLOT,
-      blockchainParams.ncnApiUrl
+      blockchainParams.ncnApiUrl,
     );
     expect(mockGetStakeAccountProof).not.toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
       LATEST_META_SLOT,
-      expect.anything()
+      expect.anything(),
     );
   });
 
@@ -254,7 +255,7 @@ describe("castVoteOverride", () => {
       STAKE_ACCOUNT,
       "testnet",
       PROPOSAL_SNAPSHOT_SLOT,
-      blockchainParams.ncnApiUrl
+      blockchainParams.ncnApiUrl,
     );
 
     // The meta proof is fetched for the SNAPSHOT validator (A) carried by the stake proof —
@@ -263,13 +264,13 @@ describe("castVoteOverride", () => {
       SNAPSHOT_VOTE_ACCOUNT,
       "testnet",
       PROPOSAL_SNAPSHOT_SLOT,
-      blockchainParams.ncnApiUrl
+      blockchainParams.ncnApiUrl,
     );
     expect(mockGetVoteAccountProof).not.toHaveBeenCalledWith(
       LIVE_VOTE_ACCOUNT,
       expect.anything(),
       expect.anything(),
-      expect.anything()
+      expect.anything(),
     );
 
     const snapshotVote = new PublicKey(SNAPSHOT_VOTE_ACCOUNT);
@@ -279,7 +280,7 @@ describe("castVoteOverride", () => {
       meta_merkle_leaf: { vote_account: string };
     };
     expect(metaProofArg.meta_merkle_leaf.vote_account).toBe(
-      SNAPSHOT_VOTE_ACCOUNT
+      SNAPSHOT_VOTE_ACCOUNT,
     );
 
     // The validator_vote PDA is derived from the snapshot vote account (2nd positional arg),
@@ -291,9 +292,11 @@ describe("castVoteOverride", () => {
 
     // The instruction accounts use the snapshot validator and the snapshot-derived PDAs.
     expect(recordedAccounts.splVoteAccount.equals(snapshotVote)).toBe(true);
-    expect(recordedAccounts.validatorVote.equals(VALIDATOR_VOTE_PDA)).toBe(true);
+    expect(recordedAccounts.validatorVote.equals(VALIDATOR_VOTE_PDA)).toBe(
+      true,
+    );
     expect(recordedAccounts.metaMerkleProof.equals(META_MERKLE_PROOF_PDA)).toBe(
-      true
+      true,
     );
     expect(recordedAccounts.voteOverride.equals(VOTE_OVERRIDE_PDA)).toBe(true);
   });
@@ -314,7 +317,7 @@ describe("castVoteOverride", () => {
     });
 
     await expect(castVoteOverride(params, blockchainParams)).rejects.toThrow(
-      /does not match meta proof vote account/
+      /does not match meta proof vote account/,
     );
   });
 
@@ -325,7 +328,7 @@ describe("castVoteOverride", () => {
     });
 
     await expect(castVoteOverride(params, blockchainParams)).rejects.toThrow(
-      /no snapshot slot/
+      /no snapshot slot/,
     );
     expect(mockGetStakeAccountProof).not.toHaveBeenCalled();
   });
@@ -346,44 +349,60 @@ describe("castVoteOverride", () => {
     expect(initTransaction.instructions).toHaveLength(1);
     expect(voteTransaction.instructions).toHaveLength(1);
     expect(initTransaction.instructions[0]).not.toBe(
-      voteTransaction.instructions[0]
+      voteTransaction.instructions[0],
     );
-    expect(mockConfirmTransaction).toHaveBeenCalledWith(
-      {
-        signature: "init-signature",
-        blockhash: BLOCKHASH,
-        lastValidBlockHeight: 123,
-      },
-      "confirmed"
+    expect(mockConfirmTransactionByPolling).toHaveBeenCalledWith(
+      expect.any(Object),
+      "init-signature",
+      123,
     );
-    expect(mockConfirmTransaction.mock.invocationCallOrder[0]).toBeLessThan(
-      mockSignTransaction.mock.invocationCallOrder[1]
-    );
+    expect(
+      mockConfirmTransactionByPolling.mock.invocationCallOrder[0],
+    ).toBeLessThan(mockSignTransaction.mock.invocationCallOrder[1]);
   });
 
   it("does not submit the vote when proof initialization fails", async () => {
     mockGetAccountInfo.mockResolvedValue(null);
     mockSendRawTransaction.mockResolvedValue("init-signature");
-    mockConfirmTransaction.mockResolvedValue({
+    mockConfirmTransactionByPolling.mockResolvedValue({
       value: { err: { InstructionError: [0, "Custom"] } },
     });
 
     await expect(castVoteOverride(params, blockchainParams)).rejects.toThrow(
-      /Failed to initialize meta merkle proof/
+      /Failed to initialize meta merkle proof/,
     );
     expect(mockSignTransaction).toHaveBeenCalledTimes(1);
     expect(mockSendRawTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("submits the vote when a competing transaction wins the proof initialization race", async () => {
+    mockGetAccountInfo
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ data: Buffer.alloc(0) });
+    mockSendRawTransaction
+      .mockResolvedValueOnce("losing-init-signature")
+      .mockResolvedValueOnce("vote-signature");
+    mockConfirmTransactionByPolling.mockResolvedValue({ 
+      value: { err: { InstructionError: [0, "Custom"] } },
+    });
+
+    await expect(
+      castVoteOverride(params, blockchainParams)
+    ).resolves.toEqual({ signature: "vote-signature", success: true });
+    expect(mockGetAccountInfo).toHaveBeenCalledTimes(2);
+    expect(mockSignTransaction).toHaveBeenCalledTimes(2);
+    expect(mockSendRawTransaction).toHaveBeenCalledTimes(2);
   });
 
   it("reports an unsigned wallet response without submitting the transaction", async () => {
     mockSignTransaction.mockResolvedValueOnce(
       signedTransactionResponse([
         { publicKey: new PublicKey(SIGNER), signature: null },
-      ])
+      ]),
     );
 
     await expect(castVoteOverride(params, blockchainParams)).rejects.toThrow(
-      /wallet did not sign the transaction/i
+      /wallet did not sign the transaction/i,
     );
     expect(mockSendRawTransaction).not.toHaveBeenCalled();
   });
@@ -394,11 +413,11 @@ describe("castVoteOverride", () => {
       signedTransactionResponse([
         { publicKey: new PublicKey(SIGNER), signature: null },
         { publicKey: otherAccount, signature: Buffer.alloc(64) },
-      ])
+      ]),
     );
 
     await expect(castVoteOverride(params, blockchainParams)).rejects.toThrow(
-      /signed with a different account/i
+      /signed with a different account/i,
     );
     expect(mockSendRawTransaction).not.toHaveBeenCalled();
   });

@@ -42,7 +42,7 @@ import type { AnchorWallet } from "@solana/wallet-adapter-react";
 
 import { castVote } from "../castVote";
 import { SVMGOV_PROGRAM_ID } from "../types";
-import type { RPCEndpoint } from "@/types";
+import type { RpcNetwork } from "@/types";
 
 // Distinct, valid 32-byte public keys used as stand-ins.
 const keyFromByte = (b: number): string =>
@@ -104,7 +104,7 @@ describe("castVote", () => {
   function signedTransactionResponse(
     signatures: { publicKey: PublicKey; signature: Buffer | null }[] = [
       { publicKey: new PublicKey(SIGNER), signature: Buffer.alloc(64) },
-    ]
+    ],
   ): Transaction {
     return {
       signatures,
@@ -119,8 +119,11 @@ describe("castVote", () => {
     // Emulates a real wallet: whatever account is connected NOW provides the signature.
     mockSignTransaction.mockImplementation(async () =>
       signedTransactionResponse([
-        { publicKey: new PublicKey(walletState.publicKey), signature: Buffer.alloc(64) },
-      ])
+        {
+          publicKey: new PublicKey(walletState.publicKey),
+          signature: Buffer.alloc(64),
+        },
+      ]),
     );
     mockCreateProgramWithWallet.mockReturnValue(buildFakeProgram());
     mockCreateGovV1ProgramWithWallet.mockReturnValue({
@@ -166,7 +169,7 @@ describe("castVote", () => {
     consensusResult: new PublicKey(CONSENSUS_RESULT),
   };
   const blockchainParams = {
-    network: "testnet" as RPCEndpoint,
+    network: "testnet" as RpcNetwork,
     endpoint: "http://localhost:8899",
     ncnApiUrl: "http://localhost:9000",
   };
@@ -183,11 +186,11 @@ describe("castVote", () => {
     mockSignTransaction.mockResolvedValueOnce(
       signedTransactionResponse([
         { publicKey: new PublicKey(SIGNER), signature: null },
-      ])
+      ]),
     );
 
     await expect(castVote(params, blockchainParams)).rejects.toThrow(
-      /wallet did not sign the transaction/i
+      /wallet did not sign the transaction/i,
     );
     expect(mockSendRawTransaction).not.toHaveBeenCalled();
   });
@@ -198,11 +201,11 @@ describe("castVote", () => {
       signedTransactionResponse([
         { publicKey: new PublicKey(SIGNER), signature: null },
         { publicKey: otherAccount, signature: Buffer.alloc(64) },
-      ])
+      ]),
     );
 
     await expect(castVote(params, blockchainParams)).rejects.toThrow(
-      /signed with a different account/i
+      /signed with a different account/i,
     );
     expect(mockSendRawTransaction).not.toHaveBeenCalled();
   });
@@ -226,7 +229,7 @@ describe("castVote", () => {
     });
 
     await expect(castVote(params, blockchainParams)).rejects.toThrow(
-      /signed with a different account|did not sign the transaction/i
+      /signed with a different account|did not sign the transaction/i,
     );
     expect(mockSendRawTransaction).not.toHaveBeenCalled();
   });

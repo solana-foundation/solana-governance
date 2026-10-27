@@ -62,6 +62,10 @@ impl<'info> CreateProposal<'info> {
         description: String,
         bumps: &CreateProposalBumps,
     ) -> Result<()> {
+        require!(
+            self.global_config.new_proposals_allowed,
+            GovernanceError::NewProposalsNotAllowed
+        );
         // Validate proposal inputs
         require!(!title.is_empty(), GovernanceError::TitleEmpty);
 

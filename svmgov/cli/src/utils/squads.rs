@@ -18,16 +18,22 @@
 //! up front before any handler runs. The router therefore trusts its caller; the routing
 //! call is unconditional once the gate has passed.
 
-use anchor_client::solana_client::nonblocking::rpc_client::RpcClient;
+use anchor_client::solana_account_decoder::{UiAccountEncoding, UiDataSliceConfig};
+use anchor_client::solana_client::{
+    nonblocking::rpc_client::RpcClient,
+    rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
+    rpc_filter::{Memcmp, RpcFilterType},
+};
 use anchor_client::solana_sdk::{
     clock::Slot,
+    commitment_config::CommitmentConfig,
     hash::Hash,
     instruction::Instruction,
     pubkey::Pubkey,
-    signature::{Keypair, Signature, Signer},
+    signature::{Signature, Signer},
     transaction::Transaction,
 };
-use anyhow::Result;
+use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
 use squads_client::{Multisig, SquadsClient, SquadsError};
 
@@ -39,8 +45,8 @@ const MAX_INDEX_ATTEMPTS: u8 = 3;
 // CLI flag parsing + effective-signer helper
 // ============================================================================
 
-/// Raw `--squads*` flag values as parsed from the CLI, before the signer (proposer) is
-/// known. Converted into a [`SquadsRoutingConfig`] once the keypair has been loaded.
+/// Resolved `--squads*` options, before the signer (proposer) is known.
+/// Converted into a [`SquadsRoutingConfig`] once the signer has been loaded.
 #[derive(Clone, Debug)]
 pub struct SquadsCliOpts {
     /// Target multisig account.
@@ -51,6 +57,65 @@ pub struct SquadsCliOpts {
     pub program_id: Option<Pubkey>,
     /// Optional memo attached to the vault transaction.
     pub memo: Option<String>,
+}
+
+/// Resolve a vault address by matching forward PDA derivations against on-chain
+/// multisig accounts. Existing multisig state addresses remain a direct fast path.
+pub async fn resolve_multisig(
+    rpc: &RpcClient,
+    address: Pubkey,
+    vault_index: u8,
+    program_id: Option<Pubkey>,
+) -> Result<Pubkey> {
+    let program_id = program_id.unwrap_or(squads_client::PROGRAM_ID);
+    let commitment = CommitmentConfig::confirmed();
+    let account = rpc
+        .get_account_with_commitment(&address, commitment)
+        .await
+        .with_context(|| format!("Failed to fetch Squads address {address}"))?
+        .value;
+    if let Some(account) = account {
+        if account.owner == program_id && Multisig::try_deserialize(&account.data).is_ok() {
+            return Ok(address);
+        }
+    }
+
+    let accounts = rpc
+        .get_program_accounts_with_config(
+            &program_id,
+            RpcProgramAccountsConfig {
+                filters: Some(vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+                    0,
+                    Multisig::discriminator().to_vec(),
+                ))]),
+                account_config: RpcAccountInfoConfig {
+                    encoding: Some(UiAccountEncoding::Base64),
+                    data_slice: Some(UiDataSliceConfig {
+                        offset: 0,
+                        length: 0,
+                    }),
+                    commitment: Some(commitment),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        )
+        .await
+        .context("Failed to look up Squads vault; the RPC must support getProgramAccounts")?;
+    let (multisig, _) = accounts
+        .into_iter()
+        .find(|(multisig, account)| {
+            account.owner == program_id
+                && squads_client::vault_pda(multisig, vault_index, Some(&program_id)).0 == address
+        })
+        .ok_or_else(|| anyhow!(
+            "No Squads multisig found for vault {address} at vault index {vault_index} under program {program_id}"
+        ))?;
+
+    log::info!(
+        "Resolved Squads vault {address} to multisig {multisig} (vault index {vault_index})"
+    );
+    Ok(multisig)
 }
 
 impl SquadsCliOpts {
@@ -262,7 +327,7 @@ pub async fn route(
     rpc: &RpcClient,
     vault_ixs: Vec<Instruction>,
     preflight_ixs: Vec<Instruction>,
-    signers: &[&Keypair],
+    signers: &[&dyn Signer],
     squads: Option<&SquadsRoutingConfig>,
 ) -> Result<RoutedOutcome> {
     route_or_send(rpc, vault_ixs, preflight_ixs, signers, squads)
@@ -281,8 +346,9 @@ pub async fn route(
 ///   wrapped inside `vault_transaction_create`.
 /// * `preflight_ixs` — setup instructions that do not need vault authority. In Squads mode
 ///   they are sent first as a separate, locally-signed transaction; in direct mode they
-///   are prepended to `vault_ixs` and sent atomically.
-/// * `signers` — keypairs that sign the locally-submitted transaction(s). `signers[0]` is
+///   are prepended to `vault_ixs` and sent atomically. If the Squads proposal step fails
+///   after preflight confirms, the error includes the confirmed preflight signature.
+/// * `signers` — signers for the locally-submitted transaction(s). `signers[0]` is
 ///   treated as the fee payer (and, in Squads mode, must correspond to
 ///   `SquadsRoutingConfig::proposer`).
 /// * `squads` — `Some(..)` to route through a multisig vault, `None` for direct mode.
@@ -291,7 +357,7 @@ pub async fn route_or_send<R: RouterRpc + ?Sized>(
     rpc: &R,
     vault_ixs: Vec<Instruction>,
     preflight_ixs: Vec<Instruction>,
-    signers: &[&Keypair],
+    signers: &[&dyn Signer],
     squads: Option<&SquadsRoutingConfig>,
 ) -> Result<RoutedOutcome, SquadsError> {
     match squads {
@@ -309,75 +375,86 @@ pub async fn route_or_send<R: RouterRpc + ?Sized>(
     }
 }
 
-/// Builds the Squads `vault_transaction_create` + `proposal_create` pair and submits it,
-/// retrying on transaction-index collisions.
+/// Validates the proposal before preflight and reports confirmed preflight effects
+/// if a later proposal step fails.
 async fn route_via_squads<R: RouterRpc + ?Sized>(
     rpc: &R,
     vault_ixs: Vec<Instruction>,
     preflight_ixs: Vec<Instruction>,
-    signers: &[&Keypair],
+    signers: &[&dyn Signer],
     config: &SquadsRoutingConfig,
 ) -> Result<RoutedOutcome, SquadsError> {
-    // 1. Run any preflight instructions as their own direct-mode transaction first.
-    if !preflight_ixs.is_empty() {
-        send_instructions(rpc, &preflight_ixs, signers).await?;
-    }
-
     let squads = match config.program_id {
         Some(program_id) => SquadsClient::with_program_id(program_id),
         None => SquadsClient::new(),
     };
+    let mut preflight_signature = None;
 
-    // 2. Build + submit, retrying with a freshly-fetched index on "already in use"
-    //    collisions.
-    let mut attempt: u8 = 0;
-    loop {
-        attempt += 1;
+    let result = async {
+        let mut attempt: u8 = 0;
+        loop {
+            attempt += 1;
 
-        let multisig_data = rpc.fetch_account_data(&config.multisig).await?;
-        let multisig = Multisig::try_deserialize(&multisig_data)?;
+            let multisig_data = rpc.fetch_account_data(&config.multisig).await?;
+            let multisig = Multisig::try_deserialize(&multisig_data)?;
+            squads.verify_proposer(&config.multisig, &multisig, &config.proposer)?;
 
-        squads.verify_proposer(&config.multisig, &multisig, &config.proposer)?;
+            let built = squads.build_vault_tx_with_proposal(
+                &config.multisig,
+                multisig.transaction_index,
+                config.vault_index,
+                &config.proposer,
+                &config.proposer,
+                &vault_ixs,
+                &[],
+                config.memo.clone(),
+            )?;
 
-        let built = squads.build_vault_tx_with_proposal(
-            &config.multisig,
-            multisig.transaction_index,
-            config.vault_index,
-            &config.proposer,
-            &config.proposer,
-            &vault_ixs,
-            &[],
-            config.memo.clone(),
-        )?;
-
-        match send_instructions(rpc, &built.instructions, signers).await {
-            Ok(creation_signature) => {
-                let (vault, _) = squads.pda_vault(&config.multisig, config.vault_index);
-                return Ok(RoutedOutcome::Squads {
-                    multisig: config.multisig,
-                    vault,
-                    transaction_index: built.transaction_index,
-                    vault_transaction_pda: built.transaction,
-                    proposal_pda: built.proposal,
-                    creation_signature,
-                    threshold: multisig.threshold,
-                    total_members: multisig.members.len(),
-                    web_url: squads_transaction_url(&config.multisig, built.transaction_index),
-                });
+            // Validate and build before committing any preflight work. Preflight
+            // is sent only once, even if the proposal's index needs a retry.
+            if attempt == 1 && !preflight_ixs.is_empty() {
+                preflight_signature = Some(send_instructions(rpc, &preflight_ixs, signers).await?);
             }
-            Err(SquadsError::SendTransaction { reason }) if is_account_collision(&reason) => {
-                if attempt >= MAX_INDEX_ATTEMPTS {
-                    return Err(SquadsError::TransactionIndexRace {
+
+            match send_instructions(rpc, &built.instructions, signers).await {
+                Ok(creation_signature) => {
+                    let (vault, _) = squads.pda_vault(&config.multisig, config.vault_index);
+                    return Ok(RoutedOutcome::Squads {
                         multisig: config.multisig,
-                        attempts: MAX_INDEX_ATTEMPTS,
+                        vault,
+                        transaction_index: built.transaction_index,
+                        vault_transaction_pda: built.transaction,
+                        proposal_pda: built.proposal,
+                        creation_signature,
+                        threshold: multisig.threshold,
+                        total_members: multisig.members.len(),
+                        web_url: squads_transaction_url(&config.multisig, built.transaction_index),
                     });
                 }
-                // Loop: re-fetch the multisig (its transaction_index will have advanced)
-                // and retry with the next free index.
+                Err(SquadsError::SendTransaction { reason }) if is_account_collision(&reason) => {
+                    if attempt >= MAX_INDEX_ATTEMPTS {
+                        return Err(SquadsError::TransactionIndexRace {
+                            multisig: config.multisig,
+                            attempts: MAX_INDEX_ATTEMPTS,
+                        });
+                    }
+                    // Re-fetch and validate the multisig before retrying with a new index.
+                }
+                Err(other) => return Err(other),
             }
-            Err(other) => return Err(other),
         }
     }
+    .await;
+
+    result.map_err(|err| match preflight_signature {
+        Some(signature) => SquadsError::SendTransaction {
+            reason: format!(
+                "preflight transaction {signature} was confirmed and remains on-chain; \
+                 Squads proposal step failed: {err}"
+            ),
+        },
+        None => err,
+    })
 }
 
 /// Signs `instructions` with `signers` (treating `signers[0]` as the fee payer) against a
@@ -385,12 +462,16 @@ async fn route_via_squads<R: RouterRpc + ?Sized>(
 async fn send_instructions<R: RouterRpc + ?Sized>(
     rpc: &R,
     instructions: &[Instruction],
-    signers: &[&Keypair],
+    signers: &[&dyn Signer],
 ) -> Result<Signature, SquadsError> {
     let blockhash = rpc.recent_blockhash().await?;
-    let payer = signers.first().map(|keypair| keypair.pubkey());
-    let transaction =
-        Transaction::new_signed_with_payer(instructions, payer.as_ref(), signers, blockhash);
+    let payer = signers.first().map(|signer| signer.pubkey());
+    let mut transaction = Transaction::new_with_payer(instructions, payer.as_ref());
+    transaction
+        .try_sign(signers, blockhash)
+        .map_err(|err| SquadsError::SendTransaction {
+            reason: format!("failed to sign transaction: {err}"),
+        })?;
     rpc.submit_transaction(&transaction).await
 }
 
@@ -412,14 +493,25 @@ fn squads_transaction_url(multisig: &Pubkey, transaction_index: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anchor_client::solana_client::{
+        client_error,
+        rpc_request::RpcRequest,
+        rpc_sender::{RpcSender, RpcTransportStats},
+    };
+    use anchor_client::solana_sdk::{signature::Keypair, signer::SignerError};
+    use base64::{Engine, engine::general_purpose::STANDARD};
     use borsh::BorshDeserialize;
+    use serde_json::{Value, json};
     use squads_client::discriminator::instruction_discriminator;
     use squads_client::{
         Member, Multisig, PROGRAM_ID, Permission, Permissions, TransactionMessage,
         VaultTransactionCreateArgs,
     };
-    use std::collections::VecDeque;
-    use std::sync::Mutex;
+    use std::{
+        cell::Cell,
+        collections::VecDeque,
+        sync::{Arc, Mutex},
+    };
 
     #[test]
     fn effective_signer_substitutes_vault_pda_only_in_squads_mode() {
@@ -440,11 +532,293 @@ mod tests {
         assert_ne!(vault, local);
     }
 
+    #[derive(Clone)]
+    struct ResolverRpc {
+        responses: Arc<Mutex<VecDeque<(RpcRequest, client_error::Result<Value>)>>>,
+        calls: Arc<Mutex<Vec<(RpcRequest, Value)>>>,
+    }
+
+    impl ResolverRpc {
+        fn new(responses: Vec<(RpcRequest, client_error::Result<Value>)>) -> Self {
+            Self {
+                responses: Arc::new(Mutex::new(responses.into())),
+                calls: Arc::default(),
+            }
+        }
+
+        fn client(&self) -> RpcClient {
+            RpcClient::new_sender(self.clone(), Default::default())
+        }
+
+        fn calls(&self) -> Vec<(RpcRequest, Value)> {
+            assert!(self.responses.lock().unwrap().is_empty());
+            self.calls.lock().unwrap().clone()
+        }
+    }
+
+    #[async_trait]
+    impl RpcSender for ResolverRpc {
+        async fn send(&self, request: RpcRequest, params: Value) -> client_error::Result<Value> {
+            let (expected, response) = self
+                .responses
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("unexpected RPC request");
+            assert_eq!(request, expected);
+            self.calls.lock().unwrap().push((request, params));
+            response
+        }
+
+        fn get_transport_stats(&self) -> RpcTransportStats {
+            RpcTransportStats::default()
+        }
+
+        fn url(&self) -> String {
+            "http://squads-resolver.test".to_string()
+        }
+    }
+
+    fn rpc_account(owner: Pubkey, data: &[u8]) -> Value {
+        json!({
+            "lamports": 1,
+            "data": [STANDARD.encode(data), "base64"],
+            "owner": owner.to_string(),
+            "executable": false,
+            "rentEpoch": 0,
+        })
+    }
+
+    fn account_response(account: Option<Value>) -> (RpcRequest, client_error::Result<Value>) {
+        (
+            RpcRequest::GetAccountInfo,
+            Ok(json!({ "context": { "slot": 1 }, "value": account })),
+        )
+    }
+
+    fn program_accounts_response(
+        program_id: Pubkey,
+        multisigs: &[Pubkey],
+    ) -> (RpcRequest, client_error::Result<Value>) {
+        (
+            RpcRequest::GetProgramAccounts,
+            Ok(json!(
+                multisigs
+                    .iter()
+                    .map(|multisig| json!({
+                        "pubkey": multisig.to_string(),
+                        "account": rpc_account(program_id, &[]),
+                    }))
+                    .collect::<Vec<_>>()
+            )),
+        )
+    }
+
+    fn multisig_account(program_id: Pubkey) -> Value {
+        rpc_account(
+            program_id,
+            &serialize_multisig(&multisig_with_proposer(&Pubkey::new_unique(), 0)),
+        )
+    }
+
+    #[tokio::test]
+    async fn resolves_canonical_vault_with_two_rpc_calls() {
+        let vault = "FQC6LwQSEPNEX7MrFJXSqty46r4wxA9iJdsqpzVsv8aD"
+            .parse()
+            .unwrap();
+        let multisig = "4sDp4gaJQMyD7Ted5dTkf1kYJ417GPwnnHTwAwaUKeKx"
+            .parse()
+            .unwrap();
+        let rpc = ResolverRpc::new(vec![
+            account_response(Some(rpc_account(Pubkey::default(), &[]))),
+            program_accounts_response(PROGRAM_ID, &[Pubkey::new_unique(), multisig]),
+        ]);
+
+        assert_eq!(
+            resolve_multisig(&rpc.client(), vault, 0, None)
+                .await
+                .unwrap(),
+            multisig
+        );
+        let calls = rpc.calls();
+        assert_eq!(calls[0].1[0], vault.to_string());
+        assert_eq!(calls[0].1[1]["commitment"], "confirmed");
+        assert_eq!(calls[1].1[0], PROGRAM_ID.to_string());
+        assert_eq!(
+            calls[1].1[1]["dataSlice"],
+            json!({ "offset": 0, "length": 0 })
+        );
+        let filters: Vec<RpcFilterType> =
+            serde_json::from_value(calls[1].1[1]["filters"].clone()).unwrap();
+        let [RpcFilterType::Memcmp(filter)] = filters.as_slice() else {
+            panic!("expected one discriminator filter: {filters:?}");
+        };
+        assert_eq!(filter.offset(), 0);
+        assert_eq!(
+            filter.bytes().unwrap().as_slice(),
+            Multisig::discriminator()
+        );
+        assert_eq!(calls.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn resolves_unfunded_vault_with_custom_program_and_nonzero_index() {
+        let multisig = Pubkey::new_unique();
+        let program_id = Pubkey::new_unique();
+        let vault = squads_client::vault_pda(&multisig, 7, Some(&program_id)).0;
+        let rpc = ResolverRpc::new(vec![
+            account_response(None),
+            program_accounts_response(program_id, &[multisig]),
+        ]);
+
+        assert_eq!(
+            resolve_multisig(&rpc.client(), vault, 7, Some(program_id))
+                .await
+                .unwrap(),
+            multisig,
+        );
+        assert_eq!(rpc.calls()[1].1[0], program_id.to_string());
+    }
+
+    #[tokio::test]
+    async fn squads_owned_vault_is_not_mistaken_for_multisig_state() {
+        let multisig = Pubkey::new_unique();
+        let vault = squads_client::vault_pda(&multisig, 0, None).0;
+        let rpc = ResolverRpc::new(vec![
+            account_response(Some(rpc_account(PROGRAM_ID, &[]))),
+            program_accounts_response(PROGRAM_ID, &[multisig]),
+        ]);
+
+        assert_eq!(
+            resolve_multisig(&rpc.client(), vault, 0, None)
+                .await
+                .unwrap(),
+            multisig
+        );
+        assert_eq!(rpc.calls().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn multisig_address_avoids_program_scan() {
+        let multisig = Pubkey::new_unique();
+        let program_id = Pubkey::new_unique();
+        let rpc = ResolverRpc::new(vec![account_response(Some(multisig_account(program_id)))]);
+
+        assert_eq!(
+            resolve_multisig(&rpc.client(), multisig, 7, Some(program_id))
+                .await
+                .unwrap(),
+            multisig,
+        );
+        assert_eq!(rpc.calls().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn unresolved_vault_or_wrong_index_is_rejected() {
+        let multisig = Pubkey::new_unique();
+        let vault = squads_client::vault_pda(&multisig, 1, None).0;
+        for candidates in [vec![], vec![multisig]] {
+            let rpc = ResolverRpc::new(vec![
+                account_response(None),
+                program_accounts_response(PROGRAM_ID, &candidates),
+            ]);
+
+            let error = resolve_multisig(&rpc.client(), vault, 0, None)
+                .await
+                .unwrap_err();
+            assert!(error.to_string().contains(&vault.to_string()), "{error:#}");
+            assert_eq!(rpc.calls().len(), 2);
+        }
+    }
+
+    #[tokio::test]
+    async fn resolver_rejects_scan_candidate_owned_by_another_program() {
+        let multisig = Pubkey::new_unique();
+        let vault = squads_client::vault_pda(&multisig, 0, None).0;
+        let rpc = ResolverRpc::new(vec![
+            account_response(None),
+            program_accounts_response(Pubkey::new_unique(), &[multisig]),
+        ]);
+
+        let error = resolve_multisig(&rpc.client(), vault, 0, None)
+            .await
+            .unwrap_err();
+        assert!(
+            error.to_string().contains("No Squads multisig found"),
+            "{error:#}"
+        );
+        assert_eq!(rpc.calls().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn resolver_preserves_rpc_failure() {
+        let rpc = ResolverRpc::new(vec![
+            account_response(None),
+            (
+                RpcRequest::GetProgramAccounts,
+                Err(client_error::ClientError::from(
+                    client_error::ClientErrorKind::Custom("program scan unavailable".to_string()),
+                )),
+            ),
+        ]);
+
+        let error = resolve_multisig(&rpc.client(), Pubkey::new_unique(), 0, None)
+            .await
+            .unwrap_err();
+        assert!(
+            format!("{error:#}").contains("program scan unavailable"),
+            "{error:#}"
+        );
+        assert_eq!(rpc.calls().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn scanned_invalid_multisig_is_rejected_before_preflight() {
+        let signer = InteractiveSigner {
+            keypair: Keypair::new(),
+            reject_on: None,
+            attempts: Cell::new(0),
+        };
+        let multisig = Pubkey::new_unique();
+        let vault = squads_client::vault_pda(&multisig, 0, None).0;
+        let mock = ResolverRpc::new(vec![
+            account_response(Some(rpc_account(Pubkey::default(), &[]))),
+            program_accounts_response(PROGRAM_ID, &[multisig]),
+            account_response(Some(rpc_account(PROGRAM_ID, &Multisig::discriminator()))),
+        ]);
+        let rpc = mock.client();
+        let resolved = resolve_multisig(&rpc, vault, 0, None).await.unwrap();
+        let config = SquadsRoutingConfig {
+            multisig: resolved,
+            vault_index: 0,
+            proposer: signer.pubkey(),
+            program_id: None,
+            memo: None,
+        };
+
+        let error = route_or_send(
+            &rpc,
+            vec![user_instruction(vec![2])],
+            vec![user_instruction(vec![1])],
+            &[&signer],
+            Some(&config),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(matches!(error, SquadsError::BorshDecode(_)), "{error}");
+        assert_eq!(signer.attempts.get(), 0);
+        let calls = mock.calls();
+        assert_eq!(calls.len(), 3);
+        assert_eq!(calls[2].0, RpcRequest::GetAccountInfo);
+        assert_eq!(calls[2].1[0], multisig.to_string());
+    }
+
     // ----- Router orchestration tests (mock RPC) -----
 
     /// Behavior the mock applies to a single `submit_transaction` call.
     enum SendBehavior {
-        /// Succeed and return a default signature.
+        /// Succeed and return the submitted transaction's signature.
         Succeed,
         /// Fail with an "already in use" account-collision error and advance the stored
         /// multisig's transaction index by one (simulating a competing proposal).
@@ -500,7 +874,7 @@ mod tests {
                         reason: "Allocate: account Address { .. } already in use".to_string(),
                     })
                 }
-                _ => Ok(Signature::default()),
+                _ => Ok(transaction.signatures[0]),
             }
         }
     }
@@ -590,6 +964,155 @@ mod tests {
             program_id: Pubkey::new_unique(),
             accounts: vec![AccountMeta::new(Pubkey::new_unique(), false)],
             data,
+        }
+    }
+
+    struct InteractiveSigner {
+        keypair: Keypair,
+        reject_on: Option<usize>,
+        attempts: Cell<usize>,
+    }
+
+    impl Signer for InteractiveSigner {
+        fn try_pubkey(&self) -> Result<Pubkey, SignerError> {
+            self.keypair.try_pubkey()
+        }
+
+        fn try_sign_message(&self, message: &[u8]) -> Result<Signature, SignerError> {
+            self.attempts.set(self.attempts.get() + 1);
+            if self.reject_on == Some(self.attempts.get()) {
+                Err(SignerError::UserCancel("user rejected signing".to_string()))
+            } else {
+                self.keypair.try_sign_message(message)
+            }
+        }
+
+        fn is_interactive(&self) -> bool {
+            true
+        }
+    }
+
+    #[tokio::test]
+    async fn interactive_signer_signs_direct_and_squads_transactions() {
+        let signer = InteractiveSigner {
+            keypair: Keypair::new(),
+            reject_on: None,
+            attempts: Cell::new(0),
+        };
+        let config = SquadsRoutingConfig {
+            multisig: Pubkey::new_unique(),
+            vault_index: 0,
+            proposer: signer.pubkey(),
+            program_id: None,
+            memo: None,
+        };
+
+        for squads in [None, Some(&config)] {
+            let mock = MockRpc::new(multisig_with_proposer(&signer.pubkey(), 0));
+            route_or_send(
+                &mock,
+                vec![user_instruction(vec![7])],
+                vec![],
+                &[&signer],
+                squads,
+            )
+            .await
+            .unwrap();
+
+            let sent = mock.sent_transactions();
+            assert_eq!(sent.len(), 1);
+            assert_eq!(sent[0].message.account_keys[0], signer.pubkey());
+            sent[0].verify().unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn rejected_signing_returns_error_without_submitting() {
+        let signer = InteractiveSigner {
+            keypair: Keypair::new(),
+            reject_on: Some(1),
+            attempts: Cell::new(0),
+        };
+        let config = SquadsRoutingConfig {
+            multisig: Pubkey::new_unique(),
+            vault_index: 0,
+            proposer: signer.pubkey(),
+            program_id: None,
+            memo: None,
+        };
+
+        for squads in [None, Some(&config)] {
+            signer.attempts.set(0);
+            let mock = MockRpc::new(multisig_with_proposer(&signer.pubkey(), 0));
+            let err = route_or_send(
+                &mock,
+                vec![user_instruction(vec![7])],
+                vec![],
+                &[&signer],
+                squads,
+            )
+            .await
+            .unwrap_err();
+
+            assert!(matches!(err, SquadsError::SendTransaction { reason }
+                    if reason == "failed to sign transaction: user rejected signing"));
+            assert!(mock.sent_transactions().is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn proposal_rejection_reports_confirmed_preflight_including_after_collision() {
+        for reject_on in [2, 3] {
+            let signer = InteractiveSigner {
+                keypair: Keypair::new(),
+                reject_on: Some(reject_on),
+                attempts: Cell::new(0),
+            };
+            let config = SquadsRoutingConfig {
+                multisig: Pubkey::new_unique(),
+                vault_index: 0,
+                proposer: signer.pubkey(),
+                program_id: None,
+                memo: None,
+            };
+            let mock = MockRpc::with_behaviors(
+                multisig_with_proposer(&signer.pubkey(), 0),
+                vec![SendBehavior::Succeed, SendBehavior::FailAlreadyInUse],
+            );
+            let preflight = user_instruction(vec![1]);
+            let err = route_or_send(
+                &mock,
+                vec![user_instruction(vec![2])],
+                vec![preflight.clone()],
+                &[&signer],
+                Some(&config),
+            )
+            .await
+            .unwrap_err();
+
+            let sent = mock.sent_transactions();
+            assert_eq!(signer.attempts.get(), reject_on);
+            assert_eq!(sent.len(), reject_on - 1);
+            assert_eq!(
+                instruction_program_ids(&sent[0]),
+                vec![preflight.program_id]
+            );
+            sent[0].verify().unwrap();
+            assert_eq!(
+                sent.iter()
+                    .filter(|tx| instruction_program_ids(tx).contains(&preflight.program_id))
+                    .count(),
+                1,
+            );
+            let error = err.to_string();
+            assert!(
+                error.contains(&format!(
+                    "preflight transaction {} was confirmed and remains on-chain",
+                    sent[0].signatures[0],
+                )),
+                "{error}"
+            );
+            assert!(error.contains("user rejected signing"), "{error}");
         }
     }
 
@@ -770,19 +1293,20 @@ mod tests {
             memo: None,
         };
 
-        let err = route_or_send(
-            &mock,
-            vec![user_instruction(vec![7])],
-            vec![],
-            &[&proposer],
-            Some(&config),
-        )
-        .await
-        .unwrap_err();
+        for preflight_ixs in [vec![], vec![user_instruction(vec![1])]] {
+            let err = route_or_send(
+                &mock,
+                vec![user_instruction(vec![7])],
+                preflight_ixs,
+                &[&proposer],
+                Some(&config),
+            )
+            .await
+            .unwrap_err();
 
-        assert!(matches!(err, SquadsError::ProposerNotMember { .. }));
-        // No transaction should have been submitted.
-        assert!(mock.sent_transactions().is_empty());
+            assert!(matches!(err, SquadsError::ProposerNotMember { .. }));
+            assert!(mock.sent_transactions().is_empty());
+        }
     }
 
     #[test]

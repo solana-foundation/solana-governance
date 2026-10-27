@@ -15,6 +15,20 @@ node_modules/
 # Env
 .env
 
+# Terraform
+**/.terraform/
+*.tfplan
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
 admin.json
+
+# NCN network load test artifacts
+/loadtest-results/
 
 .surfpool

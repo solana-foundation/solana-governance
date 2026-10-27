@@ -8,6 +8,7 @@ FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libsqlite3-0 ca-certificates && \
+    dpkg --compare-versions "$(dpkg-query -W -f='${Version}' ca-certificates)" ge '20250419~deb12u2' && \
     rm -rf /var/lib/apt/lists/*
 
 RUN useradd -r -u 10001 appuser

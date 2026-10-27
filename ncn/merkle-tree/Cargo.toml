@@ -1,6 +1,6 @@
 [package]
 name = "ncn-merkle-tree"
-version = "0.5.0-40200"
+version = "0.6.0-40200"
 edition = "2021"
 description = "Stake-weight merkle tree construction and proof verification for the Solana governance NCN"
 license = "Apache-2.0"

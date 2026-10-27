@@ -35,7 +35,7 @@ import { AppButton } from "@/components/ui/AppButton";
 import ExternalProposalPanel from "./ExternalProposalPanel";
 import { ProposalStatus } from "@/types";
 import { useProposals } from "@/hooks";
-import { useSnapshotMeta } from "@/hooks/useSnapshotMeta";
+import { useSnapshotMetas } from "@/hooks/useSnapshotMeta";
 import {
   Fragment,
   useCallback,
@@ -76,14 +76,21 @@ export default function ProposalsTable({ title }: { title: string }) {
   const [showEligibleOnly, setShowEligibleOnly] = useState(false);
 
   const { data: proposalsData, isLoading: isLoadingProposals } = useProposals();
-  const { data: snapshotMeta, isLoading: isLoadingSnapshotMeta } =
-    useSnapshotMeta();
 
   const data = useMemo(() => proposalsData || [], [proposalsData]);
+
+  // Each proposal votes against its own snapshot, so every row needs the
+  // metadata for its own slot.
+  const snapshotSlots = useMemo(
+    () => data.map((proposal) => proposal.snapshotSlot),
+    [data],
+  );
+  const { bySlot: snapshotMetasBySlot, isLoading: isLoadingSnapshotMeta } =
+    useSnapshotMetas(snapshotSlots);
+
   const tableColumns = useMemo(
-    () =>
-      getProposalColumns({ snapshotMeta, isLoadingSnapshotMeta }),
-    [snapshotMeta, isLoadingSnapshotMeta],
+    () => getProposalColumns({ snapshotMetasBySlot, isLoadingSnapshotMeta }),
+    [snapshotMetasBySlot, isLoadingSnapshotMeta],
   );
 
   // Rows expand independently: opening one leaves the others as they are.
@@ -240,7 +247,7 @@ export default function ProposalsTable({ title }: { title: string }) {
                       ? null
                       : flexRender(
                           header.column.columnDef.header,
-                          header.getContext()
+                          header.getContext(),
                         )}
                   </TableHead>
                 ))}
@@ -309,7 +316,7 @@ export default function ProposalsTable({ title }: { title: string }) {
                       >
                         {flexRender(
                           cell.column.columnDef.cell,
-                          cell.getContext()
+                          cell.getContext(),
                         )}
                       </TableCell>
                     ))}

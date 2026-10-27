@@ -9,7 +9,7 @@ All error codes from both the `ncn-snapshot` and `svmgov` programs.
 | `OperatorNotWhitelisted` | Signer is not in the BallotBox voter list |
 | `OperatorHasVoted` | Operator already cast a vote on this BallotBox |
 | `OperatorHasNotVoted` | Tried to remove a vote that does not exist |
-| `VotingExpired` | Voting window has closed (past `vote_expiry_timestamp`) |
+| `VotingExpired` | Voting window has closed (at or after `vote_expiry_slot`) |
 | `VotingNotExpired` | Tie-breaker action requires voting to be expired first |
 | `ConsensusReached` | Action not allowed after consensus (e.g., `remove_vote`) |
 | `ConsensusNotReached` | `finalize_ballot` called before consensus |

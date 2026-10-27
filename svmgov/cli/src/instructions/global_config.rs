@@ -1,8 +1,8 @@
 use std::{str::FromStr, sync::Arc};
 
 use anchor_client::{
-    Program,
-    solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction},
+    DynSigner, Program,
+    solana_sdk::{signature::Keypair, signer::Signer},
 };
 use anchor_lang::{prelude::Pubkey, system_program};
 use anyhow::{Result, anyhow};
@@ -13,7 +13,7 @@ use crate::{
         squads::{SquadsCliOpts, effective_signer},
         utils::{
             anchor_client_setup, create_spinner, derive_global_config_pda, derive_program_data_pda,
-            fetch_global_config, setup_admin,
+            fetch_global_config, setup_admin, validate_snapshot_slot_offset,
         },
     },
 };
@@ -35,6 +35,7 @@ fn validate_config_values(
     max_description_length: Option<u16>,
     cluster_support_pct_min_bps: Option<u64>,
     max_supporters: Option<u32>,
+    snapshot_slot_offset: Option<i64>,
 ) -> Result<()> {
     if let Some(v) = max_title_length {
         if v == 0 || v > MAX_TITLE_LENGTH {
@@ -68,6 +69,9 @@ fn validate_config_values(
             ));
         }
     }
+    if let Some(v) = snapshot_slot_offset {
+        validate_snapshot_slot_offset(v)?;
+    }
     Ok(())
 }
 
@@ -77,7 +81,7 @@ fn validate_config_values(
 /// errors when a mismatch can be positively determined; otherwise it defers to the
 /// on-chain constraint.
 async fn ensure_upgrade_authority(
-    program: &Program<Arc<Keypair>>,
+    program: &Program<Arc<DynSigner>>,
     program_data: &Pubkey,
     signer: &Pubkey,
 ) -> Result<()> {
@@ -120,6 +124,7 @@ pub async fn initialize_global_config(
     snapshot_epoch_extension: u64,
     snapshot_slot_offset: i64,
     max_supporters: u32,
+    new_proposals_allowed: Option<bool>,
     squads: Option<SquadsCliOpts>,
 ) -> Result<()> {
     validate_config_values(
@@ -127,6 +132,7 @@ pub async fn initialize_global_config(
         Some(max_description_length),
         Some(cluster_support_pct_min_bps),
         Some(max_supporters),
+        Some(snapshot_slot_offset),
     )?;
 
     let (payer, program) = setup_admin(keypair, rpc_url)?;
@@ -153,6 +159,7 @@ pub async fn initialize_global_config(
             snapshot_epoch_extension,
             snapshot_slot_offset,
             max_supporters,
+            new_proposals_allowed,
         })
         .accounts(accounts::InitializeConfig {
             admin,
@@ -194,6 +201,7 @@ pub async fn update_global_config(
     snapshot_epoch_extension: Option<u64>,
     snapshot_slot_offset: Option<i64>,
     max_supporters: Option<u32>,
+    new_proposals_allowed: Option<bool>,
     squads: Option<SquadsCliOpts>,
 ) -> Result<()> {
     validate_config_values(
@@ -201,6 +209,7 @@ pub async fn update_global_config(
         max_description_length,
         cluster_support_pct_min_bps,
         max_supporters,
+        snapshot_slot_offset,
     )?;
 
     let (payer, program) = setup_admin(keypair, rpc_url)?;
@@ -223,6 +232,7 @@ pub async fn update_global_config(
             snapshot_epoch_extension,
             snapshot_slot_offset,
             max_supporters,
+            new_proposals_allowed,
         })
         .accounts(accounts::UpdateConfig {
             admin,
@@ -336,7 +346,7 @@ pub async fn accept_admin(
 }
 
 pub async fn show_global_config(rpc_url: Option<String>) -> Result<()> {
-    let mock_payer = Arc::new(Keypair::new());
+    let mock_payer = Arc::new(DynSigner(Arc::new(Keypair::new())));
     let program = anchor_client_setup(rpc_url, mock_payer)?;
 
     let config = fetch_global_config(&program).await?;
@@ -378,6 +388,7 @@ pub async fn show_global_config(rpc_url: Option<String>) -> Result<()> {
         config.snapshot_slot_offset
     );
     println!("  max_supporters:              {}", config.max_supporters);
+    println!("  new_proposals_allowed:       {}", config.new_proposals_allowed);
 
     Ok(())
 }

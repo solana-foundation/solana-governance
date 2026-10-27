@@ -3,7 +3,7 @@ export * from "./proposals";
 export * from "./voteAccounts";
 export * from "./voteOverrideAccounts";
 export * from "./supportAccounts";
-export * from "./rpcEndpoints";
+export * from "./rpcNetworks";
 export * from "./validator";
 export * from "./stakeAccounts";
 export * from "./validatorVoteAccounts";

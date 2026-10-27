@@ -31,11 +31,7 @@ export function mapVoteAccountDto(
     // validator data
     activeStake: raw.stake ? +raw.stake.toString() : 0,
     identity: raw.validator,
-    commission: 0,
-    lastVote: 0,
-    credits: 0,
-    epochCredits: 0,
-    activatedStake: 0,
+
     // vote data
     forVotesBp: raw.forVotesBp,
     againstVotesBp: raw.againstVotesBp,

@@ -78,17 +78,22 @@ If a vote account delegated to is missing (closed by the manager), the system wi
 
 ## Dependencies
 
-1. Ensure system is using Rust Version `1.89.0`, otherwise install with:
+1. Agave 4.3 requires Rust `1.97.1` or newer:
 
 ```bash
-rustup toolchain install 1.89.0 // install
-rustup default 1.89.0 // set as default
-rustc --version // verify version
+rustup toolchain install 1.97.1
+rustup override set 1.97.1
+rustc --version
 ```
 
 2. (Optional - when using Anchor CLI) Install Solana CLI version 3.0 or higher. The bundled rustc in older Solana CLI versions may not be compatible with some dependencies.
 
 3. Build repo with `cargo build`
+
+Agave 4.3 requires the RocksDB fork pinned in `ncn/Cargo.toml`.
+Cargo does not include these workspace patches in published crates.
+Until Agave publishes compatible ledger dependencies, build NCN from this
+repository or use a release binary.
 
 ---
 
@@ -141,14 +146,13 @@ RUST_LOG=info cargo run --bin ncn-cli -- \
   update-operator-whitelist -a key1,key2,key3 -r key4,key5
 
 # Update config (all arguments are optional):
-# threshold, vote duration, tie-breaker-admin, proposed authority (two-step)
+# threshold, tie-breaker-admin, proposed authority (two-step)
 RUST_LOG=info cargo run --bin ncn-cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url <RPC_URL> \
   update-program-config \
   --min-consensus-threshold-bps 6000 \
-  --vote-duration 180 \
   --tie-breaker-admin <NEW_TIE_BREAKER_ADMIN_PUBKEY> \
   --proposed-authority <NEW_ADMIN_PUBKEY>
 

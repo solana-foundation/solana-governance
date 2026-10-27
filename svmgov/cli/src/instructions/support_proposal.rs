@@ -1,10 +1,10 @@
 use std::{str::FromStr, sync::Arc};
 
 use anchor_client::{
-    Program,
+    DynSigner, Program,
     solana_sdk::{
         compute_budget::ComputeBudgetInstruction, instruction::Instruction, pubkey::Pubkey,
-        signature::Keypair, signer::Signer, transaction::Transaction,
+        signer::Signer, transaction::Transaction,
     },
 };
 use anchor_lang::system_program;
@@ -17,14 +17,14 @@ use crate::{
     svmgov_program::client::{accounts, args},
     utils::utils::{
         create_spinner, derive_global_config_pda, derive_program_config_pda, derive_support_pda,
-        fetch_global_config, get_epoch_slot_range, setup_all,
+        fetch_global_config, proposal_snapshot_slot, setup_all,
     },
 };
 
 /// Builds the instructions to support a proposal, deriving the snapshot slot
 /// and all required PDAs from the current epoch and global config.
 pub async fn build_support_proposal_instructions(
-    program: &Program<Arc<Keypair>>,
+    program: &Program<Arc<DynSigner>>,
     signer: Pubkey,
     proposal: Pubkey,
     vote_account: Pubkey,
@@ -32,11 +32,13 @@ pub async fn build_support_proposal_instructions(
     let global_config = fetch_global_config(program).await?;
 
     let epoch_info = program.rpc().get_epoch_info().await?;
-    let target_epoch =
-        epoch_info.epoch + global_config.discussion_epochs + global_config.snapshot_epoch_extension;
-
-    let (start_slot, _) = get_epoch_slot_range(target_epoch);
-    let snapshot_slot = ((start_slot as i64) + global_config.snapshot_slot_offset) as u64;
+    let snapshot_slot = proposal_snapshot_slot(
+        epoch_info.epoch,
+        epoch_info.absolute_slot,
+        global_config.discussion_epochs,
+        global_config.snapshot_epoch_extension,
+        global_config.snapshot_slot_offset,
+    )?;
 
     let ballot_box_pda = {
         let seeds = &[b"BallotBox".as_ref(), &snapshot_slot.to_le_bytes()];
@@ -133,12 +135,8 @@ pub async fn support_proposal(
     );
 
     let blockhash = program.rpc().get_latest_blockhash().await?;
-    let transaction = Transaction::new_signed_with_payer(
-        &instructions,
-        Some(&payer.pubkey()),
-        &[&payer],
-        blockhash,
-    );
+    let mut transaction = Transaction::new_with_payer(&instructions, Some(&payer.pubkey()));
+    transaction.try_sign(&[&payer], blockhash)?;
 
     let sig = program
         .rpc()

@@ -1,6 +1,6 @@
 {
   "name": "svmgov-docs",
-  "version": "0.5.0-40200",
+  "version": "0.6.0-40200",
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",

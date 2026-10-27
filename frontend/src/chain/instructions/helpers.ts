@@ -1,4 +1,11 @@
-import { PublicKey, Connection, Keypair, Transaction } from "@solana/web3.js";
+import {
+  PublicKey,
+  Connection,
+  Keypair,
+  Transaction,
+  TransactionExpiredBlockheightExceededError,
+  type SignatureResult,
+} from "@solana/web3.js";
 import { AnchorProvider, Program, BN } from "@coral-xyz/anchor";
 import idl from "@/chain/idl/svmgov_program.json";
 import govV1Idl from "@/chain/idl/gov-v1.json";
@@ -11,12 +18,79 @@ import {
 } from "./types";
 import { AnchorWallet } from "@solana/wallet-adapter-react";
 import { SvmgovProgram, GovV1 } from "../types";
-import { RPC_URLS } from "@/contexts/EndpointContext";
+import { getRpcProxyUrl } from "@/lib/getRpcProxyUrl";
 import { DEFAULT_NCN_API_URL, fetchNcnJson } from "@/lib/ncnApi";
 
 /** Thrown when the wallet cannot provide the signature required by a transaction. */
 export class WalletSigningError extends Error {
   name = "WalletSigningError";
+}
+
+const CONFIRMATION_POLL_INTERVAL_MS = 1_000;
+
+/**
+ * Confirms a recently submitted transaction using HTTP JSON-RPC polling.
+ *
+ * web3.js `confirmTransaction` opens a WebSocket connection derived from the
+ * HTTP endpoint. The app's RPC proxy intentionally exposes only HTTP, so poll
+ * `getSignatureStatuses` instead. A transaction remains confirmable until its
+ * blockhash expires, which is determined by `lastValidBlockHeight`.
+ */
+export async function confirmTransactionByPolling(
+  connection: Connection,
+  signature: string,
+  lastValidBlockHeight: number,
+): Promise<{ value: SignatureResult }> {
+  while (true) {
+    const response = await connection.getSignatureStatuses([signature]);
+    const status = response.value[0];
+    if (status) {
+      if (status.err) return { value: { err: status.err } };
+      if (
+        status.confirmationStatus === "confirmed" ||
+        status.confirmationStatus === "finalized" ||
+        status.confirmations === null
+      ) {
+        return { value: { err: null } };
+      }
+    }
+
+    const currentBlockHeight = await connection.getBlockHeight("confirmed");
+    if (currentBlockHeight > lastValidBlockHeight) {
+      throw new TransactionExpiredBlockheightExceededError(signature);
+    }
+
+    await new Promise((resolve) =>
+      setTimeout(resolve, CONFIRMATION_POLL_INTERVAL_MS),
+    );
+  }
+}
+
+/**
+ * Accepts an idempotent meta-proof initialization race while preserving real failures.
+ *
+ * Multiple delegators can share the same proof PDA. If they both observe it as missing, one
+ * initialization transaction will lose the race after the other creates the account. Re-read the
+ * confirmed account before treating that transaction error as fatal.
+ */
+export async function assertMetaMerkleProofInitialized(
+  connection: Connection,
+  metaMerkleProofPda: PublicKey,
+  initializationError: unknown
+): Promise<void> {
+  if (!initializationError) {
+    return;
+  }
+
+  const accountInfo = await connection.getAccountInfo(
+    metaMerkleProofPda,
+    "confirmed"
+  );
+  if (!accountInfo) {
+    throw new Error(
+      `Failed to initialize meta merkle proof: ${JSON.stringify(initializationError)}`
+    );
+  }
 }
 
 /**
@@ -163,7 +237,7 @@ export function createProgramWithWallet(
   endpoint?: string
 ) {
   // Use provided endpoint or default to devnet
-  const rpcEndpoint = endpoint || RPC_URLS.testnet;
+  const rpcEndpoint = endpoint || getRpcProxyUrl("testnet");
   const connection = new Connection(rpcEndpoint, "confirmed");
 
   const provider = new AnchorProvider(connection, wallet, {
@@ -181,7 +255,7 @@ export function createGovV1ProgramWithWallet(
   endpoint?: string
 ) {
   // Use provided endpoint or default to devnet
-  const rpcEndpoint = endpoint || RPC_URLS.testnet;
+  const rpcEndpoint = endpoint || getRpcProxyUrl("testnet");
   const connection = new Connection(rpcEndpoint, "confirmed");
 
   const provider = new AnchorProvider(connection, wallet, {
@@ -196,7 +270,7 @@ export function createGovV1ProgramWithWallet(
 // Create program instance with dummy wallet (just for data fetching)
 export function createProgramWitDummyWallet(endpoint?: string) {
   // Use provided endpoint or default to devnet
-  const rpcEndpoint = endpoint || RPC_URLS.testnet;
+  const rpcEndpoint = endpoint || getRpcProxyUrl("testnet");
   const connection = new Connection(rpcEndpoint, "confirmed");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

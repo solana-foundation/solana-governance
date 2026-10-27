@@ -26,6 +26,11 @@ import {
   getMetaMerkleProofPda,
   computeProofCloseTimestamp,
   signTransactionForWallet,
+
+  confirmTransactionByPolling,
+
+  assertMetaMerkleProofInitialized,
+
 } from "./helpers";
 import { BN } from "@coral-xyz/anchor";
 
@@ -161,6 +166,7 @@ export async function modifyVoteOverride(
     initTransaction.add(initMerkleInstruction);
     initTransaction.feePayer = signer;
     initTransaction.recentBlockhash = initBlockhash.blockhash;
+    initTransaction.lastValidBlockHeight = initBlockhash.lastValidBlockHeight;
 
     const signedInitTransaction = await signTransactionForWallet(
       wallet,
@@ -172,17 +178,17 @@ export async function modifyVoteOverride(
         signedInitTransaction.serialize(),
         { preflightCommitment: "confirmed" }
       );
-    const initConfirmation =
-      await program.provider.connection.confirmTransaction(
-        { signature: initSignature, ...initBlockhash },
-        "confirmed"
-      );
+    const initConfirmation = await confirmTransactionByPolling(
+      program.provider.connection,
+      initSignature,
+      initBlockhash.lastValidBlockHeight
+    );
 
-    if (initConfirmation.value.err) {
-      throw new Error(
-        `Failed to initialize meta merkle proof: ${JSON.stringify(initConfirmation.value.err)}`
-      );
-    }
+    await assertMetaMerkleProofInitialized(
+      program.provider.connection,
+      metaMerkleProofPda,
+      initConfirmation.value.err
+    );
   }
 
   // Convert merkle proof data

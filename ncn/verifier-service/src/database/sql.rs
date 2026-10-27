@@ -8,6 +8,18 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 )
 "#;
 
+/// Columns of `vote_accounts`, in declaration order.
+///
+/// Reads name these rather than using `SELECT *`. A `SELECT *` returns whatever
+/// the connection last saw, so a column added by a migration can leave a read
+/// resolving a name to an index past the end of the row — an out-of-bounds
+/// panic rather than an error. Naming them also means a column this list
+/// forgets fails loudly on the missing name.
+///
+/// `vote_account_columns_match_the_table` keeps this in step with the table.
+pub const VOTE_ACCOUNT_COLUMNS: &str = "network, snapshot_slot, vote_account, voting_wallet, \
+                                        stake_merkle_root, active_stake, meta_merkle_proof";
+
 pub const CREATE_VOTE_ACCOUNTS_TABLE_SQL: &str = r#"
 CREATE TABLE vote_accounts (
     network TEXT NOT NULL,
@@ -21,6 +33,10 @@ CREATE TABLE vote_accounts (
 )
 "#;
 
+/// Columns of `stake_accounts`, in declaration order. See [`VOTE_ACCOUNT_COLUMNS`].
+pub const STAKE_ACCOUNT_COLUMNS: &str = "network, snapshot_slot, stake_account, vote_account, \
+                                         voting_wallet, active_stake, stake_merkle_proof";
+
 pub const CREATE_STAKE_ACCOUNTS_TABLE_SQL: &str = r#"
 CREATE TABLE stake_accounts (
     network TEXT NOT NULL,
@@ -33,6 +49,10 @@ CREATE TABLE stake_accounts (
     PRIMARY KEY (network, stake_account, snapshot_slot)
 )
 "#;
+
+/// Columns of `snapshot_meta`, in declaration order. See [`VOTE_ACCOUNT_COLUMNS`].
+pub const SNAPSHOT_META_COLUMNS: &str = "network, slot, merkle_root, snapshot_hash, created_at, \
+                                         total_active_stake";
 
 pub const CREATE_SNAPSHOT_META_TABLE_SQL: &str = r#"
 CREATE TABLE snapshot_meta (
@@ -62,3 +82,51 @@ pub const CREATE_DB_INDEXES: &[&str] = &[
 /// checks `pragma_table_info` before running this.
 pub const ADD_SNAPSHOT_TOTAL_ACTIVE_STAKE_SQL: &str =
     "ALTER TABLE snapshot_meta ADD COLUMN total_active_stake INTEGER";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::SqlitePool;
+
+    /// Column names SQLite reports for `table`, in declaration order.
+    async fn actual_columns(create_sql: &str, table: &str) -> Vec<String> {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        sqlx::query(create_sql).execute(&pool).await.unwrap();
+        sqlx::query_scalar::<_, String>(&format!(
+            "SELECT name FROM pragma_table_info('{table}') ORDER BY cid"
+        ))
+        .fetch_all(&pool)
+        .await
+        .unwrap()
+    }
+
+    fn listed(columns: &str) -> Vec<String> {
+        columns.split(',').map(|c| c.trim().to_string()).collect()
+    }
+
+    /// A migration that adds a column without extending the list would otherwise
+    /// only surface when a read asks for the missing name at runtime.
+    #[tokio::test]
+    async fn vote_account_columns_match_the_table() {
+        assert_eq!(
+            listed(VOTE_ACCOUNT_COLUMNS),
+            actual_columns(CREATE_VOTE_ACCOUNTS_TABLE_SQL, "vote_accounts").await
+        );
+    }
+
+    #[tokio::test]
+    async fn stake_account_columns_match_the_table() {
+        assert_eq!(
+            listed(STAKE_ACCOUNT_COLUMNS),
+            actual_columns(CREATE_STAKE_ACCOUNTS_TABLE_SQL, "stake_accounts").await
+        );
+    }
+
+    #[tokio::test]
+    async fn snapshot_meta_columns_match_the_table() {
+        assert_eq!(
+            listed(SNAPSHOT_META_COLUMNS),
+            actual_columns(CREATE_SNAPSHOT_META_TABLE_SQL, "snapshot_meta").await
+        );
+    }
+}

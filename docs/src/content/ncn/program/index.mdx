@@ -23,7 +23,7 @@ The global singleton configuration. Initialized once by the governance authority
 | `whitelisted_operators` | `Vec<Pubkey>` (max 64) | Operators eligible to cast votes |
 | `min_consensus_threshold_bps` | `u16` | Min fraction of operators required for consensus (basis points, 1–10,000) |
 | `tie_breaker_admin` | `Pubkey` | Can resolve deadlocks after vote expiry |
-| `vote_duration` | `i64` | Seconds a BallotBox is open for voting |
+| `reserved` | `[u8; 8]` | Reserved legacy storage; not configurable |
 | `svmgov_program_pubkey` | `Pubkey` | svmgov program whose Proposal PDAs are authorized to open ballot boxes |
 
 **Constant:** `MAX_OPERATOR_WHITELIST = 64`
@@ -46,7 +46,7 @@ One per governance proposal cycle. Tracks all operator votes for a given `snapsh
 | `winning_ballot` | `Ballot` | The ballot that reached consensus |
 | `operator_votes` | `Vec<OperatorVote>` (max 64) | One entry per operator vote cast |
 | `ballot_tallies` | `Vec<BallotTally>` (max 64) | Running count per unique ballot |
-| `vote_expiry_timestamp` | `i64` | Unix timestamp when voting closes |
+| `vote_expiry_slot` | `u64` | Slot when NCN voting closes |
 | `snapshot_slot` | `u64` | The target slot for this snapshot cycle |
 | `voter_list` | `Vec<Pubkey>` (max 64) | Snapshot of whitelist at creation |
 | `tie_breaker_consensus` | `bool` | `true` if resolved by tie-breaker admin |
@@ -133,7 +133,6 @@ Updates any subset of config fields. All parameters are optional.
 | `proposed_authority` | `Option<Pubkey>` | — |
 | `min_consensus_threshold_bps` | `Option<u16>` | Must be `> 0` and `≤ 10,000` |
 | `tie_breaker_admin` | `Option<Pubkey>` | — |
-| `vote_duration` | `Option<i64>` | Must be `> 0` |
 | `svmgov_program_pubkey` | `Option<Pubkey>` | Retargets which svmgov program can open ballot boxes |
 
 ---
@@ -176,6 +175,7 @@ Creates a new `BallotBox` for a given `snapshot_slot`. Called by the `svmgov` pr
 | `snapshot_slot: u64` | Must be `> current_slot` |
 | `proposal_seed: u64` | Seed used to verify the CPI signer is a valid governance proposal PDA |
 | `spl_vote_account: Pubkey` | Proposer's vote account |
+| `vote_expiry_slot: u64` | Must be at least 18,000 slots after `snapshot_slot` |
 
 Snapshots `whitelisted_operators` into `voter_list` at creation time.
 

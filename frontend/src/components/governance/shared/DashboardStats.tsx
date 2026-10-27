@@ -1,5 +1,4 @@
 import { useEndpoint } from "@/contexts/EndpointContext";
-import { isKnownSnapshotNetwork } from "@/lib/snapshotNetwork";
 import {
   useGetValidators,
   useValidatorVotingPower,
@@ -32,7 +31,7 @@ export function DashboardStats({
   currentView,
   isLoading: isLoadingProps,
 }: DashboardStatsProps) {
-  const { endpointType, network, isResolvingNetwork } = useEndpoint();
+  const { network } = useEndpoint();
   const {
     data: snapshotMeta,
     isLoading: isLoadingSnapshotMeta,
@@ -58,10 +57,9 @@ export function DashboardStats({
 
   const snapshotSlot = snapshotMeta?.slot;
   // "-" reads as a legitimate value; say so explicitly when the NCN API could not be reached.
-  const snapshotSlotValue =
-    isErrorSnapshotMeta || !isKnownSnapshotNetwork(network)
-      ? "Unavailable"
-      : formatOptionalSlot(snapshotSlot);
+  const snapshotSlotValue = isErrorSnapshotMeta
+    ? "Unavailable"
+    : formatOptionalSlot(snapshotSlot);
   const delegationsReceived = votingPower;
   // TODO: clarify what this number is exactly
   const voteAccountsCount = 321;
@@ -72,23 +70,21 @@ export function DashboardStats({
   // renders "-" rather than a "0" that reads as a real count.
   const activeValidators = validators?.length;
 
-  // TODO: on mobile only show "custom" when the network is a custom URL, otherwise show the network name
-
   const stats: StatEntry[] =
     currentView === "validator"
       ? [
           {
             label: "Network",
-            value: network ?? endpointType,
-            mobileValue: network ?? endpointType,
+            value: network,
+            mobileValue: network,
             showRaw: false,
-            isLoading: isResolvingNetwork,
+            isLoading: false,
           },
           {
             label: "Snapshot Slot",
             value: snapshotSlotValue,
             showRaw: false,
-            isLoading: isLoadingSnapshotMeta || isResolvingNetwork,
+            isLoading: isLoadingSnapshotMeta,
           },
           {
             label: "Delegations Received",
@@ -105,16 +101,16 @@ export function DashboardStats({
       : [
           {
             label: "Network",
-            value: network ?? endpointType,
-            mobileValue: network ?? endpointType,
+            value: network,
+            mobileValue: network,
             showRaw: false,
-            isLoading: isResolvingNetwork,
+            isLoading: false,
           },
           {
             label: "Snapshot Slot",
             value: snapshotSlotValue,
             showRaw: false,
-            isLoading: isLoadingSnapshotMeta || isResolvingNetwork,
+            isLoading: isLoadingSnapshotMeta,
           },
           {
             label: "Total Staked",

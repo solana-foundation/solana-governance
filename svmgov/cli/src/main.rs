@@ -4,6 +4,7 @@ mod instructions;
 mod utils;
 
 use anchor_client::anchor_lang::declare_program;
+use anchor_client::solana_client::nonblocking::rpc_client::RpcClient;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand};
@@ -14,7 +15,7 @@ use utils::{
     commands,
     config_command::{ConfigSubcommand, handle_config_command},
     init,
-    squads::SquadsCliOpts,
+    squads::{SquadsCliOpts, resolve_multisig},
     utils::*,
 };
 
@@ -36,11 +37,11 @@ declare_program!(svmgov_program);
                     For more information on each subcommand, use --help, e.g., `svmgov create-proposal --help`."
 )]
 struct Cli {
-    /// Path to the keypair JSON file used to sign transactions.
+    /// Keypair JSON file or Ledger URI used to sign transactions.
     #[arg(
         short = 'k',
         long = "keypair",
-        help = "Path to the signer keypair JSON file (or set via SVMGOV_KEY env var)",
+        help = "Signer keypair JSON file or Ledger URI, e.g. usb://ledger?key=0/0 (or SVMGOV_KEY)",
         global = true,
         env = SVMGOV_KEY_ENV
     )]
@@ -65,10 +66,10 @@ struct Cli {
     )]
     network: Option<String>,
 
-    /// Route the transaction through this Squads multisig instead of signing locally.
+    /// Route the transaction through this Squads vault.
     #[arg(
         long = "squads",
-        help = "Route the transaction through this Squads multisig (creates a vault transaction + proposal)",
+        help = "Squads vault address (multisig state addresses are also accepted); creates a vault transaction + proposal",
         global = true
     )]
     squads: Option<Pubkey>,
@@ -76,7 +77,7 @@ struct Cli {
     /// Vault index within the multisig (defaults to 0).
     #[arg(
         long = "squads-vault-index",
-        help = "Vault index within the Squads multisig",
+        help = "Vault index within the Squads multisig; must match the supplied vault address",
         default_value_t = 0,
         global = true
     )]
@@ -357,8 +358,11 @@ enum Commands {
         )]
         stake_account: String,
 
-        /// Staker keypair for signing the transaction
-        #[arg(long, help = "Staker keypair for signing the transaction")]
+        /// Staker keypair JSON file or Ledger URI for signing the transaction
+        #[arg(
+            long,
+            help = "Staker keypair JSON file or Ledger URI for signing the transaction"
+        )]
         staker_keypair: String,
 
         /// Vote account pubkey for the validator
@@ -419,8 +423,11 @@ enum Commands {
         )]
         stake_account: String,
 
-        /// Staker keypair for signing the transaction
-        #[arg(long, help = "Staker keypair for signing the transaction")]
+        /// Staker keypair JSON file or Ledger URI for signing the transaction
+        #[arg(
+            long,
+            help = "Staker keypair JSON file or Ledger URI for signing the transaction"
+        )]
         staker_keypair: String,
 
         /// Vote account pubkey for the validator
@@ -463,11 +470,14 @@ enum Commands {
         #[arg(long, help = "Number of extra epochs for snapshot extension")]
         snapshot_epoch_extension: u64,
 
-        #[arg(long, help = "Slot offset from epoch start for snapshot computation (can be negative)")]
+        #[arg(long, help = "Slot offset from epoch start for snapshot computation (maximum 414000; can be negative)")]
         snapshot_slot_offset: i64,
 
         #[arg(long, help = "Maximum number of validators allowed to support a proposal (1-2000)")]
         max_supporters: u32,
+        
+        #[arg(long, help = "Whether new proposal creation is allowed. Set to false to pause new proposals.")]
+        new_proposals_allowed: Option<bool>,
     },
 
     #[command(
@@ -503,11 +513,14 @@ enum Commands {
         #[arg(long, help = "Number of extra epochs for snapshot extension")]
         snapshot_epoch_extension: Option<u64>,
 
-        #[arg(long, help = "Slot offset from epoch start for snapshot computation (can be negative)")]
+        #[arg(long, help = "Slot offset from epoch start for snapshot computation (maximum 414000; can be negative)")]
         snapshot_slot_offset: Option<i64>,
 
         #[arg(long, help = "Maximum number of validators allowed to support a proposal (1-2000)")]
         max_supporters: Option<u32>,
+
+        #[arg(long, help = "Whether new proposal creation is allowed. Set to false to pause new proposals.")]
+        new_proposals_allowed: Option<bool>,
     },
 
     #[command(
@@ -675,22 +688,62 @@ async fn handle_command(cli: Cli) -> Result<()> {
         cli.command
     );
 
-    // Assemble the optional Squads routing options from the global flags.
-    let squads_opts = cli.squads.map(|multisig| SquadsCliOpts {
-        multisig,
-        vault_index: cli.squads_vault_index,
-        program_id: cli.squads_program_id,
-        memo: cli.squads_memo.clone(),
-    });
-
     // Refuse `--squads` up front for commands whose on-chain signer-identity check cannot
     // be satisfied by a vault PDA. Doing this before any setup avoids running RPC lookups
     // (e.g. vote-account resolution) that assume a validator/operator hot key.
-    if squads_opts.is_some() {
+    if cli.squads.is_some() {
         if let Some(msg) = squads_refusal_for(&cli.command) {
             return Err(anyhow!(msg));
         }
     }
+
+    // Resolve only commands that submit Squads transactions. Read-only commands
+    // and local configuration commands do not need a multisig lookup.
+    // Keep this exhaustive so new commands require an explicit routing decision.
+    let squads_address = match &cli.command {
+        Commands::CastVoteOverride { .. }
+        | Commands::ModifyVoteOverride { .. }
+        | Commands::InitGlobalConfig { .. }
+        | Commands::UpdateGlobalConfig { .. }
+        | Commands::NominateAdmin { .. }
+        | Commands::AcceptAdmin => cli.squads,
+        Commands::CreateProposal { .. }
+        | Commands::SupportProposal { .. }
+        | Commands::CastVote { .. }
+        | Commands::ModifyVote { .. }
+        | Commands::InitIndex { .. }
+        | Commands::FinalizeProposal { .. }
+        | Commands::RetallySupport { .. }
+        | Commands::Proposal { .. }
+        | Commands::ListProposals { .. }
+        | Commands::VoteBreakdown { .. }
+        | Commands::ShowGlobalConfig
+        | Commands::Init
+        | Commands::Config { .. } => None,
+    };
+    let squads_opts = match squads_address {
+        Some(address) => {
+            let rpc = RpcClient::new(
+                cli.rpc_url
+                    .clone()
+                    .unwrap_or_else(|| DEFAULT_RPC_URL.to_string()),
+            );
+            let multisig = resolve_multisig(
+                &rpc,
+                address,
+                cli.squads_vault_index,
+                cli.squads_program_id,
+            )
+            .await?;
+            Some(SquadsCliOpts {
+                multisig,
+                vault_index: cli.squads_vault_index,
+                program_id: cli.squads_program_id,
+                memo: cli.squads_memo.clone(),
+            })
+        }
+        None => None,
+    };
 
     match &cli.command {
         Commands::CreateProposal {
@@ -858,6 +911,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
             snapshot_epoch_extension,
             snapshot_slot_offset,
             max_supporters,
+            new_proposals_allowed
         } => {
             instructions::initialize_global_config(
                 cli.keypair,
@@ -872,6 +926,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 *snapshot_epoch_extension,
                 *snapshot_slot_offset,
                 *max_supporters,
+                *new_proposals_allowed,
                 squads_opts.clone(),
             )
             .await?;
@@ -887,6 +942,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
             snapshot_epoch_extension,
             snapshot_slot_offset,
             max_supporters,
+            new_proposals_allowed,
         } => {
             instructions::update_global_config(
                 cli.keypair,
@@ -901,6 +957,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 *snapshot_epoch_extension,
                 *snapshot_slot_offset,
                 *max_supporters,
+                *new_proposals_allowed,
                 squads_opts.clone(),
             )
             .await?;
