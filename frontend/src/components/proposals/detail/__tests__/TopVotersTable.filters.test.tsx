@@ -44,6 +44,7 @@ const voter = (
   id: name,
   validatorName: name,
   validatorIdentity: `${name} identity`,
+  validatorVoteAddress: `${name} vote`,
   stakedLamports: 1_000_000_000,
   votePercentage: 1,
   voteTimestamp: "2026-08-28T12:34:56.000Z",
@@ -63,9 +64,26 @@ const voters = [
   voter("Abstain Validator", 0, 0, 10_000),
 ];
 
-const voteFilterSelect = () =>
-  screen.getByRole("option", { name: "All votes" })
-    .parentElement as HTMLSelectElement;
+const override = (
+  validator: TopVoterRecord,
+  stakeAccount: string,
+): TopVoterRecord => ({
+  ...validator,
+  stakeAccount,
+  walletType: "staker",
+});
+
+const [yesValidator, noValidator] = voters;
+const overrides = [
+  override(yesValidator, "stake-a"),
+  override(yesValidator, "stake-b"),
+  override(noValidator, "stake-c"),
+];
+
+const selectWithOption = (name: string) =>
+  screen.getByRole("option", { name }).parentElement as HTMLSelectElement;
+
+const voteFilterSelect = () => selectWithOption("All votes");
 
 const shownVoters = () =>
   screen
@@ -77,12 +95,28 @@ const shownVoters = () =>
           ?.validatorName,
     );
 
-beforeEach(() => {
+const STAKE_ACCOUNTS = overrides.map((o) => o.stakeAccount);
+
+// Overrides render their stake account under "Voted as"; validators don't.
+const shownRows = () =>
+  screen
+    .getAllByRole("row")
+    .slice(1)
+    .map((row) => {
+      const text = row.textContent ?? "";
+      const name = voters.find((v) => text.includes(v.validatorName));
+      const stake = STAKE_ACCOUNTS.find((s) => s && text.includes(s));
+      return stake ? `${name?.validatorName} / ${stake}` : name?.validatorName;
+    })
+    .sort();
+
+const mockVotes = (data: TopVoterRecord[]) =>
   jest.mocked(useProposalVotes).mockReturnValue({
-    data: voters,
+    data,
     isLoading: false,
   } as ReturnType<typeof useProposalVotes>);
-});
+
+beforeEach(() => mockVotes(voters));
 
 describe("TopVotersTable vote filter", () => {
   it("keeps a split vote under each side it voted for", () => {
@@ -134,5 +168,44 @@ describe("TopVotersTable vote filter", () => {
       "No Validator",
       "Abstain Validator",
     ]);
+  });
+});
+
+describe("TopVotersTable override filters", () => {
+  beforeEach(() => mockVotes([...voters, ...overrides]));
+
+  it("separates staker overrides from validator votes", () => {
+    render(<TopVotersTable proposal={undefined} />);
+    const voterTypeSelect = selectWithOption("All voters");
+
+    fireEvent.change(voterTypeSelect, { target: { value: "staker" } });
+    expect(shownRows()).toEqual([
+      "No Validator / stake-c",
+      "Yes Validator / stake-a",
+      "Yes Validator / stake-b",
+    ]);
+
+    fireEvent.change(voterTypeSelect, { target: { value: "validator" } });
+    expect(shownRows()).toEqual(voters.map((v) => v.validatorName).sort());
+  });
+
+  it("shows one validator's vote alongside only its own overrides", () => {
+    render(<TopVotersTable proposal={undefined} />);
+
+    expect(
+      screen.getByRole("button", { name: "1 override" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "2 overrides" }));
+
+    expect(shownRows()).toEqual([
+      "Yes Validator",
+      "Yes Validator / stake-a",
+      "Yes Validator / stake-b",
+    ]);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show all validators" }),
+    );
+    expect(shownRows()).toHaveLength(voters.length + overrides.length);
   });
 });

@@ -9,7 +9,7 @@ jest.mock("@/hooks/useProposalVotes", () => ({
 }));
 
 jest.mock("../TopVotersColumns", () => ({
-  topVoterColumns: [
+  createTopVoterColumns: () => [
     { accessorKey: "validatorName", header: "Voter" },
     { accessorKey: "stakedLamports", header: "Staked" },
   ],
@@ -19,6 +19,7 @@ const voter: TopVoterRecord = {
   id: "validator-1",
   validatorName: "Validator One",
   validatorIdentity: "validator-address",
+  validatorVoteAddress: "validator-vote-address",
   stakeAccount: "stake-address",
   stakedLamports: 1_500_000_000,
   votePercentage: 12.5,

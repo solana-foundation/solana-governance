@@ -9,10 +9,10 @@ import {
   useReactTable,
   type SortingState,
 } from "@tanstack/react-table";
-import { Download, Search } from "lucide-react";
+import { Download, Search, X } from "lucide-react";
 
 import { useProposalVotes } from "@/hooks/useProposalVotes";
-import { topVoterColumns } from "./TopVotersColumns";
+import { createTopVoterColumns } from "./TopVotersColumns";
 import {
   Table,
   TableBody,
@@ -60,7 +60,18 @@ function matchesVoteFilter(
   return true;
 }
 
-const TABLE_COLUMNS = topVoterColumns;
+type VoterTypeFilter = "all" | TopVoterRecord["walletType"];
+
+const VOTER_TYPE_FILTER_OPTIONS: { value: VoterTypeFilter; label: string }[] = [
+  { value: "all", label: "All voters" },
+  { value: "validator", label: "Validators" },
+  { value: "staker", label: "Staker overrides" },
+];
+
+interface FocusedValidator {
+  validatorVoteAddress: string;
+  validatorName: string;
+}
 
 interface TopVotersTableProps {
   proposal: ProposalRecord | undefined;
@@ -69,6 +80,10 @@ interface TopVotersTableProps {
 export default function TopVotersTable({ proposal }: TopVotersTableProps) {
   const [searchValue, setSearchValue] = React.useState("");
   const [voteFilter, setVoteFilter] = React.useState<VoteFilter>("all");
+  const [voterTypeFilter, setVoterTypeFilter] =
+    React.useState<VoterTypeFilter>("all");
+  const [focusedValidator, setFocusedValidator] =
+    React.useState<FocusedValidator | null>(null);
   const [sorting, setSorting] = React.useState<SortingState>(() => [
     ...DEFAULT_SORTING,
   ]);
@@ -79,14 +94,39 @@ export default function TopVotersTable({ proposal }: TopVotersTableProps) {
     isFetching: isFetchingVotes,
   } = useProposalVotes(proposal?.publicKey);
 
+  const overrideCounts = React.useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const voter of topVoters) {
+      if (voter.walletType !== "staker") continue;
+      const address = voter.validatorVoteAddress;
+      counts.set(address, (counts.get(address) ?? 0) + 1);
+    }
+    return counts;
+  }, [topVoters]);
+
+  const hasActiveFilters =
+    searchValue.trim().length > 0 ||
+    voteFilter !== "all" ||
+    voterTypeFilter !== "all" ||
+    focusedValidator !== null;
+
   const filteredData = React.useMemo(() => {
     const searchTerm = searchValue.trim().toLowerCase();
-    if (searchTerm.length === 0 && voteFilter === "all") {
+    if (!hasActiveFilters) {
       return topVoters;
     }
 
     return topVoters.filter((voter) => {
       if (!matchesVoteFilter(voter.voteData, voteFilter)) {
+        return false;
+      }
+      if (voterTypeFilter !== "all" && voter.walletType !== voterTypeFilter) {
+        return false;
+      }
+      if (
+        focusedValidator &&
+        voter.validatorVoteAddress !== focusedValidator.validatorVoteAddress
+      ) {
         return false;
       }
 
@@ -100,11 +140,30 @@ export default function TopVotersTable({ proposal }: TopVotersTableProps) {
         stakeAccount.includes(searchTerm)
       );
     });
-  }, [searchValue, voteFilter, topVoters]);
+  }, [
+    searchValue,
+    voteFilter,
+    voterTypeFilter,
+    focusedValidator,
+    hasActiveFilters,
+    topVoters,
+  ]);
+
+  const columns = React.useMemo(
+    () =>
+      createTopVoterColumns({
+        overrideCounts,
+        onShowOverrides: ({ validatorVoteAddress, validatorName }) => {
+          setVoterTypeFilter("all");
+          setFocusedValidator({ validatorVoteAddress, validatorName });
+        },
+      }),
+    [overrideCounts],
+  );
 
   const table = useReactTable({
     data: filteredData,
-    columns: TABLE_COLUMNS,
+    columns,
     state: {
       sorting,
     },
@@ -125,6 +184,8 @@ export default function TopVotersTable({ proposal }: TopVotersTableProps) {
     const nextSorting: SortingState = [...DEFAULT_SORTING];
     setSearchValue("");
     setVoteFilter("all");
+    setVoterTypeFilter("all");
+    setFocusedValidator(null);
     table.setSorting(nextSorting);
     table.setPageIndex(0);
   };
@@ -190,6 +251,31 @@ export default function TopVotersTable({ proposal }: TopVotersTableProps) {
               ))}
             </SelectContent>
           </Select>
+          <Select
+            value={voterTypeFilter}
+            onValueChange={(value) => {
+              setVoterTypeFilter(value as VoterTypeFilter);
+              table.setPageIndex(0);
+            }}
+          >
+            <SelectTrigger
+              className="w-full sm:w-[170px] text-white/60"
+              aria-label="Filter by voter type"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="select-background">
+              {VOTER_TYPE_FILTER_OPTIONS.map((option) => (
+                <SelectItem
+                  key={option.value}
+                  value={option.value}
+                  className="text-foreground"
+                >
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <div className="flex gap-3 w-full sm:w-auto">
             <AppButton
               variant="outline"
@@ -214,6 +300,30 @@ export default function TopVotersTable({ proposal }: TopVotersTableProps) {
           </AppButton>
         </div>
       </div>
+
+      {focusedValidator && (
+        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-6 py-3 text-sm text-white/60">
+          <span>
+            Showing the vote of{" "}
+            <span className="font-medium text-white">
+              {focusedValidator.validatorName}
+            </span>{" "}
+            and its staker overrides
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setFocusedValidator(null);
+              table.setPageIndex(0);
+            }}
+            className="flex items-center gap-1 text-white/50 hover:text-white transition-colors"
+            aria-label="Show all validators"
+          >
+            <X className="size-4" />
+            Clear
+          </button>
+        </div>
+      )}
 
       <div className="overflow-x-auto">
         <Table className="w-full min-w-[720px]">
@@ -251,7 +361,7 @@ export default function TopVotersTable({ proposal }: TopVotersTableProps) {
             {isLoadingVotes ? (
               <TableRow className="hover:bg-transparent">
                 <TableCell
-                  colSpan={TABLE_COLUMNS.length}
+                  colSpan={columns.length}
                   className="h-28 text-center text-sm text-white/60"
                 >
                   Loading votes...
@@ -284,10 +394,10 @@ export default function TopVotersTable({ proposal }: TopVotersTableProps) {
             ) : (
               <TableRow className="hover:bg-transparent">
                 <TableCell
-                  colSpan={TABLE_COLUMNS.length}
+                  colSpan={columns.length}
                   className="h-28 text-center text-sm text-white/60"
                 >
-                  {searchValue.trim() || voteFilter !== "all"
+                  {hasActiveFilters
                     ? "No voters match your filters."
                     : "No votes found for this proposal."}
                 </TableCell>
