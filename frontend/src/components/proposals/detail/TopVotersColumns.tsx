@@ -48,10 +48,11 @@ export const createTopVoterColumns = ({
         validatorIdentity,
         validatorImage,
         accentColor,
+        stakedLamports,
       } = row.original;
 
       return (
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 md:gap-4">
           <ValidatorLogo
             validatorName={validatorName}
             validatorImage={validatorImage}
@@ -68,6 +69,10 @@ export const createTopVoterColumns = ({
                 address={validatorIdentity}
                 copyLabel="Copy full validator address"
               />
+            </span>
+            {/* Phones hide the Staked column, so the stake rides along here. */}
+            <span className="text-xs text-white/50 md:hidden">
+              {formatLamportsDisplay(stakedLamports).value}
             </span>
           </div>
         </div>
@@ -140,7 +145,7 @@ export const createTopVoterColumns = ({
       const { forVotesBp, againstVotesBp, abstainVotesBp } =
         row.original.voteData;
       return (
-        <div className="flex items-center justify-center gap-4">
+        <div className="flex flex-col items-center gap-1 md:flex-row md:items-center md:justify-center md:gap-4">
           {/* <div className="h-1.5 w-24 overflow-hidden rounded-full">
             <div
               className="h-full w-full"

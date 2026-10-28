@@ -119,7 +119,7 @@ export default function TopSupportersTable({
       </div>
 
       <div className="overflow-x-auto">
-        <Table className="w-full min-w-[720px]">
+        <Table className="w-full md:min-w-[720px]">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow
@@ -132,7 +132,8 @@ export default function TopSupportersTable({
                     <TableHead
                       key={header.id}
                       className={cn(
-                        "px-6 py-4 text-xs font-semibold uppercase tracking-wider text-white/50",
+                        "px-3 py-4 text-xs font-semibold uppercase tracking-wider text-white/50 md:px-6",
+                        columnId === "stakedLamports" && "hidden md:table-cell",
                         columnId === "validatorName"
                           ? "text-left"
                           : "text-center",
@@ -170,7 +171,9 @@ export default function TopSupportersTable({
                     <TableCell
                       key={cell.id}
                       className={cn(
-                        "px-6 py-5 text-sm",
+                        "px-3 py-5 text-sm whitespace-normal md:px-6 md:whitespace-nowrap",
+                        cell.column.id === "stakedLamports" &&
+                          "hidden md:table-cell",
                         cell.column.id === "validatorName"
                           ? "text-left"
                           : "text-center",

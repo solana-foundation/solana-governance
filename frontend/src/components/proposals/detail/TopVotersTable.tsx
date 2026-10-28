@@ -73,6 +73,16 @@ interface FocusedValidator {
   validatorName: string;
 }
 
+// Phones show who voted and how they split (the voter cell carries the stake);
+// the remaining columns appear from md up rather than forcing a
+// sideways-scrolling table.
+const MOBILE_HIDDEN_COLUMNS = new Set([
+  "walletType",
+  "stakedLamports",
+  "votePercentage",
+  "voteTimestamp",
+]);
+
 interface TopVotersTableProps {
   proposal: ProposalRecord | undefined;
 }
@@ -326,7 +336,7 @@ export default function TopVotersTable({ proposal }: TopVotersTableProps) {
       )}
 
       <div className="overflow-x-auto">
-        <Table className="w-full min-w-[720px]">
+        <Table className="w-full md:min-w-[720px]">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow
@@ -339,10 +349,12 @@ export default function TopVotersTable({ proposal }: TopVotersTableProps) {
                     <TableHead
                       key={header.id}
                       className={cn(
-                        "px-6 py-4 text-xs font-semibold uppercase tracking-wider text-white/50",
+                        "px-3 py-4 text-xs font-semibold uppercase tracking-wider text-white/50 md:px-6",
                         columnId === "validatorName"
                           ? "text-left"
                           : "text-center",
+                        MOBILE_HIDDEN_COLUMNS.has(columnId) &&
+                          "hidden md:table-cell",
                       )}
                     >
                       {header.isPlaceholder
@@ -377,10 +389,12 @@ export default function TopVotersTable({ proposal }: TopVotersTableProps) {
                     <TableCell
                       key={cell.id}
                       className={cn(
-                        "px-6 py-5 text-sm",
+                        "px-3 py-5 text-sm whitespace-normal md:px-6 md:whitespace-nowrap",
                         cell.column.id === "validatorName"
                           ? "text-left"
                           : "text-center",
+                        MOBILE_HIDDEN_COLUMNS.has(cell.column.id) &&
+                          "hidden md:table-cell",
                       )}
                     >
                       {flexRender(
