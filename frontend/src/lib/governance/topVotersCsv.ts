@@ -26,7 +26,10 @@ function escapeCsvCell(value: string | number): string {
     typeof value === "string"
       ? neutralizeSpreadsheetFormula(value)
       : String(value);
-  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  // Quotes, commas and line breaks need quoting under RFC 4180. Semicolons do
+  // too, because Excel splits on them in locales that use ";" as the list
+  // separator, which would let a formula start its own cell.
+  return /[",;\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 function basisPointsToPercentage(

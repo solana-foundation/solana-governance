@@ -42,6 +42,12 @@ describe("createTopVotersCsv", () => {
     ).toContain("validator,,1500000000");
   });
 
+  it("quotes a validator name with a semicolon so Excel can't split a formula into its own cell", () => {
+    expect(
+      createTopVotersCsv([{ ...voter, validatorName: "Acme;=1+1;" }]),
+    ).toBe(`${header}\r\n"Acme;=1+1;"${rowSuffix}`);
+  });
+
   it.each([
     ["=1+1", "'=1+1"],
     ["+1+1", "'+1+1"],
