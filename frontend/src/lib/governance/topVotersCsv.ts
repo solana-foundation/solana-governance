@@ -26,8 +26,9 @@ function escapeCsvCell(value: string | number): string {
     typeof value === "string"
       ? neutralizeSpreadsheetFormula(value)
       : String(value);
-  // Quote semicolons too: Excel splits CSV on ";" in locales that use it as
-  // the list separator, which would start a new cell after the formula check.
+  // Quotes, commas and line breaks need quoting under RFC 4180. Semicolons do
+  // too, because Excel splits on them in locales that use ";" as the list
+  // separator, which would let a formula start its own cell.
   return /[",;\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
