@@ -83,29 +83,23 @@ export default function ProposalDetailView({
           </div>
         </>
       ) : (
-        <>
-          {/* Mobile only: CastVote above VoteBreakdown (voting phase only) */}
-          {isFinalized && (
-            <div className="md:hidden">
+        <div className="grid gap-6 md:grid-cols-[2fr_1fr]">
+          <VoteBreakdown proposal={proposal} isLoading={isLoading} />
+          {isFinalized ? (
+            <SupportProposalSection
+              proposalId={proposal?.publicKey?.toBase58()}
+              proposalStatus={proposal?.status}
+              variant="finalized"
+              className="hidden md:flex"
+            />
+          ) : (
+            // In the single-column phone layout, voters reach the vote
+            // buttons before scrolling past the breakdown chart.
+            <div className="order-first md:order-none">
               <CastVoteWrapper proposal={proposal} isLoading={isLoading} />
             </div>
           )}
-          <div className="grid gap-6 md:grid-cols-[2fr_1fr] xl:grid-cols-[2fr_1fr]">
-            <VoteBreakdown proposal={proposal} isLoading={isLoading} />
-            {isFinalized ? (
-              <SupportProposalSection
-                proposalId={proposal?.publicKey?.toBase58()}
-                proposalStatus={proposal?.status}
-                variant="finalized"
-                className="hidden md:flex"
-              />
-            ) : (
-              <div className="hidden md:block">
-                <CastVoteWrapper proposal={proposal} isLoading={isLoading} />
-              </div>
-            )}
-          </div>
-        </>
+        </div>
       )}
       <PhaseTimeline proposal={proposal} isLoading={isLoading} />
       {/* Before voting activates the proposal has no votes, only support

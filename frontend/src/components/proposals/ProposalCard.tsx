@@ -15,6 +15,8 @@ import { toast } from "sonner";
 import { getProposalDetailPagePath } from "@/helpers/proposalPage";
 import { getVoteModalNames } from "@/lib/governance/role-detection";
 import { ProposalRefLabel } from "./ProposalRefLabel";
+import { getProposalVoteStats, ProposalVoteShare } from "./ProposalVoteStats";
+import type { NetworkMetaResponse } from "@/chain";
 
 type ProposalStatus = ProposalRecord["status"];
 interface VotingDetailItem {
@@ -36,6 +38,9 @@ interface ActionButtonsProps {
 }
 interface ProposalCardProps {
   proposal: ProposalRecord;
+  /** Metadata for the snapshot the proposal votes on, used for participation. */
+  snapshotMeta: NetworkMetaResponse | undefined;
+  isLoadingSnapshotMeta: boolean;
 }
 
 const getVotingStatusValue = (
@@ -90,6 +95,23 @@ const actionRequiresWallet = (action: ProposalAction) =>
 
 const shouldShowModifyButton = (status: ProposalStatus) => status === "voting";
 
+const hasVotingStarted = (status: ProposalStatus) =>
+  status === "voting" || status === "finalized";
+
+const getParticipationValue = (
+  stats: ReturnType<typeof getProposalVoteStats>,
+  isLoading: boolean,
+) => {
+  if (isLoading) {
+    return "…";
+  }
+  if (!stats.quorum.known) {
+    return "—";
+  }
+  const percent = `${stats.quorum.participationPercent.toFixed(2)}%`;
+  return stats.quorum.isMet ? `${percent} · Quorum met` : percent;
+};
+
 const VotingDetails = ({ items, layout }: VotingDetailsProps) => {
   if (items.length === 0) {
     return null;
@@ -97,7 +119,7 @@ const VotingDetails = ({ items, layout }: VotingDetailsProps) => {
 
   if (layout === "mobile") {
     return (
-      <div className="grid grid-cols-3 gap-4 pb-4 text-xs">
+      <div className="grid grid-cols-2 gap-4 text-xs">
         {items.map((item) => (
           <div
             key={`${item.label}-${item.value}`}
@@ -191,7 +213,11 @@ const ActionButtons = ({
   );
 };
 
-export default function ProposalCard({ proposal }: ProposalCardProps) {
+export default function ProposalCard({
+  proposal,
+  snapshotMeta,
+  isLoadingSnapshotMeta,
+}: ProposalCardProps) {
   const router = useRouter();
   const { openModal } = useModal();
 
@@ -220,9 +246,23 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
   const actionConfig = getProposalAction(status);
   const showModifyButton = shouldShowModifyButton(status);
 
+  const voteStats = getProposalVoteStats(proposal, snapshotMeta);
+  const showVoteStats = hasVotingStarted(status);
+
   const detailItems: VotingDetailItem[] = [
     { label: "Voting Through", value: votingStatusValue },
   ];
+  if (showVoteStats) {
+    detailItems.push({
+      label: "Participation",
+      value: getParticipationValue(voteStats, isLoadingSnapshotMeta),
+    });
+  }
+
+  const voteShare =
+    showVoteStats && voteStats.voteShare.known ? (
+      <ProposalVoteShare proposal={proposal} snapshotMeta={snapshotMeta} />
+    ) : null;
 
   const isLoadingVoteIdentity =
     isLoadingWalletRole || isLoadingChainVoteAccount;
@@ -333,6 +373,8 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
 
         <VotingDetails items={detailItems} layout="mobile" />
 
+        {voteShare}
+
         <ActionButtons
           layout="mobile"
           showModifyButton={showModifyButton}
@@ -358,6 +400,7 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
             {title}
           </h4>
           <VotingDetails items={detailItems} layout="tablet" />
+          {voteShare && <div className="max-w-sm pt-1">{voteShare}</div>}
         </div>
 
         <div className="flex flex-col items-end justify-between gap-3 min-w-[140px]">
