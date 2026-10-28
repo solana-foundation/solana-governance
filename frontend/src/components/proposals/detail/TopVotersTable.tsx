@@ -73,7 +73,8 @@ interface FocusedValidator {
   validatorName: string;
 }
 
-// Phones show who voted and how they split (the voter cell carries the stake);
+// Phones show who voted and how they split (the voter cell carries the wallet
+// type, stake, and overrides);
 // the remaining columns appear from md up rather than forcing a
 // sideways-scrolling table.
 const MOBILE_HIDDEN_COLUMNS = new Set([

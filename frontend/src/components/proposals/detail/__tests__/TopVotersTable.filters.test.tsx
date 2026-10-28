@@ -192,10 +192,12 @@ describe("TopVotersTable override filters", () => {
   it("shows one validator's vote alongside only its own overrides", () => {
     render(<TopVotersTable proposal={undefined} />);
 
-    expect(
-      screen.getByRole("button", { name: "1 override" }),
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "2 overrides" }));
+    // jsdom applies no CSS, so both the phone copy (in the Voter cell) and the
+    // desktop copy (in the Voted as column) of each override button render.
+    expect(screen.getAllByRole("button", { name: "1 override" })).toHaveLength(
+      2,
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: "2 overrides" })[0]);
 
     expect(shownRows()).toEqual([
       "Yes Validator",
