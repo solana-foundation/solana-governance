@@ -18,7 +18,21 @@ const LABELS = {
   abstain: "Abstain",
 };
 
-export const topVoterColumns: ColumnDef<TopVoterRecord>[] = [
+interface TopVoterColumnsOptions {
+  /** Number of staker overrides of each validator vote, keyed by `validatorVoteAddress`. */
+  overrideCounts: ReadonlyMap<string, number>;
+  /** Called when a validator row's override count is clicked. */
+  onShowOverrides: (voter: TopVoterRecord) => void;
+}
+
+/**
+ * Builds the Top Voters table columns. Validator rows with staker overrides
+ * show the override count as a button that calls `onShowOverrides`.
+ */
+export const createTopVoterColumns = ({
+  overrideCounts,
+  onShowOverrides,
+}: TopVoterColumnsOptions): ColumnDef<TopVoterRecord>[] => [
   {
     accessorKey: "validatorName",
     header: ({ column }) => (
@@ -66,7 +80,11 @@ export const topVoterColumns: ColumnDef<TopVoterRecord>[] = [
     accessorKey: "walletType",
     header: "Voted as",
     cell: ({ row }) => {
-      const { walletType, stakeAccount } = row.original;
+      const { walletType, stakeAccount, validatorVoteAddress } = row.original;
+      const overrideCount =
+        walletType === "validator"
+          ? (overrideCounts.get(validatorVoteAddress) ?? 0)
+          : 0;
 
       return (
         <div className="flex items-center gap-4 justify-center">
@@ -83,6 +101,15 @@ export const topVoterColumns: ColumnDef<TopVoterRecord>[] = [
                   copyLabel="Copy full stake account address"
                 />
               </span>
+            )}
+            {overrideCount > 0 && (
+              <button
+                type="button"
+                onClick={() => onShowOverrides(row.original)}
+                className="text-xs text-white/40 underline decoration-dotted underline-offset-2 hover:text-white transition-colors"
+              >
+                {overrideCount} {overrideCount === 1 ? "override" : "overrides"}
+              </button>
             )}
           </div>
         </div>

@@ -6,6 +6,7 @@ const voter: TopVoterRecord = {
   id: "validator-1",
   validatorName: 'Validator, "North"\nNode',
   validatorIdentity: "validator-address",
+  validatorVoteAddress: "validator-vote-address",
   stakeAccount: "stake-address",
   stakedLamports: 1_500_000_000,
   votePercentage: 12.5,
