@@ -153,8 +153,10 @@ export default function TopVotersTable({ proposal }: TopVotersTableProps) {
     () =>
       createTopVoterColumns({
         overrideCounts,
-        onShowOverrides: ({ validatorVoteAddress, validatorName }) =>
-          setFocusedValidator({ validatorVoteAddress, validatorName }),
+        onShowOverrides: ({ validatorVoteAddress, validatorName }) => {
+          setVoterTypeFilter("all");
+          setFocusedValidator({ validatorVoteAddress, validatorName });
+        },
       }),
     [overrideCounts],
   );
