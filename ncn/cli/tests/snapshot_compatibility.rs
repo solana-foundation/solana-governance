@@ -11,7 +11,7 @@ use solana_runtime::{
     genesis_utils::{create_genesis_config_with_vote_accounts, ValidatorVoteKeypairs},
     snapshot_bank_utils::bank_to_full_snapshot_archive,
 };
-use solana_sdk::signer::Signer;
+use solana_signer::Signer;
 use std::{collections::HashSet, fs, sync::Arc};
 
 #[test]
