@@ -406,6 +406,7 @@ pub fn load_and_process_ledger(
         transaction_status_sender.clone(),
         None, // replay_vote_sender
         None, // prioritization_fee_cache: Option<Arc<PrioritizationFeeCache>>
+        None, // handler_thread_arenas
     );
     bank_forks
         .write()

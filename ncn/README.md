@@ -78,11 +78,11 @@ If a vote account delegated to is missing (closed by the manager), the system wi
 
 ## Dependencies
 
-1. Agave 4.3 requires Rust `1.97.1` or newer:
+1. Agave 4.4 requires Rust `1.98.1` or newer:
 
 ```bash
-rustup toolchain install 1.97.1
-rustup override set 1.97.1
+rustup toolchain install 1.98.1
+rustup override set 1.98.1
 rustc --version
 ```
 
@@ -90,7 +90,7 @@ rustc --version
 
 3. Build repo with `cargo build`
 
-Agave 4.3 requires the RocksDB fork pinned in `ncn/Cargo.toml`.
+Agave 4.4 requires the RocksDB fork pinned in `ncn/Cargo.toml`.
 Cargo does not include these workspace patches in published crates.
 Until Agave publishes compatible ledger dependencies, build NCN from this
 repository or use a release binary.
