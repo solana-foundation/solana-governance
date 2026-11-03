@@ -118,6 +118,7 @@
       "pbkdf2@<3.1.7": "^3.1.7",
       "jayson@>=4.0.0 <5.0.0": "^5.0.0",
       "follow-redirects@<1.16.1": "^1.16.1",
+      "source-map-js@<1.2.2": "^1.2.2",
       "isomorphic-ws>ws": "*",
       "isows>ws": "*"
     }
