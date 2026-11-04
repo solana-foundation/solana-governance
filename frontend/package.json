@@ -120,6 +120,7 @@
       "follow-redirects@<1.16.1": "^1.16.1",
       "source-map-js@<1.2.2": "^1.2.2",
       "handlebars@<4.7.10": "^4.7.10",
+      "zod@<4.6.6": "^4.6.7",
       "isomorphic-ws>ws": "*",
       "isows>ws": "*"
     }
