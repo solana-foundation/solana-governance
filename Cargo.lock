@@ -4883,6 +4883,7 @@ dependencies = [
  "litesvm",
  "ncn-merkle-tree",
  "ncn-snapshot",
+ "serde_json",
  "sha2 0.10.9",
  "solana-account 4.3.1",
  "solana-address 2.6.1",

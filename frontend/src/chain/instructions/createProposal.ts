@@ -10,9 +10,13 @@ import {
   deriveProposalIndexPda,
   deriveGlobalConfigPda,
   signTransactionForWallet,
+  confirmTransactionByPolling,
 } from "./helpers";
 import { deriveProposalAccount } from "../helpers";
-import { assertValidProposalUrl } from "@/lib/github";
+import {
+  assertValidProposalDocument,
+  assertValidProposalUrl,
+} from "@/lib/github";
 
 /**
  * Creates a new governance proposal
@@ -30,21 +34,21 @@ export async function createProposal(
   // that the wallet-returned transaction contains its signature before the proposal is submitted.
   const signer = wallet.publicKey;
 
-  // Enforced here rather than only in the modal so every caller inherits it. The on-chain
-  // check accepts anything github.com-shaped, including pull request links, which the
-  // frontend then cannot resolve to a proposal document.
-  //
-  // The normalized URL is what gets encoded below: validation trims, and the program requires
-  // a literal https://github.com/ prefix, so sending the raw input would be rejected on chain
-  // after the frontend had already accepted it.
-  const description = assertValidProposalUrl(params.description);
+  const program = createProgramWithWallet(wallet, blockchainParams.endpoint);
+  const globalConfig = deriveGlobalConfigPda(program.programId);
+  const config = await program.account.globalConfig.fetch(globalConfig);
+  const description = assertValidProposalUrl(
+    params.description,
+    config.maxDescriptionLength,
+  );
+  if (!params.skipDocumentCheck) {
+    await assertValidProposalDocument(description);
+  }
 
   // Generate random seed if not provided
   const seedValue = new BN(
     seed ?? Math.floor(Math.random() * Number.MAX_SAFE_INTEGER),
   );
-
-  const program = createProgramWithWallet(wallet, blockchainParams.endpoint);
 
   const voteAccounts = await program.provider.connection.getVoteAccounts();
   const validatorVoteAccount = voteAccounts.current.find(
@@ -69,22 +73,33 @@ export async function createProposal(
       splVoteAccount,
       systemProgram: SystemProgram.programId,
       proposalIndex: deriveProposalIndexPda(program.programId),
-      globalConfig: deriveGlobalConfigPda(program.programId),
+      globalConfig,
     })
     .instruction();
 
   const transaction = new Transaction();
   transaction.add(proposalInstruction);
   transaction.feePayer = signer;
-  transaction.recentBlockhash = (
-    await program.provider.connection.getLatestBlockhash("confirmed")
-  ).blockhash;
+  const latestBlockhash =
+    await program.provider.connection.getLatestBlockhash("confirmed");
+  transaction.recentBlockhash = latestBlockhash.blockhash;
+  transaction.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
 
   const tx = await signTransactionForWallet(wallet, transaction, signer);
 
   const signature = await program.provider.connection.sendRawTransaction(
     tx.serialize(),
   );
+  const confirmation = await confirmTransactionByPolling(
+    program.provider.connection,
+    signature,
+    latestBlockhash.lastValidBlockHeight,
+  );
+  if (confirmation.value.err) {
+    throw new Error(
+      `Failed to create proposal: ${JSON.stringify(confirmation.value.err)}`,
+    );
+  }
 
   return {
     signature,

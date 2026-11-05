@@ -32,7 +32,7 @@ All error codes from both the `ncn-snapshot` and `svmgov` programs.
 | `TitleTooLong` | Title exceeds `max_title_length` (measured in bytes) |
 | `DescriptionEmpty` | Description is empty |
 | `DescriptionTooLong` | Description exceeds `max_description_length` (measured in bytes) |
-| `DescriptionInvalid` | Description must be a URL in `https://github.com/solana-foundation/solana-governance-proposals` without `..` path segments |
+| `DescriptionInvalid` | Description must be a full-commit-SHA GitHub `blob` URL to one `.md` file in `solana-governance-proposals` |
 | `InvalidProposalId` | Invalid proposal ID |
 | `VotingNotStarted` | Proposal has not entered voting phase yet |
 | `ProposalClosed` | Voting period has ended |
@@ -71,6 +71,7 @@ All error codes from both the `ncn-snapshot` and `svmgov` programs.
 | `InvalidClusterSupportPctMin` | `cluster_support_pct_min_bps` must be between 0 and 10,000 |
 | `InvalidMaxTitleLength` | `max_title_length` must be between 1 and 200 (bytes) |
 | `InvalidMaxDescriptionLength` | `max_description_length` must be between 1 and 500 (bytes) |
+| `UnauthorizedProposalUpdate` | Only the original proposal author may update the proposal document |
 | `InvalidAdmin` | Nominated admin cannot be the default (all-zero) pubkey |
 | `NoPendingAdmin` | `accept_admin` called with no pending nomination |
 | `NotPendingAdmin` | Signer is not the pending admin nominee |

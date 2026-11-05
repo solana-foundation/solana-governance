@@ -302,6 +302,27 @@ pub fn create_proposal_ix(
     }
 }
 
+pub fn update_proposal_description_ix(
+    author: &Address,
+    proposal: Address,
+    global_config: Address,
+    description: &str,
+) -> Instruction {
+    let mut data = anchor_discriminator("global", "update_proposal_description").to_vec();
+    data.extend((description.len() as u32).to_le_bytes());
+    data.extend(description.as_bytes());
+
+    Instruction {
+        program_id: SVMGOV_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new_readonly(*author, true),
+            AccountMeta::new(proposal, false),
+            AccountMeta::new_readonly(global_config, false),
+        ],
+        data,
+    }
+}
+
 pub fn update_global_config_ix(
     admin: &Address,
     global_config: Address,
@@ -639,7 +660,7 @@ pub fn create_proposal(h: &mut Harness, seed: u64, title: &str) -> Address {
             h.global_config,
             seed,
             title,
-            "https://github.com/solana-foundation/solana-governance-proposals/blob/commit-sha/proposals/title.md",
+            "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/title.md",
         )],
     );
     proposal

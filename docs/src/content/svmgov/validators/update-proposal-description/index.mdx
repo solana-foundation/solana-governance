@@ -1,0 +1,31 @@
+# Update Proposal Document
+
+Replace the document URL for an existing proposal before voting begins.
+
+Only the proposal's original author can submit this instruction. It is available throughout the support phase and, after support succeeds, until `start_epoch`; it is rejected at the first voting epoch and after finalization. The instruction changes only the stored URL, so the replacement can use a new filename and commit.
+
+## Usage
+
+```bash
+svmgov update-proposal-description \
+  --proposal-id <PROPOSAL_PDA> \
+  --description "https://github.com/solana-foundation/solana-governance-proposals/blob/<40-hex-commit>/proposals/sgp-0001-revision.md"
+```
+
+## Arguments
+
+| Argument | Required | Description |
+|---|---|---|
+| `--proposal-id` | **Yes** | Proposal PDA address |
+| `--description` | **Yes** | Full-commit-SHA GitHub `blob` URL to one Markdown file in `solana-governance-proposals` |
+| `--skip-link-check` | No | Explicitly skip the CLI's GitHub fetch and frontmatter preflight; cannot bypass URL validation |
+
+The CLI checks that the document can be fetched at the pinned commit and starts with non-empty YAML frontmatter. These are off-chain quality checks. A fetch or frontmatter failure can be bypassed only with `--skip-link-check`; malformed URLs are always rejected.
+
+## On-chain rules
+
+- The signer must equal `Proposal.author`.
+- The URL must be `https://github.com/solana-foundation/solana-governance-proposals/blob/<40-hex-commit>/<path>.md`.
+- Before support activates voting, the proposal must still be in its support window.
+- After support activates voting, the current epoch must be strictly less than `start_epoch`.
+- Finalized proposals cannot be changed.

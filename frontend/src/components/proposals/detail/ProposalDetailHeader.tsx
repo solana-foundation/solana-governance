@@ -4,12 +4,15 @@ import Link from "next/link";
 import { calculateTimeAgo } from "@/helpers";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { CheckIcon, CopyIcon, Github } from "lucide-react";
-import { useCopyToClipboard } from "@/hooks";
+import { useCopyToClipboard, useEpochInfo } from "@/hooks";
 import LifecycleIndicator from "@/components/ui/LifecycleIndicator";
 import { formatAddress } from "@/lib/governance/formatters";
 import type { ProposalRecord } from "@/types";
 import { ProposalDescription } from "../ProposalDescription";
 import { ProposalRefLabel } from "../ProposalRefLabel";
+import { AppButton } from "@/components/ui/AppButton";
+import { useModal } from "@/contexts/ModalContext";
+import { useWallet } from "@solana/wallet-adapter-react";
 
 interface ProposalDetailHeaderProps {
   proposal: ProposalRecord | undefined;
@@ -37,6 +40,9 @@ export default function ProposalDetailHeader({
   isLoading,
 }: ProposalDetailHeaderProps) {
   const { copied, copyToClipboard } = useCopyToClipboard();
+  const { data: epochData } = useEpochInfo();
+  const { publicKey } = useWallet();
+  const { openModal } = useModal();
 
   if (isLoading) return <ProposalDetailSkeleton />;
   if (!proposal) return <div>No proposal data...</div>;
@@ -44,6 +50,11 @@ export default function ProposalDetailHeader({
   const createdAgo = calculateTimeAgo(proposal.creationTimestamp);
   const votingThrough =
     proposal.endEpoch > 0 ? proposal.endEpoch - 1 : "-";
+  const canUpdateDocument = publicKey?.toBase58() === proposal.author &&
+    (proposal.status === "supporting" ||
+      (proposal.voting &&
+        typeof epochData?.epochInfo.epoch === "number" &&
+        epochData.epochInfo.epoch < proposal.startEpoch));
 
   return (
     <div className="glass-card space-y-6 p-6">
@@ -54,6 +65,21 @@ export default function ProposalDetailHeader({
         </div>
 
         <ProposalDescription githubUrl={proposal.description} />
+        {canUpdateDocument && (
+          <div>
+            <AppButton
+              size="default"
+              variant="outline"
+              text="Update Document"
+              onClick={() =>
+                openModal("update-proposal-description", {
+                  proposalId: proposal.publicKey.toBase58(),
+                  currentDescription: proposal.description,
+                })
+              }
+            />
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:flex lg:flex-wrap items-center gap-2 sm:gap-3 lg:gap-6 border-t border-white/10 pt-3 sm:pt-4 text-sm leading-none lg:leading-normal">
