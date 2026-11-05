@@ -345,11 +345,31 @@ pub async fn accept_admin(
     Ok(())
 }
 
-pub async fn show_global_config(rpc_url: Option<String>) -> Result<()> {
+pub async fn show_global_config(rpc_url: Option<String>, json_output: bool) -> Result<()> {
     let mock_payer = Arc::new(DynSigner(Arc::new(Keypair::new())));
     let program = anchor_client_setup(rpc_url, mock_payer)?;
 
     let config = fetch_global_config(&program).await?;
+
+    if json_output {
+        let output = serde_json::json!({
+            "admin": config.admin.to_string(),
+            "pending_admin": config.pending_admin.map(|key| key.to_string()),
+            "max_title_length": config.max_title_length,
+            "max_description_length": config.max_description_length,
+            "max_support_epochs": config.max_support_epochs,
+            "min_proposal_stake_lamports": config.min_proposal_stake_lamports,
+            "cluster_support_pct_min_bps": config.cluster_support_pct_min_bps,
+            "discussion_epochs": config.discussion_epochs,
+            "voting_epochs": config.voting_epochs,
+            "snapshot_epoch_extension": config.snapshot_epoch_extension,
+            "snapshot_slot_offset": config.snapshot_slot_offset,
+            "max_supporters": config.max_supporters,
+            "new_proposals_allowed": config.new_proposals_allowed,
+        });
+        println!("{}", serde_json::to_string_pretty(&output)?);
+        return Ok(());
+    }
 
     println!("\nOn-chain Global Config:");
     println!("  admin:                       {}", config.admin);
@@ -388,7 +408,10 @@ pub async fn show_global_config(rpc_url: Option<String>) -> Result<()> {
         config.snapshot_slot_offset
     );
     println!("  max_supporters:              {}", config.max_supporters);
-    println!("  new_proposals_allowed:       {}", config.new_proposals_allowed);
+    println!(
+        "  new_proposals_allowed:       {}",
+        config.new_proposals_allowed
+    );
 
     Ok(())
 }

@@ -1,3 +1,5 @@
+mod output;
+
 use anchor_client::solana_sdk::signature::Signer;
 use anchor_client::{
     solana_sdk::{bs58, commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Keypair},
@@ -12,6 +14,11 @@ use cli::ledger::{
 use cli::{generate_meta_merkle_snapshot, utils::*, MetaMerkleSnapshot};
 use log::info;
 use ncn_snapshot::{Ballot, BallotBox, ConsensusResult, MetaMerkleProof, ProgramConfig};
+use output::{
+    ballot_box_json, consensus_result_json, operator_vote_json, print_json, program_config_json,
+    proof_json,
+};
+use serde_json::json;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::{collections::HashMap, fs, process::Command, thread, time::Duration};
@@ -218,6 +225,10 @@ pub enum Commands {
             help = "Set to true when `--read-path` points to a compressed `.zip`"
         )]
         is_compressed: bool,
+
+        /// Output the result as JSON.
+        #[arg(long)]
+        json: bool,
     },
     /// Wait for a target slot to pass and snapshot it from on-disk snapshots.
     ///
@@ -392,11 +403,23 @@ pub enum Commands {
         /// Snapshot slot identifying the ballot box to fetch.
         #[arg(long, help = "Snapshot slot identifying the ballot box to fetch")]
         snapshot_slot: u64,
+
+        /// Output the result as JSON.
+        #[arg(long)]
+        json: bool,
     },
     /// Print the on-chain `ProgramConfig` singleton.
-    GetProgramConfig {},
+    GetProgramConfig {
+        /// Output the result as JSON.
+        #[arg(long)]
+        json: bool,
+    },
     /// Print the operator whitelist from `ProgramConfig`.
-    GetOperatorWhitelist {},
+    GetOperatorWhitelist {
+        /// Output the result as JSON.
+        #[arg(long)]
+        json: bool,
+    },
     /// Print a single operator's vote within a ballot box.
     GetOperatorVote {
         /// Snapshot slot identifying the ballot box.
@@ -409,12 +432,20 @@ pub enum Commands {
             help = "Operator pubkey (base58) whose vote should be looked up"
         )]
         operator: Pubkey,
+
+        /// Output the result as JSON.
+        #[arg(long)]
+        json: bool,
     },
     /// Print the `ConsensusResult` PDA for a snapshot slot.
     GetConsensusResult {
         /// Snapshot slot identifying the consensus result to fetch.
         #[arg(long, help = "Snapshot slot identifying the consensus result to fetch")]
         snapshot_slot: u64,
+
+        /// Output the result as JSON.
+        #[arg(long)]
+        json: bool,
     },
     /// Print the `MetaMerkleProof` PDA for a vote account.
     GetProof {
@@ -432,12 +463,20 @@ pub enum Commands {
             help = "Validator vote account (base58) whose proof should be fetched"
         )]
         vote_account: Pubkey,
+
+        /// Output the result as JSON.
+        #[arg(long)]
+        json: bool,
     },
     /// Check whether a ballot box exists for a snapshot slot.
     BallotExists {
         /// Snapshot slot to check for a `BallotBox` PDA.
         #[arg(long, help = "Snapshot slot to check for a `BallotBox` PDA")]
         snapshot_slot: u64,
+
+        /// Output the result as JSON.
+        #[arg(long)]
+        json: bool,
     },
     /// Print a combined status report: program config, ballot box, and
     /// consensus result for a snapshot slot.
@@ -445,6 +484,10 @@ pub enum Commands {
         /// Snapshot slot to summarize.
         #[arg(long, help = "Snapshot slot to summarize")]
         snapshot_slot: u64,
+
+        /// Output the result as JSON.
+        #[arg(long)]
+        json: bool,
     },
     /// Cast a vote on a ballot box using an explicit root + hash.
     ///
@@ -554,7 +597,7 @@ pub enum Commands {
         #[arg(long, help = "Snapshot slot identifying the ballot box to reset")]
         snapshot_slot: u64,
     },
-    /// Dump the raw `Debug` representation of an on-chain account.
+    /// Print an on-chain account as raw `Debug` output or JSON.
     ///
     /// Selects the account type via `--ty`; some types require additional
     /// arguments such as `--snapshot-slot` and/or `--vote-account`.
@@ -583,6 +626,10 @@ pub enum Commands {
             help = "Account type to dump: `program-config` | `ballot-box` | `consensus-result` | `proof`"
         )]
         ty: LogType,
+
+        /// Output the result as JSON.
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -795,6 +842,7 @@ fn main() -> Result<()> {
             snapshot_slot,
             vote_account,
             ty,
+            json,
         } => {
             let temp = Keypair::new();
             let program = load_client_program(&temp, cli.rpc_url);
@@ -802,12 +850,18 @@ fn main() -> Result<()> {
             match ty {
                 LogType::ProgramConfig => {
                     let data: ProgramConfig = program.account(ProgramConfig::pda().0)?;
+                    if json {
+                        return print_json(&program_config_json(&data));
+                    }
                     println!("{:?}", data);
                 }
                 LogType::BallotBox => {
                     let data: BallotBox = program.account(
                         BallotBox::pda(snapshot_slot.expect("Missing --snapshot-slot argument")).0,
                     )?;
+                    if json {
+                        return print_json(&ballot_box_json(&data));
+                    }
                     println!("{:?}", data);
                 }
                 LogType::ConsensusResult => {
@@ -817,6 +871,9 @@ fn main() -> Result<()> {
                         )
                         .0,
                     )?;
+                    if json {
+                        return print_json(&consensus_result_json(&data));
+                    }
                     println!("{:?}", data);
                 }
                 LogType::MetaMerkleProof => {
@@ -831,6 +888,9 @@ fn main() -> Result<()> {
                         )
                         .0,
                     )?;
+                    if json {
+                        return print_json(&proof_json(&data));
+                    }
                     println!("{:?}", data);
                 }
             }
@@ -1026,22 +1086,36 @@ fn main() -> Result<()> {
             let tx = send_finalize_ballot(tx_sender, ballot_box_pda, consensus_result_pda)?;
             info!("Transaction sent: {}", tx);
         }
-        Commands::GetBallot { snapshot_slot } => {
+        Commands::GetBallot {
+            snapshot_slot,
+            json,
+        } => {
             let temp = Keypair::new();
             let program = load_client_program(&temp, cli.rpc_url);
             let ballot_box: BallotBox = program.account(BallotBox::pda(snapshot_slot).0)?;
+            if json {
+                return print_json(&ballot_box_json(&ballot_box));
+            }
             print_ballot_box(&ballot_box);
         }
-        Commands::GetProgramConfig {} => {
+        Commands::GetProgramConfig { json } => {
             let temp = Keypair::new();
             let program = load_client_program(&temp, cli.rpc_url);
             let config: ProgramConfig = program.account(ProgramConfig::pda().0)?;
+            if json {
+                return print_json(&program_config_json(&config));
+            }
             print_program_config(&config);
         }
-        Commands::GetOperatorWhitelist {} => {
+        Commands::GetOperatorWhitelist { json } => {
             let temp = Keypair::new();
             let program = load_client_program(&temp, cli.rpc_url);
             let config: ProgramConfig = program.account(ProgramConfig::pda().0)?;
+            if json {
+                return print_json(&json!({
+                    "whitelisted_operators": config.whitelisted_operators.iter().map(ToString::to_string).collect::<Vec<_>>()
+                }));
+            }
             println!("Operator Whitelist");
             if config.whitelisted_operators.is_empty() {
                 println!("  (none)");
@@ -1054,6 +1128,7 @@ fn main() -> Result<()> {
         Commands::GetOperatorVote {
             snapshot_slot,
             operator,
+            json,
         } => {
             let temp = Keypair::new();
             let program = load_client_program(&temp, cli.rpc_url);
@@ -1063,6 +1138,14 @@ fn main() -> Result<()> {
                 .iter()
                 .find(|vote| vote.operator == operator);
 
+            if json {
+                return print_json(&json!({
+                    "snapshot_slot": snapshot_slot,
+                    "operator": operator.to_string(),
+                    "found": maybe_vote.is_some(),
+                    "vote": maybe_vote.map(operator_vote_json),
+                }));
+            }
             println!("Operator Vote");
             println!("  Snapshot Slot: {}", snapshot_slot);
             println!("  Operator: {}", operator);
@@ -1077,10 +1160,16 @@ fn main() -> Result<()> {
                 }
             }
         }
-        Commands::GetConsensusResult { snapshot_slot } => {
+        Commands::GetConsensusResult {
+            snapshot_slot,
+            json,
+        } => {
             let temp = Keypair::new();
             let program = load_client_program(&temp, cli.rpc_url);
             let result: ConsensusResult = program.account(ConsensusResult::pda(snapshot_slot).0)?;
+            if json {
+                return print_json(&consensus_result_json(&result));
+            }
             let (root, hash) = format_ballot(&result.ballot);
             println!("Consensus Result");
             println!("  Snapshot Slot: {}", result.snapshot_slot);
@@ -1091,12 +1180,18 @@ fn main() -> Result<()> {
         Commands::GetProof {
             snapshot_slot,
             vote_account,
+            json,
         } => {
             let temp = Keypair::new();
             let program = load_client_program(&temp, cli.rpc_url);
             let consensus_result_pda = ConsensusResult::pda(snapshot_slot).0;
             let proof_pda = MetaMerkleProof::pda(&consensus_result_pda, &vote_account).0;
             let proof: MetaMerkleProof = program.account(proof_pda)?;
+            if json {
+                let mut output = proof_json(&proof);
+                output["pda"] = json!(proof_pda.to_string());
+                return print_json(&output);
+            }
             println!("Meta Merkle Proof");
             println!("  PDA: {}", proof_pda);
             println!("  Payer: {}", proof.payer);
@@ -1111,19 +1206,59 @@ fn main() -> Result<()> {
             println!("  Proof Nodes: {}", proof.meta_merkle_proof.len());
             println!("  Close Timestamp: {}", proof.close_timestamp);
         }
-        Commands::BallotExists { snapshot_slot } => {
+        Commands::BallotExists {
+            snapshot_slot,
+            json,
+        } => {
             let temp = Keypair::new();
             let program = load_client_program(&temp, cli.rpc_url);
             let ballot_pda = BallotBox::pda(snapshot_slot).0;
             let exists = program.account::<BallotBox>(ballot_pda).is_ok();
+            if json {
+                return print_json(&json!({
+                    "snapshot_slot": snapshot_slot,
+                    "pda": ballot_pda.to_string(),
+                    "exists": exists,
+                }));
+            }
             println!("Ballot Exists");
             println!("  Snapshot Slot: {}", snapshot_slot);
             println!("  PDA: {}", ballot_pda);
             println!("  Exists: {}", exists);
         }
-        Commands::Status { snapshot_slot } => {
+        Commands::Status {
+            snapshot_slot,
+            json,
+        } => {
             let temp = Keypair::new();
             let program = load_client_program(&temp, cli.rpc_url.clone());
+
+            if json {
+                let config: ProgramConfig = program
+                    .account(ProgramConfig::pda().0)
+                    .context("failed to fetch ProgramConfig")?;
+                let ballot_pda = BallotBox::pda(snapshot_slot).0;
+                let ballot_box = program.account::<BallotBox>(ballot_pda).ok();
+                let consensus_pda = ConsensusResult::pda(snapshot_slot).0;
+                let consensus = program.account::<ConsensusResult>(consensus_pda).ok();
+                return print_json(&json!({
+                    "rpc_url": cli.rpc_url,
+                    "cluster": cli.cluster,
+                    "program_id": ncn_snapshot::id().to_string(),
+                    "snapshot_slot": snapshot_slot,
+                    "program_config": program_config_json(&config),
+                    "ballot_box": {
+                        "pda": ballot_pda.to_string(),
+                        "exists": ballot_box.is_some(),
+                        "data": ballot_box.as_ref().map(ballot_box_json),
+                    },
+                    "consensus_result": {
+                        "pda": consensus_pda.to_string(),
+                        "exists": consensus.is_some(),
+                        "data": consensus.as_ref().map(consensus_result_json),
+                    },
+                }));
+            }
 
             println!("Status");
             println!("  RPC URL: {}", cli.rpc_url);
@@ -1241,6 +1376,7 @@ fn main() -> Result<()> {
             read_path,
             network,
             is_compressed,
+            json,
         } => {
             let authority = read_signer_keypair(&cli.authority_path, "--authority-path")
                 .context("loading authority keypair")?;
@@ -1258,6 +1394,15 @@ fn main() -> Result<()> {
             );
             let signature = authority.sign_message(&message);
 
+            if json {
+                return print_json(&json!({
+                    "signature": bs58::encode(signature).into_string(),
+                    "slot": snapshot.slot,
+                    "network": network,
+                    "meta_merkle_root": encoded_root,
+                    "snapshot_hash": encoded_hash,
+                }));
+            }
             println!("Signature: {}", bs58::encode(signature).into_string());
             println!("Slot: {}", snapshot.slot);
             println!("Network: {}", network);
@@ -1476,4 +1621,54 @@ fn main() -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod cli_tests {
+    use super::*;
+
+    #[test]
+    fn display_commands_accept_json() {
+        let address = "11111111111111111111111111111111";
+        for args in [
+            vec!["get-program-config"],
+            vec!["get-operator-whitelist"],
+            vec!["get-ballot", "--snapshot-slot", "100"],
+            vec![
+                "get-operator-vote",
+                "--snapshot-slot",
+                "100",
+                "--operator",
+                address,
+            ],
+            vec!["get-consensus-result", "--snapshot-slot", "100"],
+            vec![
+                "get-proof",
+                "--snapshot-slot",
+                "100",
+                "--vote-account",
+                address,
+            ],
+            vec!["ballot-exists", "--snapshot-slot", "100"],
+            vec!["status", "--snapshot-slot", "100"],
+            vec!["log", "--ty", "program-config"],
+            vec!["log-meta-merkle-hash", "--read-path", "snapshot.zip"],
+        ] {
+            let cli =
+                Cli::try_parse_from(["ncn-cli"].into_iter().chain(args).chain(["--json"])).unwrap();
+            match cli.command {
+                Commands::GetProgramConfig { json }
+                | Commands::GetOperatorWhitelist { json }
+                | Commands::GetBallot { json, .. }
+                | Commands::GetOperatorVote { json, .. }
+                | Commands::GetConsensusResult { json, .. }
+                | Commands::GetProof { json, .. }
+                | Commands::BallotExists { json, .. }
+                | Commands::Status { json, .. }
+                | Commands::Log { json, .. }
+                | Commands::LogMetaMerkleHash { json, .. } => assert!(json),
+                _ => panic!("unexpected command"),
+            }
+        }
+    }
 }

@@ -1,12 +1,12 @@
 use std::{str::FromStr, sync::Arc};
 
+use anchor_client::solana_account_decoder::UiAccountEncoding;
 use anchor_client::solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
 use anchor_client::solana_client::rpc_filter::{Memcmp, RpcFilterType};
-use anchor_client::solana_account_decoder::UiAccountEncoding;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::signature::Keypair;
 
-use anchor_lang::{prelude::Pubkey, AccountDeserialize, Discriminator};
+use anchor_lang::{AccountDeserialize, Discriminator, prelude::Pubkey};
 use anyhow::{Result, anyhow};
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::{Cell, Table, presets::UTF8_FULL};
@@ -60,7 +60,11 @@ fn detect_terminal_width() -> Option<u16> {
     None
 }
 
-pub async fn get_proposal(rpc_url: Option<String>, proposal_id: &String) -> Result<()> {
+pub async fn get_proposal(
+    rpc_url: Option<String>,
+    proposal_id: &str,
+    json_output: bool,
+) -> Result<()> {
     // Parse the proposal ID into a Pubkey
     let proposal_pubkey = Pubkey::from_str(proposal_id)
         .map_err(|_| anyhow!("Invalid proposal ID: {}", proposal_id))?;
@@ -80,12 +84,23 @@ pub async fn get_proposal(rpc_url: Option<String>, proposal_id: &String) -> Resu
     let proposal_acc = program.account::<Proposal>(proposal_pubkey).await?;
     let global_config = fetch_global_config(&program).await?;
 
-    print_proposal_detail(proposal_id, &proposal_acc, current_epoch, &global_config);
+    if json_output {
+        let output =
+            proposal_detail_json(proposal_id, &proposal_acc, current_epoch, &global_config)?;
+        println!("{}", serde_json::to_string_pretty(&output)?);
+    } else {
+        print_proposal_detail(proposal_id, &proposal_acc, current_epoch, &global_config);
+    }
 
     Ok(())
 }
 
-fn print_proposal_detail(proposal_id: &str, proposal: &Proposal, current_epoch: u64, config: &GlobalConfig) {
+fn print_proposal_detail(
+    proposal_id: &str,
+    proposal: &Proposal,
+    current_epoch: u64,
+    config: &GlobalConfig,
+) {
     let mut table = Table::new();
     table
         .load_preset(UTF8_FULL)
@@ -251,7 +266,71 @@ struct ProposalOutput {
     creation_timestamp: i64,
 }
 
-fn get_proposal_status(proposal: &Proposal, current_epoch: u64, config: &GlobalConfig) -> &'static str {
+impl ProposalOutput {
+    fn new(id: &str, proposal: &Proposal, current_epoch: u64, config: &GlobalConfig) -> Self {
+        Self {
+            id: id.to_string(),
+            title: proposal.title.clone(),
+            description: proposal.description.clone(),
+            author: proposal.author.to_string(),
+            status: get_proposal_status(proposal, current_epoch, config).to_string(),
+            index: proposal.index,
+            creation_epoch: proposal.creation_epoch,
+            start_epoch: proposal.start_epoch,
+            end_epoch: proposal.end_epoch,
+            snapshot_slot: proposal.snapshot_slot,
+            proposer_stake_weight_bp: proposal.proposer_stake_weight_bp,
+            cluster_support_lamports: proposal.cluster_support_lamports,
+            for_votes_lamports: proposal.for_votes_lamports,
+            against_votes_lamports: proposal.against_votes_lamports,
+            abstain_votes_lamports: proposal.abstain_votes_lamports,
+            vote_count: proposal.vote_count,
+            voting: proposal.voting,
+            finalized: proposal.finalized,
+            creation_timestamp: proposal.creation_timestamp,
+        }
+    }
+}
+
+fn proposal_detail_json(
+    id: &str,
+    proposal: &Proposal,
+    current_epoch: u64,
+    config: &GlobalConfig,
+) -> Result<serde_json::Value> {
+    let mut output =
+        serde_json::to_value(ProposalOutput::new(id, proposal, current_epoch, config))?;
+    let inputs = PhaseInputs::new(proposal, config);
+    let timeline = PhaseTimeline::new(&inputs);
+    output["consensus_result"] =
+        serde_json::json!(proposal.consensus_result.map(|key| key.to_string()));
+    output["proposal_bump"] = serde_json::json!(proposal.proposal_bump);
+    output["proposal_seed"] = serde_json::json!(proposal.proposal_seed);
+    output["vote_account_pubkey"] = serde_json::json!(proposal.vote_account_pubkey.to_string());
+    output["num_supporters"] = serde_json::json!(proposal.num_supporters);
+    output["current_epoch"] = serde_json::json!(current_epoch);
+    output["voting_available_through"] = serde_json::json!(proposal.end_epoch.saturating_sub(1));
+    output["phase_timeline"] = serde_json::json!({
+        "created": timeline.created,
+        "support": timeline.support,
+        "discussion": timeline.discussion,
+        "snapshot": timeline.snapshot,
+        "voting": timeline.voting,
+        "projected": timeline.projected,
+    });
+    output["epochs_remaining"] = serde_json::json!(
+        inputs
+            .epochs_remaining(current_epoch)
+            .map(|(epochs, until)| serde_json::json!({ "epochs": epochs, "until": until }))
+    );
+    Ok(output)
+}
+
+fn get_proposal_status(
+    proposal: &Proposal,
+    current_epoch: u64,
+    config: &GlobalConfig,
+) -> &'static str {
     ProposalPhase::new(&PhaseInputs::new(proposal, config), current_epoch).id()
 }
 
@@ -351,26 +430,8 @@ pub async fn list_proposals(
     if json_output {
         let json_proposals: Vec<ProposalOutput> = proposals
             .iter()
-            .map(|(pubkey, proposal)| ProposalOutput {
-                id: pubkey.to_string(),
-                title: proposal.title.clone(),
-                description: proposal.description.clone(),
-                author: proposal.author.to_string(),
-                status: get_proposal_status(proposal, current_epoch, &global_config).to_string(),
-                index: proposal.index,
-                creation_epoch: proposal.creation_epoch,
-                start_epoch: proposal.start_epoch,
-                end_epoch: proposal.end_epoch,
-                snapshot_slot: proposal.snapshot_slot,
-                proposer_stake_weight_bp: proposal.proposer_stake_weight_bp,
-                cluster_support_lamports: proposal.cluster_support_lamports,
-                for_votes_lamports: proposal.for_votes_lamports,
-                against_votes_lamports: proposal.against_votes_lamports,
-                abstain_votes_lamports: proposal.abstain_votes_lamports,
-                vote_count: proposal.vote_count,
-                voting: proposal.voting,
-                finalized: proposal.finalized,
-                creation_timestamp: proposal.creation_timestamp,
+            .map(|(pubkey, proposal)| {
+                ProposalOutput::new(&pubkey.to_string(), proposal, current_epoch, &global_config)
             })
             .collect();
         println!("{}", serde_json::to_string_pretty(&json_proposals)?);
@@ -381,7 +442,11 @@ pub async fn list_proposals(
     Ok(())
 }
 
-fn print_proposals_table(proposals: &[(Pubkey, Proposal)], current_epoch: u64, config: &GlobalConfig) {
+fn print_proposals_table(
+    proposals: &[(Pubkey, Proposal)],
+    current_epoch: u64,
+    config: &GlobalConfig,
+) {
     let mut table = Table::new();
     table
         .load_preset(UTF8_FULL)
@@ -422,4 +487,51 @@ fn print_proposals_table(proposals: &[(Pubkey, Proposal)], current_epoch: u64, c
     println!("{}", table);
     println!("\nTo view details of a specific proposal, use:");
     println!("  svmgov proposal <PROPOSAL_ID>");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn proposal_json_preserves_exact_votes_and_unknown_phase_boundaries() {
+        let mut proposal = Proposal::try_deserialize(
+            &mut [Proposal::DISCRIMINATOR, &[0; 512]].concat().as_slice(),
+        )
+        .unwrap();
+        let config = GlobalConfig::try_deserialize(
+            &mut [GlobalConfig::DISCRIMINATOR, &[0; 256]].concat().as_slice(),
+        )
+        .unwrap();
+        let author = Pubkey::new_unique();
+        let consensus = Pubkey::new_unique();
+        proposal.title = "Test proposal".into();
+        proposal.author = author;
+        proposal.creation_epoch = 10;
+        proposal.start_epoch = 15;
+        proposal.end_epoch = 18;
+        proposal.voting = true;
+        proposal.for_votes_lamports = u64::MAX;
+        proposal.consensus_result = Some(consensus);
+
+        let output = proposal_detail_json("proposal-id", &proposal, 16, &config).unwrap();
+        let output: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&output).unwrap()).unwrap();
+        assert_eq!(output["id"], "proposal-id");
+        assert_eq!(output["author"], author.to_string());
+        assert_eq!(output["status"], "voting");
+        assert_eq!(output["for_votes_lamports"].as_u64(), Some(u64::MAX));
+        assert_eq!(output["consensus_result"], consensus.to_string());
+        assert_eq!(output["phase_timeline"]["support"], json!(null));
+        assert_eq!(output["phase_timeline"]["discussion"], json!([null, 13]));
+        assert_eq!(output["epochs_remaining"]["epochs"], 2);
+
+        proposal.finalized = true;
+        proposal.consensus_result = None;
+        let output = proposal_detail_json("proposal-id", &proposal, 18, &config).unwrap();
+        assert_eq!(output["status"], "finalized");
+        assert!(output["epochs_remaining"].is_null());
+        assert!(output["consensus_result"].is_null());
+    }
 }
