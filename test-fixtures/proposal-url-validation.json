@@ -1,0 +1,49 @@
+{
+  "valid": [
+    {
+      "name": "canonical proposal document",
+      "url": "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/sgp-0001-title.md"
+    },
+    {
+      "name": "single-component file path",
+      "url": "https://github.com/solana-foundation/solana-governance-proposals/blob/0123456789abcdef0123456789abcdef01234567/x.md"
+    },
+    {
+      "name": "uppercase hexadecimal commit and extension",
+      "url": "https://github.com/solana-foundation/solana-governance-proposals/blob/ABCDEF0123456789ABCDEF0123456789ABCDEF01/proposals/SGP-0002.MD"
+    },
+    {
+      "name": "maximum ten path segments",
+      "url": "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/a/b/c/d/e/file.md"
+    }
+  ],
+  "invalid": [
+    { "name": "empty", "url": "" },
+    { "name": "surrounding whitespace", "url": " https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/x.md " },
+    { "name": "http scheme", "url": "http://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/x.md" },
+    { "name": "www host", "url": "https://www.github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/x.md" },
+    { "name": "raw content host", "url": "https://raw.githubusercontent.com/solana-foundation/solana-governance-proposals/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/x.md" },
+    { "name": "wrong owner", "url": "https://github.com/attacker/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/x.md" },
+    { "name": "wrong repository", "url": "https://github.com/solana-foundation/solana-improvement-documents/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/x.md" },
+    { "name": "repository name has wrong case", "url": "https://github.com/solana-foundation/Solana-Governance-Proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/x.md" },
+    { "name": "pull request", "url": "https://github.com/solana-foundation/solana-governance-proposals/pull/3" },
+    { "name": "tree path", "url": "https://github.com/solana-foundation/solana-governance-proposals/tree/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals" },
+    { "name": "github raw path", "url": "https://github.com/solana-foundation/solana-governance-proposals/raw/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/x.md" },
+    { "name": "missing commit", "url": "https://github.com/solana-foundation/solana-governance-proposals/blob/proposals/x.md" },
+    { "name": "branch instead of commit", "url": "https://github.com/solana-foundation/solana-governance-proposals/blob/main/proposals/x.md" },
+    { "name": "short commit", "url": "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e/proposals/x.md" },
+    { "name": "non-hexadecimal commit", "url": "https://github.com/solana-foundation/solana-governance-proposals/blob/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz/proposals/x.md" },
+    { "name": "missing file path", "url": "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316" },
+    { "name": "non-markdown extension", "url": "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/x.txt" },
+    { "name": "bare markdown extension", "url": "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/.md" },
+    { "name": "trailing slash", "url": "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/x.md/" },
+    { "name": "empty path segment", "url": "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals//x.md" },
+    { "name": "current-directory segment", "url": "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/./x.md" },
+    { "name": "parent-directory segment", "url": "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/../x.md" },
+    { "name": "query string", "url": "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/x.md?plain=1" },
+    { "name": "fragment", "url": "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/x.md#L10" },
+    { "name": "percent-encoded space", "url": "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/x%20y.md" },
+    { "name": "unicode path", "url": "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/café.md" },
+    { "name": "more than ten path segments", "url": "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/a/b/c/d/e/f/file.md" }
+  ]
+}

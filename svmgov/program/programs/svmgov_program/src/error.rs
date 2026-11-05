@@ -134,4 +134,6 @@ pub enum GovernanceError {
     SupportAlreadyActivated,
     #[msg("New proposals are not allowed at this time")]
     NewProposalsNotAllowed,
+    #[msg("Only the original proposal author can update the proposal description")]
+    UnauthorizedProposalUpdate,
 }

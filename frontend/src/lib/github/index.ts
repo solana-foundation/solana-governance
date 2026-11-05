@@ -4,3 +4,4 @@ export * from "./proposalHeading";
 export * from "./proposalMarkdown";
 export * from "./proposalUrl";
 export * from "./validateProposalUrl";
+export * from "./validateProposalDocument";

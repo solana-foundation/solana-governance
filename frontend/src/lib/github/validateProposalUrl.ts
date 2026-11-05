@@ -13,14 +13,13 @@ export type ProposalUrlErrorCode =
   | "pull-request"
   | "tree-or-directory"
   | "not-markdown"
+  | "not-commit-sha"
   | "query-or-fragment"
   | "too-long"
   | "rejected-on-chain"
   | "unsupported";
 
-export type ProposalUrlWarningCode =
-  | "mutable-ref"
-  | "unrecognized-filename";
+export type ProposalUrlWarningCode = "unrecognized-filename";
 
 export interface ProposalUrlIssue<Code extends string> {
   code: Code;
@@ -34,10 +33,6 @@ export interface ProposalUrlValidation {
   parsed: ParsedProposalUrl;
   /**
    * The exact string that was validated, and the one that must be sent on chain.
-   *
-   * Validation trims, but the on-chain check requires a literal `https://github.com/` prefix
-   * with no leading whitespace — so submitting the raw input instead would be rejected by the
-   * program after the frontend had already accepted it.
    */
   normalized: string;
 }
@@ -46,7 +41,7 @@ export interface ProposalUrlValidation {
  * Soft mirror of the program's `global_config.max_description_length`. That value is
  * configurable on chain, so this is a client-side courtesy check, not the authority.
  */
-const MAX_DESCRIPTION_BYTES = 500;
+const MAX_DESCRIPTION_BYTES = 200;
 
 const COMMIT_SHA = /^[0-9a-f]{40}$/i;
 
@@ -65,7 +60,7 @@ const ON_CHAIN_PREFIX = "https://github.com/";
  */
 const ON_CHAIN_DISALLOWED_CHAR = /[^A-Za-z0-9\-_./]/;
 
-const ON_CHAIN_MIN_SEGMENTS = 2;
+const ON_CHAIN_MIN_SEGMENTS = 5;
 const ON_CHAIN_MAX_SEGMENTS = 10;
 
 const PULL_REQUEST_MESSAGE = [
@@ -75,29 +70,29 @@ const PULL_REQUEST_MESSAGE = [
   "https://github.com/<owner>/<repo>/blob/<commit-sha>/proposals/sgp-0001-....md",
   "",
   "Prefer the commit SHA over a branch name: the description is stored on chain and cannot be",
-  "edited, so a branch link breaks once the branch moves or is deleted.",
+  "tied to a particular revision, so a branch link breaks once the branch moves or is deleted.",
 ].join("\n");
 
 /**
  * Validates a proposal description URL before it is written on chain.
  *
- * The on-chain program only checks that the string looks broadly like a GitHub link — a pull
- * request URL is four clean path segments, so it passes there. This is where that is caught.
- *
- * Rule numbering is mirrored in svmgov/cli/src/utils/proposal_link.rs; keep the two in step.
+ * Requires an HTTPS GitHub `blob` URL to one Markdown file in the approved repository at a
+ * full commit SHA. Rejects empty, oversized, mutable, malformed, pull-request, directory,
+ * query/fragment, and on-chain-incompatible URLs. It warns when the filename cannot provide a
+ * proposal reference for display.
  */
 export function validateProposalUrl(url: string): ProposalUrlValidation {
   const errors: ProposalUrlIssue<ProposalUrlErrorCode>[] = [];
   const warnings: ProposalUrlIssue<ProposalUrlWarningCode>[] = [];
-  const trimmed = url?.trim() ?? "";
-  const parsed = parseProposalUrl(trimmed);
+  const value = url ?? "";
+  const parsed = parseProposalUrl(value);
 
   const fail = (code: ProposalUrlErrorCode, message: string) => {
     errors.push({ code, message });
-    return { ok: false, errors, warnings, parsed, normalized: trimmed };
+    return { ok: false, errors, warnings, parsed, normalized: value };
   };
 
-  // 1-5: shape. `parseProposalUrl` already distinguishes these cases.
+  // `parseProposalUrl` distinguishes pull requests and unsupported URL shapes.
   if (parsed.kind === "pull") {
     return fail("pull-request", PULL_REQUEST_MESSAGE);
   }
@@ -125,25 +120,23 @@ export function validateProposalUrl(url: string): ProposalUrlValidation {
     }
   }
 
-  // 3 (continued): `parseProposalUrl` is deliberately lenient about the host so that existing
+  // `parseProposalUrl` is deliberately lenient about the host so that existing
   // on-chain descriptions still render. Creation has to be stricter than that.
-  if (!trimmed.startsWith(ON_CHAIN_PREFIX)) {
+  if (!value.startsWith(ON_CHAIN_PREFIX)) {
     return fail(
       "not-github",
       `The link must start with ${ON_CHAIN_PREFIX} — no "www.", and not raw.githubusercontent.com.`,
     );
   }
 
-  // 6: the document has to be markdown.
-  if (!/\.md$/i.test(parsed.fileName)) {
+  if (parsed.fileName.length <= 3 || !/\.md$/i.test(parsed.fileName)) {
     errors.push({
       code: "not-markdown",
       message: "The link must point at a .md file.",
     });
   }
 
-  // 7: the on-chain validator rejects `?` and `#` outright, so these fail at the program.
-  if (/[?#]/.test(trimmed)) {
+  if (/[?#]/.test(value)) {
     errors.push({
       code: "query-or-fragment",
       message:
@@ -151,8 +144,7 @@ export function validateProposalUrl(url: string): ProposalUrlValidation {
     });
   }
 
-  // 8
-  if (byteLength(trimmed) > MAX_DESCRIPTION_BYTES) {
+  if (byteLength(value) > MAX_DESCRIPTION_BYTES) {
     errors.push({
       code: "too-long",
       message: `The link must be at most ${MAX_DESCRIPTION_BYTES} bytes.`,
@@ -161,20 +153,20 @@ export function validateProposalUrl(url: string): ProposalUrlValidation {
 
   // Re-check the on-chain grammar directly rather than assuming the shape above implies it,
   // so anything accepted here is guaranteed to be accepted by the program.
-  const onChainIssue = describeOnChainViolation(trimmed);
+  const onChainIssue = describeOnChainViolation(value);
   if (onChainIssue) {
     errors.push({ code: "rejected-on-chain", message: onChainIssue });
   }
 
-  // 9
+  // A document is immutable only when its URL pins a full Git commit.
   if (!COMMIT_SHA.test(parsed.gitRef)) {
-    warnings.push({
-      code: "mutable-ref",
-      message: `"${parsed.gitRef}" is a branch or tag. The description cannot be changed once on chain, so a full commit SHA is safer.`,
+    errors.push({
+      code: "not-commit-sha",
+      message: `"${parsed.gitRef}" is not a full 40-character commit SHA.`,
     });
   }
 
-  // 10: descriptions are an on-chain trust boundary, so creation is limited to the
+  // Descriptions are an on-chain trust boundary, so creation is limited to the
   // repository the program accepts. Compare the raw case-sensitive components to mirror the
   // program rather than treating GitHub's case-insensitive names as interchangeable.
   if (`${parsed.repo.owner}/${parsed.repo.repo}` !== SGP_REPO) {
@@ -184,7 +176,6 @@ export function validateProposalUrl(url: string): ProposalUrlValidation {
     });
   }
 
-  // 11
   if (!parsed.ref) {
     warnings.push({
       code: "unrecognized-filename",
@@ -192,14 +183,13 @@ export function validateProposalUrl(url: string): ProposalUrlValidation {
     });
   }
 
-  return { ok: errors.length === 0, errors, warnings, parsed, normalized: trimmed };
+  return { ok: errors.length === 0, errors, warnings, parsed, normalized: value };
 }
 
 /**
  * Enforcement backstop for the SDK path; throws with the first error's user-facing message.
  *
- * Returns the normalized URL, which callers must use in place of their raw input so the string
- * that was checked is the string that reaches the program.
+ * Returns the exact URL that was checked so callers submit the same string to the program.
  */
 export function assertValidProposalUrl(url: string): string {
   const { ok, errors, normalized } = validateProposalUrl(url);
@@ -213,15 +203,19 @@ function byteLength(value: string): number {
 
 /** Mirrors `svmgov_program::utils::is_valid_github_link`. */
 function describeOnChainViolation(url: string): string | undefined {
-  const path = url.slice(ON_CHAIN_PREFIX.length).replace(/\/$/, "");
+  const path = url.slice(ON_CHAIN_PREFIX.length);
   const segments = path.split("/");
 
   if (segments.some((segment) => segment === "")) {
     return "The link contains an empty path segment, which the on-chain program rejects.";
   }
 
-  if (segments.some((segment) => segment === "..")) {
-    return 'The link contains a ".." path-traversal segment, which the on-chain program rejects.';
+  if (segments[2] !== "blob") {
+    return "The link must use the canonical /blob/<commit-sha>/ path; /raw/ is only used internally to fetch document content.";
+  }
+
+  if (segments.some((segment) => segment === "." || segment === "..")) {
+    return 'The link contains a "." or ".." path segment, which the on-chain program rejects.';
   }
 
   if (

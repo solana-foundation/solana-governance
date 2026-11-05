@@ -8,6 +8,19 @@ jest.mock("@/contexts/EndpointContext", () => ({
 }));
 
 const mockCreateProgramWithWallet = jest.fn();
+const mockAssertValidProposalDocument = jest.fn<Promise<void>, [string]>();
+const mockConfirmTransactionByPolling = jest.fn();
+
+// Document fetching is covered by the GitHub utility tests. Keep this transaction-builder unit
+// test independent of GitHub availability and verify only that it runs the preflight check.
+jest.mock("@/lib/github", () => {
+  const actual = jest.requireActual("@/lib/github");
+  return {
+    ...actual,
+    assertValidProposalDocument: (...args: [string]) =>
+      mockAssertValidProposalDocument(...args),
+  };
+});
 
 jest.mock("../helpers", () => {
   const actual = jest.requireActual("../helpers");
@@ -15,6 +28,8 @@ jest.mock("../helpers", () => {
     ...actual,
     createProgramWithWallet: (...args: unknown[]) =>
       mockCreateProgramWithWallet(...args),
+    confirmTransactionByPolling: (...args: unknown[]) =>
+      mockConfirmTransactionByPolling(...args),
   };
 });
 
@@ -26,9 +41,9 @@ import { SVMGOV_PROGRAM_ID } from "../types";
 // PublicKey.findProgramAddressSync is unreliable under next/jest's web3.js build (see
 // castVoteOverride.test.ts), and this flow derives proposal PDAs through helpers. Stub it with a
 // fixed viable nonce; the derived addresses are not what these tests assert.
-jest.spyOn(PublicKey, "findProgramAddressSync").mockImplementation(
-  () => [new PublicKey(new Uint8Array(32).fill(9)), 255]
-);
+jest
+  .spyOn(PublicKey, "findProgramAddressSync")
+  .mockImplementation(() => [new PublicKey(new Uint8Array(32).fill(9)), 255]);
 
 const keyFromByte = (b: number): string =>
   new PublicKey(new Uint8Array(32).fill(b)).toBase58();
@@ -79,7 +94,7 @@ describe("createProposal", () => {
   function signedTransactionResponse(
     signatures: { publicKey: PublicKey; signature: Buffer | null }[] = [
       { publicKey: new PublicKey(SIGNER), signature: Buffer.alloc(64) },
-    ]
+    ],
   ): Transaction {
     return {
       signatures,
@@ -90,12 +105,16 @@ describe("createProposal", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockAssertValidProposalDocument.mockResolvedValue(undefined);
     walletState.publicKey = new PublicKey(SIGNER);
     // Emulates a real wallet: whatever account is connected NOW provides the signature.
     mockSignTransaction.mockImplementation(async () =>
       signedTransactionResponse([
-        { publicKey: new PublicKey(walletState.publicKey), signature: Buffer.alloc(64) },
-      ])
+        {
+          publicKey: new PublicKey(walletState.publicKey),
+          signature: Buffer.alloc(64),
+        },
+      ]),
     );
     mockCreateProgramWithWallet.mockReturnValue(buildFakeProgram());
     mockGetVoteAccounts.mockResolvedValue({
@@ -107,6 +126,7 @@ describe("createProposal", () => {
       lastValidBlockHeight: 123,
     });
     mockSendRawTransaction.mockResolvedValue("test-signature");
+    mockConfirmTransactionByPolling.mockResolvedValue({ value: { err: null } });
   });
 
   const params = { title: "Test proposal", description: DESCRIPTION, wallet };
@@ -120,19 +140,35 @@ describe("createProposal", () => {
     const result = await createProposal(params, blockchainParams);
 
     expect(result).toEqual({ signature: "test-signature", success: true });
+    expect(mockAssertValidProposalDocument).toHaveBeenCalledWith(DESCRIPTION);
     expect(mockSignTransaction).toHaveBeenCalledTimes(1);
     expect(mockSendRawTransaction).toHaveBeenCalledTimes(1);
+    expect(mockConfirmTransactionByPolling).toHaveBeenCalledWith(
+      expect.anything(),
+      "test-signature",
+      123,
+    );
+  });
+
+  it("reports a confirmed transaction error", async () => {
+    mockConfirmTransactionByPolling.mockResolvedValueOnce({
+      value: { err: { InstructionError: [0, "Custom"] } },
+    });
+
+    await expect(createProposal(params, blockchainParams)).rejects.toThrow(
+      /failed to create proposal/i,
+    );
   });
 
   it("reports an unsigned wallet response without submitting the transaction", async () => {
     mockSignTransaction.mockResolvedValueOnce(
       signedTransactionResponse([
         { publicKey: new PublicKey(SIGNER), signature: null },
-      ])
+      ]),
     );
 
     await expect(createProposal(params, blockchainParams)).rejects.toThrow(
-      /wallet did not sign the transaction/i
+      /wallet did not sign the transaction/i,
     );
     expect(mockSendRawTransaction).not.toHaveBeenCalled();
   });
@@ -143,11 +179,11 @@ describe("createProposal", () => {
       signedTransactionResponse([
         { publicKey: new PublicKey(SIGNER), signature: null },
         { publicKey: otherAccount, signature: Buffer.alloc(64) },
-      ])
+      ]),
     );
 
     await expect(createProposal(params, blockchainParams)).rejects.toThrow(
-      /signed with a different account/i
+      /signed with a different account/i,
     );
     expect(mockSendRawTransaction).not.toHaveBeenCalled();
   });
@@ -169,7 +205,7 @@ describe("createProposal", () => {
     });
 
     await expect(createProposal(params, blockchainParams)).rejects.toThrow(
-      /signed with a different account|did not sign the transaction/i
+      /signed with a different account|did not sign the transaction/i,
     );
     expect(mockSendRawTransaction).not.toHaveBeenCalled();
   });

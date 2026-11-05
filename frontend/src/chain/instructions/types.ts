@@ -26,6 +26,17 @@ export interface CreateProposalParams {
   seed?: number;
   wallet: AnchorWallet | undefined;
   voteAccount?: PublicKey;
+  /** Explicitly bypasses off-chain reachability/frontmatter verification. */
+  skipDocumentCheck?: boolean;
+}
+
+/** Parameters for replacing a proposal's commit-pinned document URL. */
+export interface UpdateProposalDescriptionParams {
+  proposalId: string;
+  description: string;
+  wallet: AnchorWallet | undefined;
+  /** Explicitly bypasses off-chain reachability/frontmatter verification. */
+  skipDocumentCheck?: boolean;
 }
 
 export interface CastVoteParams {
