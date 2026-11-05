@@ -172,6 +172,17 @@ describe("hasNonEmptyFrontmatter", () => {
     expect(hasNonEmptyFrontmatter("# Title\n---\nsgp: 1\n---")).toBe(false);
   });
 
+  it.each(["\n", "\r\n"])(
+    "rejects an empty opening block before a later thematic break (%j)",
+    (newline) => {
+      const body = ["sgp: 0001", "---", "# Title"].join(newline);
+      const markdown = ["---", "---", body].join(newline);
+
+      expect(hasNonEmptyFrontmatter(markdown)).toBe(false);
+      expect(splitFrontmatter(markdown)).toEqual({ frontmatter: "", body });
+    },
+  );
+
   it("requires exact standalone delimiter lines", () => {
     expect(hasNonEmptyFrontmatter("---   \nsgp: 1\n---\n# Title")).toBe(false);
     expect(hasNonEmptyFrontmatter("---\nsgp: 1\n---   \n# Title")).toBe(false);
