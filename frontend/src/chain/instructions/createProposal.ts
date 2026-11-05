@@ -34,14 +34,13 @@ export async function createProposal(
   // that the wallet-returned transaction contains its signature before the proposal is submitted.
   const signer = wallet.publicKey;
 
-  // Enforced here rather than only in the modal so every caller inherits it. The on-chain
-  // check accepts anything github.com-shaped, including pull request links, which the
-  // frontend then cannot resolve to a proposal document.
-  //
-  // The normalized URL is what gets encoded below: validation trims, and the program requires
-  // a literal https://github.com/ prefix, so sending the raw input would be rejected on chain
-  // after the frontend had already accepted it.
-  const description = assertValidProposalUrl(params.description);
+  const program = createProgramWithWallet(wallet, blockchainParams.endpoint);
+  const globalConfig = deriveGlobalConfigPda(program.programId);
+  const config = await program.account.globalConfig.fetch(globalConfig);
+  const description = assertValidProposalUrl(
+    params.description,
+    config.maxDescriptionLength,
+  );
   if (!params.skipDocumentCheck) {
     await assertValidProposalDocument(description);
   }
@@ -50,8 +49,6 @@ export async function createProposal(
   const seedValue = new BN(
     seed ?? Math.floor(Math.random() * Number.MAX_SAFE_INTEGER),
   );
-
-  const program = createProgramWithWallet(wallet, blockchainParams.endpoint);
 
   const voteAccounts = await program.provider.connection.getVoteAccounts();
   const validatorVoteAccount = voteAccounts.current.find(
@@ -76,7 +73,7 @@ export async function createProposal(
       splVoteAccount,
       systemProgram: SystemProgram.programId,
       proposalIndex: deriveProposalIndexPda(program.programId),
-      globalConfig: deriveGlobalConfigPda(program.programId),
+      globalConfig,
     })
     .instruction();
 

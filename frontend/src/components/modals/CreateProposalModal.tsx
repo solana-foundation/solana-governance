@@ -22,6 +22,7 @@ import {
 } from "@/lib/walletSigning";
 import { validateProposalUrl } from "@/lib/github";
 import { ProposalDocumentValidationError } from "@/lib/github";
+import { useGovernanceConfigContext } from "@/contexts/GovernanceConfigContext";
 
 interface CreateProposalModalProps {
   isOpen: boolean;
@@ -50,10 +51,11 @@ export function CreateProposalModal({
 
   const wallet = useAnchorWallet();
   const { mutate: createProposal } = useCreateProposal();
+  const { data: config } = useGovernanceConfigContext();
 
   const descriptionValidation = React.useMemo(
-    () => validateProposalUrl(formData.description),
-    [formData.description],
+    () => validateProposalUrl(formData.description, config?.maxDescriptionLength),
+    [formData.description, config?.maxDescriptionLength],
   );
   const showDescriptionIssues =
     descriptionTouched && formData.description.length > 0;

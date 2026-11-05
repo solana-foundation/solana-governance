@@ -7,7 +7,7 @@
 
 use std::time::Duration;
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 
 /// The exact prefix `is_valid_github_link` requires. A `www.` host or a
 /// `raw.githubusercontent.com` link would be rejected on chain, so they are rejected here.
@@ -18,10 +18,6 @@ const PROPOSAL_REPOSITORY: &str = "solana-governance-proposals";
 /// Mirrors `svmgov_program::utils::is_valid_github_link`.
 const MIN_PATH_SEGMENTS: usize = 5;
 const MAX_PATH_SEGMENTS: usize = 10;
-
-/// Soft mirror of `global_config.max_description_length`. That value is configurable on chain,
-/// so this is a client-side courtesy check rather than the authority.
-const MAX_DESCRIPTION_BYTES: usize = 200;
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -93,7 +89,7 @@ pub fn classify_github_link(link: &str) -> GithubLinkKind {
 
 /// Validates a proposal document URL without making a network request.
 ///
-/// Requires a non-empty, size-bounded `https://github.com/` URL to a Markdown `blob` in the
+/// Requires a non-empty `https://github.com/` URL to a Markdown `blob` in the
 /// approved repository at a full commit SHA. Rejects pull requests, directory URLs, query
 /// strings, fragments, and any URL that would fail the program's canonical URL grammar.
 pub fn validate_description_structure(description: &str) -> Result<GithubLinkKind> {
@@ -102,13 +98,6 @@ pub fn validate_description_structure(description: &str) -> Result<GithubLinkKin
     if link.trim().is_empty() {
         return Err(anyhow!(
             "`--description` must be a GitHub link to the proposal markdown file"
-        ));
-    }
-
-    if link.len() > MAX_DESCRIPTION_BYTES {
-        return Err(anyhow!(
-            "`--description` is {} bytes; the configured limit is {MAX_DESCRIPTION_BYTES}",
-            link.len()
         ));
     }
 
@@ -192,11 +181,21 @@ pub fn validate_description_structure(description: &str) -> Result<GithubLinkKin
     Ok(kind)
 }
 
-/// Structural validation plus an optional check that the file exists and has
-/// non-empty frontmatter.
+/// Validates a document URL against the configured byte limit and canonical URL grammar.
+/// Unless `skip_network` is set, also checks that the file exists and has non-empty frontmatter.
 ///
 /// Returns the exact validated link for submission.
-pub async fn validate_description(description: &str, skip_network: bool) -> Result<String> {
+pub async fn validate_description(
+    description: &str,
+    max_description_length: u16,
+    skip_network: bool,
+) -> Result<String> {
+    if description.len() > usize::from(max_description_length) {
+        return Err(anyhow!(
+            "`--description` is {} bytes; the configured limit is {max_description_length}",
+            description.len()
+        ));
+    }
     let kind = validate_description_structure(description)?;
     let normalized = description.to_string();
 
@@ -541,16 +540,18 @@ mod tests {
         }
     }
 
-    #[test]
-    fn rejects_over_length_descriptions() {
-        let link = format!(
-            "https://github.com/o/r/blob/main/proposals/{}/0001-x.md",
-            "a".repeat(MAX_DESCRIPTION_BYTES)
-        );
-        let error = validate_description_structure(&link)
+    #[tokio::test]
+    async fn configured_limit_applies_when_document_verification_is_skipped() {
+        let link = SGP_FILE.replace("solana-constitution", &"a".repeat(200));
+        assert!(validate_description(&link, 500, true).await.is_ok());
+        assert!(validate_description(&link, link.len() as u16, true)
+            .await
+            .is_ok());
+        let error = validate_description(&link, 200, true)
+            .await
             .unwrap_err()
             .to_string();
-        assert!(error.contains("configured limit"), "got: {error}");
+        assert!(error.contains("configured limit is 200"), "got: {error}");
     }
 
     #[test]
@@ -637,7 +638,7 @@ mod tests {
 
     #[tokio::test]
     async fn returns_the_exact_validated_link_for_submission() {
-        let normalized = validate_description(SGP_FILE, true)
+        let normalized = validate_description(SGP_FILE, SGP_FILE.len() as u16, true)
             .await
             .expect("should accept the canonical link");
         assert_eq!(normalized, SGP_FILE);
@@ -668,12 +669,10 @@ mod tests {
 
     #[test]
     fn only_the_governance_proposals_repository_is_accepted() {
-        assert!(
-            validate_description_structure(
-                "https://github.com/someone/fork/blob/main/proposals/sgp-0002-x.md"
-            )
-            .is_err()
-        );
+        assert!(validate_description_structure(
+            "https://github.com/someone/fork/blob/main/proposals/sgp-0002-x.md"
+        )
+        .is_err());
         assert!(!is_allowed_proposal_repo("someone", "fork"));
         assert!(is_allowed_proposal_repo(
             "solana-foundation",

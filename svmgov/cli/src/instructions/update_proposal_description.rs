@@ -4,10 +4,15 @@ use anchor_client::solana_sdk::{pubkey::Pubkey, signer::Signer};
 use anyhow::{anyhow, Result};
 
 use crate::{
-    svmgov_program::{accounts::Proposal, client::{accounts, args}},
+    svmgov_program::{
+        accounts::Proposal,
+        client::{accounts, args},
+    },
     utils::{
-        proposal_link::validate_description,
-        utils::{create_spinner, derive_global_config_pda, setup_signer_and_program},
+        proposal_link::{validate_description, validate_description_structure},
+        utils::{
+            create_spinner, derive_global_config_pda, fetch_global_config, setup_signer_and_program,
+        },
     },
 };
 
@@ -27,10 +32,13 @@ pub async fn update_proposal_description(
         rpc_url,
         skip_link_check
     );
-    let description = validate_description(&description, skip_link_check).await?;
+    validate_description_structure(&description)?;
     let proposal_pubkey = Pubkey::from_str(&proposal_id)
         .map_err(|_| anyhow!("Invalid proposal ID: {proposal_id}"))?;
     let (payer, program, _client) = setup_signer_and_program(identity_keypair, rpc_url)?;
+    let config = fetch_global_config(&program).await?;
+    let description =
+        validate_description(&description, config.max_description_length, skip_link_check).await?;
 
     let proposal = program
         .account::<Proposal>(proposal_pubkey)
@@ -47,7 +55,9 @@ pub async fn update_proposal_description(
     let spinner = create_spinner("Updating proposal document...");
     let signature = program
         .request()
-        .args(args::UpdateProposalDescription { description: description.clone() })
+        .args(args::UpdateProposalDescription {
+            description: description.clone(),
+        })
         .accounts(accounts::UpdateProposalDescription {
             signer: payer.pubkey(),
             proposal: proposal_pubkey,

@@ -23,13 +23,18 @@ export async function updateProposalDescription(
   const { wallet } = params;
   if (!wallet?.publicKey) throw new Error("Wallet not connected");
 
-  const description = assertValidProposalUrl(params.description);
+  const signer = wallet.publicKey;
+  const program = createProgramWithWallet(wallet, blockchainParams.endpoint);
+  const globalConfig = deriveGlobalConfigPda(program.programId);
+  const config = await program.account.globalConfig.fetch(globalConfig);
+  const description = assertValidProposalUrl(
+    params.description,
+    config.maxDescriptionLength,
+  );
   if (!params.skipDocumentCheck) {
     await assertValidProposalDocument(description);
   }
 
-  const signer = wallet.publicKey;
-  const program = createProgramWithWallet(wallet, blockchainParams.endpoint);
   const proposal = new PublicKey(params.proposalId);
   const proposalAccount = await program.account.proposal.fetch(proposal);
   if (proposalAccount.author.toBase58() !== signer.toBase58()) {
@@ -40,7 +45,7 @@ export async function updateProposalDescription(
     .accountsStrict({
       signer,
       proposal,
-      globalConfig: deriveGlobalConfigPda(program.programId),
+      globalConfig,
     })
     .instruction();
 

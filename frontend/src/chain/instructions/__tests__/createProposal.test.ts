@@ -36,6 +36,7 @@ jest.mock("../helpers", () => {
 import type { AnchorWallet } from "@solana/wallet-adapter-react";
 
 import { createProposal } from "../createProposal";
+import { updateProposalDescription } from "../updateProposalDescription";
 import { SVMGOV_PROGRAM_ID } from "../types";
 
 // PublicKey.findProgramAddressSync is unreliable under next/jest's web3.js build (see
@@ -55,10 +56,11 @@ const BLOCKHASH = keyFromByte(4);
 const DESCRIPTION =
   "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/sgp-0001-solana-constitution.md";
 
-describe("createProposal", () => {
+describe("proposal document transactions", () => {
   const mockGetVoteAccounts = jest.fn();
   const mockGetLatestBlockhash = jest.fn();
   const mockSendRawTransaction = jest.fn();
+  const mockFetchGlobalConfig = jest.fn();
 
   function buildFakeProgram() {
     const fakeIx = {
@@ -79,7 +81,16 @@ describe("createProposal", () => {
           sendRawTransaction: mockSendRawTransaction,
         },
       },
-      methods: { createProposal: createProposalMethod },
+      methods: {
+        createProposal: createProposalMethod,
+        updateProposalDescription: jest.fn(() => ({ accountsStrict })),
+      },
+      account: {
+        globalConfig: { fetch: mockFetchGlobalConfig },
+        proposal: {
+          fetch: jest.fn().mockResolvedValue({ author: new PublicKey(SIGNER) }),
+        },
+      },
     };
   }
 
@@ -105,6 +116,7 @@ describe("createProposal", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFetchGlobalConfig.mockResolvedValue({ maxDescriptionLength: 200 });
     mockAssertValidProposalDocument.mockResolvedValue(undefined);
     walletState.publicKey = new PublicKey(SIGNER);
     // Emulates a real wallet: whatever account is connected NOW provides the signature.
@@ -135,6 +147,64 @@ describe("createProposal", () => {
     endpoint: "http://localhost:8899",
     ncnApiUrl: "http://localhost:9000",
   };
+
+  it.each(["create", "update"] as const)(
+    "%s uses the fetched limit even when document verification is skipped",
+    async (command) => {
+      const description = DESCRIPTION.replace(
+        "solana-constitution",
+        "a".repeat(200),
+      );
+      const submit = () =>
+        command === "create"
+          ? createProposal(
+              { ...params, description, skipDocumentCheck: true },
+              blockchainParams,
+            )
+          : updateProposalDescription(
+              {
+                proposalId: VOTE_ACCOUNT,
+                description,
+                wallet,
+                skipDocumentCheck: true,
+              },
+              blockchainParams,
+            );
+      mockFetchGlobalConfig
+        .mockResolvedValueOnce({ maxDescriptionLength: 500 })
+        .mockResolvedValueOnce({ maxDescriptionLength: 200 });
+
+      await expect(submit()).resolves.toMatchObject({ success: true });
+      await expect(submit()).rejects.toThrow("at most 200 bytes");
+      expect(mockSignTransaction).toHaveBeenCalledTimes(1);
+      expect(mockSendRawTransaction).toHaveBeenCalledTimes(1);
+      expect(mockAssertValidProposalDocument).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["create", "update"] as const)(
+    "%s does not sign when global config cannot be fetched",
+    async (command) => {
+      mockFetchGlobalConfig.mockRejectedValueOnce(
+        new Error("Config unavailable"),
+      );
+      const pending =
+        command === "create"
+          ? createProposal(params, blockchainParams)
+          : updateProposalDescription(
+              {
+                proposalId: VOTE_ACCOUNT,
+                description: DESCRIPTION,
+                wallet,
+              },
+              blockchainParams,
+            );
+
+      await expect(pending).rejects.toThrow("Config unavailable");
+      expect(mockSignTransaction).not.toHaveBeenCalled();
+      expect(mockSendRawTransaction).not.toHaveBeenCalled();
+    },
+  );
 
   it("signs with the connected account and submits the proposal", async () => {
     const result = await createProposal(params, blockchainParams);

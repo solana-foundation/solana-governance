@@ -37,12 +37,6 @@ export interface ProposalUrlValidation {
   normalized: string;
 }
 
-/**
- * Soft mirror of the program's `global_config.max_description_length`. That value is
- * configurable on chain, so this is a client-side courtesy check, not the authority.
- */
-const MAX_DESCRIPTION_BYTES = 200;
-
 const COMMIT_SHA = /^[0-9a-f]{40}$/i;
 
 /**
@@ -80,8 +74,13 @@ const PULL_REQUEST_MESSAGE = [
  * full commit SHA. Rejects empty, oversized, mutable, malformed, pull-request, directory,
  * query/fragment, and on-chain-incompatible URLs. It warns when the filename cannot provide a
  * proposal reference for display.
+ * Checks the byte length against `maxDescriptionBytes` from global config when supplied;
+ * omitting the limit performs structural validation only.
  */
-export function validateProposalUrl(url: string): ProposalUrlValidation {
+export function validateProposalUrl(
+  url: string,
+  maxDescriptionBytes?: number,
+): ProposalUrlValidation {
   const errors: ProposalUrlIssue<ProposalUrlErrorCode>[] = [];
   const warnings: ProposalUrlIssue<ProposalUrlWarningCode>[] = [];
   const value = url ?? "";
@@ -144,10 +143,13 @@ export function validateProposalUrl(url: string): ProposalUrlValidation {
     });
   }
 
-  if (byteLength(value) > MAX_DESCRIPTION_BYTES) {
+  if (
+    maxDescriptionBytes !== undefined &&
+    byteLength(value) > maxDescriptionBytes
+  ) {
     errors.push({
       code: "too-long",
-      message: `The link must be at most ${MAX_DESCRIPTION_BYTES} bytes.`,
+      message: `The link must be at most ${maxDescriptionBytes} bytes.`,
     });
   }
 
@@ -183,16 +185,29 @@ export function validateProposalUrl(url: string): ProposalUrlValidation {
     });
   }
 
-  return { ok: errors.length === 0, errors, warnings, parsed, normalized: value };
+  return {
+    ok: errors.length === 0,
+    errors,
+    warnings,
+    parsed,
+    normalized: value,
+  };
 }
 
 /**
- * Enforcement backstop for the SDK path; throws with the first error's user-facing message.
+ * Validates a proposal URL against its canonical format and configured byte limit.
+ * Throws with the first error's user-facing message.
  *
  * Returns the exact URL that was checked so callers submit the same string to the program.
  */
-export function assertValidProposalUrl(url: string): string {
-  const { ok, errors, normalized } = validateProposalUrl(url);
+export function assertValidProposalUrl(
+  url: string,
+  maxDescriptionBytes: number,
+): string {
+  const { ok, errors, normalized } = validateProposalUrl(
+    url,
+    maxDescriptionBytes,
+  );
   if (!ok) throw new Error(errors[0].message);
   return normalized;
 }

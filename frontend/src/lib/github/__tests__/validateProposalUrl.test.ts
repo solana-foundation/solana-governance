@@ -29,11 +29,13 @@ describe("validateProposalUrl - normalization", () => {
   });
 
   it("returns the normalized URL from the assert helper", () => {
-    expect(assertValidProposalUrl(VALID_SGP)).toBe(VALID_SGP);
+    expect(assertValidProposalUrl(VALID_SGP, 500)).toBe(VALID_SGP);
   });
 
   it("preserves invalid input so errors can quote the submitted value", () => {
-    expect(validateProposalUrl("  not a url  ").normalized).toBe("  not a url  ");
+    expect(validateProposalUrl("  not a url  ").normalized).toBe(
+      "  not a url  ",
+    );
   });
 });
 
@@ -52,7 +54,10 @@ describe("validateProposalUrl - rejected", () => {
     ["", "empty"],
     ["   ", "empty"],
     ["github.com/org/repo", "not-a-url"],
-    [`http://github.com/${SIMD_REPO}/blob/main/proposals/0022-x.md`, "not-https"],
+    [
+      `http://github.com/${SIMD_REPO}/blob/main/proposals/0022-x.md`,
+      "not-https",
+    ],
     ["https://gitlab.com/org/repo/blob/main/proposals/0022-x.md", "not-github"],
     [`https://github.com/${SGP_REPO}/pull/3`, "pull-request"],
     [`https://github.com/${SGP_REPO}/pull/3/files`, "pull-request"],
@@ -75,12 +80,17 @@ describe("validateProposalUrl - rejected", () => {
   // them would only surface as an opaque custom program error at transaction time.
   it.each([
     [`https://www.github.com/${SGP_REPO}/blob/main/proposals/sgp-0001-x.md`],
-    [`https://raw.githubusercontent.com/${SGP_REPO}/main/proposals/sgp-0001-x.md`],
-  ])("rejects %j because the program requires an exact github.com prefix", (url) => {
-    const result = validateProposalUrl(url);
-    expect(result.ok).toBe(false);
-    expect(codes(result.errors)).toContain("not-github");
-  });
+    [
+      `https://raw.githubusercontent.com/${SGP_REPO}/main/proposals/sgp-0001-x.md`,
+    ],
+  ])(
+    "rejects %j because the program requires an exact github.com prefix",
+    (url) => {
+      const result = validateProposalUrl(url);
+      expect(result.ok).toBe(false);
+      expect(codes(result.errors)).toContain("not-github");
+    },
+  );
 
   it("rejects github.com /raw/ URLs even when they are commit-pinned", () => {
     const result = validateProposalUrl(
@@ -121,13 +131,21 @@ describe("validateProposalUrl - rejected", () => {
     );
   });
 
-  it("rejects a link longer than the on-chain description limit", () => {
-    const url = `https://github.com/${SGP_REPO}/blob/main/proposals/${"a".repeat(200)}/sgp-0001-x.md`;
-    expect(codes(validateProposalUrl(url).errors)).toContain("too-long");
+  it("uses the configured description limit, including its exact boundary", () => {
+    const url = `https://github.com/${SGP_REPO}/blob/${SHA}/proposals/${"a".repeat(200)}.md`;
+    expect(validateProposalUrl(url, 500).ok).toBe(true);
+    expect(validateProposalUrl(url, url.length).ok).toBe(true);
+    const result = validateProposalUrl(url, 200);
+    expect(result.errors).toContainEqual({
+      code: "too-long",
+      message: "The link must be at most 200 bytes.",
+    });
   });
 
   it("gives pull request links actionable guidance", () => {
-    const { errors } = validateProposalUrl(`https://github.com/${SGP_REPO}/pull/3`);
+    const { errors } = validateProposalUrl(
+      `https://github.com/${SGP_REPO}/pull/3`,
+    );
     expect(errors[0].message).toContain("pull request");
     expect(errors[0].message).toContain("blob/<commit-sha>");
   });
@@ -175,12 +193,12 @@ describe("validateProposalUrl - warnings", () => {
 
 describe("assertValidProposalUrl", () => {
   it("does not throw for a valid link", () => {
-    expect(() => assertValidProposalUrl(VALID_SGP)).not.toThrow();
+    expect(() => assertValidProposalUrl(VALID_SGP, 500)).not.toThrow();
   });
 
   it("throws the first error message for a pull request link", () => {
     expect(() =>
-      assertValidProposalUrl(`https://github.com/${SGP_REPO}/pull/3`),
+      assertValidProposalUrl(`https://github.com/${SGP_REPO}/pull/3`, 500),
     ).toThrow(/pull request/);
   });
 });

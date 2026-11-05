@@ -20,6 +20,7 @@ import {
   validateProposalUrl,
 } from "@/lib/github";
 import { GET_ALL_PROPOSALS, GET_PROPOSAL_DOCUMENT } from "@/helpers";
+import { useGovernanceConfigContext } from "@/contexts/GovernanceConfigContext";
 
 interface Props {
   isOpen: boolean;
@@ -38,13 +39,14 @@ export function UpdateProposalDescriptionModal({
   const wallet = useAnchorWallet();
   const queryClient = useQueryClient();
   const { mutate: update, isPending } = useUpdateProposalDescription();
+  const { data: config } = useGovernanceConfigContext();
   const [description, setDescription] = React.useState(currentDescription ?? "");
   const [error, setError] = React.useState<string>();
   const [allowUnverified, setAllowUnverified] = React.useState(false);
   const [canSkipVerification, setCanSkipVerification] = React.useState(false);
   const validation = React.useMemo(
-    () => validateProposalUrl(description),
-    [description],
+    () => validateProposalUrl(description, config?.maxDescriptionLength),
+    [description, config?.maxDescriptionLength],
   );
 
   React.useEffect(() => {
