@@ -6,6 +6,11 @@ export interface TopVoterRecord {
   validatorIdentity: string;
   validatorImage?: string | null;
   stakeAccount?: string;
+  /**
+   * Address of the validator's vote record for this proposal. A validator's
+   * own vote and every staker override of it share this address.
+   */
+  validatorVoteAddress: string;
   stakedLamports: number;
   // voteOutcome: VoteOutcome;
   votePercentage: number;

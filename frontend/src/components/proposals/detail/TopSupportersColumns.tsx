@@ -25,11 +25,16 @@ export const topSupporterColumns: ColumnDef<TopSupporterRecord>[] = [
       />
     ),
     cell: ({ row }) => {
-      const { validatorName, validatorIdentity, validatorImage, accentColor } =
-        row.original;
+      const {
+        validatorName,
+        validatorIdentity,
+        validatorImage,
+        accentColor,
+        stakedLamports,
+      } = row.original;
 
       return (
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 md:gap-4">
           <ValidatorLogo
             validatorName={validatorName}
             validatorImage={validatorImage}
@@ -46,6 +51,12 @@ export const topSupporterColumns: ColumnDef<TopSupporterRecord>[] = [
                 address={validatorIdentity}
                 copyLabel="Copy full validator address"
               />
+            </span>
+            {/* Phones hide the Staked column, so the stake rides along here. */}
+            <span className="text-xs text-white/50 md:hidden">
+              {stakedLamports === undefined
+                ? UNKNOWN_VALUE
+                : formatLamportsDisplay(stakedLamports).value}
             </span>
           </div>
         </div>

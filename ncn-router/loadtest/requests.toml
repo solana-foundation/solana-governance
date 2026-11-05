@@ -1,0 +1,31 @@
+[[requests]]
+name = "snapshot_meta"
+path = "/meta?network={network}&slot={slot}"
+
+[[requests]]
+name = "snapshot_batch"
+path = "/metas?network={network}&slots={slot}"
+
+[[requests]]
+name = "health"
+path = "/healthz"
+format = "text"
+expected_body = "ok"
+# The production router's nginx serves its own health check without routing.
+targets = ["verifier"]
+
+[[requests]]
+name = "vote_proof"
+path = "latest"
+
+[[requests]]
+name = "voter"
+path = "latest"
+
+# Explicit paths remain valid in a custom corpus passed with --requests.
+# path = "/proof/vote_account/ACCOUNT?network={network}&slot={slot}"
+# path = "/voter/WALLET?network={network}&slot={slot}"
+#
+# [[requests]]
+# name = "stake_proof"
+# path = "/proof/stake_account/ACCOUNT?network={network}&slot={slot}"

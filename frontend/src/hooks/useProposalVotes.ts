@@ -109,6 +109,7 @@ export const useProposalVotes = (proposalPublicKey: PublicKey | undefined) => {
           validatorName,
           validatorIdentity: identity,
           validatorImage: validator?.image ?? null,
+          validatorVoteAddress: v.voter.toBase58(),
           stakedLamports,
           votePercentage,
           voteTimestamp,
@@ -161,6 +162,7 @@ export const useProposalVotes = (proposalPublicKey: PublicKey | undefined) => {
           votePercentage,
           voteTimestamp,
           stakeAccount: v.stakeAccount.toBase58(),
+          validatorVoteAddress: v.voteAccountValidator.toBase58(),
           voteData: {
             forVotesBp: v.forVotesBp ? new BN(v.forVotesBp) : new BN(0),
             againstVotesBp: v.againstVotesBp

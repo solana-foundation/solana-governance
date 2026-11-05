@@ -7,6 +7,7 @@ use crate::{
     },
     error::GovernanceError,
     state::GlobalConfig,
+    utils::validate_snapshot_slot_offset,
 };
 
 #[derive(Accounts)]
@@ -57,6 +58,8 @@ impl<'info> InitializeConfig<'info> {
         validate_max_description_length(max_description_length)?;
 
         validate_max_supporters(max_supporters)?;
+
+        validate_snapshot_slot_offset(snapshot_slot_offset)?;
 
         self.global_config.set_inner(GlobalConfig {
             admin: self.admin.key(),

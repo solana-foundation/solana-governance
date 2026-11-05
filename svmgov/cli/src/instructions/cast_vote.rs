@@ -119,12 +119,9 @@ pub async fn cast_vote(
             .instructions()?;
 
         let blockhash = merkle_proof_program.rpc().get_latest_blockhash().await?;
-        let transaction = Transaction::new_signed_with_payer(
-            &init_meta_merkle_proof_ix,
-            Some(&payer.pubkey()),
-            &[&payer],
-            blockhash,
-        );
+        let mut transaction =
+            Transaction::new_with_payer(&init_meta_merkle_proof_ix, Some(&payer.pubkey()));
+        transaction.try_sign(&[&payer], blockhash)?;
 
         let sig = merkle_proof_program
             .rpc()
@@ -165,12 +162,8 @@ pub async fn cast_vote(
         .instructions()?;
 
     let blockhash = program.rpc().get_latest_blockhash().await?;
-    let transaction = Transaction::new_signed_with_payer(
-        &cast_vote_ixs,
-        Some(&payer.pubkey()),
-        &[&payer],
-        blockhash,
-    );
+    let mut transaction = Transaction::new_with_payer(&cast_vote_ixs, Some(&payer.pubkey()));
+    transaction.try_sign(&[&payer], blockhash)?;
 
     let sig = program
         .rpc()

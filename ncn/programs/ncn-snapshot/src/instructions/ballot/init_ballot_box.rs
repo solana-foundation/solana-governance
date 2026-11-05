@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::{error::ErrorCode, BallotBox, ProgramConfig};
+use crate::{error::ErrorCode, BallotBox, ProgramConfig, MIN_VOTE_EXPIRY_SLOTS};
 
 #[derive(Accounts)]
 #[instruction(snapshot_slot: u64, proposal_seed: u64, spl_vote_account: Pubkey)]
@@ -40,6 +40,7 @@ pub fn handler(
     snapshot_slot: u64,
     _proposal_seed: u64,
     _spl_vote_account: Pubkey,
+    vote_expiry_slot: u64,
 ) -> Result<()> {
     let clock = Clock::get()?;
 
@@ -50,17 +51,58 @@ pub fn handler(
     let program_config = &ctx.accounts.program_config;
     let ballot_box = &mut ctx.accounts.ballot_box;
 
+    validate_vote_expiry_window(snapshot_slot, vote_expiry_slot)?;
+
     ballot_box.bump = ctx.bumps.ballot_box;
     ballot_box.epoch = clock.epoch;
     ballot_box.slot_created = clock.slot;
     ballot_box.snapshot_slot = snapshot_slot;
     ballot_box.min_consensus_threshold_bps = program_config.min_consensus_threshold_bps;
-    ballot_box.vote_expiry_timestamp = clock
-        .unix_timestamp
-        .checked_add(program_config.vote_duration)
-        .unwrap();
+    ballot_box.vote_expiry_slot = vote_expiry_slot;
     ballot_box.voter_list = program_config.whitelisted_operators.clone();
     ballot_box.tie_breaker_consensus = false;
 
     Ok(())
+}
+
+fn validate_vote_expiry_window(snapshot_slot: u64, vote_expiry_slot: u64) -> Result<()> {
+    require!(
+        vote_expiry_slot.saturating_sub(snapshot_slot) >= MIN_VOTE_EXPIRY_SLOTS,
+        ErrorCode::VoteExpiryTooSoon
+    );
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anchor_lang::error::{Error, ERROR_CODE_OFFSET};
+
+    fn assert_expiry_too_soon(result: Result<()>) {
+        match result.expect_err("expiry window must be rejected") {
+            Error::AnchorError(error) => assert_eq!(
+                error.error_code_number,
+                ERROR_CODE_OFFSET + ErrorCode::VoteExpiryTooSoon as u32
+            ),
+            Error::ProgramError(error) => panic!("unexpected program error: {error:?}"),
+        }
+    }
+
+    #[test]
+    fn minimum_vote_expiry_window_is_inclusive() {
+        let snapshot_slot = 1_000;
+
+        assert!(
+            validate_vote_expiry_window(snapshot_slot, snapshot_slot + MIN_VOTE_EXPIRY_SLOTS)
+                .is_ok()
+        );
+        assert_expiry_too_soon(validate_vote_expiry_window(
+            snapshot_slot,
+            snapshot_slot + MIN_VOTE_EXPIRY_SLOTS - 1,
+        ));
+        assert_expiry_too_soon(validate_vote_expiry_window(
+            snapshot_slot,
+            snapshot_slot - 1,
+        ));
+    }
 }

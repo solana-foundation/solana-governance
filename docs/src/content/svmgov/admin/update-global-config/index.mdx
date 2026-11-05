@@ -31,10 +31,10 @@ All arguments are optional; omit the ones you don't want to change. Same meaning
 | `--discussion-epochs` | u64 | |
 | `--voting-epochs` | u64 | |
 | `--snapshot-epoch-extension` | u64 | |
-| `--snapshot-slot-offset` | i64 | |
+| `--snapshot-slot-offset` | i64 | May be negative; maximum 414,000 to preserve the NCN consensus window |
 
 <Callout type="info">
-  Out-of-bounds values are rejected client-side before sending, and on-chain via `InvalidMaxTitleLength`, `InvalidMaxDescriptionLength`, or `InvalidClusterSupportPctMin`.
+  Out-of-bounds values are rejected client-side before sending and on-chain, including snapshot offsets above 414,000 slots.
 </Callout>
 
 ## Global Arguments

@@ -6,6 +6,7 @@
 
 - **`ncn-meta-cron`**: Periodically fetches verifier metadata and compares it to on-chain `BallotBox` state, writing logs and whitelist JSON snapshots.
 - **`ncn-router`**: HTTP router binary (see `src/router.rs`) that can serve or forward NCN-related data.
+- **`ncn-network-loadtest`**: Paced router and verifier probes with latency, consistency, and failure reports (see the [load test guide](loadtest/README.md)).
 
 ### Configuration
 
@@ -26,7 +27,6 @@
 | Digital Energy | `https://ncn-verifier.digital-energy.io` |
 | stakeware.xyz | `https://ncn.stakeware.xyz:3000/` |
 | Prompt Logic | `https://verifier.promptlogic.systems` |
-| Exo Tech | `http://ncn-verifier.exotechnologies.xyz:3000` |
 | Chainflow | `https://ncn-verifier.chainflow.io` |
 | Brewlabs | `https://ncn.brewlabs.so` |
 - **Env vars**:
@@ -49,3 +49,15 @@ cargo run --bin ncn-meta-cron -- --network testnet
 cargo run --bin ncn-meta-cron
 
 cargo run -r --bin ncn-router # runs HTTP router for NCN data
+```
+
+### Production deployment
+
+See [`infra/ncn-router/README.md`](../infra/ncn-router/README.md) for GCP bootstrap, IAM,
+Doppler, Cloudflare, deployment, rollback, and verification procedures.
+
+### Network load testing
+
+Run `just ncn-network-loadtest` from the repository root to exercise the router
+and every configured verifier. The [load test guide](loadtest/README.md) covers
+request corpora, failure and latency reports, and daily/manual GitHub Actions runs.

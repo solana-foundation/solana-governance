@@ -128,16 +128,16 @@ by full path, or `cargo run --release --bin ncn-cli --` for ncn.
 
 - [ ] `init-program-config --svmgov-program-id <svmgov_program_id>` — sets `authority` **and**
       the `svmgov_program_pubkey` authorized to open ballot boxes (source it from
-      `networks.toml`'s `svmgov_program_id`). ⚠️ `min_consensus_threshold_bps`, `vote_duration`,
+      `networks.toml`'s `svmgov_program_id`). ⚠️ `min_consensus_threshold_bps` and
       `tie_breaker_admin` are still left **zero/unset** and the program is not usable until
       configured.
-- [ ] `update-program-config --min-consensus-threshold-bps <…> --vote-duration <…>
---tie-breaker-admin <…>` — **must run before any voting** (threshold must be 1–10000,
-      vote_duration > 0). Can also pass `--svmgov-program-id <…>` to retarget the authorized
+- [ ] `update-program-config --min-consensus-threshold-bps <…> --tie-breaker-admin <…>` —
+      **must run before any voting** (threshold must be 1–10000). Can also pass
+      `--svmgov-program-id <…>` to retarget the authorized
       svmgov program if it was set wrong or svmgov is redeployed (no ncn redeploy needed).
 - [ ] `update-operator-whitelist --add <op1,op2,…>` — add the production operator set
       (max 64).
-- [ ] `ncn-cli get-program-config` & `ncn-cli get-operator-whitelist` — verify authority, threshold, vote_duration,
+- [ ] `ncn-cli get-program-config` & `ncn-cli get-operator-whitelist` — verify authority, threshold,
       tie_breaker_admin, svmgov program, whitelist.
 
 ## Phase 5 — Admin values to decide (fill these in before Phase 4)
@@ -161,7 +161,6 @@ by full path, or `cargo run --release --bin ncn-cli --` for ncn.
 | Flag                            | Meaning                                                                                       | Decide                                |
 | ------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------- |
 | `--min-consensus-threshold-bps` | fraction of operators for consensus (e.g. 6000 = 60%)                                         | ?                                     |
-| `--vote-duration`               | seconds a BallotBox stays open                                                                | ?                                     |
 | `--tie-breaker-admin`           | resolves deadlocks / can reset bricked ballot box                                             | ? (multisig?)                         |
 | `--svmgov-program-id`           | svmgov program allowed to open ballot boxes (set at `init-program-config`; retargetable here) | = `networks.toml` `svmgov_program_id` |
 | operator whitelist              | the actual production operators                                                               | ?                                     |
@@ -273,7 +272,7 @@ local keypair.
 1. `networks.toml` uses public RPCs and identical program IDs across all networks — fix for
    mainnet.
 2. `init-program-config` records `authority` + `svmgov_program_pubkey` but leaves
-   `min_consensus_threshold_bps` / `vote_duration` / `tie_breaker_admin` at zero, so the
+   `min_consensus_threshold_bps` / `tie_breaker_admin` at zero, so the
    `update-program-config` step is mandatory, not optional.
 3. svmgov `init-global-config` must be signed by the program's **upgrade authority** and must
    run **before** the program is made immutable — otherwise the config can never be

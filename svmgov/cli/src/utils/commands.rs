@@ -65,7 +65,7 @@ pub async fn get_proposal(rpc_url: Option<String>, proposal_id: &String) -> Resu
     let proposal_pubkey = Pubkey::from_str(proposal_id)
         .map_err(|_| anyhow!("Invalid proposal ID: {}", proposal_id))?;
     // Create a mock Payer
-    let mock_payer = Arc::new(Keypair::new());
+    let mock_payer = Arc::new(anchor_client::DynSigner(Arc::new(Keypair::new())));
 
     // Create the Anchor client
     let program = anchor_client_setup(rpc_url, mock_payer)?;
@@ -262,7 +262,7 @@ pub async fn list_proposals(
     json_output: bool,
 ) -> Result<()> {
     // Create a mock Payer
-    let mock_payer = Arc::new(Keypair::new());
+    let mock_payer = Arc::new(anchor_client::DynSigner(Arc::new(Keypair::new())));
 
     // Create the Anchor client
     let program = anchor_client_setup(rpc_url.clone(), mock_payer.clone())?;

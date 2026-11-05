@@ -6,3 +6,4 @@ pub mod phase;
 pub mod proposal_link;
 pub mod squads;
 pub mod utils;
+pub mod vote_breakdown;

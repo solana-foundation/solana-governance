@@ -43,7 +43,7 @@ To use this program, you'll need to:
 4. **Support a proposal**: Use the `support_proposal` instruction to show support for a proposal with stake verification.
 5. **Cast a vote**: Use the `cast_vote` instruction to cast a validator vote on a proposal.
 6. **Cast delegator vote**: Use the `cast_vote_override` instruction for delegators to vote on a proposal. This works in two scenarios:
-   - **Independent voting**: If the validator hasn't voted yet, the delegator's vote is cached and will be applied when the validator votes
+   - **Independent voting**: If the validator hasn't voted yet, the delegator's vote counts immediately and their stake is recorded in a cache, so it is excluded from the validator's weight if the validator votes later
    - **Override voting**: If the validator has already voted, the delegator's vote overrides the validator's vote for their stake portion
 7. **Modify vote**: Use the `modify_vote` instruction to update an existing vote.
 8. **Add merkle root**: Use the `add_merkle_root` instruction to set the merkle root hash for a proposal.

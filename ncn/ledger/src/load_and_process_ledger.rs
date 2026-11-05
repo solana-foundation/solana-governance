@@ -24,9 +24,7 @@ use {
         bank_forks_utils::{self, BankForksUtilsError},
         blockstore::{Blockstore, BlockstoreError},
         blockstore_options::{AccessType, BlockstoreOptions, BlockstoreRecoveryMode},
-        blockstore_processor::{
-            self, BlockstoreProcessorError, ProcessOptions, TransactionStatusSender,
-        },
+        blockstore_processor::{self, BlockstoreProcessorError, ProcessOptions},
         leader_schedule_cache::LeaderScheduleCache,
         use_snapshot_archives_at_startup::UseSnapshotArchivesAtStartup,
     },
@@ -40,6 +38,7 @@ use {
         bank_forks::BankForks,
         snapshot_controller::SnapshotController,
         snapshot_utils,
+        transaction_execution::TransactionStatusSender,
     },
     solana_sdk::{clock::Slot, pubkey::Pubkey, transaction::VersionedTransaction},
     solana_shred_version::compute_shred_version,
@@ -407,6 +406,7 @@ pub fn load_and_process_ledger(
         transaction_status_sender.clone(),
         None, // replay_vote_sender
         None, // prioritization_fee_cache: Option<Arc<PrioritizationFeeCache>>
+        None, // handler_thread_arenas
     );
     bank_forks
         .write()

@@ -463,6 +463,7 @@ export type SvmgovProgram = {
         },
         {
           name: "ballotBox";
+          writable: true;
         },
         {
           name: "ballotProgram";
@@ -1258,7 +1259,21 @@ export type SvmgovProgram = {
             seeds: [
               {
                 kind: "const";
-                value: [103, 108, 111, 98, 97, 108, 95, 99, 111, 110, 102, 105, 103];
+                value: [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103,
+                ];
               },
             ];
           };
@@ -1655,6 +1670,21 @@ export type SvmgovProgram = {
     },
     {
       code: 6060;
+      name: "snapshotSlotNotBeforeVotingStart";
+      msg: "Snapshot slot must be strictly before the voting start slot";
+    },
+    {
+      code: 6061;
+      name: "invalidSnapshotSlotOffset";
+      msg: "Snapshot slot offset must remain within the snapshot epoch";
+    },
+    {
+      code: 6062;
+      name: "snapshotWindowTooShort";
+      msg: "Snapshot slot must leave the minimum required voting window before voting starts";
+    },
+    {
+      code: 6063;
       name: "unauthorizedProposalUpdate";
       msg: "Only the original proposal author can update the proposal description";
     },

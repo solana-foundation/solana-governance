@@ -22,6 +22,7 @@ pub fn handler(ctx: Context<InitProgramConfig>, svmgov_program_pubkey: Pubkey) -
     let program_config = &mut ctx.accounts.program_config;
     program_config.authority = ctx.accounts.authority.key();
     program_config.svmgov_program_pubkey = svmgov_program_pubkey;
+    program_config.clear_reserved();
 
     Ok(())
 }

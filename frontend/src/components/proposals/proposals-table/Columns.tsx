@@ -9,7 +9,10 @@ import { SortableHeaderButton } from "@/components/SortableHeaderButton";
 import { ProposalRefLabel } from "@/components/proposals/ProposalRefLabel";
 import { ProposalRecord } from "@/types";
 import type { NetworkMetaResponse } from "@/chain";
-import { computeProposalVoteStats, resolveQuorumDenominator } from "@/chain";
+import {
+  getProposalVoteStats,
+  ProposalVoteShare,
+} from "@/components/proposals/ProposalVoteStats";
 
 interface ProposalColumnsOptions {
   snapshotMetasBySlot: Map<number, NetworkMetaResponse>;
@@ -20,15 +23,10 @@ function getVoteStats(
   proposal: ProposalRecord,
   snapshotMetasBySlot: Map<number, NetworkMetaResponse>,
 ) {
-  return computeProposalVoteStats({
-    forLamports: proposal.forVotesLamports,
-    againstLamports: proposal.againstVotesLamports,
-    abstainLamports: proposal.abstainVotesLamports,
-    totalActiveStake: resolveQuorumDenominator(
-      snapshotMetasBySlot.get(proposal.snapshotSlot),
-      proposal.snapshotSlot,
-    ),
-  });
+  return getProposalVoteStats(
+    proposal,
+    snapshotMetasBySlot.get(proposal.snapshotSlot),
+  );
 }
 
 function VoteStatsLoadingCell({ width }: { width: string }) {
@@ -70,78 +68,6 @@ function ParticipationCell({
       <span className="text-[10px] text-white/40">
         {quorum.isMet ? "Quorum met" : "of total stake"}
       </span>
-    </div>
-  );
-}
-
-const VOTE_SEGMENTS = [
-  {
-    key: "forPercent",
-    label: "For",
-    dotClassName: "bg-primary",
-    barClassName: "bg-primary",
-  },
-  {
-    key: "againstPercent",
-    label: "Against",
-    dotClassName: "bg-destructive",
-    barClassName: "bg-destructive",
-  },
-  {
-    key: "abstainPercent",
-    label: "Abstain",
-    dotClassName: "bg-white/40",
-    barClassName: "bg-white/40",
-  },
-] as const;
-
-function VoteBreakdownCell({
-  proposal,
-  snapshotMetasBySlot,
-}: Pick<ProposalColumnsOptions, "snapshotMetasBySlot"> & {
-  proposal: ProposalRecord;
-}) {
-  const stats = getVoteStats(proposal, snapshotMetasBySlot);
-  const { voteShare } = stats;
-
-  if (!voteShare.known) {
-    return <span className="text-sm font-semibold text-white/40">—</span>;
-  }
-
-  return (
-    <div className="mx-auto min-w-48 max-w-56 space-y-2 tabular-nums">
-      <div
-        className="flex h-1.5 overflow-hidden rounded-full bg-white/8"
-        aria-label={`Share of votes cast: For ${voteShare.forPercent.toFixed(2)}%, Against ${voteShare.againstPercent.toFixed(2)}%, Abstain ${voteShare.abstainPercent.toFixed(2)}%`}
-        role="img"
-      >
-        {VOTE_SEGMENTS.map((segment) => (
-          <span
-            key={segment.key}
-            className={segment.barClassName}
-            style={{ width: `${voteShare[segment.key]}%` }}
-          />
-        ))}
-      </div>
-      <div className="grid grid-cols-3 gap-2 text-[10px] text-white/55">
-        {VOTE_SEGMENTS.map((segment) => (
-          <span
-            key={segment.key}
-            className="flex flex-col items-center gap-0.5 whitespace-nowrap"
-          >
-            <span className="inline-flex items-center gap-1">
-              <span
-                className={`size-1.5 rounded-full ${segment.dotClassName}`}
-                aria-hidden
-              />
-              {segment.label}
-            </span>
-            <span className="font-medium text-white/75">
-              {voteShare[segment.key].toFixed(2)}%
-            </span>
-          </span>
-        ))}
-      </div>
     </div>
   );
 }
@@ -232,9 +158,10 @@ export function getProposalColumns({
       id: "voteBreakdown",
       header: "Vote Breakdown",
       cell: ({ row }) => (
-        <VoteBreakdownCell
+        <ProposalVoteShare
           proposal={row.original}
-          snapshotMetasBySlot={snapshotMetasBySlot}
+          snapshotMeta={snapshotMetasBySlot.get(row.original.snapshotSlot)}
+          className="mx-auto min-w-48 max-w-56"
         />
       ),
     },
