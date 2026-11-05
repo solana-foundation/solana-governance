@@ -259,6 +259,10 @@ enum Commands {
     Proposal {
         /// Proposal ID to display
         proposal_id: String,
+
+        /// Output the proposal details as JSON.
+        #[arg(long)]
+        json: bool,
     },
 
     #[command(
@@ -529,7 +533,11 @@ enum Commands {
                       Example:\n\
                       $ svmgov show-global-config"
     )]
-    ShowGlobalConfig,
+    ShowGlobalConfig {
+        /// Output the on-chain configuration as JSON.
+        #[arg(long)]
+        json: bool,
+    },
 
     #[command(
         about = "Nominate a new config admin (step 1 of 2, current admin only)",
@@ -660,7 +668,7 @@ fn squads_refusal_for(command: &Commands) -> Option<String> {
         | Commands::Proposal { .. }
         | Commands::ListProposals { .. }
         | Commands::VoteBreakdown { .. }
-        | Commands::ShowGlobalConfig
+        | Commands::ShowGlobalConfig { .. }
         | Commands::Init
         | Commands::Config { .. }
         | Commands::NominateAdmin { .. }
@@ -717,7 +725,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
         | Commands::Proposal { .. }
         | Commands::ListProposals { .. }
         | Commands::VoteBreakdown { .. }
-        | Commands::ShowGlobalConfig
+        | Commands::ShowGlobalConfig { .. }
         | Commands::Init
         | Commands::Config { .. } => None,
     };
@@ -829,8 +837,8 @@ async fn handle_command(cli: Cli) -> Result<()> {
             )
             .await?;
         }
-        Commands::Proposal { proposal_id } => {
-            commands::get_proposal(cli.rpc_url.clone(), proposal_id).await?;
+        Commands::Proposal { proposal_id, json } => {
+            commands::get_proposal(cli.rpc_url.clone(), proposal_id, *json).await?;
         }
         Commands::VoteBreakdown { proposal_id, json } => {
             utils::vote_breakdown::vote_breakdown(cli.rpc_url.clone(), *proposal_id, *json).await?;
@@ -962,8 +970,8 @@ async fn handle_command(cli: Cli) -> Result<()> {
             )
             .await?;
         }
-        Commands::ShowGlobalConfig => {
-            instructions::show_global_config(cli.rpc_url).await?;
+        Commands::ShowGlobalConfig { json } => {
+            instructions::show_global_config(cli.rpc_url, *json).await?;
         }
         Commands::NominateAdmin { new_admin } => {
             instructions::nominate_admin(
@@ -1002,4 +1010,34 @@ fn main() -> Result<()> {
     tokio::runtime::Runtime::new()?.block_on(handle_command(cli))?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod cli_tests {
+    use super::*;
+
+    #[test]
+    fn display_commands_accept_json_without_a_keypair() {
+        for args in [
+            vec!["proposal", "11111111111111111111111111111111"],
+            vec!["show-global-config"],
+            vec!["config", "show"],
+            vec!["config", "get", "rpc-url"],
+            vec!["list-proposals"],
+            vec!["vote-breakdown", "11111111111111111111111111111111"],
+        ] {
+            let cli =
+                Cli::try_parse_from(["svmgov"].into_iter().chain(args).chain(["--json"])).unwrap();
+            match cli.command {
+                Commands::Proposal { json, .. }
+                | Commands::ShowGlobalConfig { json }
+                | Commands::VoteBreakdown { json, .. }
+                | Commands::Config {
+                    subcommand: ConfigSubcommand::Get { json, .. } | ConfigSubcommand::Show { json },
+                } => assert!(json),
+                Commands::ListProposals { json, .. } => assert_eq!(json.as_deref(), Some("true")),
+                _ => panic!("unexpected command"),
+            }
+        }
+    }
 }

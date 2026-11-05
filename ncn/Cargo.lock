@@ -4852,6 +4852,7 @@ dependencies = [
  "ncn-ledger",
  "ncn-merkle-tree",
  "ncn-snapshot",
+ "serde_json",
  "solana-account 5.0.0",
  "solana-accounts-db",
  "solana-program 4.0.0",
