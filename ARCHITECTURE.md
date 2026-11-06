@@ -100,4 +100,5 @@ Governance for the Node Consensus Network — a subset of whitelisted operators.
 | **Support Phase** | Initial phase where validators signal support for a proposal before formal voting begins |
 | **SVM Governance** | The primary governance track using Solana's stake-weighted voting for all validators and stakers |
 | **Verifier Service** | Off-chain service that indexes operator-uploaded snapshots and serves merkle proofs over HTTP; it does not publish on-chain |
+| **Vote Delegation** | Standing grant of a validator's governance voting authority to another key; accepted by the delegate, revocable by the delegate or the vote account's authorized withdrawer |
 | **Vote Override** | Mechanism allowing stakers to override their delegated validator's vote on a proposal |

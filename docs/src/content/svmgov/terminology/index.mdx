@@ -45,6 +45,10 @@ A delegator action that replaces the validator’s vote outcome for that delegat
 
 A per-proposal/per-validator accumulator used when delegators override before the validator has cast their vote. Cached values are applied when validator vote is submitted.
 
+### Vote Delegation
+
+A standing, on-chain grant of a vote account's governance authority to another key (the delegate). Created by the node identity or authorized withdrawer and inert until the delegate accepts; once accepted the delegate alone votes for the validator and the identity key is locked out until the delegate or withdrawer removes it. Votes still count the validator's full stake and are attributed to the identity.
+
 ### Effective Validator Stake
 
 Validator stake used for final vote math after subtracting delegator-overridden stake portions.

@@ -13,6 +13,7 @@ const mockCreateGovV1ProgramWithWallet = jest.fn();
 const mockComputeProofCloseTimestamp = jest.fn();
 const mockGetMetaMerkleProofPda = jest.fn();
 const mockDeriveVotePda = jest.fn();
+const mockDeriveVoteDelegationPda = jest.fn();
 
 jest.mock("../helpers", () => {
   const actual = jest.requireActual("../helpers");
@@ -29,6 +30,8 @@ jest.mock("../helpers", () => {
     getMetaMerkleProofPda: (...args: unknown[]) =>
       mockGetMetaMerkleProofPda(...args),
     deriveVotePda: (...args: unknown[]) => mockDeriveVotePda(...args),
+    deriveVoteDelegationPda: (...args: unknown[]) =>
+      mockDeriveVoteDelegationPda(...args),
   };
 });
 
@@ -135,6 +138,7 @@ describe("modifyVote", () => {
     mockSendRawTransaction.mockResolvedValue("test-signature");
     mockGetMetaMerkleProofPda.mockReturnValue(META_MERKLE_PROOF_PDA);
     mockDeriveVotePda.mockReturnValue(VALIDATOR_VOTE_PDA);
+    mockDeriveVoteDelegationPda.mockReturnValue(new PublicKey(keyFromByte(23)));
     mockFetchProposal.mockResolvedValue({
       snapshotSlot: new BN(340_850_340),
       endEpoch: new BN(100),

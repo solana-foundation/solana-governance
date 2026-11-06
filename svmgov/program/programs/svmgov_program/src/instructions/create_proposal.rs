@@ -7,15 +7,15 @@ use anchor_lang::{
         vote::{program as vote_program, state::VoteState},
     },
 };
-use solana_vote_interface::state::VoteStateVersions;
 
 use crate::{
     constants::ANCHOR_DISCRIMINATOR,
     error::GovernanceError,
     events::ProposalCreated,
     stake_weight_bp,
-    state::{GlobalConfig, Proposal, ProposalIndex},
+    state::{GlobalConfig, Proposal, ProposalIndex, VoteDelegation},
     utils::is_valid_github_link,
+    vote_authority::{read_vote_account_authorities, require_vote_authority},
 };
 
 #[derive(Accounts)]
@@ -38,13 +38,22 @@ pub struct CreateProposal<'info> {
     )]
     pub proposal_index: Account<'info, ProposalIndex>,
     /// CHECK: Owner == vote program and account size == VoteState::size_of() are
-    /// enforced here; the handler then deserializes VoteStateVersions and requires
-    /// node_pubkey == signer, proving the signer operates this vote account.
+    /// enforced here; the handler then reads node_pubkey and requires the signer
+    /// to be it (or its accepted delegate), proving the signer operates this
+    /// vote account.
     #[account(
         constraint = spl_vote_account.owner == &vote_program::ID @ ProgramError::InvalidAccountOwner,
         constraint = spl_vote_account.data_len() == VoteState::size_of() @ GovernanceError::InvalidVoteAccountSize
     )]
     pub spl_vote_account: UncheckedAccount<'info>,
+    /// CHECK: VoteDelegation PDA for `spl_vote_account`; may not exist. With an
+    /// accepted delegation on record only the delegate may sign, otherwise only
+    /// the vote account's node identity may.
+    #[account(
+        seeds = [VoteDelegation::SEED, spl_vote_account.key().as_ref()],
+        bump
+    )]
+    pub vote_delegation: UncheckedAccount<'info>,
     #[account(
         seeds = [b"global_config"],
         bump = global_config.bump,
@@ -85,21 +94,21 @@ impl<'info> CreateProposal<'info> {
 
         let clock = Clock::get()?;
 
-        let vote_account_data = self.spl_vote_account.data.borrow();
-        let versioned = VoteStateVersions::deserialize(&vote_account_data)
-            .map_err(|_| GovernanceError::InvalidVoteAccount)?;
-        let node_pubkey_bytes: [u8; 32] = match &versioned {
-            VoteStateVersions::V3(v) => v.node_pubkey.to_bytes(),
-            VoteStateVersions::V4(v) => v.node_pubkey.to_bytes(),
-            VoteStateVersions::V1_14_11(v) => v.node_pubkey.to_bytes(),
-            VoteStateVersions::Uninitialized => {
-                return Err(GovernanceError::InvalidVoteAccount.into())
-            }
+        // The signer must operate this vote account: its node identity, or the
+        // accepted delegate. The proposal is attributed to the identity either way.
+        let identity = {
+            let vote_account_data = self.spl_vote_account.data.borrow();
+            read_vote_account_authorities(&vote_account_data)
+                .map_err(|_| GovernanceError::InvalidVoteAccount)?
+                .node_pubkey
         };
-        require!(
-            node_pubkey_bytes == self.signer.key().to_bytes(),
-            GovernanceError::InvalidVoteAccount
-        );
+        require_vote_authority(
+            &self.signer.key(),
+            &identity,
+            &self.vote_delegation,
+            &self.spl_vote_account.key(),
+            GovernanceError::UnauthorizedVoteSigner,
+        )?;
 
         // Calculate stake weight basis points
         let cluster_stake = get_epoch_total_stake();
@@ -113,7 +122,7 @@ impl<'info> CreateProposal<'info> {
 
         // Initialize proposal account
         self.proposal.set_inner(Proposal {
-            author: self.signer.key(),
+            author: identity,
             title,
             description,
             creation_epoch: clock.epoch,
@@ -132,10 +141,11 @@ impl<'info> CreateProposal<'info> {
         // Emit proposal created event
         emit!(ProposalCreated {
             proposal_id: self.proposal.key(),
-            author: self.signer.key(),
+            author: identity,
             title: self.proposal.title.clone(),
             description: self.proposal.description.clone(),
             creation_timestamp: self.proposal.creation_timestamp,
+            signer: self.signer.key(),
         });
 
         Ok(())

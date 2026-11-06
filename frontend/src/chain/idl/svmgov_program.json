@@ -58,6 +58,64 @@
       "args": []
     },
     {
+      "name": "accept_vote_delegation",
+      "docs": [
+        "Step 2 of vote delegation: the named delegate accepts. From then on the",
+        "delegate alone may create, support, vote on and modify votes for the vote",
+        "account, and the node identity is locked out until the delegation is removed."
+      ],
+      "discriminator": [
+        233,
+        73,
+        172,
+        65,
+        50,
+        26,
+        46,
+        177
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "signer": true
+        },
+        {
+          "name": "vote_delegation",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101,
+                  95,
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vote_delegation.vote_account",
+                "account": "VoteDelegation"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "cast_vote",
       "discriminator": [
         20,
@@ -108,9 +166,45 @@
           "name": "spl_vote_account",
           "docs": [
             "enforced here. The signer-to-vote-account binding is proved in the handler",
-            "via the meta merkle proof: voting_wallet == signer AND vote_account ==",
-            "spl_vote_account, both anchored to proposal.consensus_result."
+            "via the meta merkle proof (vote_account == spl_vote_account, anchored to",
+            "proposal.consensus_result) plus the authority check: signer is the leaf's",
+            "voting_wallet, or the accepted delegate in `vote_delegation`."
           ]
+        },
+        {
+          "name": "vote_delegation",
+          "docs": [
+            "accepted delegation on record only the delegate may sign, otherwise only",
+            "the vote account's identity may."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101,
+                  95,
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "spl_vote_account"
+              }
+            ]
+          }
         },
         {
           "name": "vote_override_cache",
@@ -433,9 +527,45 @@
         {
           "name": "spl_vote_account",
           "docs": [
-            "enforced here; the handler then deserializes VoteStateVersions and requires",
-            "node_pubkey == signer, proving the signer operates this vote account."
+            "enforced here; the handler then reads node_pubkey and requires the signer",
+            "to be it (or its accepted delegate), proving the signer operates this",
+            "vote account."
           ]
+        },
+        {
+          "name": "vote_delegation",
+          "docs": [
+            "accepted delegation on record only the delegate may sign, otherwise only",
+            "the vote account's node identity may."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101,
+                  95,
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "spl_vote_account"
+              }
+            ]
+          }
         },
         {
           "name": "global_config",
@@ -479,6 +609,80 @@
         {
           "name": "description",
           "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "delegate_vote",
+      "docs": [
+        "Step 1 of vote delegation: the vote account's node identity or authorized",
+        "withdrawer names `delegate` as the key that will vote for the vote account.",
+        "Takes effect only once the delegate calls `accept_vote_delegation`."
+      ],
+      "discriminator": [
+        12,
+        116,
+        204,
+        68,
+        87,
+        205,
+        40,
+        205
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "spl_vote_account",
+          "docs": [
+            "enforced here; the handler requires the signer to be this vote account's",
+            "node identity or authorized withdrawer."
+          ]
+        },
+        {
+          "name": "vote_delegation",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101,
+                  95,
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "spl_vote_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "delegate",
+          "type": "pubkey"
         }
       ]
     },
@@ -803,9 +1007,45 @@
           "name": "spl_vote_account",
           "docs": [
             "enforced here. The signer-to-vote-account binding is proved in the handler",
-            "via the meta merkle proof: voting_wallet == signer AND vote_account ==",
-            "spl_vote_account, both anchored to proposal.consensus_result."
+            "via the meta merkle proof (vote_account == spl_vote_account, anchored to",
+            "proposal.consensus_result) plus the authority check: signer is the leaf's",
+            "voting_wallet, or the accepted delegate in `vote_delegation`."
           ]
+        },
+        {
+          "name": "vote_delegation",
+          "docs": [
+            "accepted delegation on record only the delegate may sign, otherwise only",
+            "the vote account's identity may."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101,
+                  95,
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "spl_vote_account"
+              }
+            ]
+          }
         },
         {
           "name": "snapshot_program"
@@ -1075,6 +1315,75 @@
       ]
     },
     {
+      "name": "remove_vote_delegation",
+      "docs": [
+        "Removes a vote delegation and returns its rent to the creator. The delegate",
+        "and the vote account's authorized withdrawer may always remove; the node",
+        "identity only while the delegation is not yet accepted."
+      ],
+      "discriminator": [
+        217,
+        138,
+        248,
+        149,
+        187,
+        210,
+        57,
+        255
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "signer": true
+        },
+        {
+          "name": "spl_vote_account",
+          "docs": [
+            "live vote account (owner and size checked in the handler) its authorities",
+            "decide who may remove; if it has since been closed, only the delegate or",
+            "the creator may reclaim the rent."
+          ]
+        },
+        {
+          "name": "vote_delegation",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101,
+                  95,
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "spl_vote_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "creator",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "retally_support",
       "docs": [
         "Permissionless re-tally of a proposal's support at the current epoch.",
@@ -1225,10 +1534,45 @@
         {
           "name": "spl_vote_account",
           "docs": [
-            "enforced here; the handler then deserializes VoteStateVersions and requires",
-            "node_pubkey == signer, so a supporter can only pledge stake from a vote",
-            "account they operate."
+            "enforced here; the handler then reads node_pubkey and requires the signer",
+            "to be it (or its accepted delegate), so a supporter can only pledge stake",
+            "from a vote account they operate."
           ]
+        },
+        {
+          "name": "vote_delegation",
+          "docs": [
+            "accepted delegation on record only the delegate may sign, otherwise only",
+            "the vote account's node identity may."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101,
+                  95,
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "spl_vote_account"
+              }
+            ]
+          }
         },
         {
           "name": "ballot_box",
@@ -1438,6 +1782,42 @@
           "writable": true
         },
         {
+          "name": "vote_delegation",
+          "docs": [
+            "With an accepted delegation on record only the delegate may update the",
+            "proposal, otherwise only its author (the vote account's identity) may."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101,
+                  95,
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "proposal.vote_account_pubkey",
+                "account": "Proposal"
+              }
+            ]
+          }
+        },
+        {
           "name": "global_config",
           "pda": {
             "seeds": [
@@ -1535,6 +1915,19 @@
         35,
         172,
         155
+      ]
+    },
+    {
+      "name": "VoteDelegation",
+      "discriminator": [
+        193,
+        49,
+        139,
+        13,
+        145,
+        199,
+        236,
+        31
       ]
     },
     {
@@ -1680,6 +2073,45 @@
         17,
         225,
         213
+      ]
+    },
+    {
+      "name": "VoteDelegationAccepted",
+      "discriminator": [
+        44,
+        13,
+        141,
+        173,
+        145,
+        36,
+        107,
+        231
+      ]
+    },
+    {
+      "name": "VoteDelegationCreated",
+      "discriminator": [
+        132,
+        214,
+        56,
+        243,
+        255,
+        208,
+        152,
+        133
+      ]
+    },
+    {
+      "name": "VoteDelegationRemoved",
+      "discriminator": [
+        35,
+        25,
+        247,
+        234,
+        16,
+        68,
+        169,
+        95
       ]
     },
     {
@@ -2042,6 +2474,51 @@
       "code": 6063,
       "name": "UnauthorizedProposalUpdate",
       "msg": "Only the original proposal author can update the proposal description"
+    },
+    {
+      "code": 6064,
+      "name": "InvalidVoteDelegate",
+      "msg": "Vote delegate cannot be the default (all-zero) pubkey"
+    },
+    {
+      "code": 6065,
+      "name": "UnauthorizedVoteDelegation",
+      "msg": "Only the vote account's node identity or authorized withdrawer can delegate its vote"
+    },
+    {
+      "code": 6066,
+      "name": "NotVoteDelegate",
+      "msg": "Signer is not the delegate of this vote delegation"
+    },
+    {
+      "code": 6067,
+      "name": "VoteDelegationAlreadyAccepted",
+      "msg": "Vote delegation has already been accepted"
+    },
+    {
+      "code": 6068,
+      "name": "UnauthorizedVoteDelegationRemoval",
+      "msg": "Signer is not authorized to remove this vote delegation"
+    },
+    {
+      "code": 6069,
+      "name": "InvalidVoteDelegationCreator",
+      "msg": "Rent recipient must be the vote delegation's creator"
+    },
+    {
+      "code": 6070,
+      "name": "InvalidVoteDelegation",
+      "msg": "Invalid vote delegation account"
+    },
+    {
+      "code": 6071,
+      "name": "UnauthorizedVoteSigner",
+      "msg": "Signer is neither the vote account's identity nor its accepted vote delegate"
+    },
+    {
+      "code": 6072,
+      "name": "VoteDelegationNotAccepted",
+      "msg": "Vote delegation is pending; the delegate must accept it before acting for the vote account"
     }
   ],
   "types": [
@@ -2362,6 +2839,13 @@
           {
             "name": "creation_timestamp",
             "type": "i64"
+          },
+          {
+            "name": "signer",
+            "docs": [
+              "Key that signed the transaction: the identity, or its accepted delegate."
+            ],
+            "type": "pubkey"
           }
         ]
       }
@@ -2390,6 +2874,13 @@
           {
             "name": "update_timestamp",
             "type": "i64"
+          },
+          {
+            "name": "signer",
+            "docs": [
+              "Key that signed the transaction: the identity, or its accepted delegate."
+            ],
+            "type": "pubkey"
           }
         ]
       }
@@ -2498,6 +2989,13 @@
           {
             "name": "snapshot_slot",
             "type": "u64"
+          },
+          {
+            "name": "signer",
+            "docs": [
+              "Key that signed the transaction: the identity, or its accepted delegate."
+            ],
+            "type": "pubkey"
           }
         ]
       }
@@ -2651,6 +3149,135 @@
           {
             "name": "vote_timestamp",
             "type": "i64"
+          },
+          {
+            "name": "signer",
+            "docs": [
+              "Key that signed the transaction: the identity, or its accepted delegate."
+            ],
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VoteDelegation",
+      "docs": [
+        "Standing delegation of an SPL vote account's governance authority to another key.",
+        "",
+        "PDA seeds: `[VoteDelegation::SEED, spl_vote_account]`. The vote account's node",
+        "identity or authorized withdrawer creates it; it is inert until the delegate",
+        "accepts. While accepted, the delegate alone may create, support, vote on and",
+        "modify votes for the vote account, and the node identity is locked out until",
+        "the delegate or the authorized withdrawer removes the delegation."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "delegate",
+            "docs": [
+              "Key authorized to act for `vote_account` once `delegation_accepted` is set.",
+              "First field so clients can find delegations by delegate with a memcmp at",
+              "offset 8."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "vote_account",
+            "docs": [
+              "SPL vote account whose governance authority is delegated."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "creator",
+            "docs": [
+              "Key that created and paid for this account; receives its rent on removal."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "delegation_accepted",
+            "docs": [
+              "Set by `accept_vote_delegation`. Until then the identity keeps voting and",
+              "the delegate has no authority."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VoteDelegationAccepted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vote_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "delegate",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VoteDelegationCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vote_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "identity",
+            "docs": [
+              "Node identity of the vote account at creation time."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "delegate",
+            "type": "pubkey"
+          },
+          {
+            "name": "creator",
+            "docs": [
+              "Identity or authorized withdrawer that created the delegation."
+            ],
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VoteDelegationRemoved",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vote_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "delegate",
+            "type": "pubkey"
+          },
+          {
+            "name": "signer",
+            "type": "pubkey"
+          },
+          {
+            "name": "was_accepted",
+            "type": "bool"
           }
         ]
       }
@@ -2711,6 +3338,13 @@
           {
             "name": "modification_timestamp",
             "type": "i64"
+          },
+          {
+            "name": "signer",
+            "docs": [
+              "Key that signed the transaction: the identity, or its accepted delegate."
+            ],
+            "type": "pubkey"
           }
         ]
       }

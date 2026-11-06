@@ -23,5 +23,6 @@ export * from "./updateProposalDescriptionMutation";
 export * from "./supportProposalMutation";
 
 export * from "./getVoterWalletSummary";
+export * from "./getAcceptedVoteDelegations";
 
 export * from "./getValidators";

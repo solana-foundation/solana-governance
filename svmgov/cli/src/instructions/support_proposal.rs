@@ -17,7 +17,7 @@ use crate::{
     svmgov_program::client::{accounts, args},
     utils::utils::{
         create_spinner, derive_global_config_pda, derive_program_config_pda, derive_support_pda,
-        fetch_global_config, proposal_snapshot_slot, setup_all,
+        derive_vote_delegation_pda, fetch_global_config, proposal_snapshot_slot, setup_all,
     },
 };
 
@@ -58,6 +58,7 @@ pub async fn build_support_proposal_instructions(
             proposal,
             support: support_pda,
             spl_vote_account: vote_account,
+            vote_delegation: derive_vote_delegation_pda(&vote_account, &program.id()),
             ballot_box: ballot_box_pda,
             program_config: program_config_pda,
             ballot_program: SNAPSHOT_PROGRAM_ID,
@@ -74,12 +75,13 @@ pub async fn support_proposal(
     identity_keypair: Option<String>,
     rpc_url: Option<String>,
     _network: String,
+    vote_account_override: Option<String>,
 ) -> Result<()> {
     let proposal_pubkey = Pubkey::from_str(&proposal_id)
         .map_err(|_| anyhow!("Invalid proposal ID: {}", proposal_id))?;
 
     let (payer, vote_account, program, _merkle_proof_program) =
-        setup_all(identity_keypair, rpc_url).await?;
+        setup_all(identity_keypair, rpc_url, vote_account_override).await?;
 
     // The handler re-tallies every existing supporter, so the compute budget is
     // sized from the current list length rather than a flat worst case. If the

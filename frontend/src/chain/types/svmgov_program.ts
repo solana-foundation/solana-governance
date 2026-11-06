@@ -55,6 +55,55 @@ export type SvmgovProgram = {
       args: [];
     },
     {
+      name: "acceptVoteDelegation";
+      docs: [
+        "Step 2 of vote delegation: the named delegate accepts. From then on the",
+        "delegate alone may create, support, vote on and modify votes for the vote",
+        "account, and the node identity is locked out until the delegation is removed.",
+      ];
+      discriminator: [233, 73, 172, 65, 50, 26, 46, 177];
+      accounts: [
+        {
+          name: "signer";
+          signer: true;
+        },
+        {
+          name: "voteDelegation";
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [
+                  118,
+                  111,
+                  116,
+                  101,
+                  95,
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                ];
+              },
+              {
+                kind: "account";
+                path: "vote_delegation.vote_account";
+                account: "voteDelegation";
+              },
+            ];
+          };
+        },
+      ];
+      args: [];
+    },
+    {
       name: "castVote";
       discriminator: [20, 212, 15, 189, 69, 180, 69, 151];
       accounts: [
@@ -91,9 +140,45 @@ export type SvmgovProgram = {
           name: "splVoteAccount";
           docs: [
             "enforced here. The signer-to-vote-account binding is proved in the handler",
-            "via the meta merkle proof: voting_wallet == signer AND vote_account ==",
-            "spl_vote_account, both anchored to proposal.consensus_result.",
+            "via the meta merkle proof (vote_account == spl_vote_account, anchored to",
+            "proposal.consensus_result) plus the authority check: signer is the leaf's",
+            "voting_wallet, or the accepted delegate in `vote_delegation`.",
           ];
+        },
+        {
+          name: "voteDelegation";
+          docs: [
+            "accepted delegation on record only the delegate may sign, otherwise only",
+            "the vote account's identity may.",
+          ];
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [
+                  118,
+                  111,
+                  116,
+                  101,
+                  95,
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                ];
+              },
+              {
+                kind: "account";
+                path: "splVoteAccount";
+              },
+            ];
+          };
         },
         {
           name: "voteOverrideCache";
@@ -375,9 +460,45 @@ export type SvmgovProgram = {
         {
           name: "splVoteAccount";
           docs: [
-            "enforced here; the handler then deserializes VoteStateVersions and requires",
-            "node_pubkey == signer, proving the signer operates this vote account.",
+            "enforced here; the handler then reads node_pubkey and requires the signer",
+            "to be it (or its accepted delegate), proving the signer operates this",
+            "vote account.",
           ];
+        },
+        {
+          name: "voteDelegation";
+          docs: [
+            "accepted delegation on record only the delegate may sign, otherwise only",
+            "the vote account's node identity may.",
+          ];
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [
+                  118,
+                  111,
+                  116,
+                  101,
+                  95,
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                ];
+              },
+              {
+                kind: "account";
+                path: "splVoteAccount";
+              },
+            ];
+          };
         },
         {
           name: "globalConfig";
@@ -421,6 +542,71 @@ export type SvmgovProgram = {
         {
           name: "description";
           type: "string";
+        },
+      ];
+    },
+    {
+      name: "delegateVote";
+      docs: [
+        "Step 1 of vote delegation: the vote account's node identity or authorized",
+        "withdrawer names `delegate` as the key that will vote for the vote account.",
+        "Takes effect only once the delegate calls `accept_vote_delegation`.",
+      ];
+      discriminator: [12, 116, 204, 68, 87, 205, 40, 205];
+      accounts: [
+        {
+          name: "signer";
+          writable: true;
+          signer: true;
+        },
+        {
+          name: "splVoteAccount";
+          docs: [
+            "enforced here; the handler requires the signer to be this vote account's",
+            "node identity or authorized withdrawer.",
+          ];
+        },
+        {
+          name: "voteDelegation";
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [
+                  118,
+                  111,
+                  116,
+                  101,
+                  95,
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                ];
+              },
+              {
+                kind: "account";
+                path: "splVoteAccount";
+              },
+            ];
+          };
+        },
+        {
+          name: "systemProgram";
+          address: "11111111111111111111111111111111";
+        },
+      ];
+      args: [
+        {
+          name: "delegate";
+          type: "pubkey";
         },
       ];
     },
@@ -689,9 +875,45 @@ export type SvmgovProgram = {
           name: "splVoteAccount";
           docs: [
             "enforced here. The signer-to-vote-account binding is proved in the handler",
-            "via the meta merkle proof: voting_wallet == signer AND vote_account ==",
-            "spl_vote_account, both anchored to proposal.consensus_result.",
+            "via the meta merkle proof (vote_account == spl_vote_account, anchored to",
+            "proposal.consensus_result) plus the authority check: signer is the leaf's",
+            "voting_wallet, or the accepted delegate in `vote_delegation`.",
           ];
+        },
+        {
+          name: "voteDelegation";
+          docs: [
+            "accepted delegation on record only the delegate may sign, otherwise only",
+            "the vote account's identity may.",
+          ];
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [
+                  118,
+                  111,
+                  116,
+                  101,
+                  95,
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                ];
+              },
+              {
+                kind: "account";
+                path: "splVoteAccount";
+              },
+            ];
+          };
         },
         {
           name: "snapshotProgram";
@@ -935,6 +1157,66 @@ export type SvmgovProgram = {
       ];
     },
     {
+      name: "removeVoteDelegation";
+      docs: [
+        "Removes a vote delegation and returns its rent to the creator. The delegate",
+        "and the vote account's authorized withdrawer may always remove; the node",
+        "identity only while the delegation is not yet accepted.",
+      ];
+      discriminator: [217, 138, 248, 149, 187, 210, 57, 255];
+      accounts: [
+        {
+          name: "signer";
+          signer: true;
+        },
+        {
+          name: "splVoteAccount";
+          docs: [
+            "live vote account (owner and size checked in the handler) its authorities",
+            "decide who may remove; if it has since been closed, only the delegate or",
+            "the creator may reclaim the rent.",
+          ];
+        },
+        {
+          name: "voteDelegation";
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [
+                  118,
+                  111,
+                  116,
+                  101,
+                  95,
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                ];
+              },
+              {
+                kind: "account";
+                path: "splVoteAccount";
+              },
+            ];
+          };
+        },
+        {
+          name: "creator";
+          writable: true;
+        },
+      ];
+      args: [];
+    },
+    {
       name: "retallySupport";
       docs: [
         "Permissionless re-tally of a proposal's support at the current epoch.",
@@ -1059,10 +1341,45 @@ export type SvmgovProgram = {
         {
           name: "splVoteAccount";
           docs: [
-            "enforced here; the handler then deserializes VoteStateVersions and requires",
-            "node_pubkey == signer, so a supporter can only pledge stake from a vote",
-            "account they operate.",
+            "enforced here; the handler then reads node_pubkey and requires the signer",
+            "to be it (or its accepted delegate), so a supporter can only pledge stake",
+            "from a vote account they operate.",
           ];
+        },
+        {
+          name: "voteDelegation";
+          docs: [
+            "accepted delegation on record only the delegate may sign, otherwise only",
+            "the vote account's node identity may.",
+          ];
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [
+                  118,
+                  111,
+                  116,
+                  101,
+                  95,
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                ];
+              },
+              {
+                kind: "account";
+                path: "splVoteAccount";
+              },
+            ];
+          };
         },
         {
           name: "ballotBox";
@@ -1254,6 +1571,42 @@ export type SvmgovProgram = {
           writable: true;
         },
         {
+          name: "voteDelegation";
+          docs: [
+            "With an accepted delegation on record only the delegate may update the",
+            "proposal, otherwise only its author (the vote account's identity) may.",
+          ];
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [
+                  118,
+                  111,
+                  116,
+                  101,
+                  95,
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                ];
+              },
+              {
+                kind: "account";
+                path: "proposal.vote_account_pubkey";
+                account: "proposal";
+              },
+            ];
+          };
+        },
+        {
           name: "globalConfig";
           pda: {
             seeds: [
@@ -1309,6 +1662,10 @@ export type SvmgovProgram = {
       discriminator: [96, 91, 104, 57, 145, 35, 172, 155];
     },
     {
+      name: "voteDelegation";
+      discriminator: [193, 49, 139, 13, 145, 199, 236, 31];
+    },
+    {
       name: "voteOverride";
       discriminator: [130, 93, 172, 50, 168, 151, 176, 188];
     },
@@ -1353,6 +1710,18 @@ export type SvmgovProgram = {
     {
       name: "voteCast";
       discriminator: [39, 53, 195, 104, 188, 17, 225, 213];
+    },
+    {
+      name: "voteDelegationAccepted";
+      discriminator: [44, 13, 141, 173, 145, 36, 107, 231];
+    },
+    {
+      name: "voteDelegationCreated";
+      discriminator: [132, 214, 56, 243, 255, 208, 152, 133];
+    },
+    {
+      name: "voteDelegationRemoved";
+      discriminator: [35, 25, 247, 234, 16, 68, 169, 95];
     },
     {
       name: "voteModified";
@@ -1688,6 +2057,51 @@ export type SvmgovProgram = {
       name: "unauthorizedProposalUpdate";
       msg: "Only the original proposal author can update the proposal description";
     },
+    {
+      code: 6064;
+      name: "invalidVoteDelegate";
+      msg: "Vote delegate cannot be the default (all-zero) pubkey";
+    },
+    {
+      code: 6065;
+      name: "unauthorizedVoteDelegation";
+      msg: "Only the vote account's node identity or authorized withdrawer can delegate its vote";
+    },
+    {
+      code: 6066;
+      name: "notVoteDelegate";
+      msg: "Signer is not the delegate of this vote delegation";
+    },
+    {
+      code: 6067;
+      name: "voteDelegationAlreadyAccepted";
+      msg: "Vote delegation has already been accepted";
+    },
+    {
+      code: 6068;
+      name: "unauthorizedVoteDelegationRemoval";
+      msg: "Signer is not authorized to remove this vote delegation";
+    },
+    {
+      code: 6069;
+      name: "invalidVoteDelegationCreator";
+      msg: "Rent recipient must be the vote delegation's creator";
+    },
+    {
+      code: 6070;
+      name: "invalidVoteDelegation";
+      msg: "Invalid vote delegation account";
+    },
+    {
+      code: 6071;
+      name: "unauthorizedVoteSigner";
+      msg: "Signer is neither the vote account's identity nor its accepted vote delegate";
+    },
+    {
+      code: 6072;
+      name: "voteDelegationNotAccepted";
+      msg: "Vote delegation is pending; the delegate must accept it before acting for the vote account";
+    },
   ];
   types: [
     {
@@ -1984,6 +2398,13 @@ export type SvmgovProgram = {
             name: "creationTimestamp";
             type: "i64";
           },
+          {
+            name: "signer";
+            docs: [
+              "Key that signed the transaction: the identity, or its accepted delegate.",
+            ];
+            type: "pubkey";
+          },
         ];
       };
     },
@@ -2011,6 +2432,13 @@ export type SvmgovProgram = {
           {
             name: "updateTimestamp";
             type: "i64";
+          },
+          {
+            name: "signer";
+            docs: [
+              "Key that signed the transaction: the identity, or its accepted delegate.",
+            ];
+            type: "pubkey";
           },
         ];
       };
@@ -2119,6 +2547,13 @@ export type SvmgovProgram = {
           {
             name: "snapshotSlot";
             type: "u64";
+          },
+          {
+            name: "signer";
+            docs: [
+              "Key that signed the transaction: the identity, or its accepted delegate.",
+            ];
+            type: "pubkey";
           },
         ];
       };
@@ -2269,6 +2704,131 @@ export type SvmgovProgram = {
             name: "voteTimestamp";
             type: "i64";
           },
+          {
+            name: "signer";
+            docs: [
+              "Key that signed the transaction: the identity, or its accepted delegate.",
+            ];
+            type: "pubkey";
+          },
+        ];
+      };
+    },
+    {
+      name: "voteDelegation";
+      docs: [
+        "Standing delegation of an SPL vote account's governance authority to another key.",
+        "",
+        "PDA seeds: `[VoteDelegation::SEED, spl_vote_account]`. The vote account's node",
+        "identity or authorized withdrawer creates it; it is inert until the delegate",
+        "accepts. While accepted, the delegate alone may create, support, vote on and",
+        "modify votes for the vote account, and the node identity is locked out until",
+        "the delegate or the authorized withdrawer removes the delegation.",
+      ];
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "delegate";
+            docs: [
+              "Key authorized to act for `vote_account` once `delegation_accepted` is set.",
+              "First field so clients can find delegations by delegate with a memcmp at",
+              "offset 8.",
+            ];
+            type: "pubkey";
+          },
+          {
+            name: "voteAccount";
+            docs: ["SPL vote account whose governance authority is delegated."];
+            type: "pubkey";
+          },
+          {
+            name: "creator";
+            docs: [
+              "Key that created and paid for this account; receives its rent on removal.",
+            ];
+            type: "pubkey";
+          },
+          {
+            name: "delegationAccepted";
+            docs: [
+              "Set by `accept_vote_delegation`. Until then the identity keeps voting and",
+              "the delegate has no authority.",
+            ];
+            type: "bool";
+          },
+          {
+            name: "bump";
+            type: "u8";
+          },
+        ];
+      };
+    },
+    {
+      name: "voteDelegationAccepted";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "voteAccount";
+            type: "pubkey";
+          },
+          {
+            name: "delegate";
+            type: "pubkey";
+          },
+        ];
+      };
+    },
+    {
+      name: "voteDelegationCreated";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "voteAccount";
+            type: "pubkey";
+          },
+          {
+            name: "identity";
+            docs: ["Node identity of the vote account at creation time."];
+            type: "pubkey";
+          },
+          {
+            name: "delegate";
+            type: "pubkey";
+          },
+          {
+            name: "creator";
+            docs: [
+              "Identity or authorized withdrawer that created the delegation.",
+            ];
+            type: "pubkey";
+          },
+        ];
+      };
+    },
+    {
+      name: "voteDelegationRemoved";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "voteAccount";
+            type: "pubkey";
+          },
+          {
+            name: "delegate";
+            type: "pubkey";
+          },
+          {
+            name: "signer";
+            type: "pubkey";
+          },
+          {
+            name: "wasAccepted";
+            type: "bool";
+          },
         ];
       };
     },
@@ -2328,6 +2888,13 @@ export type SvmgovProgram = {
           {
             name: "modificationTimestamp";
             type: "i64";
+          },
+          {
+            name: "signer";
+            docs: [
+              "Key that signed the transaction: the identity, or its accepted delegate.",
+            ];
+            type: "pubkey";
           },
         ];
       };

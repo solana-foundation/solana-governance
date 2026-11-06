@@ -5,17 +5,17 @@ use anchor_lang::{
         vote::{program as vote_program, state::VoteState},
     },
 };
-use solana_vote_interface::state::VoteStateVersions;
 
 use crate::{
     constants::ANCHOR_DISCRIMINATOR,
     error::GovernanceError,
     events::ProposalSupported,
-    state::{GlobalConfig, Proposal, Support},
+    state::{GlobalConfig, Proposal, Support, VoteDelegation},
     utils::{
         check_support_window, compute_future_snapshot_slot, ensure_snapshot_before_voting_start,
         min_stake_threshold, proposal_snapshot_epoch, tally_supporter_stakes, voting_start_epoch,
     },
+    vote_authority::{read_vote_account_authorities, require_vote_authority},
 };
 
 #[derive(Accounts)]
@@ -44,14 +44,22 @@ pub struct SupportProposal<'info> {
     )]
     pub support: Account<'info, Support>, // New support account
     /// CHECK: Owner == vote program and account size == VoteState::size_of() are
-    /// enforced here; the handler then deserializes VoteStateVersions and requires
-    /// node_pubkey == signer, so a supporter can only pledge stake from a vote
-    /// account they operate.
+    /// enforced here; the handler then reads node_pubkey and requires the signer
+    /// to be it (or its accepted delegate), so a supporter can only pledge stake
+    /// from a vote account they operate.
     #[account(
         constraint = spl_vote_account.owner == &vote_program::ID @ ProgramError::InvalidAccountOwner,
         constraint = spl_vote_account.data_len() == VoteState::size_of() @ GovernanceError::InvalidVoteAccountSize
     )]
     pub spl_vote_account: UncheckedAccount<'info>,
+    /// CHECK: VoteDelegation PDA for `spl_vote_account`; may not exist. With an
+    /// accepted delegation on record only the delegate may sign, otherwise only
+    /// the vote account's node identity may.
+    #[account(
+        seeds = [VoteDelegation::SEED, spl_vote_account.key().as_ref()],
+        bump
+    )]
+    pub vote_delegation: UncheckedAccount<'info>,
 
     /// CHECK: Ballot box account - may or may not exist, checked with data_is_empty()
     #[account(mut)]
@@ -108,24 +116,19 @@ impl<'info> SupportProposal<'info> {
             GovernanceError::SupporterLimitReached
         );
 
-        // Ensure signer is the node identity of the vote account, so a supporter
-        // can only pledge stake from a vote account they operate.
-        let vote_account_data = self.spl_vote_account.data.borrow();
-        let versioned = VoteStateVersions::deserialize(&vote_account_data)
-            .map_err(|_| GovernanceError::FailedDeserializeNodePubkey)?;
-        let node_pubkey_bytes: [u8; 32] = match &versioned {
-            VoteStateVersions::V3(v) => v.node_pubkey.to_bytes(),
-            VoteStateVersions::V4(v) => v.node_pubkey.to_bytes(),
-            VoteStateVersions::V1_14_11(v) => v.node_pubkey.to_bytes(),
-            VoteStateVersions::Uninitialized => {
-                return Err(GovernanceError::InvalidVoteAccountVersion.into())
-            }
+        // A supporter can only pledge stake from a vote account they operate:
+        // the signer must be its node identity, or the accepted delegate.
+        let identity = {
+            let vote_account_data = self.spl_vote_account.data.borrow();
+            read_vote_account_authorities(&vote_account_data)?.node_pubkey
         };
-        require!(
-            node_pubkey_bytes == self.signer.key().to_bytes(),
-            GovernanceError::VoteNodePubkeyMismatch
-        );
-        drop(vote_account_data);
+        require_vote_authority(
+            &self.signer.key(),
+            &identity,
+            &self.vote_delegation,
+            &self.spl_vote_account.key(),
+            GovernanceError::UnauthorizedVoteSigner,
+        )?;
 
         // Support may span multiple epochs, so stake readings recorded in
         // earlier epochs are no longer valid: rebuild the ENTIRE tally from
@@ -166,7 +169,7 @@ impl<'info> SupportProposal<'info> {
         // Initialize the support account
         self.support.set_inner(Support {
             proposal: proposal_account.key(),
-            validator: self.signer.key(),
+            validator: identity,
             bump: bumps.support,
         });
 
@@ -194,10 +197,11 @@ impl<'info> SupportProposal<'info> {
 
         emit!(ProposalSupported {
             proposal_id: self.proposal.key(),
-            supporter: self.signer.key(),
+            supporter: identity,
             cluster_support_lamports: new_support_stake,
             voting_activated: self.proposal.voting,
             snapshot_slot: snapshot_slot,
+            signer: self.signer.key(),
         });
 
         Ok(())

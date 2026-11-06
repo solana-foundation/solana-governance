@@ -148,6 +148,14 @@ export interface ChainVoteAccountData {
   nodePubkey: string;
 }
 
+/** On-chain `VoteDelegation` of an SPL vote account, keys as base58. */
+export interface VoteDelegationData {
+  voteAccount: string;
+  delegate: string;
+  creator: string;
+  delegationAccepted: boolean;
+}
+
 export interface VoterSummaryResponse {
   network: string;
   snapshot_slot: number;

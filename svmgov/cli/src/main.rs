@@ -141,6 +141,13 @@ enum Commands {
             help = "Add the support instruction to the proposal creation transaction"
         )]
         with_support: bool,
+
+        /// SPL vote account to act for.
+        #[arg(
+            long,
+            help = "SPL vote account to act for; defaults to the signer's own vote account, or the one whose vote is delegated to the signer"
+        )]
+        vote_account: Option<String>,
     },
 
     #[command(
@@ -171,6 +178,13 @@ enum Commands {
     SupportProposal {
         #[arg(long, help = "Proposal ID")]
         proposal_id: String,
+
+        /// SPL vote account to act for.
+        #[arg(
+            long,
+            help = "SPL vote account to act for; defaults to the signer's own vote account, or the one whose vote is delegated to the signer"
+        )]
+        vote_account: Option<String>,
     },
 
     #[command(
@@ -223,6 +237,13 @@ enum Commands {
             help = "MetaMerkleProof close timestamp (Unix seconds); defaults to the proposal's vote-expiry time"
         )]
         close_timestamp: Option<i64>,
+
+        /// SPL vote account to act for.
+        #[arg(
+            long,
+            help = "SPL vote account to act for; defaults to the signer's own vote account, or the one whose vote is delegated to the signer"
+        )]
+        vote_account: Option<String>,
     },
 
     #[command(
@@ -249,6 +270,86 @@ enum Commands {
         /// Basis points for 'Abstain' vote.
         #[arg(long, help = "Basis points for 'Abstain'")]
         abstain_votes: u64,
+
+        /// SPL vote account to act for.
+        #[arg(
+            long,
+            help = "SPL vote account to act for; defaults to the signer's own vote account, or the one whose vote is delegated to the signer"
+        )]
+        vote_account: Option<String>,
+    },
+
+    #[command(
+        about = "Delegate a validator's governance vote to another key (step 1 of 2)",
+        long_about = "Names another key as the governance voter for an SPL vote account, so the validator \
+                      identity key never has to sign governance transactions. Must be signed by the vote \
+                      account's node identity or its authorized withdrawer (pass --vote-account when signing \
+                      as the withdrawer). The delegation is inert until the delegate runs \
+                      `accept-vote-delegation`; from then on the delegate alone creates, supports, votes on \
+                      and modifies votes for the vote account, and the identity key is locked out until the \
+                      delegation is removed.\n\n\
+                      Example:\n\
+                      $ svmgov -k /path/to/identity.json delegate-vote --delegate <DELEGATE_PUBKEY>"
+    )]
+    DelegateVote {
+        /// Key that will vote on behalf of the vote account.
+        #[arg(long, help = "Base58 pubkey that will vote for the vote account")]
+        delegate: String,
+
+        /// SPL vote account to delegate.
+        #[arg(
+            long,
+            help = "SPL vote account to delegate; defaults to the one whose node identity is the signer (required when signing as the authorized withdrawer)"
+        )]
+        vote_account: Option<String>,
+    },
+
+    #[command(
+        about = "Accept a pending vote delegation (step 2 of 2, delegate only)",
+        long_about = "Completes a vote delegation. Must be signed by the delegate named in `delegate-vote`. \
+                      On success the delegate alone votes for the vote account.\n\n\
+                      Example:\n\
+                      $ svmgov -k /path/to/delegate.json accept-vote-delegation --vote-account <VOTE_ACCOUNT>"
+    )]
+    AcceptVoteDelegation {
+        /// SPL vote account whose delegation is being accepted.
+        #[arg(long, help = "SPL vote account whose delegation to accept")]
+        vote_account: String,
+    },
+
+    #[command(
+        about = "Remove a vote delegation",
+        long_about = "Removes a vote delegation and returns its rent to whoever created it. The delegate and \
+                      the vote account's authorized withdrawer may always remove it; the node identity only \
+                      while the delegation is still pending acceptance.\n\n\
+                      Examples:\n\
+                      $ svmgov -k /path/to/delegate.json remove-vote-delegation\n\
+                      $ svmgov -k /path/to/withdrawer.json remove-vote-delegation --vote-account <VOTE_ACCOUNT>"
+    )]
+    RemoveVoteDelegation {
+        /// SPL vote account whose delegation is being removed.
+        #[arg(
+            long,
+            help = "SPL vote account whose delegation to remove; defaults to the signer's own vote account, or the one delegated to the signer"
+        )]
+        vote_account: Option<String>,
+    },
+
+    #[command(
+        about = "Show the vote delegation of a vote account",
+        long_about = "Displays who, if anyone, is delegated to vote for an SPL vote account and whether the \
+                      delegation has been accepted.\n\n\
+                      Example:\n\
+                      $ svmgov show-vote-delegation --vote-account <VOTE_ACCOUNT>"
+    )]
+    ShowVoteDelegation {
+        /// SPL vote account to inspect.
+        #[arg(long, help = "SPL vote account to inspect")]
+        vote_account: String,
+
+        /// Output the delegation as JSON.
+        #[arg(long)]
+        json: bool,
     },
 
     #[command(
@@ -652,23 +753,35 @@ fn squads_refusal_for(command: &Commands) -> Option<String> {
     let (name, constraint) = match command {
         Commands::CreateProposal { .. } => (
             "create-proposal",
-            "the validator identity (vote_state.node_pubkey) to be the signer",
+            "the validator identity (vote_state.node_pubkey) or its accepted vote delegate to be the signer",
         ),
         Commands::UpdateProposalDescription { .. } => (
             "update-proposal-description",
-            "the original proposal author to be the signer",
+            "the original proposal author or its accepted vote delegate to be the signer",
         ),
         Commands::SupportProposal { .. } => (
             "support-proposal",
-            "the validator identity (vote_state.node_pubkey) to be the signer",
+            "the validator identity (vote_state.node_pubkey) or its accepted vote delegate to be the signer",
         ),
         Commands::CastVote { .. } => (
             "cast-vote",
-            "the snapshot voting wallet (meta_merkle_leaf.voting_wallet) to be the signer",
+            "the snapshot voting wallet (meta_merkle_leaf.voting_wallet) or its accepted vote delegate to be the signer",
         ),
         Commands::ModifyVote { .. } => (
             "modify-vote",
-            "the snapshot voting wallet (meta_merkle_leaf.voting_wallet) to be the signer",
+            "the snapshot voting wallet (meta_merkle_leaf.voting_wallet) or its accepted vote delegate to be the signer",
+        ),
+        Commands::DelegateVote { .. } => (
+            "delegate-vote",
+            "the vote account's node identity or authorized withdrawer to be the signer",
+        ),
+        Commands::AcceptVoteDelegation { .. } => (
+            "accept-vote-delegation",
+            "the named delegate to be the signer",
+        ),
+        Commands::RemoveVoteDelegation { .. } => (
+            "remove-vote-delegation",
+            "the delegate, the authorized withdrawer, or (while pending) the node identity to be the signer",
         ),
         Commands::InitIndex {} => (
             "init-index",
@@ -690,6 +803,7 @@ fn squads_refusal_for(command: &Commands) -> Option<String> {
         | Commands::ListProposals { .. }
         | Commands::VoteBreakdown { .. }
         | Commands::ShowGlobalConfig { .. }
+        | Commands::ShowVoteDelegation { .. }
         | Commands::Init
         | Commands::Config { .. }
         | Commands::NominateAdmin { .. }
@@ -748,6 +862,10 @@ async fn handle_command(cli: Cli) -> Result<()> {
         | Commands::ListProposals { .. }
         | Commands::VoteBreakdown { .. }
         | Commands::ShowGlobalConfig { .. }
+        | Commands::DelegateVote { .. }
+        | Commands::AcceptVoteDelegation { .. }
+        | Commands::RemoveVoteDelegation { .. }
+        | Commands::ShowVoteDelegation { .. }
         | Commands::Init
         | Commands::Config { .. } => None,
     };
@@ -782,6 +900,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
             description,
             skip_link_check,
             with_support,
+            vote_account,
         } => {
             instructions::create_proposal(
                 title.to_string(),
@@ -792,6 +911,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 network.clone(),
                 *skip_link_check,
                 *with_support,
+                vote_account.clone(),
             )
             .await?;
         }
@@ -811,12 +931,14 @@ async fn handle_command(cli: Cli) -> Result<()> {
         }
         Commands::SupportProposal {
             proposal_id,
+            vote_account,
         } => {
             instructions::support_proposal(
                 proposal_id.to_string(),
                 cli.keypair,
                 cli.rpc_url,
                 network.clone(),
+                vote_account.clone(),
             )
             .await?;
         }
@@ -835,6 +957,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
             against_votes,
             abstain_votes,
             close_timestamp,
+            vote_account,
         } => {
             instructions::cast_vote(
                 proposal_id.to_string(),
@@ -845,6 +968,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 cli.rpc_url,
                 network.clone(),
                 *close_timestamp,
+                vote_account.clone(),
             )
             .await?;
         }
@@ -853,6 +977,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
             for_votes,
             against_votes,
             abstain_votes,
+            vote_account,
         } => {
             instructions::modify_vote(
                 proposal_id.to_string(),
@@ -862,8 +987,32 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 cli.keypair,
                 cli.rpc_url,
                 network.clone(),
+                vote_account.clone(),
             )
             .await?;
+        }
+        Commands::DelegateVote {
+            delegate,
+            vote_account,
+        } => {
+            instructions::delegate_vote(
+                delegate.clone(),
+                vote_account.clone(),
+                cli.keypair,
+                cli.rpc_url,
+            )
+            .await?;
+        }
+        Commands::AcceptVoteDelegation { vote_account } => {
+            instructions::accept_vote_delegation(vote_account.clone(), cli.keypair, cli.rpc_url)
+                .await?;
+        }
+        Commands::RemoveVoteDelegation { vote_account } => {
+            instructions::remove_vote_delegation(vote_account.clone(), cli.keypair, cli.rpc_url)
+                .await?;
+        }
+        Commands::ShowVoteDelegation { vote_account, json } => {
+            instructions::show_vote_delegation(vote_account.clone(), cli.rpc_url, *json).await?;
         }
         Commands::FinalizeProposal { proposal_id } => {
             instructions::finalize_proposal(
@@ -1061,12 +1210,18 @@ mod cli_tests {
             vec!["config", "get", "rpc-url"],
             vec!["list-proposals"],
             vec!["vote-breakdown", "11111111111111111111111111111111"],
+            vec![
+                "show-vote-delegation",
+                "--vote-account",
+                "11111111111111111111111111111111",
+            ],
         ] {
             let cli =
                 Cli::try_parse_from(["svmgov"].into_iter().chain(args).chain(["--json"])).unwrap();
             match cli.command {
                 Commands::Proposal { json, .. }
                 | Commands::ShowGlobalConfig { json }
+                | Commands::ShowVoteDelegation { json, .. }
                 | Commands::VoteBreakdown { json, .. }
                 | Commands::Config {
                     subcommand: ConfigSubcommand::Get { json, .. } | ConfigSubcommand::Show { json },

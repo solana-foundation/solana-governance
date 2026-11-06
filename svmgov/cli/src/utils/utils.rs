@@ -2,7 +2,10 @@ use std::{fmt, str::FromStr, sync::Arc, time::Duration};
 
 use anchor_client::{
     Client, Cluster, DynSigner, Program,
-    solana_client::nonblocking::rpc_client::RpcClient,
+    solana_client::{
+        nonblocking::rpc_client::RpcClient,
+        rpc_filter::{Memcmp, RpcFilterType},
+    },
     solana_sdk::{
         bpf_loader_upgradeable, commitment_config::CommitmentConfig,
         derivation_path::DerivationPath, native_token::LAMPORTS_PER_SOL,
@@ -24,7 +27,7 @@ use uriparse::URIReference;
 use crate::{
     constants::*,
     svmgov_program::{
-        accounts::{GlobalConfig, Proposal, Vote},
+        accounts::{GlobalConfig, Proposal, Vote, VoteDelegation},
         program::SvmgovProgram,
     },
 };
@@ -48,7 +51,7 @@ pub fn create_spinner(message: &str) -> ProgressBar {
 /// svmgov program. Enough for permissionless instructions (retally-support,
 /// finalize-proposal, ...) where any funded keypair may sign; `setup_all`
 /// builds on it for commands that also need the merkle-proof program and the
-/// signer's vote account.
+/// vote account the signer acts for.
 pub fn setup_signer_and_program(
     keypair_path: Option<String>,
     rpc_url: Option<String>,
@@ -73,9 +76,13 @@ pub fn setup_signer_and_program(
     Ok((identity_keypair_arc, program, client))
 }
 
+/// Full setup for validator-side commands: the signer, the SPL vote account it
+/// acts for (see `resolve_vote_account`), and the svmgov and merkle-proof
+/// programs.
 pub async fn setup_all(
     keypair_path: Option<String>,
     rpc_url: Option<String>,
+    vote_account: Option<String>,
 ) -> Result<(
     Arc<DynSigner>,
     Pubkey,
@@ -88,10 +95,9 @@ pub async fn setup_all(
     // Step 2: The merkle-proof (ncn-snapshot) program
     let merkle_proof_program = client.program(ncn_snapshot::id())?;
 
-    // Step 3: Find the vote account using the program's RpcClient
-    let rpc_client = program.rpc();
-    let validator_identity = identity_keypair_arc.pubkey();
-    let vote_account = find_spl_vote_account(&validator_identity, &rpc_client).await?;
+    // Step 3: The vote account the signer acts for
+    let vote_account =
+        resolve_vote_account(&program, &identity_keypair_arc.pubkey(), vote_account).await?;
 
     // Step 4: Log the setup completion
     log::debug!(
@@ -166,6 +172,75 @@ fn load_identity_keypair(keypair_path: Option<String>) -> Result<DynSigner> {
     let signer = load_signer(&path)?;
     println!("Loaded identity keypair address -> {:?}", signer.pubkey());
     Ok(signer)
+}
+
+/// Resolves the SPL vote account `signer` acts for: an explicit `--vote-account`
+/// value, else the vote account whose node identity is the signer, else the
+/// single vote account with an accepted vote delegation naming the signer.
+pub async fn resolve_vote_account(
+    program: &Program<Arc<DynSigner>>,
+    signer: &Pubkey,
+    vote_account: Option<String>,
+) -> Result<Pubkey> {
+    if let Some(vote_account) = vote_account {
+        return Pubkey::from_str(&vote_account)
+            .map_err(|_| anyhow!("Invalid vote account: {vote_account}"));
+    }
+    if let Ok(vote_account) = find_spl_vote_account(signer, &program.rpc()).await {
+        return Ok(vote_account);
+    }
+    let delegated = find_accepted_vote_delegations(program, signer).await?;
+    match delegated.as_slice() {
+        [delegation] => Ok(delegation.vote_account),
+        [] => Err(anyhow!(
+            "No vote account found for {signer}: it is not the node identity of any current \
+             vote account and no accepted vote delegation names it. Pass --vote-account to \
+             act for a specific vote account (e.g. as its authorized withdrawer)."
+        )),
+        many => Err(anyhow!(
+            "{signer} is the accepted vote delegate of {} vote accounts; pass --vote-account \
+             to choose one:\n{}",
+            many.len(),
+            many.iter()
+                .map(|d| format!("  {}", d.vote_account))
+                .collect::<Vec<_>>()
+                .join("\n")
+        )),
+    }
+}
+
+/// Fetches the `VoteDelegation` of `vote_account`, or `None` when it has none.
+pub async fn fetch_vote_delegation(
+    program: &Program<Arc<DynSigner>>,
+    vote_account: &Pubkey,
+) -> Result<Option<VoteDelegation>> {
+    let pda = derive_vote_delegation_pda(vote_account, &program.id());
+    match program.account::<VoteDelegation>(pda).await {
+        Ok(delegation) => Ok(Some(delegation)),
+        Err(anchor_client::ClientError::AccountNotFound) => Ok(None),
+        Err(e) => Err(anyhow!("Failed to fetch vote delegation {pda}: {e}")),
+    }
+}
+
+/// Lists the accepted vote delegations that name `delegate`.
+pub async fn find_accepted_vote_delegations(
+    program: &Program<Arc<DynSigner>>,
+    delegate: &Pubkey,
+) -> Result<Vec<VoteDelegation>> {
+    // `delegate` is the first field after the 8-byte discriminator.
+    let filters = vec![RpcFilterType::Memcmp(Memcmp::new_base58_encoded(
+        8,
+        &delegate.to_bytes(),
+    ))];
+    let delegations = program
+        .accounts::<VoteDelegation>(filters)
+        .await
+        .map_err(|e| anyhow!("Failed to look up vote delegations for {delegate}: {e}"))?;
+    Ok(delegations
+        .into_iter()
+        .map(|(_, delegation)| delegation)
+        .filter(|delegation| delegation.delegation_accepted)
+        .collect())
 }
 
 async fn find_spl_vote_account(
@@ -404,6 +479,13 @@ pub fn derive_vote_override_cache_pda(
     let (pda, _) = Pubkey::find_program_address(seeds, program_id);
     pda
 }
+/// Derives the VoteDelegation PDA using the seeds [b"vote_delegation", spl_vote_account].
+pub fn derive_vote_delegation_pda(vote_account: &Pubkey, program_id: &Pubkey) -> Pubkey {
+    let seeds = &[b"vote_delegation".as_ref(), vote_account.as_ref()];
+    let (pda, _) = Pubkey::find_program_address(seeds, program_id);
+    pda
+}
+
 pub fn derive_global_config_pda(program_id: &Pubkey) -> Pubkey {
     let seeds = &[b"global_config".as_ref()];
     let (pda, _) = Pubkey::find_program_address(seeds, program_id);
