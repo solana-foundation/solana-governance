@@ -9,7 +9,7 @@ use crate::{
     events::VoteModified,
     merkle_helpers::verify_merkle_proof_cpi,
     state::{Proposal, Vote},
-    utils::split_vote_lamports,
+    utils::{split_vote_lamports, VoteLamports},
 };
 use ncn_snapshot::{ConsensusResult, MetaMerkleProof};
 
@@ -158,13 +158,16 @@ impl<'info> ModifyVote<'info> {
             .checked_sub(self.vote.override_lamports)
             .ok_or(GovernanceError::ArithmeticOverflow)?;
 
-        let (for_votes_lamports, against_votes_lamports, abstain_votes_lamports) =
-            split_vote_lamports(
-                voter_stake,
-                for_votes_bp,
-                against_votes_bp,
-                abstain_votes_bp,
-            )?;
+        let VoteLamports {
+            for_votes: for_votes_lamports,
+            against_votes: against_votes_lamports,
+            abstain_votes: abstain_votes_lamports,
+        } = split_vote_lamports(
+            voter_stake,
+            for_votes_bp,
+            against_votes_bp,
+            abstain_votes_bp,
+        )?;
 
         // Add new lamports to proposal totals
         self.proposal.add_vote_lamports(

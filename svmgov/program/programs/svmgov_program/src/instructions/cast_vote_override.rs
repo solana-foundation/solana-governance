@@ -12,7 +12,7 @@ use crate::{
     events::VoteOverrideCast,
     merkle_helpers::verify_merkle_proof_cpi,
     state::{Proposal, Vote, VoteOverride, VoteOverrideCache},
-    utils::split_vote_lamports,
+    utils::{split_vote_lamports, VoteLamports},
 };
 use ncn_snapshot::{ConsensusResult, MetaMerkleProof, StakeMerkleLeaf};
 
@@ -189,13 +189,16 @@ impl<'info> CastVoteOverride<'info> {
         let delegator_stake = stake_merkle_leaf.active_stake;
         let validator_stake = meta_merkle_leaf.active_stake;
 
-        let (for_votes_lamports, against_votes_lamports, abstain_votes_lamports) =
-            split_vote_lamports(
-                delegator_stake,
-                for_votes_bp,
-                against_votes_bp,
-                abstain_votes_bp,
-            )?;
+        let VoteLamports {
+            for_votes: for_votes_lamports,
+            against_votes: against_votes_lamports,
+            abstain_votes: abstain_votes_lamports,
+        } = split_vote_lamports(
+            delegator_stake,
+            for_votes_bp,
+            against_votes_bp,
+            abstain_votes_bp,
+        )?;
 
         // Check that validator vote exists
         // If account does not exist, cache the delegator's vote in override PDA
@@ -235,13 +238,16 @@ impl<'info> CastVoteOverride<'info> {
                 .checked_sub(total_overridden)
                 .ok_or(GovernanceError::ArithmeticOverflow)?;
 
-            let (for_votes_lamports_new, against_votes_lamports_new, abstain_votes_lamports_new) =
-                split_vote_lamports(
-                    new_validator_stake,
-                    validator_vote.for_votes_bp,
-                    validator_vote.against_votes_bp,
-                    validator_vote.abstain_votes_bp,
-                )?;
+            let VoteLamports {
+                for_votes: for_votes_lamports_new,
+                against_votes: against_votes_lamports_new,
+                abstain_votes: abstain_votes_lamports_new,
+            } = split_vote_lamports(
+                new_validator_stake,
+                validator_vote.for_votes_bp,
+                validator_vote.against_votes_bp,
+                validator_vote.abstain_votes_bp,
+            )?;
 
             // Add validator's new vote
             self.proposal.add_vote_lamports(

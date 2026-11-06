@@ -30,8 +30,17 @@ macro_rules! stake_weight_bp {
     }};
 }
 
+/// A voter's stake split across the three vote options, in lamports.
+/// Produced by [`split_vote_lamports`]; the three fields sum to the input stake.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VoteLamports {
+    pub for_votes: u64,
+    pub against_votes: u64,
+    pub abstain_votes: u64,
+}
+
 /// Splits `stake` lamports across the For / Against / Abstain options by basis
-/// points and returns the three shares in that order.
+/// points.
 ///
 /// Each share is `stake * bp / 10_000` floored. The lamports the floors drop
 /// (at most two) are credited to the option with the most basis points, ties
@@ -45,7 +54,7 @@ pub fn split_vote_lamports(
     for_bp: u64,
     against_bp: u64,
     abstain_bp: u64,
-) -> core::result::Result<(u64, u64, u64), crate::error::GovernanceError> {
+) -> core::result::Result<VoteLamports, crate::error::GovernanceError> {
     use crate::error::GovernanceError::ArithmeticOverflow;
 
     let floor = |bp: u64| {
@@ -74,7 +83,11 @@ pub fn split_vote_lamports(
         .checked_add(remainder)
         .ok_or(ArithmeticOverflow)?;
 
-    Ok((shares[0], shares[1], shares[2]))
+    Ok(VoteLamports {
+        for_votes: shares[0],
+        against_votes: shares[1],
+        abstain_votes: shares[2],
+    })
 }
 
 /// Validates the canonical, immutable GitHub URL used for proposal documents.
@@ -567,11 +580,23 @@ mod tests {
 
     // --- split_vote_lamports ---
 
+    fn lamports(for_votes: u64, against_votes: u64, abstain_votes: u64) -> VoteLamports {
+        VoteLamports {
+            for_votes,
+            against_votes,
+            abstain_votes,
+        }
+    }
+
+    fn total(split: VoteLamports) -> u64 {
+        split.for_votes + split.against_votes + split.abstain_votes
+    }
+
     #[test]
     fn split_exact_division_matches_plain_percentages() {
         assert_eq!(
             split_vote_lamports(1_000_000, 2_500, 2_500, 5_000).unwrap(),
-            (250_000, 250_000, 500_000)
+            lamports(250_000, 250_000, 500_000)
         );
     }
 
@@ -580,32 +605,31 @@ mod tests {
         // Floors alone give 333_300_000 + 333_300_000 + 333_400_000, one
         // lamport short of the stake; the remainder lands on Abstain (3_334 bp).
         let stake = 1_000_000_001;
-        let (for_l, against_l, abstain_l) =
-            split_vote_lamports(stake, 3_333, 3_333, 3_334).unwrap();
-        assert_eq!(
-            (for_l, against_l, abstain_l),
-            (333_300_000, 333_300_000, 333_400_001)
-        );
-        assert_eq!(for_l + against_l + abstain_l, stake);
+        let split = split_vote_lamports(stake, 3_333, 3_333, 3_334).unwrap();
+        assert_eq!(split, lamports(333_300_000, 333_300_000, 333_400_001));
+        assert_eq!(total(split), stake);
     }
 
     #[test]
     fn split_remainder_goes_to_largest_option_with_for_winning_ties() {
         // 50/50 on 7 lamports floors to 3 + 3; the odd lamport goes to For.
-        assert_eq!(split_vote_lamports(7, 5_000, 5_000, 0).unwrap(), (4, 3, 0));
+        assert_eq!(
+            split_vote_lamports(7, 5_000, 5_000, 0).unwrap(),
+            lamports(4, 3, 0)
+        );
         // 25/25/50 floors to 1 + 1 + 3; both dropped lamports go to Abstain.
         assert_eq!(
             split_vote_lamports(7, 2_500, 2_500, 5_000).unwrap(),
-            (1, 1, 5)
+            lamports(1, 1, 5)
         );
     }
 
     #[test]
     fn split_zero_bp_option_never_receives_lamports() {
         for stake in [1u64, 7, 999_999_999_999_999_999] {
-            let (for_l, against_l, abstain_l) = split_vote_lamports(stake, 0, 9_999, 1).unwrap();
-            assert_eq!(for_l, 0);
-            assert_eq!(for_l + against_l + abstain_l, stake);
+            let split = split_vote_lamports(stake, 0, 9_999, 1).unwrap();
+            assert_eq!(split.for_votes, 0);
+            assert_eq!(total(split), stake);
         }
     }
 

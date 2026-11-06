@@ -13,7 +13,7 @@ use crate::{
     events::VoteOverrideModified,
     merkle_helpers::verify_merkle_proof_cpi,
     state::{Proposal, Vote, VoteOverride, VoteOverrideCache},
-    utils::split_vote_lamports,
+    utils::{split_vote_lamports, VoteLamports},
 };
 
 #[derive(Accounts)]
@@ -190,13 +190,16 @@ impl<'info> ModifyVoteOverride<'info> {
         let old_against_votes_lamports = self.vote_override.against_votes_lamports;
         let old_abstain_votes_lamports = self.vote_override.abstain_votes_lamports;
 
-        let (for_votes_lamports, against_votes_lamports, abstain_votes_lamports) =
-            split_vote_lamports(
-                delegator_stake,
-                for_votes_bp,
-                against_votes_bp,
-                abstain_votes_bp,
-            )?;
+        let VoteLamports {
+            for_votes: for_votes_lamports,
+            against_votes: against_votes_lamports,
+            abstain_votes: abstain_votes_lamports,
+        } = split_vote_lamports(
+            delegator_stake,
+            for_votes_bp,
+            against_votes_bp,
+            abstain_votes_bp,
+        )?;
 
         // Update the override account with new values
         self.vote_override.for_votes_bp = for_votes_bp;
