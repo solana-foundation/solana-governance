@@ -4,12 +4,12 @@ use anchor_lang::{
 };
 
 use crate::{
-    calculate_vote_lamports,
     constants::*,
     error::GovernanceError,
     events::VoteModified,
     merkle_helpers::verify_merkle_proof_cpi,
     state::{Proposal, Vote},
+    utils::{split_vote_lamports, VoteLamports},
 };
 use ncn_snapshot::{ConsensusResult, MetaMerkleProof};
 
@@ -153,15 +153,21 @@ impl<'info> ModifyVote<'info> {
             self.vote.abstain_votes_lamports,
         )?;
 
-        // Calculate new effective votes for each category based on actual lamports
         let full_validator_stake = meta_merkle_leaf.active_stake;
         let voter_stake = full_validator_stake
             .checked_sub(self.vote.override_lamports)
             .ok_or(GovernanceError::ArithmeticOverflow)?;
 
-        let for_votes_lamports = calculate_vote_lamports!(voter_stake, for_votes_bp)?;
-        let against_votes_lamports = calculate_vote_lamports!(voter_stake, against_votes_bp)?;
-        let abstain_votes_lamports = calculate_vote_lamports!(voter_stake, abstain_votes_bp)?;
+        let VoteLamports {
+            for_votes: for_votes_lamports,
+            against_votes: against_votes_lamports,
+            abstain_votes: abstain_votes_lamports,
+        } = split_vote_lamports(
+            voter_stake,
+            for_votes_bp,
+            against_votes_bp,
+            abstain_votes_bp,
+        )?;
 
         // Add new lamports to proposal totals
         self.proposal.add_vote_lamports(
