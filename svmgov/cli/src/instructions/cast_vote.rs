@@ -12,8 +12,8 @@ use crate::{
     utils::{
         api_helpers::{self, convert_merkle_proof_strings, get_vote_account_proof},
         utils::{
-            compute_vote_expiry_timestamp, create_spinner, derive_vote_override_cache_pda,
-            derive_vote_pda, setup_all,
+            compute_vote_expiry_timestamp, create_spinner, derive_vote_delegation_pda,
+            derive_vote_override_cache_pda, derive_vote_pda, setup_all,
         },
     },
 };
@@ -28,6 +28,7 @@ pub async fn cast_vote(
     rpc_url: Option<String>,
     network: String,
     close_timestamp_override: Option<i64>,
+    vote_account_override: Option<String>,
 ) -> Result<()> {
     if votes_for + votes_against + abstain != BASIS_POINTS_TOTAL {
         return Err(anyhow!(
@@ -40,7 +41,7 @@ pub async fn cast_vote(
         .map_err(|_| anyhow!("Invalid proposal ID: {}", proposal_id))?;
 
     let (payer, vote_account, program, merkle_proof_program) =
-        setup_all(identity_keypair, rpc_url).await?;
+        setup_all(identity_keypair, rpc_url, vote_account_override).await?;
 
     // Fetch proposal to get snapshot_slot and consensus_result
     let proposal = program
@@ -151,6 +152,7 @@ pub async fn cast_vote(
         .accounts(accounts::CastVote {
             signer: payer.pubkey(),
             spl_vote_account: vote_account,
+            vote_delegation: derive_vote_delegation_pda(&vote_account, &program.id()),
             proposal: proposal_pubkey,
             vote: vote_pda,
             vote_override_cache: vote_override_cache_pda,

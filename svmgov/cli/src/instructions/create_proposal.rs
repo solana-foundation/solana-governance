@@ -8,7 +8,7 @@ use crate::{
     utils::proposal_link::{validate_description, validate_description_structure},
     utils::utils::{
         create_spinner, derive_global_config_pda, derive_proposal_index_pda, derive_proposal_pda,
-        fetch_global_config, setup_all,
+        derive_vote_delegation_pda, fetch_global_config, setup_all,
     },
 };
 
@@ -21,6 +21,7 @@ pub async fn create_proposal(
     _network: String,
     skip_link_check: bool,
     with_support: bool,
+    vote_account_override: Option<String>,
 ) -> Result<()> {
     log::debug!(
         "create_proposal: title={}, description={}, seed={:?}, identity_keypair={:?}, rpc_url={:?}, with_support={}",
@@ -35,7 +36,7 @@ pub async fn create_proposal(
     validate_description_structure(&proposal_description)?;
 
     let (payer, vote_account, program, _merkle_proof_program) =
-        setup_all(identity_keypair, rpc_url).await?;
+        setup_all(identity_keypair, rpc_url, vote_account_override).await?;
     let config = fetch_global_config(&program).await?;
     let proposal_description = validate_description(
         &proposal_description,
@@ -68,6 +69,7 @@ pub async fn create_proposal(
         .accounts(accounts::CreateProposal {
             signer: payer.pubkey(),
             spl_vote_account: vote_account,
+            vote_delegation: derive_vote_delegation_pda(&vote_account, &program.id()),
             proposal: proposal_pda,
             proposal_index: proposal_index_pda,
             global_config: global_config_pda,

@@ -3,18 +3,24 @@ use anchor_lang::prelude::*;
 use crate::{
     error::GovernanceError,
     events::ProposalDescriptionUpdated,
-    state::{GlobalConfig, Proposal},
+    state::{GlobalConfig, Proposal, VoteDelegation},
     utils::{check_support_window, is_valid_github_link},
+    vote_authority::require_vote_authority,
 };
 
 #[derive(Accounts)]
 pub struct UpdateProposalDescription<'info> {
     pub signer: Signer<'info>,
-    #[account(
-        mut,
-        constraint = proposal.author == signer.key() @ GovernanceError::UnauthorizedProposalUpdate,
-    )]
+    #[account(mut)]
     pub proposal: Account<'info, Proposal>,
+    /// CHECK: VoteDelegation PDA for the proposal's vote account; may not exist.
+    /// With an accepted delegation on record only the delegate may update the
+    /// proposal, otherwise only its author (the vote account's identity) may.
+    #[account(
+        seeds = [VoteDelegation::SEED, proposal.vote_account_pubkey.as_ref()],
+        bump
+    )]
+    pub vote_delegation: UncheckedAccount<'info>,
     #[account(
         seeds = [b"global_config"],
         bump = global_config.bump,
@@ -24,6 +30,14 @@ pub struct UpdateProposalDescription<'info> {
 
 impl<'info> UpdateProposalDescription<'info> {
     pub fn update_proposal_description(&mut self, description: String) -> Result<()> {
+        require_vote_authority(
+            &self.signer.key(),
+            &self.proposal.author,
+            &self.vote_delegation,
+            &self.proposal.vote_account_pubkey,
+            GovernanceError::UnauthorizedProposalUpdate,
+        )?;
+
         let clock = Clock::get()?;
         // Validate the proposal state
         {
@@ -58,10 +72,11 @@ impl<'info> UpdateProposalDescription<'info> {
         let previous_description = core::mem::replace(&mut self.proposal.description, description);
         emit!(ProposalDescriptionUpdated {
             proposal_id: self.proposal.key(),
-            author: self.signer.key(),
+            author: self.proposal.author,
             previous_description,
             new_description: self.proposal.description.clone(),
             update_timestamp: clock.unix_timestamp,
+            signer: self.signer.key(),
         });
 
         Ok(())

@@ -196,10 +196,15 @@ pub struct Harness {
 }
 
 pub fn make_vote_account_data(node: &Address) -> Vec<u8> {
+    make_vote_account_data_with_authorities(node, node)
+}
+
+/// Vote account data whose authorized withdrawer differs from the node identity.
+pub fn make_vote_account_data_with_authorities(node: &Address, withdrawer: &Address) -> Vec<u8> {
     let vote_init = VoteInit {
         node_pubkey: *node,
         authorized_voter: *node,
-        authorized_withdrawer: *node,
+        authorized_withdrawer: *withdrawer,
         commission: 0,
     };
     let state = VoteStateV3::new(&vote_init, &Clock::default());
@@ -295,6 +300,7 @@ pub fn create_proposal_ix(
             AccountMeta::new(proposal, false),
             AccountMeta::new(proposal_index, false),
             AccountMeta::new_readonly(vote_account, false),
+            AccountMeta::new_readonly(vote_delegation_pda(&vote_account), false),
             AccountMeta::new_readonly(global_config, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -305,6 +311,7 @@ pub fn create_proposal_ix(
 pub fn update_proposal_description_ix(
     author: &Address,
     proposal: Address,
+    vote_account: Address,
     global_config: Address,
     description: &str,
 ) -> Instruction {
@@ -317,6 +324,7 @@ pub fn update_proposal_description_ix(
         accounts: vec![
             AccountMeta::new_readonly(*author, true),
             AccountMeta::new(proposal, false),
+            AccountMeta::new_readonly(vote_delegation_pda(&vote_account), false),
             AccountMeta::new_readonly(global_config, false),
         ],
         data,
@@ -410,6 +418,7 @@ pub fn support_proposal_ix(
             AccountMeta::new(proposal, false),
             AccountMeta::new(support, false),
             AccountMeta::new_readonly(vote_account, false),
+            AccountMeta::new_readonly(vote_delegation_pda(&vote_account), false),
             AccountMeta::new(ballot_box, false),
             AccountMeta::new_readonly(NCN_SNAPSHOT_PROGRAM_ID, false),
             AccountMeta::new_readonly(program_config, false),
@@ -797,6 +806,107 @@ pub fn vote_pda(proposal: &Address, spl_vote_account: &Address) -> Address {
     .0
 }
 
+pub fn vote_delegation_pda(spl_vote_account: &Address) -> Address {
+    Address::find_program_address(
+        &[b"vote_delegation", spl_vote_account.as_ref()],
+        &SVMGOV_PROGRAM_ID,
+    )
+    .0
+}
+
+#[derive(Debug, BorshDeserialize, PartialEq, Eq)]
+pub struct VoteDelegationState {
+    pub delegate: [u8; 32],
+    pub vote_account: [u8; 32],
+    pub creator: [u8; 32],
+    pub delegation_accepted: bool,
+    pub bump: u8,
+}
+
+pub fn fetch_vote_delegation(
+    svm: &LiteSVM,
+    spl_vote_account: &Address,
+) -> Option<VoteDelegationState> {
+    let account = svm.get_account(&vote_delegation_pda(spl_vote_account))?;
+    if account.data.len() <= 8 {
+        return None;
+    }
+    Some(
+        VoteDelegationState::deserialize(&mut &account.data[8..])
+            .expect("deserialize VoteDelegation"),
+    )
+}
+
+#[derive(Debug, BorshDeserialize, PartialEq, Eq)]
+pub struct SupportState {
+    pub proposal: [u8; 32],
+    pub validator: [u8; 32],
+    pub bump: u8,
+}
+
+pub fn fetch_support(
+    svm: &LiteSVM,
+    proposal: &Address,
+    spl_vote_account: &Address,
+) -> Option<SupportState> {
+    let (support, _) = Address::find_program_address(
+        &[b"support", proposal.as_ref(), spl_vote_account.as_ref()],
+        &SVMGOV_PROGRAM_ID,
+    );
+    let account = svm.get_account(&support)?;
+    if account.data.len() <= 8 {
+        return None;
+    }
+    Some(SupportState::deserialize(&mut &account.data[8..]).expect("deserialize Support"))
+}
+
+pub fn delegate_vote_ix(
+    signer: &Address,
+    spl_vote_account: Address,
+    delegate: &Address,
+) -> Instruction {
+    let mut data = anchor_discriminator("global", "delegate_vote").to_vec();
+    data.extend(delegate.to_bytes());
+    Instruction {
+        program_id: SVMGOV_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new(*signer, true),
+            AccountMeta::new_readonly(spl_vote_account, false),
+            AccountMeta::new(vote_delegation_pda(&spl_vote_account), false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+        data,
+    }
+}
+
+pub fn accept_vote_delegation_ix(signer: &Address, spl_vote_account: Address) -> Instruction {
+    Instruction {
+        program_id: SVMGOV_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new_readonly(*signer, true),
+            AccountMeta::new(vote_delegation_pda(&spl_vote_account), false),
+        ],
+        data: anchor_discriminator("global", "accept_vote_delegation").to_vec(),
+    }
+}
+
+pub fn remove_vote_delegation_ix(
+    signer: &Address,
+    spl_vote_account: Address,
+    creator: Address,
+) -> Instruction {
+    Instruction {
+        program_id: SVMGOV_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new_readonly(*signer, true),
+            AccountMeta::new_readonly(spl_vote_account, false),
+            AccountMeta::new(vote_delegation_pda(&spl_vote_account), false),
+            AccountMeta::new(creator, false),
+        ],
+        data: anchor_discriminator("global", "remove_vote_delegation").to_vec(),
+    }
+}
+
 pub fn vote_override_cache_pda(proposal: &Address, validator_vote: &Address) -> Address {
     Address::find_program_address(
         &[
@@ -1040,6 +1150,7 @@ pub fn cast_vote_ix(
             AccountMeta::new(proposal, false),
             AccountMeta::new(vote, false),
             AccountMeta::new_readonly(spl_vote_account, false),
+            AccountMeta::new_readonly(vote_delegation_pda(&spl_vote_account), false),
             AccountMeta::new(vote_override_cache_pda(&proposal, &vote), false),
             AccountMeta::new_readonly(NCN_SNAPSHOT_PROGRAM_ID, false),
             AccountMeta::new_readonly(consensus_result, false),
@@ -1186,6 +1297,7 @@ pub fn modify_vote_ix(
             AccountMeta::new(proposal, false),
             AccountMeta::new(vote, false),
             AccountMeta::new_readonly(spl_vote_account, false),
+            AccountMeta::new_readonly(vote_delegation_pda(&spl_vote_account), false),
             AccountMeta::new_readonly(NCN_SNAPSHOT_PROGRAM_ID, false),
             AccountMeta::new_readonly(consensus_result, false),
             AccountMeta::new_readonly(meta_merkle_proof, false),
@@ -1316,6 +1428,104 @@ pub fn modify_delegator_override(
         abstain_bp,
     );
     send_ix(&mut h.svm, &wallet, &[ix]);
+}
+
+/// Casts the scenario validator's vote signed by an arbitrary key (identity or
+/// delegate), returning the raw transaction result.
+pub fn try_cast_vote_as(
+    h: &mut Harness,
+    s: &VotingScenario,
+    voter: usize,
+    signer: &Keypair,
+    for_bp: u64,
+    against_bp: u64,
+    abstain_bp: u64,
+) -> Result<litesvm::types::TransactionMetadata, litesvm::types::FailedTransactionMetadata> {
+    h.svm.expire_blockhash();
+    let vote_account = h.validators[s.voters[voter].idx].vote.pubkey();
+    try_send_ix(
+        &mut h.svm,
+        signer,
+        &[cast_vote_ix(
+            &signer.pubkey(),
+            s.proposal,
+            vote_account,
+            s.consensus_result,
+            s.voters[voter].meta_merkle_proof_account,
+            for_bp,
+            against_bp,
+            abstain_bp,
+        )],
+    )
+}
+
+/// Modifies the scenario validator's vote signed by an arbitrary key.
+pub fn try_modify_vote_as(
+    h: &mut Harness,
+    s: &VotingScenario,
+    voter: usize,
+    signer: &Keypair,
+    for_bp: u64,
+    against_bp: u64,
+    abstain_bp: u64,
+) -> Result<litesvm::types::TransactionMetadata, litesvm::types::FailedTransactionMetadata> {
+    h.svm.expire_blockhash();
+    let vote_account = h.validators[s.voters[voter].idx].vote.pubkey();
+    try_send_ix(
+        &mut h.svm,
+        signer,
+        &[modify_vote_ix(
+            &signer.pubkey(),
+            s.proposal,
+            vote_account,
+            s.consensus_result,
+            s.voters[voter].meta_merkle_proof_account,
+            for_bp,
+            against_bp,
+            abstain_bp,
+        )],
+    )
+}
+
+/// Supports `proposal` from validator `validator_idx`'s vote account, signed by
+/// an arbitrary key.
+pub fn try_support_as(
+    h: &mut Harness,
+    proposal: Address,
+    validator_idx: usize,
+    signer: &Keypair,
+    ballot_box: Address,
+) -> Result<litesvm::types::TransactionMetadata, litesvm::types::FailedTransactionMetadata> {
+    h.svm.expire_blockhash();
+    let vote = h.validators[validator_idx].vote.pubkey();
+    let (support, _) = Address::find_program_address(
+        &[b"support", proposal.as_ref(), vote.as_ref()],
+        &SVMGOV_PROGRAM_ID,
+    );
+    try_send_ix(
+        &mut h.svm,
+        signer,
+        &[
+            ComputeBudgetInstruction::set_compute_unit_limit(1_400_000),
+            support_proposal_ix(
+                &signer.pubkey(),
+                proposal,
+                support,
+                vote,
+                ballot_box,
+                h.program_config,
+                h.global_config,
+            ),
+        ],
+    )
+}
+
+/// Rewrites validator `idx`'s vote account so its authorized withdrawer is
+/// `withdrawer` while the node identity stays the harness identity keypair.
+pub fn set_vote_account_withdrawer(h: &mut Harness, idx: usize, withdrawer: &Address) {
+    let data =
+        make_vote_account_data_with_authorities(&h.validators[idx].identity.pubkey(), withdrawer);
+    write_account_bytes(&mut h.svm, h.validators[idx].vote.pubkey(), vote::ID, data);
 }
 
 /// Advances past the voting window and finalizes the proposal.

@@ -12,6 +12,7 @@ pub mod support_proposal;
 pub mod transfer_admin;
 pub mod update_config;
 pub mod update_proposal_description;
+pub mod vote_delegation;
 
 pub use cast_vote::*;
 pub use cast_vote_override::*;
@@ -27,3 +28,4 @@ pub use support_proposal::*;
 pub use transfer_admin::*;
 pub use update_config::*;
 pub use update_proposal_description::*;
+pub use vote_delegation::*;

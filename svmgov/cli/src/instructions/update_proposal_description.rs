@@ -11,7 +11,8 @@ use crate::{
     utils::{
         proposal_link::{validate_description, validate_description_structure},
         utils::{
-            create_spinner, derive_global_config_pda, fetch_global_config, setup_signer_and_program,
+            create_spinner, derive_global_config_pda, derive_vote_delegation_pda,
+            fetch_global_config, fetch_vote_delegation, setup_signer_and_program,
         },
     },
 };
@@ -44,12 +45,30 @@ pub async fn update_proposal_description(
         .account::<Proposal>(proposal_pubkey)
         .await
         .map_err(|e| anyhow!("Failed to fetch proposal {proposal_pubkey}: {e}"))?;
-    if proposal.author != payer.pubkey() {
-        return Err(anyhow!(
-            "Only proposal author {} can update this proposal; signer is {}",
-            proposal.author,
-            payer.pubkey()
-        ));
+    // With an accepted delegation on the proposal's vote account only the
+    // delegate may update it; otherwise only the author (the vote account's
+    // identity) may.
+    match fetch_vote_delegation(&program, &proposal.vote_account_pubkey).await? {
+        Some(delegation) if delegation.delegation_accepted => {
+            if delegation.delegate != payer.pubkey() {
+                return Err(anyhow!(
+                    "Vote account {} has delegated its governance vote to {}; only that delegate \
+                     can update this proposal (signer is {})",
+                    proposal.vote_account_pubkey,
+                    delegation.delegate,
+                    payer.pubkey()
+                ));
+            }
+        }
+        _ => {
+            if proposal.author != payer.pubkey() {
+                return Err(anyhow!(
+                    "Only proposal author {} can update this proposal; signer is {}",
+                    proposal.author,
+                    payer.pubkey()
+                ));
+            }
+        }
     }
 
     let spinner = create_spinner("Updating proposal document...");
@@ -61,6 +80,10 @@ pub async fn update_proposal_description(
         .accounts(accounts::UpdateProposalDescription {
             signer: payer.pubkey(),
             proposal: proposal_pubkey,
+            vote_delegation: derive_vote_delegation_pda(
+                &proposal.vote_account_pubkey,
+                &program.id(),
+            ),
             global_config: derive_global_config_pda(&program.id()),
         })
         .send()

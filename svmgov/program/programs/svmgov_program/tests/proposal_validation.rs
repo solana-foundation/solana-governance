@@ -191,6 +191,7 @@ fn author_can_update_description_during_support() {
         &[update_proposal_description_ix(
             &author.pubkey(),
             proposal,
+            h.validators[0].vote.pubkey(),
             h.global_config,
             UPDATED_LINK,
         )],
@@ -211,6 +212,7 @@ fn only_author_can_update_description() {
         &[update_proposal_description_ix(
             &h.config_admin.pubkey(),
             proposal,
+            h.validators[0].vote.pubkey(),
             h.global_config,
             UPDATED_LINK,
         )],
@@ -246,6 +248,7 @@ fn description_update_closes_when_voting_starts_and_preserves_supporters() {
         &[update_proposal_description_ix(
             &author.pubkey(),
             proposal,
+            h.validators[0].vote.pubkey(),
             h.global_config,
             UPDATED_LINK,
         )],
@@ -265,6 +268,7 @@ fn description_update_closes_when_voting_starts_and_preserves_supporters() {
         &[update_proposal_description_ix(
             &author.pubkey(),
             proposal,
+            h.validators[0].vote.pubkey(),
             h.global_config,
             VALID_LINK,
         )],
@@ -292,6 +296,7 @@ fn description_update_reuses_canonical_url_validation_and_support_window() {
         &[update_proposal_description_ix(
             &author.pubkey(),
             proposal,
+            h.validators[0].vote.pubkey(),
             h.global_config,
             "https://github.com/solana-foundation/solana-governance-proposals/blob/main/proposals/sgp-0001.md",
         )],
@@ -313,6 +318,7 @@ fn description_update_reuses_canonical_url_validation_and_support_window() {
         &[update_proposal_description_ix(
             &author.pubkey(),
             proposal,
+            h.validators[0].vote.pubkey(),
             h.global_config,
             UPDATED_LINK,
         )],
@@ -393,7 +399,7 @@ fn signer_must_operate_the_vote_account() {
         err.err,
         TransactionError::InstructionError(
             0,
-            anchor_custom_error(GovernanceError::InvalidVoteAccount)
+            anchor_custom_error(GovernanceError::UnauthorizedVoteSigner)
         ),
         "logs: {:#?}",
         err.meta.logs

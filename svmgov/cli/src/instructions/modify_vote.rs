@@ -10,7 +10,7 @@ use crate::{
     svmgov_program::{accounts::Proposal, client::{accounts, args}},
     utils::{
         api_helpers::{self, get_vote_account_proof},
-        utils::{create_spinner, derive_vote_pda, setup_all},
+        utils::{create_spinner, derive_vote_delegation_pda, derive_vote_pda, setup_all},
     },
 };
 
@@ -22,6 +22,7 @@ pub async fn modify_vote(
     identity_keypair: Option<String>,
     rpc_url: Option<String>,
     network: String,
+    vote_account_override: Option<String>,
 ) -> Result<()> {
     if for_votes + against_votes + abstain_votes != BASIS_POINTS_TOTAL {
         return Err(anyhow!(
@@ -34,7 +35,7 @@ pub async fn modify_vote(
         .map_err(|_| anyhow!("Invalid proposal ID: {}", proposal_id))?;
 
     let (payer, vote_account, program, _merkle_proof_program) =
-        setup_all(identity_keypair, rpc_url).await?;
+        setup_all(identity_keypair, rpc_url, vote_account_override).await?;
 
     // Fetch proposal to get snapshot_slot and consensus_result
     let proposal = program
@@ -69,6 +70,7 @@ pub async fn modify_vote(
         .accounts(accounts::ModifyVote {
             signer: payer.pubkey(),
             spl_vote_account: vote_account,
+            vote_delegation: derive_vote_delegation_pda(&vote_account, &program.id()),
             proposal: proposal_pubkey,
             vote: vote_pda,
             consensus_result: consensus_result_pda,

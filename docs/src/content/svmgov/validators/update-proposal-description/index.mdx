@@ -24,7 +24,7 @@ The CLI checks that the document can be fetched at the pinned commit and starts 
 
 ## On-chain rules
 
-- The signer must equal `Proposal.author`.
+- The signer must equal `Proposal.author`, or be the accepted vote delegate of the proposal's vote account (see [Delegate Vote](/svmgov/validators/delegate-vote)).
 - The URL must be `https://github.com/solana-foundation/solana-governance-proposals/blob/<40-hex-commit>/<path>.md`.
 - Before support activates voting, the proposal must still be in its support window.
 - After support activates voting, the current epoch must be strictly less than `start_epoch`.

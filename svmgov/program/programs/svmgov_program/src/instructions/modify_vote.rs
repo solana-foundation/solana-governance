@@ -8,8 +8,9 @@ use crate::{
     error::GovernanceError,
     events::VoteModified,
     merkle_helpers::verify_merkle_proof_cpi,
-    state::{Proposal, Vote},
+    state::{Proposal, Vote, VoteDelegation},
     utils::{split_vote_lamports, VoteLamports},
+    vote_authority::require_vote_authority,
 };
 use ncn_snapshot::{ConsensusResult, MetaMerkleProof};
 
@@ -26,13 +27,22 @@ pub struct ModifyVote<'info> {
     pub vote: Account<'info, Vote>, // Existing vote to modify
     /// CHECK: Owner == vote program and account size == VoteState::size_of() are
     /// enforced here. The signer-to-vote-account binding is proved in the handler
-    /// via the meta merkle proof: voting_wallet == signer AND vote_account ==
-    /// spl_vote_account, both anchored to proposal.consensus_result.
+    /// via the meta merkle proof (vote_account == spl_vote_account, anchored to
+    /// proposal.consensus_result) plus the authority check: signer is the leaf's
+    /// voting_wallet, or the accepted delegate in `vote_delegation`.
     #[account(
         constraint = spl_vote_account.owner == &vote_program::ID @ ProgramError::InvalidAccountOwner,
         constraint = spl_vote_account.data_len() == VoteState::size_of() @ GovernanceError::InvalidVoteAccountSize
     )]
     pub spl_vote_account: UncheckedAccount<'info>,
+    /// CHECK: VoteDelegation PDA for `spl_vote_account`; may not exist. With an
+    /// accepted delegation on record only the delegate may sign, otherwise only
+    /// the vote account's identity may.
+    #[account(
+        seeds = [VoteDelegation::SEED, spl_vote_account.key().as_ref()],
+        bump
+    )]
+    pub vote_delegation: UncheckedAccount<'info>,
     /// CHECK: The snapshot program (ncn-snapshot or mock)
     // #[account(constraint = snapshot_program.key() == ncn_snapshot::ID @ GovernanceError::InvalidSnapshotProgram)]
     pub snapshot_program: UncheckedAccount<'info>,
@@ -120,12 +130,15 @@ impl<'info> ModifyVote<'info> {
             GovernanceError::InvalidConsensusResultPDA
         );
 
-        // Ensure leaf matches signer and has sufficient stake
-        require_eq!(
-            meta_merkle_leaf.voting_wallet,
-            self.signer.key(),
-            GovernanceError::InvalidVoteAccount
-        );
+        // Ensure the signer holds governance authority for the leaf's vote account
+        // (its voting wallet, or the accepted delegate)
+        require_vote_authority(
+            &self.signer.key(),
+            &meta_merkle_leaf.voting_wallet,
+            &self.vote_delegation,
+            &self.spl_vote_account.key(),
+            GovernanceError::UnauthorizedVoteSigner,
+        )?;
         // Ensure the proof's vote_account matches the provided SPL vote account
         require_eq!(
             meta_merkle_leaf.vote_account,
@@ -178,7 +191,7 @@ impl<'info> ModifyVote<'info> {
 
         emit!(VoteModified {
             proposal_id: self.proposal.key(),
-            voter: self.signer.key(),
+            voter: meta_merkle_leaf.voting_wallet,
             vote_account: self.spl_vote_account.key(),
             old_for_votes_bp: self.vote.for_votes_bp,
             old_against_votes_bp: self.vote.against_votes_bp,
@@ -190,6 +203,7 @@ impl<'info> ModifyVote<'info> {
             against_votes_lamports,
             abstain_votes_lamports,
             modification_timestamp: clock.unix_timestamp,
+            signer: self.signer.key(),
         });
 
         // Update the vote account with new distribution and lamports

@@ -15,6 +15,7 @@ const mockCreateGovV1ProgramWithWallet = jest.fn();
 const mockComputeProofCloseTimestamp = jest.fn();
 const mockGetMetaMerkleProofPda = jest.fn();
 const mockDeriveVotePda = jest.fn();
+const mockDeriveVoteDelegationPda = jest.fn();
 const mockDeriveVoteOverrideCachePda = jest.fn();
 
 jest.mock("../helpers", () => {
@@ -32,6 +33,8 @@ jest.mock("../helpers", () => {
     getMetaMerkleProofPda: (...args: unknown[]) =>
       mockGetMetaMerkleProofPda(...args),
     deriveVotePda: (...args: unknown[]) => mockDeriveVotePda(...args),
+    deriveVoteDelegationPda: (...args: unknown[]) =>
+      mockDeriveVoteDelegationPda(...args),
     deriveVoteOverrideCachePda: (...args: unknown[]) =>
       mockDeriveVoteOverrideCachePda(...args),
   };
@@ -56,9 +59,11 @@ const BLOCKHASH = keyFromByte(5);
 const META_MERKLE_PROOF_PDA = new PublicKey(keyFromByte(20));
 const VALIDATOR_VOTE_PDA = new PublicKey(keyFromByte(21));
 const VOTE_OVERRIDE_CACHE_PDA = new PublicKey(keyFromByte(22));
+const VOTE_DELEGATION_PDA = new PublicKey(keyFromByte(23));
 
 describe("castVote", () => {
   const mockFetchProposal = jest.fn();
+  const mockAllVoteDelegations = jest.fn();
   const mockGetVoteAccounts = jest.fn();
   const mockGetAccountInfo = jest.fn();
   const mockGetLatestBlockhash = jest.fn();
@@ -88,9 +93,20 @@ describe("castVote", () => {
         proposal: {
           fetch: mockFetchProposal,
         },
+        voteDelegation: {
+          all: mockAllVoteDelegations,
+        },
       },
       methods: { castVote: castVoteMethod },
     };
+  }
+
+  /** The `accountsStrict` call of the most recently built cast_vote instruction. */
+  function lastCastVoteAccounts() {
+    const program = mockCreateProgramWithWallet.mock.results.at(-1)!.value;
+    const accountsStrict =
+      program.methods.castVote.mock.results.at(-1)!.value.accountsStrict;
+    return accountsStrict.mock.calls.at(-1)![0];
   }
 
   const mockSignTransaction = jest.fn();
@@ -134,6 +150,7 @@ describe("castVote", () => {
       current: [{ nodePubkey: SIGNER, votePubkey: VOTE_ACCOUNT }],
       delinquent: [],
     });
+    mockAllVoteDelegations.mockResolvedValue([]);
     mockGetAccountInfo.mockResolvedValue({ data: Buffer.alloc(0) });
     mockGetLatestBlockhash.mockResolvedValue({
       blockhash: BLOCKHASH,
@@ -143,6 +160,7 @@ describe("castVote", () => {
     mockGetMetaMerkleProofPda.mockReturnValue(META_MERKLE_PROOF_PDA);
     mockDeriveVotePda.mockReturnValue(VALIDATOR_VOTE_PDA);
     mockDeriveVoteOverrideCachePda.mockReturnValue(VOTE_OVERRIDE_CACHE_PDA);
+    mockDeriveVoteDelegationPda.mockReturnValue(VOTE_DELEGATION_PDA);
     mockFetchProposal.mockResolvedValue({
       snapshotSlot: new BN(340_850_340),
       endEpoch: new BN(100),
@@ -180,6 +198,64 @@ describe("castVote", () => {
     expect(result).toEqual({ signature: "test-signature", success: true });
     expect(mockSignTransaction).toHaveBeenCalledTimes(1);
     expect(mockSendRawTransaction).toHaveBeenCalledTimes(1);
+    expect(lastCastVoteAccounts()).toMatchObject({
+      splVoteAccount: new PublicKey(VOTE_ACCOUNT),
+      voteDelegation: VOTE_DELEGATION_PDA,
+    });
+    expect(mockDeriveVoteDelegationPda).toHaveBeenCalledWith(
+      new PublicKey(VOTE_ACCOUNT),
+      SVMGOV_PROGRAM_ID,
+    );
+  });
+
+  it("votes for the delegated vote account when the wallet is an accepted vote delegate", async () => {
+    // The wallet is nobody's node identity, but one validator delegated to it.
+    mockGetVoteAccounts.mockResolvedValue({
+      current: [{ nodePubkey: keyFromByte(30), votePubkey: keyFromByte(31) }],
+      delinquent: [],
+    });
+    mockAllVoteDelegations.mockResolvedValue([
+      {
+        account: {
+          delegate: new PublicKey(SIGNER),
+          voteAccount: new PublicKey(VOTE_ACCOUNT),
+          delegationAccepted: true,
+        },
+      },
+    ]);
+
+    const result = await castVote(params, blockchainParams);
+
+    expect(result).toEqual({ signature: "test-signature", success: true });
+    expect(mockGetVoteAccountProof).toHaveBeenCalledWith(
+      VOTE_ACCOUNT,
+      "testnet",
+      expect.anything(),
+      "http://localhost:9000",
+    );
+    expect(lastCastVoteAccounts()).toMatchObject({
+      signer: new PublicKey(SIGNER),
+      splVoteAccount: new PublicKey(VOTE_ACCOUNT),
+    });
+  });
+
+  it("rejects a wallet that is neither a validator identity nor an accepted delegate", async () => {
+    mockGetVoteAccounts.mockResolvedValue({ current: [], delinquent: [] });
+    // A pending delegation grants no authority.
+    mockAllVoteDelegations.mockResolvedValue([
+      {
+        account: {
+          delegate: new PublicKey(SIGNER),
+          voteAccount: new PublicKey(VOTE_ACCOUNT),
+          delegationAccepted: false,
+        },
+      },
+    ]);
+
+    await expect(castVote(params, blockchainParams)).rejects.toThrow(
+      /no accepted vote delegation/i,
+    );
+    expect(mockSignTransaction).not.toHaveBeenCalled();
   });
 
   it("reports an unsigned wallet response without submitting the transaction", async () => {

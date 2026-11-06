@@ -6,6 +6,7 @@ mod instructions;
 mod merkle_helpers;
 mod state;
 mod utils;
+mod vote_authority;
 use anchor_lang::prelude::*;
 use instructions::*;
 
@@ -152,6 +153,30 @@ pub mod svmgov_program {
     ) -> Result<()> {
         ctx.accounts
             .modify_vote(for_votes_bp, against_votes_bp, abstain_votes_bp)?;
+        Ok(())
+    }
+
+    /// Step 1 of vote delegation: the vote account's node identity or authorized
+    /// withdrawer names `delegate` as the key that will vote for the vote account.
+    /// Takes effect only once the delegate calls `accept_vote_delegation`.
+    pub fn delegate_vote(ctx: Context<DelegateVote>, delegate: Pubkey) -> Result<()> {
+        ctx.accounts.delegate_vote(delegate, &ctx.bumps)?;
+        Ok(())
+    }
+
+    /// Step 2 of vote delegation: the named delegate accepts. From then on the
+    /// delegate alone may create, support, vote on and modify votes for the vote
+    /// account, and the node identity is locked out until the delegation is removed.
+    pub fn accept_vote_delegation(ctx: Context<AcceptVoteDelegation>) -> Result<()> {
+        ctx.accounts.accept_vote_delegation()?;
+        Ok(())
+    }
+
+    /// Removes a vote delegation and returns its rent to the creator. The delegate
+    /// and the vote account's authorized withdrawer may always remove; the node
+    /// identity only while the delegation is not yet accepted.
+    pub fn remove_vote_delegation(ctx: Context<RemoveVoteDelegation>) -> Result<()> {
+        ctx.accounts.remove_vote_delegation()?;
         Ok(())
     }
 

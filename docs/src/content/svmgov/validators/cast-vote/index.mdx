@@ -31,6 +31,7 @@ svmgov cast-vote \
 | `--abstain-votes` | u64 | **Yes** | Basis points allocated to Abstain (0–10,000) |
 | `--network` | String | No | Network override: `mainnet`, `testnet` |
 | `--close-timestamp` | i64 | No | Unix timestamp after which the `MetaMerkleProof` PDA can be closed permissionlessly. Defaults to the proposal's vote-expiry time |
+| `--vote-account` | String | No | SPL vote account to act for. Defaults to the signer's own vote account, or the one whose vote is delegated to the signer (see [Delegate Vote](/svmgov/validators/delegate-vote)) |
 
 ## Global Arguments
 
@@ -44,6 +45,7 @@ svmgov cast-vote \
 - Proposal must be in **voting phase** (`proposal.voting == true`)
 - Current epoch must be within `[start_epoch, end_epoch]`
 - `for_votes + against_votes + abstain_votes` must equal exactly **10,000**
+- The signer must be the vote account's identity (the snapshot `voting_wallet`), or its accepted vote delegate
 - NCN operators must have finalized the `ConsensusResult` for this proposal's snapshot
 
 ## Basis Points Reference
@@ -107,4 +109,5 @@ svmgov cast-vote \
 ## Related
 
 - [Modify Vote](/svmgov/validators/modify-vote) — Change your vote during the voting phase
+- [Delegate Vote](/svmgov/validators/delegate-vote) — Vote with a key other than the validator identity
 - [Finalize Proposal](/svmgov/validators/finalize-proposal) — Lock results after voting ends
