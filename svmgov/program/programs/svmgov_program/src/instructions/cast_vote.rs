@@ -4,12 +4,12 @@ use anchor_lang::{
 };
 
 use crate::{
-    calculate_vote_lamports,
     constants::*,
     error::GovernanceError,
     events::VoteCast,
     merkle_helpers::verify_merkle_proof_cpi,
     state::{Proposal, Vote, VoteOverrideCache},
+    utils::split_vote_lamports,
 };
 use ncn_snapshot::{ConsensusResult, MetaMerkleProof};
 
@@ -156,11 +156,14 @@ impl<'info> CastVote<'info> {
             None,
         )?;
 
-        // Calculate effective votes for each category based on actual lamports
         let voter_stake = meta_merkle_leaf.active_stake;
-        let for_votes_lamports = calculate_vote_lamports!(voter_stake, for_votes_bp)?;
-        let against_votes_lamports = calculate_vote_lamports!(voter_stake, against_votes_bp)?;
-        let abstain_votes_lamports = calculate_vote_lamports!(voter_stake, abstain_votes_bp)?;
+        let (for_votes_lamports, against_votes_lamports, abstain_votes_lamports) =
+            split_vote_lamports(
+                voter_stake,
+                for_votes_bp,
+                against_votes_bp,
+                abstain_votes_bp,
+            )?;
 
         // Check if override cache PDA exists and has been initialized.
         // If it does, delegators overrode before this validator vote. Their
@@ -183,13 +186,13 @@ impl<'info> CastVote<'info> {
                 .checked_sub(override_cache.total_stake)
                 .ok_or(GovernanceError::ArithmeticOverflow)?;
 
-            // Calculate new validator votes for each category based on actual lamports
-            let for_votes_lamports_new =
-                calculate_vote_lamports!(new_validator_stake, for_votes_bp)?;
-            let against_votes_lamports_new =
-                calculate_vote_lamports!(new_validator_stake, against_votes_bp)?;
-            let abstain_votes_lamports_new =
-                calculate_vote_lamports!(new_validator_stake, abstain_votes_bp)?;
+            let (for_votes_lamports_new, against_votes_lamports_new, abstain_votes_lamports_new) =
+                split_vote_lamports(
+                    new_validator_stake,
+                    for_votes_bp,
+                    against_votes_bp,
+                    abstain_votes_bp,
+                )?;
 
             // Add validator's reduced votes to proposal
             self.proposal.add_vote_lamports(
