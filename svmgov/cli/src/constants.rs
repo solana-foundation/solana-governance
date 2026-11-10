@@ -117,6 +117,20 @@ mod tests {
 // UI constants
 pub const SPINNER_TICK_DURATION_MS: u64 = 100;
 
+// Account sizes (discriminator included) of `Vote` and `VoteOverride` records
+// written before `delegate_signer: Option<Pubkey>` was appended; the program's
+// `migrate_vote_records` grows them by 33 bytes. Pinned by the program's
+// LiteSVM tests.
+pub const LEGACY_VOTE_ACCOUNT_LEN: u64 = 145;
+pub const LEGACY_VOTE_OVERRIDE_ACCOUNT_LEN: u64 = 233;
+
+// Records per `migrate_vote_records` transaction: keeps a legacy transaction
+// under its 1232-byte size limit with room for the payer and system program.
+pub const MIGRATE_RECORDS_PER_TX: usize = 25;
+// Compute budget for one such transaction; each record costs a system transfer
+// CPI plus a realloc.
+pub const MIGRATE_RECORDS_CU_LIMIT: u32 = 400_000;
+
 // Environment variable names
 pub const SVMGOV_KEY_ENV: &str = "SVMGOV_KEY";
 pub const SVMGOV_RPC_ENV: &str = "SVMGOV_RPC";

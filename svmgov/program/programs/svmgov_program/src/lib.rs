@@ -228,6 +228,17 @@ pub mod svmgov_program {
         Ok(())
     }
 
+    /// Grows `Vote` and `VoteOverride` accounts recorded before `delegate_signer`
+    /// existed to the current layout, with the field reading `None`. Permissionless:
+    /// the signer pays the added rent. Pass the accounts to migrate as remaining
+    /// accounts; any already at the current size are skipped, so a batch may be
+    /// retried.
+    pub fn migrate_vote_records<'info>(
+        ctx: Context<'_, '_, 'info, 'info, MigrateVoteRecords<'info>>,
+    ) -> Result<()> {
+        ctx.accounts.migrate_vote_records(ctx.remaining_accounts)
+    }
+
     pub fn flush_merkle_root(ctx: Context<FlushMerkleRoot>) -> Result<()> {
         ctx.accounts.flush_merkle_root()?;
         Ok(())

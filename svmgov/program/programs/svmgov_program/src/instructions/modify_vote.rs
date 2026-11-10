@@ -10,7 +10,7 @@ use crate::{
     merkle_helpers::verify_merkle_proof_cpi,
     state::{Proposal, Vote, VoteDelegation},
     utils::{split_vote_lamports, VoteLamports},
-    vote_authority::require_vote_authority,
+    vote_authority::{delegate_signer, require_vote_authority},
 };
 use ncn_snapshot::{ConsensusResult, MetaMerkleProof};
 
@@ -214,6 +214,7 @@ impl<'info> ModifyVote<'info> {
         self.vote.against_votes_lamports = against_votes_lamports;
         self.vote.abstain_votes_lamports = abstain_votes_lamports;
         self.vote.vote_timestamp = clock.unix_timestamp;
+        self.vote.delegate_signer = delegate_signer(&self.signer.key(), &self.vote.validator);
 
         Ok(())
     }

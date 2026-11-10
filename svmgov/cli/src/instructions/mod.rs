@@ -4,6 +4,7 @@ pub mod create_proposal;
 pub mod finalize_proposal;
 pub mod global_config;
 pub mod init_index;
+pub mod migrate_vote_records;
 pub mod modify_vote;
 pub mod modify_vote_override;
 pub mod retally_support;
@@ -20,6 +21,7 @@ pub use global_config::{
     update_global_config,
 };
 pub use init_index::initialize_index;
+pub use migrate_vote_records::migrate_vote_records;
 pub use modify_vote::modify_vote;
 pub use modify_vote_override::modify_vote_override;
 pub use retally_support::retally_support;

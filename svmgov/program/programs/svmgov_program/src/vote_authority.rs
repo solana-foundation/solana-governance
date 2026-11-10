@@ -66,6 +66,13 @@ pub fn load_vote_delegation(
     Ok(Some(delegation))
 }
 
+/// The value a record stores as `delegate_signer`: `signer` when it is not the
+/// voter's own key `identity` (so, its accepted vote delegate), `None` when the
+/// voter signed itself.
+pub fn delegate_signer(signer: &Pubkey, identity: &Pubkey) -> Option<Pubkey> {
+    (signer != identity).then_some(*signer)
+}
+
 /// Requires `signer` to hold governance authority for `subject` (an SPL vote
 /// account or a voting wallet), whose own voting key is `identity`. With an
 /// accepted delegation on record only the delegate qualifies and the identity

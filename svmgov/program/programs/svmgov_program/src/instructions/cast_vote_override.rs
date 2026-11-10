@@ -13,7 +13,7 @@ use crate::{
     merkle_helpers::verify_merkle_proof_cpi,
     state::{Proposal, Vote, VoteDelegation, VoteOverride, VoteOverrideCache},
     utils::{split_vote_lamports, VoteLamports},
-    vote_authority::require_vote_authority,
+    vote_authority::{delegate_signer, require_vote_authority},
 };
 use ncn_snapshot::{ConsensusResult, MetaMerkleProof, StakeMerkleLeaf};
 
@@ -308,6 +308,10 @@ impl<'info> CastVoteOverride<'info> {
                 for_votes_lamports,
                 against_votes_lamports,
                 abstain_votes_lamports,
+                delegate_signer: delegate_signer(
+                    &self.signer.key(),
+                    &stake_merkle_leaf.voting_wallet,
+                ),
             });
         } else {
             // Validator has no vote yet.
@@ -395,6 +399,10 @@ impl<'info> CastVoteOverride<'info> {
                 for_votes_lamports,
                 against_votes_lamports,
                 abstain_votes_lamports,
+                delegate_signer: delegate_signer(
+                    &self.signer.key(),
+                    &stake_merkle_leaf.voting_wallet,
+                ),
             });
         }
 

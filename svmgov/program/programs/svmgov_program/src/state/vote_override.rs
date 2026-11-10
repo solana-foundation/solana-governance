@@ -1,5 +1,7 @@
 use anchor_lang::prelude::*;
 
+/// A staker's override of their validator's vote for one stake account.
+/// PDA seeds: `["vote_override", proposal, stake_account, validator_vote]`.
 #[account]
 #[derive(InitSpace)]
 pub struct VoteOverride {
@@ -17,4 +19,8 @@ pub struct VoteOverride {
     pub stake_amount: u64,
     pub vote_override_timestamp: i64,
     pub bump: u8,
+    /// The accepted vote delegate that signed the current state of this
+    /// override, or `None` when `delegator` signed it itself. Always `None` on
+    /// overrides recorded before vote delegation existed.
+    pub delegate_signer: Option<Pubkey>,
 }

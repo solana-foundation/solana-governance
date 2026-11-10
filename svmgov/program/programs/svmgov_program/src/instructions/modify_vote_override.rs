@@ -14,7 +14,7 @@ use crate::{
     merkle_helpers::verify_merkle_proof_cpi,
     state::{Proposal, Vote, VoteDelegation, VoteOverride, VoteOverrideCache},
     utils::{split_vote_lamports, VoteLamports},
-    vote_authority::require_vote_authority,
+    vote_authority::{delegate_signer, require_vote_authority},
 };
 
 #[derive(Accounts)]
@@ -229,6 +229,8 @@ impl<'info> ModifyVoteOverride<'info> {
         self.vote_override.against_votes_lamports = against_votes_lamports;
         self.vote_override.abstain_votes_lamports = abstain_votes_lamports;
         self.vote_override.vote_override_timestamp = clock.unix_timestamp;
+        self.vote_override.delegate_signer =
+            delegate_signer(&self.signer.key(), &self.vote_override.delegator);
 
         // The delegator's lamports are always part of the proposal totals —
         // they were added when the override was cast, regardless of whether the

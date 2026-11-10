@@ -10,7 +10,7 @@ use crate::{
     merkle_helpers::verify_merkle_proof_cpi,
     state::{Proposal, Vote, VoteDelegation, VoteOverrideCache},
     utils::{split_vote_lamports, VoteLamports},
-    vote_authority::require_vote_authority,
+    vote_authority::{delegate_signer, require_vote_authority},
 };
 use ncn_snapshot::{ConsensusResult, MetaMerkleProof};
 
@@ -234,6 +234,10 @@ impl<'info> CastVote<'info> {
                 stake: voter_stake,
                 vote_timestamp: clock.unix_timestamp,
                 bump: bumps.vote,
+                delegate_signer: delegate_signer(
+                    &self.signer.key(),
+                    &meta_merkle_leaf.voting_wallet,
+                ),
             });
 
             // Emit the missing VoteCast event
@@ -271,6 +275,10 @@ impl<'info> CastVote<'info> {
                 stake: voter_stake,
                 vote_timestamp: clock.unix_timestamp,
                 bump: bumps.vote,
+                delegate_signer: delegate_signer(
+                    &self.signer.key(),
+                    &meta_merkle_leaf.voting_wallet,
+                ),
             });
 
             // Emit vote cast event

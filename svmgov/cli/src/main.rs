@@ -202,6 +202,22 @@ enum Commands {
     },
 
     #[command(
+        about = "Grow pre-delegation Vote and VoteOverride accounts to the current layout (one-time, permissionless)",
+        long_about = "Finds every Vote and VoteOverride account recorded before vote delegation existed and grows \
+                      it to the current layout, where `delegate_signer` reads as None. Anyone may run it; the \
+                      signer pays the added rent (about 0.00023 SOL per record) and transaction fees. Records are \
+                      migrated in batches and the command may be re-run safely: migrated records are skipped.\n\n\
+                      Example:\n\
+                      $ svmgov -k /path/to/payer.json migrate-vote-records\n\
+                      $ svmgov migrate-vote-records --dry-run"
+    )]
+    MigrateVoteRecords {
+        /// Only report how many records need migrating.
+        #[arg(long, help = "List the legacy records without sending transactions")]
+        dry_run: bool,
+    },
+
+    #[command(
         about = "Cast a vote on a proposal",
         long_about = "This command casts a vote on a live governance proposal. \
                       Voters specify how to allocate their stake weight across 'For', 'Against', and 'Abstain' using basis points, which must sum to 10,000 (representing 100% of their stake). \
@@ -822,6 +838,10 @@ fn squads_refusal_for(command: &Commands) -> Option<String> {
             "retally-support",
             "no particular signer because it is permissionless, so a multisig adds friction without benefit",
         ),
+        Commands::MigrateVoteRecords { .. } => (
+            "migrate-vote-records",
+            "no particular signer because it is permissionless, so a multisig adds friction without benefit",
+        ),
         Commands::CastVoteOverride { .. }
         | Commands::ModifyVoteOverride { .. }
         | Commands::InitGlobalConfig { .. }
@@ -885,6 +905,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
         | Commands::InitIndex { .. }
         | Commands::FinalizeProposal { .. }
         | Commands::RetallySupport { .. }
+        | Commands::MigrateVoteRecords { .. }
         | Commands::Proposal { .. }
         | Commands::ListProposals { .. }
         | Commands::VoteBreakdown { .. }
@@ -968,6 +989,9 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 vote_account.clone(),
             )
             .await?;
+        }
+        Commands::MigrateVoteRecords { dry_run } => {
+            instructions::migrate_vote_records(*dry_run, cli.keypair, cli.rpc_url).await?;
         }
         Commands::RetallySupport { proposal_id } => {
             instructions::retally_support(

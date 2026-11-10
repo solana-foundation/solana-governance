@@ -160,4 +160,6 @@ pub enum GovernanceError {
     UnauthorizedVoteSigner,
     #[msg("Vote delegation is pending; the delegate must accept it before acting for the voter")]
     VoteDelegationNotAccepted,
+    #[msg("Account is not a Vote or VoteOverride of this program at a known layout")]
+    InvalidVoteRecord,
 }

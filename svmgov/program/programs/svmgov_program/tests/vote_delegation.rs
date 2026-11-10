@@ -390,6 +390,7 @@ fn delegation_is_inert_until_accepted() {
     assert_ok(try_cast_vote_as(&mut h, &s, 0, &id, 10_000, 0, 0));
     let vote = fetch_vote(&h, &s, 0).expect("vote must exist");
     assert_eq!(vote.validator, id.pubkey().to_bytes());
+    assert_eq!(vote.delegate_signer, None);
     assert_rejected(
         try_modify_vote_as(&mut h, &s, 0, &delegate, 0, 10_000, 0),
         GovernanceError::VoteDelegationNotAccepted,
@@ -412,6 +413,7 @@ fn accepted_delegate_votes_with_the_validators_stake_and_locks_out_the_identity(
     assert_ok(try_cast_vote_as(&mut h, &s, 0, &delegate, 7_000, 3_000, 0));
     let vote = fetch_vote(&h, &s, 0).expect("vote must exist");
     assert_eq!(vote.validator, id.pubkey().to_bytes());
+    assert_eq!(vote.delegate_signer, Some(delegate.pubkey().to_bytes()));
     assert_eq!(vote.stake, V_ACTIVE);
     assert_eq!(
         (vote.for_votes_lamports, vote.against_votes_lamports),
@@ -453,8 +455,10 @@ fn delegate_takes_over_a_vote_the_identity_cast_before_accepting() {
     );
     assert_ok(try_modify_vote_as(&mut h, &s, 0, &delegate, 0, 10_000, 0));
 
+    // The record keeps naming the identity but now shows who last signed it.
     let vote = fetch_vote(&h, &s, 0).expect("vote must exist");
     assert_eq!(vote.validator, id.pubkey().to_bytes());
+    assert_eq!(vote.delegate_signer, Some(delegate.pubkey().to_bytes()));
     let state = fetch_proposal(&h.svm, &s.proposal);
     assert_eq!(
         (state.for_votes_lamports, state.against_votes_lamports),
@@ -639,6 +643,10 @@ fn accepted_wallet_delegate_overrides_with_the_stakers_stake() {
     assert_ok(try_override_as(&mut h, &s, 0, 0, &delegate, (10_000, 0, 0)));
     let vote_override = fetch_vote_override(&h, &s, 0, 0).expect("override must exist");
     assert_eq!(vote_override.delegator, subject.to_bytes());
+    assert_eq!(
+        vote_override.delegate_signer,
+        Some(delegate.pubkey().to_bytes())
+    );
     assert_eq!(vote_override.stake_amount, D0);
     let state = fetch_proposal(&h.svm, &s.proposal);
     assert_eq!(

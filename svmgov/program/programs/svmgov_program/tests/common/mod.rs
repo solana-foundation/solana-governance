@@ -770,7 +770,7 @@ pub fn build_merkle(leaf_contents: &[[u8; 32]]) -> ([u8; 32], Vec<Vec<[u8; 32]>>
 
 // Borsh mirrors of the svmgov accounts the voting suites assert on.
 
-#[derive(Debug, BorshDeserialize)]
+#[derive(Debug, BorshDeserialize, PartialEq, Eq)]
 pub struct VoteAccountState {
     pub validator: [u8; 32],
     pub proposal: [u8; 32],
@@ -784,6 +784,7 @@ pub struct VoteAccountState {
     pub override_lamports: u64,
     pub vote_timestamp: i64,
     pub bump: u8,
+    pub delegate_signer: Option<[u8; 32]>,
 }
 
 #[derive(Debug, BorshDeserialize, PartialEq, Eq)]
@@ -903,6 +904,24 @@ pub fn remove_vote_delegation_ix(
             AccountMeta::new(rent_recipient, false),
         ],
         data: anchor_discriminator("global", "remove_vote_delegation").to_vec(),
+    }
+}
+
+/// Builds `migrate_vote_records` with `records` as its remaining accounts.
+pub fn migrate_vote_records_ix(payer: &Address, records: &[Address]) -> Instruction {
+    let mut accounts = vec![
+        AccountMeta::new(*payer, true),
+        AccountMeta::new_readonly(system_program::ID, false),
+    ];
+    accounts.extend(
+        records
+            .iter()
+            .map(|record| AccountMeta::new(*record, false)),
+    );
+    Instruction {
+        program_id: SVMGOV_PROGRAM_ID,
+        accounts,
+        data: anchor_discriminator("global", "migrate_vote_records").to_vec(),
     }
 }
 
@@ -1556,7 +1575,7 @@ pub fn try_support_as(
     )
 }
 
-#[derive(Debug, BorshDeserialize)]
+#[derive(Debug, BorshDeserialize, PartialEq, Eq)]
 pub struct VoteOverrideState {
     pub delegator: [u8; 32],
     pub stake_account: [u8; 32],
@@ -1572,6 +1591,7 @@ pub struct VoteOverrideState {
     pub stake_amount: u64,
     pub vote_override_timestamp: i64,
     pub bump: u8,
+    pub delegate_signer: Option<[u8; 32]>,
 }
 
 pub fn fetch_vote_override(

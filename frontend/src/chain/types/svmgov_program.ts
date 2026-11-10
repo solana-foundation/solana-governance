@@ -878,6 +878,29 @@ export type SvmgovProgram = {
       args: [];
     },
     {
+      name: "migrateVoteRecords";
+      docs: [
+        "Grows `Vote` and `VoteOverride` accounts recorded before `delegate_signer`",
+        "existed to the current layout, with the field reading `None`. Permissionless:",
+        "the signer pays the added rent. Pass the accounts to migrate as remaining",
+        "accounts; any already at the current size are skipped, so a batch may be",
+        "retried.",
+      ];
+      discriminator: [116, 85, 10, 13, 64, 197, 80, 114];
+      accounts: [
+        {
+          name: "payer";
+          writable: true;
+          signer: true;
+        },
+        {
+          name: "systemProgram";
+          address: "11111111111111111111111111111111";
+        },
+      ];
+      args: [];
+    },
+    {
       name: "modifyVote";
       discriminator: [116, 52, 102, 0, 121, 145, 27, 139];
       accounts: [
@@ -2180,6 +2203,11 @@ export type SvmgovProgram = {
       name: "voteDelegationNotAccepted";
       msg: "Vote delegation is pending; the delegate must accept it before acting for the voter";
     },
+    {
+      code: 6073;
+      name: "invalidVoteRecord";
+      msg: "Account is not a Vote or VoteOverride of this program at a known layout";
+    },
   ];
   types: [
     {
@@ -2683,6 +2711,9 @@ export type SvmgovProgram = {
     },
     {
       name: "vote";
+      docs: [
+        'A validator\'s vote on a proposal. PDA seeds: `["vote", proposal, spl_vote_account]`.',
+      ];
       type: {
         kind: "struct";
         fields: [
@@ -2733,6 +2764,17 @@ export type SvmgovProgram = {
           {
             name: "bump";
             type: "u8";
+          },
+          {
+            name: "delegateSigner";
+            docs: [
+              "The accepted vote delegate that signed the current state of this vote,",
+              "or `None` when `validator` signed it itself. Always `None` on votes",
+              "recorded before vote delegation existed.",
+            ];
+            type: {
+              option: "pubkey";
+            };
           },
         ];
       };
@@ -2988,6 +3030,10 @@ export type SvmgovProgram = {
     },
     {
       name: "voteOverride";
+      docs: [
+        "A staker's override of their validator's vote for one stake account.",
+        'PDA seeds: `["vote_override", proposal, stake_account, validator_vote]`.',
+      ];
       type: {
         kind: "struct";
         fields: [
@@ -3046,6 +3092,17 @@ export type SvmgovProgram = {
           {
             name: "bump";
             type: "u8";
+          },
+          {
+            name: "delegateSigner";
+            docs: [
+              "The accepted vote delegate that signed the current state of this",
+              "override, or `None` when `delegator` signed it itself. Always `None` on",
+              "overrides recorded before vote delegation existed.",
+            ];
+            type: {
+              option: "pubkey";
+            };
           },
         ];
       };

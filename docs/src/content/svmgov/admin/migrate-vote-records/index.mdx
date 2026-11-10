@@ -1,0 +1,52 @@
+import { Callout } from 'nextra/components'
+
+# Migrate Vote Records
+
+Grow `Vote` and `VoteOverride` accounts recorded before vote delegation existed to the current layout.
+
+## Description
+
+Vote delegation added a `delegate_signer: Option<Pubkey>` field to every `Vote` and `VoteOverride` account. It names the accepted delegate that signed the record's current state, and is `None` when the voter signed itself. Records written before the field existed are 33 bytes shorter and cannot be read by the upgraded program or its clients until they are grown.
+
+`migrate-vote-records` is **permissionless** and runs once per deployment. It finds every legacy record, grows each to the current size with `delegate_signer = None`, and charges the signer the added rent (about 0.00023 SOL per record) plus transaction fees. Records are migrated in batches of 25; re-running the command is safe because records already at the current size are skipped.
+
+<Callout type="warning">
+  Run this immediately after deploying the program version that introduced vote delegation. Until it completes, votes and overrides from earlier proposals do not load in the frontend or CLI, and any in-progress proposal's existing votes cannot be modified or overridden.
+</Callout>
+
+## Usage
+
+```bash
+svmgov migrate-vote-records
+```
+
+## Arguments
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `--dry-run` | flag | No | Count the legacy records without sending transactions |
+
+## Global Arguments
+
+| Option | Short | Description |
+|---|---|---|
+| `--keypair <PATH>` | `-k` | Path to keypair JSON (pays rent and fees) |
+| `--rpc-url <URL>` | `-r` | Custom RPC URL |
+
+## Examples
+
+```bash
+# See how many records need migrating
+svmgov migrate-vote-records --dry-run
+
+# Migrate them, paying from the given keypair
+svmgov -k /path/to/payer.json migrate-vote-records
+```
+
+## What Happens On-Chain
+
+`migrate_vote_records` takes the records as remaining accounts. For each, the program checks that it is owned by the program and carries the `Vote` or `VoteOverride` discriminator, transfers the rent shortfall from the signer, and reallocates the account to the current size. The appended bytes are zero, which Borsh reads as `None`. An account already at the current size is left untouched; any other size is rejected.
+
+## Related
+
+- [Delegate Vote](/svmgov/validators/delegate-vote)
