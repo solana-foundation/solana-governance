@@ -41,6 +41,7 @@ svmgov support-proposal \
 - Proposal must not already be in voting phase or finalized
 - Current epoch must be within the support period (`creation_epoch + max_support_epochs`)
 - Each validator can only support a given proposal once
+- With `--squads`, the vault transaction must execute in the epoch it was created in if it is the support that crosses the threshold; see [Using a Squads vault](/svmgov/validators/delegate-vote#using-a-squads-vault)
 
 ## Examples
 

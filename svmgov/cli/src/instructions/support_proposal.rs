@@ -3,8 +3,8 @@ use std::{str::FromStr, sync::Arc};
 use anchor_client::{
     DynSigner, Program,
     solana_sdk::{
-        compute_budget::ComputeBudgetInstruction, instruction::Instruction, pubkey::Pubkey,
-        signer::Signer,
+        compute_budget::ComputeBudgetInstruction, epoch_info::EpochInfo, instruction::Instruction,
+        pubkey::Pubkey, signer::Signer,
     },
 };
 use anchor_lang::system_program;
@@ -26,16 +26,19 @@ use crate::{
 };
 
 /// Builds the instructions to support a proposal, deriving the snapshot slot
-/// and all required PDAs from the current epoch and global config.
+/// and all required PDAs from `epoch_info` and the global config. The ballot
+/// box account is bound to `epoch_info.epoch`; the program checks it only when
+/// this support crosses the activation threshold, and the instruction must
+/// then execute in that same epoch.
 pub async fn build_support_proposal_instructions(
     program: &Program<Arc<DynSigner>>,
     signer: Pubkey,
     proposal: Pubkey,
     vote_account: Pubkey,
+    epoch_info: &EpochInfo,
 ) -> Result<Vec<Instruction>> {
     let global_config = fetch_global_config(program).await?;
 
-    let epoch_info = program.rpc().get_epoch_info().await?;
     let snapshot_slot = proposal_snapshot_slot(
         epoch_info.epoch,
         epoch_info.absolute_slot,
@@ -72,6 +75,17 @@ pub async fn build_support_proposal_instructions(
         .instructions()?;
 
     Ok(instructions)
+}
+
+/// Explains that a vault transaction whose support was built in `epoch` must
+/// execute within that epoch to be able to activate voting.
+pub fn squads_epoch_notice(epoch: u64) -> String {
+    format!(
+        "Execute this vault transaction by the end of epoch {epoch}. Its ballot box account is \
+         bound to that epoch, so if it is the support that crosses the activation threshold in a \
+         later epoch the program rejects it with InvalidBallotBox; cancel it in Squads and re-run \
+         this command."
+    )
 }
 
 pub async fn support_proposal(
@@ -143,9 +157,16 @@ pub async fn support_proposal(
     let spinner = create_spinner("Supporting proposal...");
 
     let signer = effective_signer(squads.as_ref(), payer.pubkey());
+    let epoch_info = program.rpc().get_epoch_info().await?;
     instructions.append(
-        &mut build_support_proposal_instructions(&program, signer, proposal_pubkey, vote_account)
-            .await?,
+        &mut build_support_proposal_instructions(
+            &program,
+            signer,
+            proposal_pubkey,
+            vote_account,
+            &epoch_info,
+        )
+        .await?,
     );
 
     let rpc = program.rpc();
@@ -166,6 +187,7 @@ pub async fn support_proposal(
             "Executing this vault transaction needs about {compute_unit_limit} compute units; \
              raise the compute unit limit when executing it in Squads."
         );
+        println!("{}", squads_epoch_notice(epoch_info.epoch));
     }
 
     Ok(())

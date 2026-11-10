@@ -129,7 +129,11 @@ svmgov -k /path/to/member.json cast-vote --proposal-id "ABC123..." \
 ```
 
 <Callout type="warning">
-  The vault pays the rent of any account the instruction creates: the delegation record for `delegate-vote`, and the `Proposal`, `Support`, `Vote` or `VoteOverride` record for the voting commands. Fund the vault before approving, or execution fails and the proposal must be cancelled in Squads. `support-proposal` also needs a raised compute unit limit at execution; the CLI prints the amount.
+  The vault pays the rent of any account the instruction creates: the delegation record for `delegate-vote`, and the `Proposal`, `Support`, `Vote` or `VoteOverride` record for the voting commands. Fund the vault before approving, or execution fails and the proposal must be cancelled in Squads.
+</Callout>
+
+<Callout type="warning">
+  `support-proposal` (and `create-proposal --with-support`) has two more conditions at execution. It needs a raised compute unit limit; the CLI prints the amount. And its ballot box account is bound to the epoch the vault transaction was created in, which the program checks only when this support crosses the activation threshold. Approve and execute within that epoch: a later execution that crosses the threshold fails with `InvalidBallotBox`, and the vault transaction must be cancelled and re-created. The CLI prints the epoch.
 </Callout>
 
 ## What Happens On-Chain

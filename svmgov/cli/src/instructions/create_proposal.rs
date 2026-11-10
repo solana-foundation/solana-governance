@@ -3,11 +3,11 @@ use anchor_lang::system_program;
 use anyhow::Result;
 
 use crate::{
-    instructions::support_proposal::build_support_proposal_instructions,
+    instructions::support_proposal::{build_support_proposal_instructions, squads_epoch_notice},
     svmgov_program::client::{accounts, args},
     utils::{
         proposal_link::{validate_description, validate_description_structure},
-        squads::{SquadsCliOpts, effective_signer, route},
+        squads::{RoutedOutcome, SquadsCliOpts, effective_signer, route},
         utils::{
             create_spinner, derive_global_config_pda, derive_proposal_index_pda,
             derive_proposal_pda, derive_vote_delegation_pda, fetch_global_config, setup_all,
@@ -88,12 +88,22 @@ pub async fn create_proposal(
         })
         .instructions()?;
 
-    if with_support {
-        let support_proposal_ixs =
-            build_support_proposal_instructions(&program, signer, proposal_pda, vote_account)
-                .await?;
-
-        instructions.extend(support_proposal_ixs);
+    let epoch_info = if with_support {
+        Some(program.rpc().get_epoch_info().await?)
+    } else {
+        None
+    };
+    if let Some(epoch_info) = &epoch_info {
+        instructions.extend(
+            build_support_proposal_instructions(
+                &program,
+                signer,
+                proposal_pda,
+                vote_account,
+                epoch_info,
+            )
+            .await?,
+        );
     }
 
     let rpc = program.rpc();
@@ -117,6 +127,9 @@ pub async fn create_proposal(
             ""
         }
     );
+    if let (Some(epoch_info), RoutedOutcome::Squads { .. }) = (&epoch_info, &outcome) {
+        println!("{}", squads_epoch_notice(epoch_info.epoch));
+    }
 
     Ok(())
 }
