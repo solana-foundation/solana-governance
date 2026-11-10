@@ -33,7 +33,7 @@ svmgov modify-vote-override \
 | `--stake-account` | String | **Yes** | Your stake account address (base58) |
 | `--vote-account` | String | **Yes** | Your validator's vote account address (base58) |
 | `--network` | String | No | Network override: `mainnet`, `testnet` |
-| `--staker-keypair` | String | **Yes** | Path to staker keypair JSON |
+| `--staker-keypair` | String | **Yes** | Path to the signer's keypair JSON: the stake account's withdraw authority, or its accepted vote delegate |
 
 ## Global Arguments
 
@@ -44,6 +44,7 @@ svmgov modify-vote-override \
 ## Requirements
 
 - You must have already submitted a vote override for this proposal and stake account
+- You must sign as the stake account's withdraw authority, or as its accepted vote delegate (see [Delegate Vote](/svmgov/validators/delegate-vote))
 - Proposal must still be in the voting phase
 - New values must still sum to **10,000** basis points
 
@@ -80,3 +81,4 @@ svmgov modify-vote-override \
 ## Related
 
 - [Cast Vote Override](/svmgov/stakers/cast-vote-override) — Initial override command
+- [Delegate Vote](/svmgov/validators/delegate-vote) — Override with a key other than the withdraw authority
