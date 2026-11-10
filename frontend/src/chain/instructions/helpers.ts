@@ -234,8 +234,9 @@ export function deriveVoteDelegationPda(
 export const VOTE_DELEGATION_DELEGATE_OFFSET = 8;
 
 /**
- * Lists the accepted vote delegations that name `delegate`. A pending
- * delegation grants no authority, so it is excluded.
+ * Lists the accepted vote delegations that name `delegate`, whatever their
+ * subject (SPL vote accounts of validators and voting wallets of stakers alike).
+ * A pending delegation grants no authority, so it is excluded.
  */
 export async function getAcceptedVoteDelegations(
   program: Program<SvmgovProgram>,
@@ -255,7 +256,8 @@ export async function getAcceptedVoteDelegations(
 /**
  * Resolves the SPL vote account `signer` acts for: the vote account whose node
  * identity is `signer`, or otherwise the single vote account with an accepted
- * vote delegation naming `signer`.
+ * vote delegation naming `signer`. Delegations whose subject is a staker wallet
+ * are ignored here.
  *
  * @throws If the signer is neither a validator identity nor the accepted
  * delegate of exactly one vote account.
@@ -270,8 +272,15 @@ export async function resolveSignerVoteAccount(
   );
   if (own) return new PublicKey(own.votePubkey);
 
-  const delegated = await getAcceptedVoteDelegations(program, signer);
-  if (delegated.length === 1) return delegated[0].account.voteAccount;
+  const votePubkeys = new Set(
+    [...voteAccounts.current, ...voteAccounts.delinquent].map(
+      (acc) => acc.votePubkey
+    )
+  );
+  const delegated = (await getAcceptedVoteDelegations(program, signer)).filter(
+    ({ account }) => votePubkeys.has(account.subject.toBase58())
+  );
+  if (delegated.length === 1) return delegated[0].account.subject;
   if (delegated.length > 1) {
     throw new Error(
       `Wallet ${signer.toBase58()} is the accepted vote delegate of ${delegated.length} vote accounts; voting for several validators from one wallet is not supported here yet`

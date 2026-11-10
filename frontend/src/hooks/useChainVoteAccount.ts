@@ -32,17 +32,20 @@ export const useChainVoteAccount = (userPubKey: string | undefined) => {
       if (chainVoteAccount) return chainVoteAccount;
 
       // A wallet that is the accepted vote delegate of exactly one validator
-      // acts as that validator everywhere in the validator UI.
+      // acts as that validator everywhere in the validator UI. Delegations
+      // from staker wallets do not make the wallet a validator.
       const delegations = await getAcceptedVoteDelegationsForDelegate(
         endpoint,
         userPubKey
       );
-      if (delegations.length !== 1) return null;
-      return (
-        chainVoteAccounts.find(
-          (voteAccount) => voteAccount.voteAccount === delegations[0].voteAccount
-        ) || null
+      const delegatedVoteAccounts = chainVoteAccounts.filter((voteAccount) =>
+        delegations.some(
+          (delegation) => delegation.subject === voteAccount.voteAccount
+        )
       );
+      return delegatedVoteAccounts.length === 1
+        ? delegatedVoteAccounts[0]
+        : null;
     },
   });
 

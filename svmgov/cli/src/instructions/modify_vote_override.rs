@@ -23,6 +23,7 @@ use crate::{
         },
     },
 };
+use crate::utils::utils::derive_vote_delegation_pda;
 
 #[allow(clippy::too_many_arguments)]
 pub async fn modify_vote_override(
@@ -86,6 +87,10 @@ pub async fn modify_vote_override(
 
     let stake_merkle_leaf =
         convert_stake_merkle_leaf_data_to_idl_type(&stake_merkle_proof.stake_merkle_leaf)?;
+    // The leaf's voting wallet may have delegated its vote; its delegation PDA
+    // rides along whether or not it exists.
+    let vote_delegation =
+        derive_vote_delegation_pda(&stake_merkle_leaf.voting_wallet, &program.id());
 
     let spinner = create_spinner("Modifying vote override...");
 
@@ -101,6 +106,7 @@ pub async fn modify_vote_override(
         })
         .accounts(accounts::ModifyVoteOverride {
             signer,
+            vote_delegation,
             spl_vote_account: vote_account_pubkey,
             spl_stake_account: Pubkey::from_str(&stake_account_str)?,
             proposal: proposal_pubkey,

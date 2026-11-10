@@ -6,9 +6,9 @@ import {
 import { PublicKey } from "@solana/web3.js";
 
 /**
- * Fetches the accepted vote delegations that name `delegate`, i.e. the SPL vote
+ * Fetches the accepted vote delegations that name `delegate`: the SPL vote
  * accounts the wallet may create, support and vote for in place of their
- * validator identity.
+ * validator identity, and the staker wallets whose stake it may override for.
  */
 export const getAcceptedVoteDelegationsForDelegate = async (
   endpoint: string,
@@ -23,9 +23,8 @@ export const getAcceptedVoteDelegationsForDelegate = async (
   );
 
   return delegations.map(({ account }) => ({
-    voteAccount: account.voteAccount.toBase58(),
+    subject: account.subject.toBase58(),
     delegate: account.delegate.toBase58(),
-    creator: account.creator.toBase58(),
     delegationAccepted: account.delegationAccepted,
   }));
 };
