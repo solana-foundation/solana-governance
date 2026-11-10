@@ -356,6 +356,19 @@ fn a_closed_vote_account_falls_back_to_wallet_removal_rules() {
 // Effect on voting.
 // ---------------------------------------------------------------------------
 
+/// A pending delegation must not restrict the identity, including one that
+/// names the identity itself (as a withdrawer might create).
+#[test]
+fn a_pending_delegation_naming_the_identity_does_not_block_it() {
+    let (mut h, s) = voting_fixture();
+    let id = identity(&h, 0);
+    let withdrawer = funded_keypair(&mut h);
+    set_vote_account_withdrawer(&mut h, 0, &withdrawer.pubkey());
+
+    assert_ok(try_delegate(&mut h, 0, &withdrawer, &id.pubkey()));
+    assert_ok(try_cast_vote_as(&mut h, &s, 0, &id, 10_000, 0, 0));
+}
+
 #[test]
 fn delegation_is_inert_until_accepted() {
     let (mut h, s) = voting_fixture();

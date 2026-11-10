@@ -15,15 +15,24 @@ use crate::{
     },
 };
 
-/// Resolves what a delegation command acts on: the signer's own wallet when
-/// `wallet` is set (a staker delegating their override vote), otherwise an SPL
-/// vote account (see `resolve_vote_account`).
+/// Resolves what a delegation command acts on: `subject` verbatim when given,
+/// the signer's own wallet when `wallet` is set (a staker delegating their
+/// override vote), otherwise an SPL vote account (see `resolve_vote_account`).
 async fn resolve_subject(
     program: &anchor_client::Program<Arc<DynSigner>>,
     signer: &Pubkey,
+    subject: Option<String>,
     vote_account: Option<String>,
     wallet: bool,
 ) -> Result<Pubkey> {
+    if let Some(subject) = subject {
+        if wallet || vote_account.is_some() {
+            return Err(anyhow!(
+                "--subject cannot be combined with --wallet or --vote-account"
+            ));
+        }
+        return Pubkey::from_str(&subject).map_err(|_| anyhow!("Invalid subject: {subject}"));
+    }
     if wallet {
         if vote_account.is_some() {
             return Err(anyhow!(
@@ -53,7 +62,7 @@ pub async fn delegate_vote(
     let delegate =
         Pubkey::from_str(&delegate).map_err(|_| anyhow!("Invalid delegate pubkey: {delegate}"))?;
     let (payer, program, _client) = setup_signer_and_program(identity_keypair, rpc_url)?;
-    let subject = resolve_subject(&program, &payer.pubkey(), vote_account, wallet).await?;
+    let subject = resolve_subject(&program, &payer.pubkey(), None, vote_account, wallet).await?;
 
     if let Some(existing) = fetch_vote_delegation(&program, &subject).await? {
         return Err(anyhow!(
@@ -144,17 +153,19 @@ pub async fn accept_vote_delegation(
 ///
 /// The delegate may always remove. For a vote account the authorized withdrawer
 /// may always remove and the node identity only while the delegation is pending;
-/// for a wallet (`--wallet`) the wallet may always remove. Without `--wallet`,
-/// `vote_account` defaults to the signer's own vote account or the one
-/// delegated to it.
+/// for a wallet (`--wallet`) the wallet may always remove. `subject` names any
+/// vote account or wallet explicitly, which a delegate resigning from a staker's
+/// delegation needs. Without `subject` or `--wallet`, `vote_account` defaults to
+/// the signer's own vote account or the one delegated to it.
 pub async fn remove_vote_delegation(
+    subject: Option<String>,
     vote_account: Option<String>,
     wallet: bool,
     identity_keypair: Option<String>,
     rpc_url: Option<String>,
 ) -> Result<()> {
     let (payer, program, _client) = setup_signer_and_program(identity_keypair, rpc_url)?;
-    let subject = resolve_subject(&program, &payer.pubkey(), vote_account, wallet).await?;
+    let subject = resolve_subject(&program, &payer.pubkey(), subject, vote_account, wallet).await?;
 
     let delegation = fetch_vote_delegation(&program, &subject)
         .await?

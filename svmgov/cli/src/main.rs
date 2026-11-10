@@ -330,16 +330,25 @@ enum Commands {
 
     #[command(
         about = "Remove a vote delegation",
-        long_about = "Removes a vote delegation and returns its rent to whoever created it. The delegate may \
-                      always remove it. For a vote account the authorized withdrawer may always remove it and \
-                      the node identity only while it is still pending acceptance; for a wallet (--wallet) \
-                      the wallet may always remove it.\n\n\
+        long_about = "Removes a vote delegation and returns its rent to the subject's root authority: a vote \
+                      account's authorized withdrawer, or the wallet itself. The delegate may always remove it. \
+                      For a vote account the authorized withdrawer may always remove it and the node identity \
+                      only while it is still pending acceptance; for a wallet the wallet may always remove it.\n\n\
                       Examples:\n\
                       $ svmgov -k /path/to/delegate.json remove-vote-delegation\n\
                       $ svmgov -k /path/to/withdrawer.json remove-vote-delegation --vote-account <VOTE_ACCOUNT>\n\
-                      $ svmgov -k /path/to/staker.json remove-vote-delegation --wallet"
+                      $ svmgov -k /path/to/staker.json remove-vote-delegation --wallet\n\
+                      $ svmgov -k /path/to/delegate.json remove-vote-delegation --subject <STAKER_WALLET>"
     )]
     RemoveVoteDelegation {
+        /// SPL vote account or staker wallet whose delegation is being removed.
+        #[arg(
+            long,
+            conflicts_with_all = ["vote_account", "wallet"],
+            help = "SPL vote account or staker wallet whose delegation to remove, e.g. for a delegate resigning from a staker's delegation"
+        )]
+        subject: Option<String>,
+
         /// SPL vote account whose delegation is being removed.
         #[arg(
             long,
@@ -1027,10 +1036,12 @@ async fn handle_command(cli: Cli) -> Result<()> {
             instructions::accept_vote_delegation(subject.clone(), cli.keypair, cli.rpc_url).await?;
         }
         Commands::RemoveVoteDelegation {
+            subject,
             vote_account,
             wallet,
         } => {
             instructions::remove_vote_delegation(
+                subject.clone(),
                 vote_account.clone(),
                 *wallet,
                 cli.keypair,

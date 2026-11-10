@@ -70,8 +70,10 @@ pub fn load_vote_delegation(
 /// account or a voting wallet), whose own voting key is `identity`. With an
 /// accepted delegation on record only the delegate qualifies and the identity
 /// is locked out; otherwise only the identity qualifies, failing with
-/// `identity_mismatch`. A delegate acting on a delegation that is still pending
-/// gets `VoteDelegationNotAccepted` so the missing acceptance step is evident.
+/// `identity_mismatch`. A pending delegation never restricts the identity, even
+/// one naming the identity itself. Any other key named as delegate on a pending
+/// delegation gets `VoteDelegationNotAccepted` so the missing acceptance step
+/// is evident.
 ///
 /// | `vote_delegation`  | `signer`   | Result                      |
 /// |--------------------|------------|-----------------------------|
@@ -99,7 +101,7 @@ pub fn require_vote_authority(
                 GovernanceError::NotVoteDelegate
             );
         }
-        Some(delegation) if delegation.delegate == *signer => {
+        Some(delegation) if delegation.delegate == *signer && signer != identity => {
             return Err(GovernanceError::VoteDelegationNotAccepted.into());
         }
         _ => {

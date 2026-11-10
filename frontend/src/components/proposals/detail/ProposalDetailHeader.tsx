@@ -4,7 +4,7 @@ import Link from "next/link";
 import { calculateTimeAgo } from "@/helpers";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { CheckIcon, CopyIcon, Github } from "lucide-react";
-import { useCopyToClipboard, useEpochInfo } from "@/hooks";
+import { useCopyToClipboard, useEpochInfo, useVoteDelegation } from "@/hooks";
 import LifecycleIndicator from "@/components/ui/LifecycleIndicator";
 import { formatAddress } from "@/lib/governance/formatters";
 import type { ProposalRecord } from "@/types";
@@ -43,6 +43,9 @@ export default function ProposalDetailHeader({
   const { data: epochData } = useEpochInfo();
   const { publicKey } = useWallet();
   const { openModal } = useModal();
+  const { data: voteDelegation } = useVoteDelegation(
+    proposal?.voteAccountPubkey
+  );
 
   if (isLoading) return <ProposalDetailSkeleton />;
   if (!proposal) return <div>No proposal data...</div>;
@@ -50,7 +53,13 @@ export default function ProposalDetailHeader({
   const createdAgo = calculateTimeAgo(proposal.creationTimestamp);
   const votingThrough =
     proposal.endEpoch > 0 ? proposal.endEpoch - 1 : "-";
-  const canUpdateDocument = publicKey?.toBase58() === proposal.author &&
+  // Mirrors the program: an accepted delegation hands editing to the delegate
+  // and locks the author out; otherwise only the author may edit.
+  const connectedWallet = publicKey?.toBase58();
+  const isUpdateAuthority = voteDelegation?.delegationAccepted
+    ? connectedWallet === voteDelegation.delegate
+    : connectedWallet === proposal.author;
+  const canUpdateDocument = isUpdateAuthority &&
     (proposal.status === "supporting" ||
       (proposal.voting &&
         typeof epochData?.epochInfo.epoch === "number" &&

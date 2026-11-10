@@ -87,6 +87,7 @@ svmgov -k /path/to/staker.json remove-vote-delegation --wallet
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
+| `--subject` | String | No | SPL vote account or staker wallet whose delegation to remove. A delegate resigning from a staker's delegation passes the staker's wallet here. Conflicts with the other two |
 | `--vote-account` | String | No | SPL vote account whose delegation to remove. Defaults to the signer's own vote account, or the one delegated to the signer. Conflicts with `--wallet` |
 | `--wallet` | flag | No | Remove the delegation of the signer's own wallet |
 
