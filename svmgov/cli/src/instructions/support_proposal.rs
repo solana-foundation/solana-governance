@@ -4,7 +4,7 @@ use anchor_client::{
     DynSigner, Program,
     solana_sdk::{
         compute_budget::ComputeBudgetInstruction, instruction::Instruction, pubkey::Pubkey,
-        signer::Signer, transaction::Transaction,
+        signer::Signer,
     },
 };
 use anchor_lang::system_program;
@@ -15,9 +15,13 @@ use crate::{
     constants::{MAX_SUPPORTERS_LIMIT, support_compute_unit_limit},
     svmgov_program::accounts::Proposal,
     svmgov_program::client::{accounts, args},
-    utils::utils::{
-        create_spinner, derive_global_config_pda, derive_program_config_pda, derive_support_pda,
-        derive_vote_delegation_pda, fetch_global_config, proposal_snapshot_slot, setup_all,
+    utils::{
+        squads::{RoutedOutcome, SquadsCliOpts, effective_signer, route},
+        utils::{
+            create_spinner, derive_global_config_pda, derive_program_config_pda,
+            derive_support_pda, derive_vote_delegation_pda, fetch_global_config,
+            proposal_snapshot_slot, setup_all,
+        },
     },
 };
 
@@ -76,12 +80,18 @@ pub async fn support_proposal(
     rpc_url: Option<String>,
     _network: String,
     vote_account_override: Option<String>,
+    squads: Option<SquadsCliOpts>,
 ) -> Result<()> {
     let proposal_pubkey = Pubkey::from_str(&proposal_id)
         .map_err(|_| anyhow!("Invalid proposal ID: {}", proposal_id))?;
 
-    let (payer, vote_account, program, _merkle_proof_program) =
-        setup_all(identity_keypair, rpc_url, vote_account_override).await?;
+    let (payer, vote_account, program, _merkle_proof_program) = setup_all(
+        identity_keypair,
+        rpc_url,
+        vote_account_override,
+        squads.as_ref(),
+    )
+    .await?;
 
     // The handler re-tallies every existing supporter, so the compute budget is
     // sized from the current list length rather than a flat worst case. If the
@@ -120,35 +130,43 @@ pub async fn support_proposal(
     };
     let compute_unit_limit = support_compute_unit_limit(num_supporters);
 
-    let mut instructions = vec![ComputeBudgetInstruction::set_compute_unit_limit(
-        compute_unit_limit,
-    )];
+    // A compute budget instruction only applies to the transaction it is a
+    // top-level instruction of. Inside a vault transaction it would do nothing,
+    // so under Squads the budget is left to whoever executes the proposal.
+    let mut instructions = match squads {
+        None => vec![ComputeBudgetInstruction::set_compute_unit_limit(
+            compute_unit_limit,
+        )],
+        Some(_) => Vec::new(),
+    };
 
     let spinner = create_spinner("Supporting proposal...");
 
+    let signer = effective_signer(squads.as_ref(), payer.pubkey());
     instructions.append(
-        &mut build_support_proposal_instructions(
-            &program,
-            payer.pubkey(),
-            proposal_pubkey,
-            vote_account,
-        )
-        .await?,
+        &mut build_support_proposal_instructions(&program, signer, proposal_pubkey, vote_account)
+            .await?,
     );
 
-    let blockhash = program.rpc().get_latest_blockhash().await?;
-    let mut transaction = Transaction::new_with_payer(&instructions, Some(&payer.pubkey()));
-    transaction.try_sign(&[&payer], blockhash)?;
+    let rpc = program.rpc();
+    let squads_config = squads.as_ref().map(|opts| opts.to_config(payer.pubkey()));
+    let outcome = route(
+        &rpc,
+        instructions,
+        Vec::new(),
+        &[payer.as_ref()],
+        squads_config.as_ref(),
+    )
+    .await?;
 
-    let sig = program
-        .rpc()
-        .send_and_confirm_transaction(&transaction)
-        .await?;
-
-    spinner.finish_with_message(format!(
-        "Proposal supported. https://explorer.solana.com/tx/{}",
-        sig
-    ));
+    spinner.finish_and_clear();
+    println!("{}", outcome.format_structured());
+    if matches!(outcome, RoutedOutcome::Squads { .. }) {
+        println!(
+            "Executing this vault transaction needs about {compute_unit_limit} compute units; \
+             raise the compute unit limit when executing it in Squads."
+        );
+    }
 
     Ok(())
 }

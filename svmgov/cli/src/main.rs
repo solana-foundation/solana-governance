@@ -785,47 +785,12 @@ fn merge_cli_with_config(cli: Cli, config: &Config) -> Cli {
 /// Returns the `--squads` refusal message for `command`, or `None` if the command is
 /// compatible with vault-PDA signing (or doesn't create a transaction at all).
 ///
-/// Refused commands target on-chain instructions whose signer-identity checks cannot be
-/// satisfied by a Squads vault PDA — the program enforces that the signer is a specific
-/// validator/operator hot key, or the command is permissionless and a multisig only adds
-/// friction. See `plans/squads.md` for the full actor matrix.
-///
-/// The refusal strings cite the exact program file:line of the constraint so a reader can
-/// jump from a CLI error message straight to the source of truth.
+/// Every command whose instruction is gated on a specific signer accepts `--squads`: the
+/// program only compares the signer to an authority (admin, identity, withdrawer, voting
+/// wallet, or accepted vote delegate), and a Squads vault PDA can hold any of those roles.
+/// Refused commands are permissionless, so a multisig would add friction without benefit.
 fn squads_refusal_for(command: &Commands) -> Option<String> {
     let (name, constraint) = match command {
-        Commands::CreateProposal { .. } => (
-            "create-proposal",
-            "the validator identity (vote_state.node_pubkey) or its accepted vote delegate to be the signer",
-        ),
-        Commands::UpdateProposalDescription { .. } => (
-            "update-proposal-description",
-            "the original proposal author or its accepted vote delegate to be the signer",
-        ),
-        Commands::SupportProposal { .. } => (
-            "support-proposal",
-            "the validator identity (vote_state.node_pubkey) or its accepted vote delegate to be the signer",
-        ),
-        Commands::CastVote { .. } => (
-            "cast-vote",
-            "the snapshot voting wallet (meta_merkle_leaf.voting_wallet) or its accepted vote delegate to be the signer",
-        ),
-        Commands::ModifyVote { .. } => (
-            "modify-vote",
-            "the snapshot voting wallet (meta_merkle_leaf.voting_wallet) or its accepted vote delegate to be the signer",
-        ),
-        Commands::DelegateVote { .. } => (
-            "delegate-vote",
-            "the vote account's node identity or authorized withdrawer, or the wallet itself, to be the signer",
-        ),
-        Commands::AcceptVoteDelegation { .. } => (
-            "accept-vote-delegation",
-            "the named delegate to be the signer",
-        ),
-        Commands::RemoveVoteDelegation { .. } => (
-            "remove-vote-delegation",
-            "the delegate, the wallet, the authorized withdrawer, or (while pending) the node identity to be the signer",
-        ),
         Commands::InitIndex {} => (
             "init-index",
             "no particular signer because it is permissionless, so a multisig adds friction without benefit",
@@ -842,7 +807,15 @@ fn squads_refusal_for(command: &Commands) -> Option<String> {
             "migrate-vote-records",
             "no particular signer because it is permissionless, so a multisig adds friction without benefit",
         ),
-        Commands::CastVoteOverride { .. }
+        Commands::CreateProposal { .. }
+        | Commands::UpdateProposalDescription { .. }
+        | Commands::SupportProposal { .. }
+        | Commands::CastVote { .. }
+        | Commands::ModifyVote { .. }
+        | Commands::DelegateVote { .. }
+        | Commands::AcceptVoteDelegation { .. }
+        | Commands::RemoveVoteDelegation { .. }
+        | Commands::CastVoteOverride { .. }
         | Commands::ModifyVoteOverride { .. }
         | Commands::InitGlobalConfig { .. }
         | Commands::UpdateGlobalConfig { .. }
@@ -858,8 +831,8 @@ fn squads_refusal_for(command: &Commands) -> Option<String> {
     };
 
     Some(format!(
-        "The `{}` command requires {}. A Squads vault PDA cannot satisfy this on-chain \
-         check, so no vault transaction was created. Re-run without --squads to submit this transaction with your local keypair.",
+        "The `{}` command requires {}, so no vault transaction was created. Re-run without \
+         --squads to submit this transaction with your local keypair.",
         name, constraint,
     ))
 }
@@ -891,18 +864,21 @@ async fn handle_command(cli: Cli) -> Result<()> {
     // and local configuration commands do not need a multisig lookup.
     // Keep this exhaustive so new commands require an explicit routing decision.
     let squads_address = match &cli.command {
-        Commands::CastVoteOverride { .. }
-        | Commands::ModifyVoteOverride { .. }
-        | Commands::InitGlobalConfig { .. }
-        | Commands::UpdateGlobalConfig { .. }
-        | Commands::NominateAdmin { .. }
-        | Commands::AcceptAdmin => cli.squads,
         Commands::CreateProposal { .. }
         | Commands::UpdateProposalDescription { .. }
         | Commands::SupportProposal { .. }
         | Commands::CastVote { .. }
         | Commands::ModifyVote { .. }
-        | Commands::InitIndex { .. }
+        | Commands::DelegateVote { .. }
+        | Commands::AcceptVoteDelegation { .. }
+        | Commands::RemoveVoteDelegation { .. }
+        | Commands::CastVoteOverride { .. }
+        | Commands::ModifyVoteOverride { .. }
+        | Commands::InitGlobalConfig { .. }
+        | Commands::UpdateGlobalConfig { .. }
+        | Commands::NominateAdmin { .. }
+        | Commands::AcceptAdmin => cli.squads,
+        Commands::InitIndex { .. }
         | Commands::FinalizeProposal { .. }
         | Commands::RetallySupport { .. }
         | Commands::MigrateVoteRecords { .. }
@@ -910,9 +886,6 @@ async fn handle_command(cli: Cli) -> Result<()> {
         | Commands::ListProposals { .. }
         | Commands::VoteBreakdown { .. }
         | Commands::ShowGlobalConfig { .. }
-        | Commands::DelegateVote { .. }
-        | Commands::AcceptVoteDelegation { .. }
-        | Commands::RemoveVoteDelegation { .. }
         | Commands::ShowVoteDelegation { .. }
         | Commands::Init
         | Commands::Config { .. } => None,
@@ -960,6 +933,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 *skip_link_check,
                 *with_support,
                 vote_account.clone(),
+                squads_opts.clone(),
             )
             .await?;
         }
@@ -974,6 +948,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 cli.keypair,
                 cli.rpc_url,
                 *skip_link_check,
+                squads_opts.clone(),
             )
             .await?;
         }
@@ -987,6 +962,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 cli.rpc_url,
                 network.clone(),
                 vote_account.clone(),
+                squads_opts.clone(),
             )
             .await?;
         }
@@ -1020,6 +996,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 network.clone(),
                 *close_timestamp,
                 vote_account.clone(),
+                squads_opts.clone(),
             )
             .await?;
         }
@@ -1039,6 +1016,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 cli.rpc_url,
                 network.clone(),
                 vote_account.clone(),
+                squads_opts.clone(),
             )
             .await?;
         }
@@ -1053,11 +1031,18 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 *wallet,
                 cli.keypair,
                 cli.rpc_url,
+                squads_opts.clone(),
             )
             .await?;
         }
         Commands::AcceptVoteDelegation { subject } => {
-            instructions::accept_vote_delegation(subject.clone(), cli.keypair, cli.rpc_url).await?;
+            instructions::accept_vote_delegation(
+                subject.clone(),
+                cli.keypair,
+                cli.rpc_url,
+                squads_opts.clone(),
+            )
+            .await?;
         }
         Commands::RemoveVoteDelegation {
             subject,
@@ -1070,6 +1055,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 *wallet,
                 cli.keypair,
                 cli.rpc_url,
+                squads_opts.clone(),
             )
             .await?;
         }
@@ -1262,6 +1248,70 @@ fn main() -> Result<()> {
 #[cfg(test)]
 mod cli_tests {
     use super::*;
+
+    /// A Squads vault can hold every authority the program checks (identity,
+    /// withdrawer, voting wallet, delegate, admin), so only permissionless
+    /// commands refuse `--squads`.
+    #[test]
+    fn squads_is_refused_only_for_permissionless_commands() {
+        const KEY: &str = "11111111111111111111111111111111";
+        let routed = [
+            vec!["create-proposal", "--title", "t", "--description", "d"],
+            vec![
+                "update-proposal-description",
+                "--proposal-id",
+                KEY,
+                "--description",
+                "d",
+            ],
+            vec!["support-proposal", "--proposal-id", KEY],
+            vec![
+                "cast-vote",
+                "--proposal-id",
+                KEY,
+                "--for-votes",
+                "10000",
+                "--against-votes",
+                "0",
+                "--abstain-votes",
+                "0",
+            ],
+            vec![
+                "modify-vote",
+                "--proposal-id",
+                KEY,
+                "--for-votes",
+                "10000",
+                "--against-votes",
+                "0",
+                "--abstain-votes",
+                "0",
+            ],
+            vec!["delegate-vote", "--delegate", KEY],
+            vec!["delegate-vote", "--delegate", KEY, "--wallet"],
+            vec!["accept-vote-delegation", "--subject", KEY],
+            vec!["remove-vote-delegation", "--subject", KEY],
+        ];
+        for args in routed {
+            let cli =
+                Cli::try_parse_from(["svmgov", "--squads", KEY].into_iter().chain(args.clone()))
+                    .unwrap();
+            assert!(squads_refusal_for(&cli.command).is_none(), "{args:?}");
+        }
+
+        let refused = [
+            vec!["init-index"],
+            vec!["finalize-proposal", "--proposal-id", KEY],
+            vec!["retally-support", "--proposal-id", KEY],
+            vec!["migrate-vote-records"],
+        ];
+        for args in refused {
+            let cli =
+                Cli::try_parse_from(["svmgov", "--squads", KEY].into_iter().chain(args.clone()))
+                    .unwrap();
+            assert!(squads_refusal_for(&cli.command).is_some(), "{args:?}");
+        }
+    }
 
     #[test]
     fn display_commands_accept_json_without_a_keypair() {

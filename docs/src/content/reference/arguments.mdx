@@ -22,6 +22,15 @@ signer. Vault lookup requires an RPC that supports `getProgramAccounts`; it can
 take several seconds on mainnet. Existing multisig state addresses skip the lookup.
 For a sub-account, also supply its index with `--squads-vault-index`.
 
+Every command that signs as a specific authority accepts `--squads`: the admin
+commands, the validator commands (`create-proposal`, `support-proposal`,
+`cast-vote`, `modify-vote`, `update-proposal-description`), the staker override
+commands, and the vote delegation commands. In Squads mode the vault PDA takes
+the signer slot and the `--keypair` (or `--staker-keypair`) member proposes the
+vault transaction. Permissionless commands (`init-index`, `finalize-proposal`,
+`retally-support`, `migrate-vote-records`) refuse `--squads`, since a multisig
+adds nothing there.
+
 ### Ledger
 
 Pass a Solana Ledger URI to `--keypair` (or `--staker-keypair`):

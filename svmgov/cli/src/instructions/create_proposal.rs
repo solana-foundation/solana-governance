@@ -1,17 +1,21 @@
-use anchor_client::solana_sdk::{signer::Signer, transaction::Transaction};
+use anchor_client::solana_sdk::signer::Signer;
 use anchor_lang::system_program;
 use anyhow::Result;
 
 use crate::{
     instructions::support_proposal::build_support_proposal_instructions,
     svmgov_program::client::{accounts, args},
-    utils::proposal_link::{validate_description, validate_description_structure},
-    utils::utils::{
-        create_spinner, derive_global_config_pda, derive_proposal_index_pda, derive_proposal_pda,
-        derive_vote_delegation_pda, fetch_global_config, setup_all,
+    utils::{
+        proposal_link::{validate_description, validate_description_structure},
+        squads::{SquadsCliOpts, effective_signer, route},
+        utils::{
+            create_spinner, derive_global_config_pda, derive_proposal_index_pda,
+            derive_proposal_pda, derive_vote_delegation_pda, fetch_global_config, setup_all,
+        },
     },
 };
 
+#[allow(clippy::too_many_arguments)]
 pub async fn create_proposal(
     proposal_title: String,
     proposal_description: String,
@@ -22,6 +26,7 @@ pub async fn create_proposal(
     skip_link_check: bool,
     with_support: bool,
     vote_account_override: Option<String>,
+    squads: Option<SquadsCliOpts>,
 ) -> Result<()> {
     log::debug!(
         "create_proposal: title={}, description={}, seed={:?}, identity_keypair={:?}, rpc_url={:?}, with_support={}",
@@ -35,8 +40,13 @@ pub async fn create_proposal(
 
     validate_description_structure(&proposal_description)?;
 
-    let (payer, vote_account, program, _merkle_proof_program) =
-        setup_all(identity_keypair, rpc_url, vote_account_override).await?;
+    let (payer, vote_account, program, _merkle_proof_program) = setup_all(
+        identity_keypair,
+        rpc_url,
+        vote_account_override,
+        squads.as_ref(),
+    )
+    .await?;
     let config = fetch_global_config(&program).await?;
     let proposal_description = validate_description(
         &proposal_description,
@@ -59,6 +69,7 @@ pub async fn create_proposal(
         "Creating proposal..."
     });
 
+    let signer = effective_signer(squads.as_ref(), payer.pubkey());
     let mut instructions = program
         .request()
         .args(args::CreateProposal {
@@ -67,7 +78,7 @@ pub async fn create_proposal(
             seed: seed_value,
         })
         .accounts(accounts::CreateProposal {
-            signer: payer.pubkey(),
+            signer,
             spl_vote_account: vote_account,
             vote_delegation: derive_vote_delegation_pda(&vote_account, &program.id()),
             proposal: proposal_pda,
@@ -78,36 +89,34 @@ pub async fn create_proposal(
         .instructions()?;
 
     if with_support {
-        let support_proposal_ixs = build_support_proposal_instructions(
-            &program,
-            payer.pubkey(),
-            proposal_pda,
-            vote_account,
-        )
-        .await?;
+        let support_proposal_ixs =
+            build_support_proposal_instructions(&program, signer, proposal_pda, vote_account)
+                .await?;
 
         instructions.extend(support_proposal_ixs);
     }
 
-    let blockhash = program.rpc().get_latest_blockhash().await?;
-    let mut transaction = Transaction::new_with_payer(&instructions, Some(&payer.pubkey()));
-    transaction.try_sign(&[&payer], blockhash)?;
+    let rpc = program.rpc();
+    let squads_config = squads.as_ref().map(|opts| opts.to_config(payer.pubkey()));
+    let outcome = route(
+        &rpc,
+        instructions,
+        Vec::new(),
+        &[payer.as_ref()],
+        squads_config.as_ref(),
+    )
+    .await?;
 
-    let sig = program
-        .rpc()
-        .send_and_confirm_transaction(&transaction)
-        .await?;
-    log::debug!(
-        "Proposal creation transaction sent successfully: signature={}",
-        sig
+    spinner.finish_and_clear();
+    println!("{}", outcome.format_structured());
+    println!(
+        "Creating proposal {proposal_pda}{}.",
+        if with_support {
+            " with the initial support"
+        } else {
+            ""
+        }
     );
-
-    spinner.finish_with_message(format!(
-        "Proposal {} created{}. https://explorer.solana.com/tx/{}",
-        proposal_pda,
-        if with_support { " and supported" } else { "" },
-        sig
-    ));
 
     Ok(())
 }

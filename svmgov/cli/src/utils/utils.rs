@@ -30,6 +30,7 @@ use crate::{
         accounts::{GlobalConfig, Proposal, Vote, VoteDelegation},
         program::SvmgovProgram,
     },
+    utils::squads::{SquadsCliOpts, effective_signer},
 };
 
 /// Creates and configures a progress spinner with a custom message
@@ -76,13 +77,16 @@ pub fn setup_signer_and_program(
     Ok((identity_keypair_arc, program, client))
 }
 
-/// Full setup for validator-side commands: the signer, the SPL vote account it
-/// acts for (see `resolve_vote_account`), and the svmgov and merkle-proof
-/// programs.
+/// Full setup for validator-side commands: the local keypair, the SPL vote
+/// account acted for (see `resolve_vote_account`), and the svmgov and
+/// merkle-proof programs. The vote account is resolved for the key that signs
+/// the governance instruction: the local keypair, or the vault PDA when
+/// `squads` routes the command through a Squads multisig.
 pub async fn setup_all(
     keypair_path: Option<String>,
     rpc_url: Option<String>,
     vote_account: Option<String>,
+    squads: Option<&SquadsCliOpts>,
 ) -> Result<(
     Arc<DynSigner>,
     Pubkey,
@@ -96,8 +100,8 @@ pub async fn setup_all(
     let merkle_proof_program = client.program(ncn_snapshot::id())?;
 
     // Step 3: The vote account the signer acts for
-    let vote_account =
-        resolve_vote_account(&program, &identity_keypair_arc.pubkey(), vote_account).await?;
+    let signer = effective_signer(squads, identity_keypair_arc.pubkey());
+    let vote_account = resolve_vote_account(&program, &signer, vote_account).await?;
 
     // Step 4: Log the setup completion
     log::debug!(
@@ -223,13 +227,20 @@ pub async fn fetch_vote_delegation(
     }
 }
 
-/// Returns who receives a vote delegation's rent when it is removed: the
-/// authorized withdrawer when `subject` is a live SPL vote account, otherwise
-/// `subject` itself (a staker wallet, or a vote account that has been closed).
-pub async fn vote_delegation_rent_recipient(
+/// The keys of a live SPL vote account that may act on its vote delegation.
+#[derive(Clone, Copy, Debug)]
+pub struct VoteAccountAuthorities {
+    pub node_pubkey: Pubkey,
+    pub authorized_withdrawer: Pubkey,
+}
+
+/// Reads the authorities of `subject` when it is a live SPL vote account.
+/// Returns `None` for anything else: a staker wallet, or a vote account that
+/// has since been closed, both of which the program treats under wallet rules.
+pub async fn vote_account_authorities(
     program: &Program<Arc<DynSigner>>,
     subject: &Pubkey,
-) -> Result<Pubkey> {
+) -> Result<Option<VoteAccountAuthorities>> {
     use anchor_lang::solana_program::vote::{program as vote_program, state::VoteState};
 
     let rpc = program.rpc();
@@ -241,14 +252,21 @@ pub async fn vote_delegation_rent_recipient(
     match account {
         Some(a) if a.owner == vote_program::ID && a.data.len() == VoteState::size_of() => {
             // Every vote state version stores `node_pubkey` then
-            // `authorized_withdrawer` right after the 4-byte version tag, so the
-            // withdrawer can be read without version-specific decoding. The
-            // program re-derives the recipient on-chain, so a wrong guess here
-            // is rejected rather than misdirecting funds.
-            Pubkey::try_from(&a.data[36..68])
-                .map_err(|_| anyhow!("Vote account {subject} is too short to hold a withdrawer"))
+            // `authorized_withdrawer` right after the 4-byte version tag, so both
+            // can be read without version-specific decoding. The program
+            // re-derives them on-chain, so a wrong read here is rejected rather
+            // than acted on.
+            let key = |range: std::ops::Range<usize>| {
+                Pubkey::try_from(&a.data[range]).map_err(|_| {
+                    anyhow!("Vote account {subject} is too short to hold its authorities")
+                })
+            };
+            Ok(Some(VoteAccountAuthorities {
+                node_pubkey: key(4..36)?,
+                authorized_withdrawer: key(36..68)?,
+            }))
         }
-        _ => Ok(*subject),
+        _ => Ok(None),
     }
 }
 
