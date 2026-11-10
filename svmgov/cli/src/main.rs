@@ -280,72 +280,90 @@ enum Commands {
     },
 
     #[command(
-        about = "Delegate a validator's governance vote to another key (step 1 of 2)",
-        long_about = "Names another key as the governance voter for an SPL vote account, so the validator \
-                      identity key never has to sign governance transactions. Must be signed by the vote \
-                      account's node identity or its authorized withdrawer (pass --vote-account when signing \
-                      as the withdrawer). The delegation is inert until the delegate runs \
-                      `accept-vote-delegation`; from then on the delegate alone creates, supports, votes on \
-                      and modifies votes for the vote account, and the identity key is locked out until the \
-                      delegation is removed.\n\n\
-                      Example:\n\
-                      $ svmgov -k /path/to/identity.json delegate-vote --delegate <DELEGATE_PUBKEY>"
+        about = "Delegate a validator's or staker's governance vote to another key (step 1 of 2)",
+        long_about = "Names another key as the governance voter for an SPL vote account or for a staker's \
+                      wallet, so the validator identity or the cold stake authority never has to sign \
+                      governance transactions. A vote account delegation must be signed by its node identity \
+                      or authorized withdrawer (pass --vote-account when signing as the withdrawer); a wallet \
+                      delegation (--wallet) by the wallet itself. The delegation is inert until the delegate \
+                      runs `accept-vote-delegation`; from then on the delegate alone acts for the subject \
+                      (creating, supporting, voting and modifying for a vote account; overriding for a \
+                      wallet's stake), and the subject's own key is locked out until the delegation is \
+                      removed.\n\n\
+                      Examples:\n\
+                      $ svmgov -k /path/to/identity.json delegate-vote --delegate <DELEGATE_PUBKEY>\n\
+                      $ svmgov -k /path/to/staker.json delegate-vote --wallet --delegate <DELEGATE_PUBKEY>"
     )]
     DelegateVote {
-        /// Key that will vote on behalf of the vote account.
-        #[arg(long, help = "Base58 pubkey that will vote for the vote account")]
+        /// Key that will vote on behalf of the subject.
+        #[arg(long, help = "Base58 pubkey that will vote for the vote account or wallet")]
         delegate: String,
 
         /// SPL vote account to delegate.
         #[arg(
             long,
+            conflicts_with = "wallet",
             help = "SPL vote account to delegate; defaults to the one whose node identity is the signer (required when signing as the authorized withdrawer)"
         )]
         vote_account: Option<String>,
+
+        /// Delegate the signer's own wallet (a staker's override vote) instead of a vote account.
+        #[arg(
+            long,
+            help = "Delegate the signer's own wallet: the override vote for every stake account it is the voting wallet of"
+        )]
+        wallet: bool,
     },
 
     #[command(
         about = "Accept a pending vote delegation (step 2 of 2, delegate only)",
         long_about = "Completes a vote delegation. Must be signed by the delegate named in `delegate-vote`. \
-                      On success the delegate alone votes for the vote account.\n\n\
+                      On success the delegate alone votes for the subject.\n\n\
                       Example:\n\
-                      $ svmgov -k /path/to/delegate.json accept-vote-delegation --vote-account <VOTE_ACCOUNT>"
+                      $ svmgov -k /path/to/delegate.json accept-vote-delegation --subject <VOTE_ACCOUNT_OR_WALLET>"
     )]
     AcceptVoteDelegation {
-        /// SPL vote account whose delegation is being accepted.
-        #[arg(long, help = "SPL vote account whose delegation to accept")]
-        vote_account: String,
+        /// SPL vote account or staker wallet whose delegation is being accepted.
+        #[arg(long, help = "SPL vote account or staker wallet whose delegation to accept")]
+        subject: String,
     },
 
     #[command(
         about = "Remove a vote delegation",
-        long_about = "Removes a vote delegation and returns its rent to whoever created it. The delegate and \
-                      the vote account's authorized withdrawer may always remove it; the node identity only \
-                      while the delegation is still pending acceptance.\n\n\
+        long_about = "Removes a vote delegation and returns its rent to whoever created it. The delegate may \
+                      always remove it. For a vote account the authorized withdrawer may always remove it and \
+                      the node identity only while it is still pending acceptance; for a wallet (--wallet) \
+                      the wallet may always remove it.\n\n\
                       Examples:\n\
                       $ svmgov -k /path/to/delegate.json remove-vote-delegation\n\
-                      $ svmgov -k /path/to/withdrawer.json remove-vote-delegation --vote-account <VOTE_ACCOUNT>"
+                      $ svmgov -k /path/to/withdrawer.json remove-vote-delegation --vote-account <VOTE_ACCOUNT>\n\
+                      $ svmgov -k /path/to/staker.json remove-vote-delegation --wallet"
     )]
     RemoveVoteDelegation {
         /// SPL vote account whose delegation is being removed.
         #[arg(
             long,
+            conflicts_with = "wallet",
             help = "SPL vote account whose delegation to remove; defaults to the signer's own vote account, or the one delegated to the signer"
         )]
         vote_account: Option<String>,
+
+        /// Remove the delegation of the signer's own wallet.
+        #[arg(long, help = "Remove the delegation of the signer's own wallet")]
+        wallet: bool,
     },
 
     #[command(
-        about = "Show the vote delegation of a vote account",
-        long_about = "Displays who, if anyone, is delegated to vote for an SPL vote account and whether the \
-                      delegation has been accepted.\n\n\
+        about = "Show the vote delegation of a vote account or staker wallet",
+        long_about = "Displays who, if anyone, is delegated to vote for an SPL vote account or a staker's \
+                      wallet and whether the delegation has been accepted.\n\n\
                       Example:\n\
-                      $ svmgov show-vote-delegation --vote-account <VOTE_ACCOUNT>"
+                      $ svmgov show-vote-delegation --subject <VOTE_ACCOUNT_OR_WALLET>"
     )]
     ShowVoteDelegation {
-        /// SPL vote account to inspect.
-        #[arg(long, help = "SPL vote account to inspect")]
-        vote_account: String,
+        /// SPL vote account or staker wallet to inspect.
+        #[arg(long, help = "SPL vote account or staker wallet to inspect")]
+        subject: String,
 
         /// Output the delegation as JSON.
         #[arg(long)]
@@ -773,7 +791,7 @@ fn squads_refusal_for(command: &Commands) -> Option<String> {
         ),
         Commands::DelegateVote { .. } => (
             "delegate-vote",
-            "the vote account's node identity or authorized withdrawer to be the signer",
+            "the vote account's node identity or authorized withdrawer, or the wallet itself, to be the signer",
         ),
         Commands::AcceptVoteDelegation { .. } => (
             "accept-vote-delegation",
@@ -781,7 +799,7 @@ fn squads_refusal_for(command: &Commands) -> Option<String> {
         ),
         Commands::RemoveVoteDelegation { .. } => (
             "remove-vote-delegation",
-            "the delegate, the authorized withdrawer, or (while pending) the node identity to be the signer",
+            "the delegate, the wallet, the authorized withdrawer, or (while pending) the node identity to be the signer",
         ),
         Commands::InitIndex {} => (
             "init-index",
@@ -994,25 +1012,34 @@ async fn handle_command(cli: Cli) -> Result<()> {
         Commands::DelegateVote {
             delegate,
             vote_account,
+            wallet,
         } => {
             instructions::delegate_vote(
                 delegate.clone(),
                 vote_account.clone(),
+                *wallet,
                 cli.keypair,
                 cli.rpc_url,
             )
             .await?;
         }
-        Commands::AcceptVoteDelegation { vote_account } => {
-            instructions::accept_vote_delegation(vote_account.clone(), cli.keypair, cli.rpc_url)
-                .await?;
+        Commands::AcceptVoteDelegation { subject } => {
+            instructions::accept_vote_delegation(subject.clone(), cli.keypair, cli.rpc_url).await?;
         }
-        Commands::RemoveVoteDelegation { vote_account } => {
-            instructions::remove_vote_delegation(vote_account.clone(), cli.keypair, cli.rpc_url)
-                .await?;
+        Commands::RemoveVoteDelegation {
+            vote_account,
+            wallet,
+        } => {
+            instructions::remove_vote_delegation(
+                vote_account.clone(),
+                *wallet,
+                cli.keypair,
+                cli.rpc_url,
+            )
+            .await?;
         }
-        Commands::ShowVoteDelegation { vote_account, json } => {
-            instructions::show_vote_delegation(vote_account.clone(), cli.rpc_url, *json).await?;
+        Commands::ShowVoteDelegation { subject, json } => {
+            instructions::show_vote_delegation(subject.clone(), cli.rpc_url, *json).await?;
         }
         Commands::FinalizeProposal { proposal_id } => {
             instructions::finalize_proposal(
@@ -1212,7 +1239,7 @@ mod cli_tests {
             vec!["vote-breakdown", "11111111111111111111111111111111"],
             vec![
                 "show-vote-delegation",
-                "--vote-account",
+                "--subject",
                 "11111111111111111111111111111111",
             ],
         ] {

@@ -1,7 +1,11 @@
-//! Resolution of who may act for an SPL vote account in governance: its node
-//! identity by default, or the accepted delegate recorded in a `VoteDelegation`.
+//! Resolution of who may act for a governance voter: the voter's own key by
+//! default (a validator's node identity, or a staker's voting wallet), or the
+//! accepted delegate recorded in a `VoteDelegation`.
 
-use anchor_lang::prelude::*;
+use anchor_lang::{
+    prelude::*,
+    solana_program::vote::{program as vote_program, state::VoteState},
+};
 use solana_vote_interface::state::VoteStateVersions;
 
 use crate::{error::GovernanceError, state::VoteDelegation};
@@ -12,6 +16,12 @@ pub struct VoteAccountAuthorities {
     pub node_pubkey: Pubkey,
     /// Root authority of the vote account, normally held cold.
     pub authorized_withdrawer: Pubkey,
+}
+
+/// Whether `account` is an initialized SPL vote account: owned by the vote
+/// program and of the current vote state size.
+pub fn is_live_vote_account(account: &AccountInfo) -> bool {
+    account.owner == &vote_program::ID && account.data_len() == VoteState::size_of()
 }
 
 /// Reads the node identity and authorized withdrawer from raw SPL vote account
@@ -35,13 +45,12 @@ pub fn read_vote_account_authorities(vote_account_data: &[u8]) -> Result<VoteAcc
     })
 }
 
-/// Loads the `VoteDelegation` for `vote_account` from its PDA, if this program
-/// has initialized one. A missing or empty account yields `None`; an account
-/// owned by this program that does not hold a delegation for `vote_account` is
-/// an error.
+/// Loads the `VoteDelegation` for `subject` from its PDA, if this program has
+/// initialized one. A missing or empty account yields `None`; an account owned
+/// by this program that does not hold a delegation for `subject` is an error.
 pub fn load_vote_delegation(
     vote_delegation: &AccountInfo,
-    vote_account: &Pubkey,
+    subject: &Pubkey,
 ) -> Result<Option<VoteDelegation>> {
     if vote_delegation.data_len() == 0 || vote_delegation.owner != &crate::ID {
         return Ok(None);
@@ -50,27 +59,39 @@ pub fn load_vote_delegation(
         AccountDeserialize::try_deserialize(&mut vote_delegation.data.borrow().as_ref())
             .map_err(|_| GovernanceError::InvalidVoteDelegation)?;
     require_keys_eq!(
-        delegation.vote_account,
-        *vote_account,
+        delegation.subject,
+        *subject,
         GovernanceError::InvalidVoteDelegation
     );
     Ok(Some(delegation))
 }
 
-/// Requires `signer` to hold governance authority for `vote_account`, whose
-/// identity key is `identity`. With an accepted delegation on record only the
-/// delegate qualifies and the identity is locked out; otherwise only the
-/// identity qualifies, failing with `identity_mismatch`. A delegate acting on a
-/// delegation that is still pending gets `VoteDelegationNotAccepted` so the
-/// missing acceptance step is evident.
+/// Requires `signer` to hold governance authority for `subject` (an SPL vote
+/// account or a voting wallet), whose own voting key is `identity`. With an
+/// accepted delegation on record only the delegate qualifies and the identity
+/// is locked out; otherwise only the identity qualifies, failing with
+/// `identity_mismatch`. A delegate acting on a delegation that is still pending
+/// gets `VoteDelegationNotAccepted` so the missing acceptance step is evident.
+///
+/// | `vote_delegation`  | `signer`   | Result                      |
+/// |--------------------|------------|-----------------------------|
+/// | none               | `identity` | `Ok`                        |
+/// | none               | other      | `identity_mismatch`         |
+/// | pending            | `identity` | `Ok`                        |
+/// | pending            | delegate   | `VoteDelegationNotAccepted` |
+/// | pending            | other      | `identity_mismatch`         |
+/// | accepted           | delegate   | `Ok`                        |
+/// | accepted           | `identity` | `NotVoteDelegate`           |
+/// | accepted           | other      | `NotVoteDelegate`           |
+/// | not for `subject`  | any        | `InvalidVoteDelegation`     |
 pub fn require_vote_authority(
     signer: &Pubkey,
     identity: &Pubkey,
     vote_delegation: &AccountInfo,
-    vote_account: &Pubkey,
+    subject: &Pubkey,
     identity_mismatch: GovernanceError,
 ) -> Result<()> {
-    match load_vote_delegation(vote_delegation, vote_account)? {
+    match load_vote_delegation(vote_delegation, subject)? {
         Some(delegation) if delegation.delegation_accepted => {
             require_keys_eq!(
                 *signer,

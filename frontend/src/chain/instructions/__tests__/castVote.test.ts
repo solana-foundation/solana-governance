@@ -209,16 +209,16 @@ describe("castVote", () => {
   });
 
   it("votes for the delegated vote account when the wallet is an accepted vote delegate", async () => {
-    // The wallet is nobody's node identity, but one validator delegated to it.
+    // The wallet is nobody's node identity, but one live validator delegated to it.
     mockGetVoteAccounts.mockResolvedValue({
-      current: [{ nodePubkey: keyFromByte(30), votePubkey: keyFromByte(31) }],
+      current: [{ nodePubkey: keyFromByte(30), votePubkey: VOTE_ACCOUNT }],
       delinquent: [],
     });
     mockAllVoteDelegations.mockResolvedValue([
       {
         account: {
           delegate: new PublicKey(SIGNER),
-          voteAccount: new PublicKey(VOTE_ACCOUNT),
+          subject: new PublicKey(VOTE_ACCOUNT),
           delegationAccepted: true,
         },
       },
@@ -246,7 +246,7 @@ describe("castVote", () => {
       {
         account: {
           delegate: new PublicKey(SIGNER),
-          voteAccount: new PublicKey(VOTE_ACCOUNT),
+          subject: new PublicKey(VOTE_ACCOUNT),
           delegationAccepted: false,
         },
       },

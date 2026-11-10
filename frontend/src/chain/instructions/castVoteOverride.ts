@@ -23,6 +23,7 @@ import {
   deriveVotePda,
   deriveVoteOverridePda,
   deriveVoteOverrideCachePda,
+  deriveVoteDelegationPda,
   getMetaMerkleProofPda,
   computeProofCloseTimestamp,
   signTransactionForWallet,
@@ -234,6 +235,10 @@ export async function castVoteOverride(
       signer,
       splVoteAccount: splVoteAccount,
       splStakeAccount: stakeAccountPubkey,
+      voteDelegation: deriveVoteDelegationPda(
+        new PublicKey(stakeMerkleProof.stake_merkle_leaf.voting_wallet),
+        program.programId
+      ),
       proposal: proposalPubkey,
       consensusResult,
       metaMerkleProof: metaMerkleProofPda,

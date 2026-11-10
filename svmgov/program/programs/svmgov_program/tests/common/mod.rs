@@ -817,8 +817,7 @@ pub fn vote_delegation_pda(spl_vote_account: &Address) -> Address {
 #[derive(Debug, BorshDeserialize, PartialEq, Eq)]
 pub struct VoteDelegationState {
     pub delegate: [u8; 32],
-    pub vote_account: [u8; 32],
-    pub creator: [u8; 32],
+    pub subject: [u8; 32],
     pub delegation_accepted: bool,
     pub bump: u8,
 }
@@ -893,7 +892,7 @@ pub fn accept_vote_delegation_ix(signer: &Address, spl_vote_account: Address) ->
 pub fn remove_vote_delegation_ix(
     signer: &Address,
     spl_vote_account: Address,
-    creator: Address,
+    rent_recipient: Address,
 ) -> Instruction {
     Instruction {
         program_id: SVMGOV_PROGRAM_ID,
@@ -901,7 +900,7 @@ pub fn remove_vote_delegation_ix(
             AccountMeta::new_readonly(*signer, true),
             AccountMeta::new_readonly(spl_vote_account, false),
             AccountMeta::new(vote_delegation_pda(&spl_vote_account), false),
-            AccountMeta::new(creator, false),
+            AccountMeta::new(rent_recipient, false),
         ],
         data: anchor_discriminator("global", "remove_vote_delegation").to_vec(),
     }
@@ -1163,10 +1162,13 @@ pub fn cast_vote_ix(
 
 /// `cast_vote_override` and `modify_vote_override` share the same account
 /// list and argument encoding; only the instruction discriminator differs.
+/// The stake leaf names `voting_wallet` (the staker), which the signer must be
+/// unless an accepted delegation of that wallet names the signer.
 #[allow(clippy::too_many_arguments)]
-fn vote_override_ix(
+fn vote_override_ix_as(
     ix_name: &str,
     signer: &Address,
+    voting_wallet: &Address,
     proposal: Address,
     spl_vote_account: Address,
     spl_stake_account: Address,
@@ -1188,7 +1190,7 @@ fn vote_override_ix(
         data.extend(node);
     }
     let stake_leaf = StakeMerkleLeaf {
-        voting_wallet: to_pubkey(signer),
+        voting_wallet: to_pubkey(voting_wallet),
         stake_account: to_pubkey(&spl_stake_account),
         active_stake: stake_leaf_stake,
     };
@@ -1206,6 +1208,7 @@ fn vote_override_ix(
             ),
             AccountMeta::new(vote_override_cache_pda(&proposal, &validator_vote), false),
             AccountMeta::new_readonly(spl_stake_account, false),
+            AccountMeta::new_readonly(vote_delegation_pda(voting_wallet), false),
             AccountMeta::new_readonly(NCN_SNAPSHOT_PROGRAM_ID, false),
             AccountMeta::new_readonly(consensus_result, false),
             AccountMeta::new_readonly(meta_merkle_proof, false),
@@ -1213,6 +1216,39 @@ fn vote_override_ix(
         ],
         data,
     }
+}
+
+/// Override instruction signed by the staker's voting wallet itself.
+#[allow(clippy::too_many_arguments)]
+fn vote_override_ix(
+    ix_name: &str,
+    signer: &Address,
+    proposal: Address,
+    spl_vote_account: Address,
+    spl_stake_account: Address,
+    consensus_result: Address,
+    meta_merkle_proof: Address,
+    stake_merkle_proof: &[[u8; 32]],
+    stake_leaf_stake: u64,
+    for_bp: u64,
+    against_bp: u64,
+    abstain_bp: u64,
+) -> Instruction {
+    vote_override_ix_as(
+        ix_name,
+        signer,
+        signer,
+        proposal,
+        spl_vote_account,
+        spl_stake_account,
+        consensus_result,
+        meta_merkle_proof,
+        stake_merkle_proof,
+        stake_leaf_stake,
+        for_bp,
+        against_bp,
+        abstain_bp,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1518,6 +1554,79 @@ pub fn try_support_as(
             ),
         ],
     )
+}
+
+#[derive(Debug, BorshDeserialize)]
+pub struct VoteOverrideState {
+    pub delegator: [u8; 32],
+    pub stake_account: [u8; 32],
+    pub validator: [u8; 32],
+    pub proposal: [u8; 32],
+    pub vote_account_validator: [u8; 32],
+    pub for_votes_bp: u64,
+    pub against_votes_bp: u64,
+    pub abstain_votes_bp: u64,
+    pub for_votes_lamports: u64,
+    pub against_votes_lamports: u64,
+    pub abstain_votes_lamports: u64,
+    pub stake_amount: u64,
+    pub vote_override_timestamp: i64,
+    pub bump: u8,
+}
+
+pub fn fetch_vote_override(
+    h: &Harness,
+    s: &VotingScenario,
+    voter: usize,
+    delegator: usize,
+) -> Option<VoteOverrideState> {
+    let vote = vote_pda(
+        &s.proposal,
+        &h.validators[s.voters[voter].idx].vote.pubkey(),
+    );
+    let stake_account = s.voters[voter].delegators[delegator].stake_account;
+    let account = h
+        .svm
+        .get_account(&vote_override_pda(&s.proposal, &stake_account, &vote))?;
+    if account.data.len() <= 8 {
+        return None;
+    }
+    Some(VoteOverrideState::deserialize(&mut &account.data[8..]).expect("deserialize VoteOverride"))
+}
+
+/// Sends an override for scenario delegator `delegator` of validator `voter`,
+/// signed by an arbitrary key (the staker's wallet or its delegate).
+#[allow(clippy::too_many_arguments)]
+pub fn try_delegator_override_as(
+    ix_name: &str,
+    h: &mut Harness,
+    s: &VotingScenario,
+    voter: usize,
+    delegator: usize,
+    signer: &Keypair,
+    for_bp: u64,
+    against_bp: u64,
+    abstain_bp: u64,
+) -> Result<litesvm::types::TransactionMetadata, litesvm::types::FailedTransactionMetadata> {
+    h.svm.expire_blockhash();
+    let vote_account = h.validators[s.voters[voter].idx].vote.pubkey();
+    let d = &s.voters[voter].delegators[delegator];
+    let ix = vote_override_ix_as(
+        ix_name,
+        &signer.pubkey(),
+        &d.wallet.pubkey(),
+        s.proposal,
+        vote_account,
+        d.stake_account,
+        s.consensus_result,
+        s.voters[voter].meta_merkle_proof_account,
+        &d.stake_proof,
+        d.stake,
+        for_bp,
+        against_bp,
+        abstain_bp,
+    );
+    try_send_ix(&mut h.svm, signer, &[ix])
 }
 
 /// Rewrites validator `idx`'s vote account so its authorized withdrawer is

@@ -148,11 +148,13 @@ export interface ChainVoteAccountData {
   nodePubkey: string;
 }
 
-/** On-chain `VoteDelegation` of an SPL vote account, keys as base58. */
+/**
+ * On-chain `VoteDelegation`, keys as base58. The subject is an SPL vote account
+ * (a validator's vote) or a voting wallet (a staker's override vote).
+ */
 export interface VoteDelegationData {
-  voteAccount: string;
+  subject: string;
   delegate: string;
-  creator: string;
   delegationAccepted: boolean;
 }
 

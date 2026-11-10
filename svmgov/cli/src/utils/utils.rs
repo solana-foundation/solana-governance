@@ -189,9 +189,9 @@ pub async fn resolve_vote_account(
     if let Ok(vote_account) = find_spl_vote_account(signer, &program.rpc()).await {
         return Ok(vote_account);
     }
-    let delegated = find_accepted_vote_delegations(program, signer).await?;
+    let delegated = find_accepted_vote_account_delegations(program, signer).await?;
     match delegated.as_slice() {
-        [delegation] => Ok(delegation.vote_account),
+        [delegation] => Ok(delegation.subject),
         [] => Err(anyhow!(
             "No vote account found for {signer}: it is not the node identity of any current \
              vote account and no accepted vote delegation names it. Pass --vote-account to \
@@ -202,19 +202,20 @@ pub async fn resolve_vote_account(
              to choose one:\n{}",
             many.len(),
             many.iter()
-                .map(|d| format!("  {}", d.vote_account))
+                .map(|d| format!("  {}", d.subject))
                 .collect::<Vec<_>>()
                 .join("\n")
         )),
     }
 }
 
-/// Fetches the `VoteDelegation` of `vote_account`, or `None` when it has none.
+/// Fetches the `VoteDelegation` of `subject` (an SPL vote account or a staker's
+/// wallet), or `None` when it has none.
 pub async fn fetch_vote_delegation(
     program: &Program<Arc<DynSigner>>,
-    vote_account: &Pubkey,
+    subject: &Pubkey,
 ) -> Result<Option<VoteDelegation>> {
-    let pda = derive_vote_delegation_pda(vote_account, &program.id());
+    let pda = derive_vote_delegation_pda(subject, &program.id());
     match program.account::<VoteDelegation>(pda).await {
         Ok(delegation) => Ok(Some(delegation)),
         Err(anchor_client::ClientError::AccountNotFound) => Ok(None),
@@ -222,7 +223,37 @@ pub async fn fetch_vote_delegation(
     }
 }
 
-/// Lists the accepted vote delegations that name `delegate`.
+/// Returns who receives a vote delegation's rent when it is removed: the
+/// authorized withdrawer when `subject` is a live SPL vote account, otherwise
+/// `subject` itself (a staker wallet, or a vote account that has been closed).
+pub async fn vote_delegation_rent_recipient(
+    program: &Program<Arc<DynSigner>>,
+    subject: &Pubkey,
+) -> Result<Pubkey> {
+    use anchor_lang::solana_program::vote::{program as vote_program, state::VoteState};
+
+    let rpc = program.rpc();
+    let account = rpc
+        .get_account_with_commitment(subject, rpc.commitment())
+        .await
+        .map_err(|e| anyhow!("Failed to fetch {subject}: {e}"))?
+        .value;
+    match account {
+        Some(a) if a.owner == vote_program::ID && a.data.len() == VoteState::size_of() => {
+            // Every vote state version stores `node_pubkey` then
+            // `authorized_withdrawer` right after the 4-byte version tag, so the
+            // withdrawer can be read without version-specific decoding. The
+            // program re-derives the recipient on-chain, so a wrong guess here
+            // is rejected rather than misdirecting funds.
+            Pubkey::try_from(&a.data[36..68])
+                .map_err(|_| anyhow!("Vote account {subject} is too short to hold a withdrawer"))
+        }
+        _ => Ok(*subject),
+    }
+}
+
+/// Lists the accepted vote delegations that name `delegate`, whatever their
+/// subject (SPL vote accounts and staker wallets alike).
 pub async fn find_accepted_vote_delegations(
     program: &Program<Arc<DynSigner>>,
     delegate: &Pubkey,
@@ -240,6 +271,34 @@ pub async fn find_accepted_vote_delegations(
         .into_iter()
         .map(|(_, delegation)| delegation)
         .filter(|delegation| delegation.delegation_accepted)
+        .collect())
+}
+
+/// Lists the accepted vote delegations naming `delegate` whose subject is an SPL
+/// vote account, i.e. the validators the delegate may act for.
+pub async fn find_accepted_vote_account_delegations(
+    program: &Program<Arc<DynSigner>>,
+    delegate: &Pubkey,
+) -> Result<Vec<VoteDelegation>> {
+    let delegations = find_accepted_vote_delegations(program, delegate).await?;
+    if delegations.is_empty() {
+        return Ok(delegations);
+    }
+    let subjects: Vec<Pubkey> = delegations.iter().map(|d| d.subject).collect();
+    let accounts = program
+        .rpc()
+        .get_multiple_accounts(&subjects)
+        .await
+        .map_err(|e| anyhow!("Failed to classify vote delegation subjects: {e}"))?;
+    Ok(delegations
+        .into_iter()
+        .zip(accounts)
+        .filter(|(_, account)| {
+            account
+                .as_ref()
+                .is_some_and(|a| a.owner == anchor_lang::solana_program::vote::program::ID)
+        })
+        .map(|(delegation, _)| delegation)
         .collect())
 }
 
@@ -479,9 +538,10 @@ pub fn derive_vote_override_cache_pda(
     let (pda, _) = Pubkey::find_program_address(seeds, program_id);
     pda
 }
-/// Derives the VoteDelegation PDA using the seeds [b"vote_delegation", spl_vote_account].
-pub fn derive_vote_delegation_pda(vote_account: &Pubkey, program_id: &Pubkey) -> Pubkey {
-    let seeds = &[b"vote_delegation".as_ref(), vote_account.as_ref()];
+/// Derives the VoteDelegation PDA using the seeds [b"vote_delegation", subject],
+/// where the subject is an SPL vote account or a staker's voting wallet.
+pub fn derive_vote_delegation_pda(subject: &Pubkey, program_id: &Pubkey) -> Pubkey {
+    let seeds = &[b"vote_delegation".as_ref(), subject.as_ref()];
     let (pda, _) = Pubkey::find_program_address(seeds, program_id);
     pda
 }

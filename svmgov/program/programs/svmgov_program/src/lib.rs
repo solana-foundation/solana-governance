@@ -156,25 +156,29 @@ pub mod svmgov_program {
         Ok(())
     }
 
-    /// Step 1 of vote delegation: the vote account's node identity or authorized
-    /// withdrawer names `delegate` as the key that will vote for the vote account.
-    /// Takes effect only once the delegate calls `accept_vote_delegation`.
+    /// Step 1 of vote delegation: names `delegate` as the key that will vote for
+    /// the subject, an SPL vote account (signed by its node identity or authorized
+    /// withdrawer) or a voting wallet (signed by the wallet itself). Takes effect
+    /// only once the delegate calls `accept_vote_delegation`.
     pub fn delegate_vote(ctx: Context<DelegateVote>, delegate: Pubkey) -> Result<()> {
         ctx.accounts.delegate_vote(delegate, &ctx.bumps)?;
         Ok(())
     }
 
     /// Step 2 of vote delegation: the named delegate accepts. From then on the
-    /// delegate alone may create, support, vote on and modify votes for the vote
-    /// account, and the node identity is locked out until the delegation is removed.
+    /// delegate alone acts for the subject (creating, supporting, voting and
+    /// modifying for a vote account; overriding for a wallet's stake), and the
+    /// subject's own key is locked out until the delegation is removed.
     pub fn accept_vote_delegation(ctx: Context<AcceptVoteDelegation>) -> Result<()> {
         ctx.accounts.accept_vote_delegation()?;
         Ok(())
     }
 
-    /// Removes a vote delegation and returns its rent to the creator. The delegate
-    /// and the vote account's authorized withdrawer may always remove; the node
-    /// identity only while the delegation is not yet accepted.
+    /// Removes a vote delegation and returns its rent to the subject's root
+    /// authority. The delegate may always remove. For a vote account the
+    /// authorized withdrawer may always remove, the node identity only while the
+    /// delegation is not yet accepted, and the rent goes to the withdrawer; for a
+    /// wallet the wallet itself may always remove and receives the rent.
     pub fn remove_vote_delegation(ctx: Context<RemoveVoteDelegation>) -> Result<()> {
         ctx.accounts.remove_vote_delegation()?;
         Ok(())

@@ -1,9 +1,10 @@
 //! Vote delegation suite (issue #215): the `delegate_vote` /
-//! `accept_vote_delegation` / `remove_vote_delegation` authority rules, and how
-//! an accepted delegation redirects `cast_vote`, `modify_vote`,
-//! `support_proposal`, `create_proposal` and `update_proposal_description`
-//! from the validator identity to the delegate while keeping every on-chain
-//! record attributed to the identity.
+//! `accept_vote_delegation` / `remove_vote_delegation` authority rules for both
+//! subjects (a validator's SPL vote account and a staker's voting wallet), and
+//! how an accepted delegation redirects `cast_vote`, `modify_vote`,
+//! `support_proposal`, `create_proposal`, `update_proposal_description` and the
+//! override instructions from the voter's own key to the delegate while keeping
+//! every on-chain record attributed to the voter.
 mod common;
 
 use {
@@ -97,12 +98,89 @@ fn try_accept(h: &mut Harness, idx: usize, signer: &Keypair) -> TxResult {
     send(h, signer, accept_vote_delegation_ix(&signer.pubkey(), vote))
 }
 
-fn try_remove(h: &mut Harness, idx: usize, signer: &Keypair, creator: Address) -> TxResult {
+fn try_remove(h: &mut Harness, idx: usize, signer: &Keypair, rent_recipient: Address) -> TxResult {
     let vote = vote_account(h, idx);
     send(
         h,
         signer,
-        remove_vote_delegation_ix(&signer.pubkey(), vote, creator),
+        remove_vote_delegation_ix(&signer.pubkey(), vote, rent_recipient),
+    )
+}
+
+/// Names `delegate` for the staker wallet `subject`, signed by `signer`.
+fn try_delegate_wallet(
+    h: &mut Harness,
+    signer: &Keypair,
+    subject: &Address,
+    delegate: &Address,
+) -> TxResult {
+    send(
+        h,
+        signer,
+        delegate_vote_ix(&signer.pubkey(), *subject, delegate),
+    )
+}
+
+fn try_accept_wallet(h: &mut Harness, signer: &Keypair, subject: &Address) -> TxResult {
+    send(
+        h,
+        signer,
+        accept_vote_delegation_ix(&signer.pubkey(), *subject),
+    )
+}
+
+fn try_remove_wallet(
+    h: &mut Harness,
+    signer: &Keypair,
+    subject: &Address,
+    rent_recipient: Address,
+) -> TxResult {
+    send(
+        h,
+        signer,
+        remove_vote_delegation_ix(&signer.pubkey(), *subject, rent_recipient),
+    )
+}
+
+fn try_override_as(
+    h: &mut Harness,
+    s: &VotingScenario,
+    voter: usize,
+    delegator: usize,
+    signer: &Keypair,
+    bps: (u64, u64, u64),
+) -> TxResult {
+    try_delegator_override_as(
+        "cast_vote_override",
+        h,
+        s,
+        voter,
+        delegator,
+        signer,
+        bps.0,
+        bps.1,
+        bps.2,
+    )
+}
+
+fn try_modify_override_as(
+    h: &mut Harness,
+    s: &VotingScenario,
+    voter: usize,
+    delegator: usize,
+    signer: &Keypair,
+    bps: (u64, u64, u64),
+) -> TxResult {
+    try_delegator_override_as(
+        "modify_vote_override",
+        h,
+        s,
+        voter,
+        delegator,
+        signer,
+        bps.0,
+        bps.1,
+        bps.2,
     )
 }
 
@@ -157,19 +235,17 @@ fn only_the_identity_or_withdrawer_can_delegate() {
     assert_ok(try_delegate(&mut h, 0, &id, &delegate));
     let state = fetch_vote_delegation(&h.svm, &vote).expect("delegation must exist");
     assert_eq!(state.delegate, delegate.to_bytes());
-    assert_eq!(state.vote_account, vote.to_bytes());
-    assert_eq!(state.creator, id.pubkey().to_bytes());
+    assert_eq!(state.subject, vote.to_bytes());
     assert!(!state.delegation_accepted);
 
     // One delegation per vote account.
     assert!(try_delegate(&mut h, 0, &id, &delegate).is_err());
 
     // The withdrawer may create one too (after the pending one is withdrawn).
-    assert_ok(try_remove(&mut h, 0, &id, id.pubkey()));
+    assert_ok(try_remove(&mut h, 0, &id, withdrawer.pubkey()));
     assert!(fetch_vote_delegation(&h.svm, &vote).is_none());
     assert_ok(try_delegate(&mut h, 0, &withdrawer, &delegate));
-    let state = fetch_vote_delegation(&h.svm, &vote).expect("delegation must exist");
-    assert_eq!(state.creator, withdrawer.pubkey().to_bytes());
+    assert!(fetch_vote_delegation(&h.svm, &vote).is_some());
 }
 
 #[test]
@@ -208,31 +284,31 @@ fn removal_authority_follows_acceptance_with_the_withdrawer_as_escape_hatch() {
     let vote = vote_account(&h, 0);
 
     // Pending: the identity may withdraw it, strangers may not, and the rent
-    // must go back to the recorded creator.
+    // must go to the authorized withdrawer even though the identity paid.
     assert_ok(try_delegate(&mut h, 0, &id, &delegate.pubkey()));
     assert_rejected(
-        try_remove(&mut h, 0, &stranger, id.pubkey()),
+        try_remove(&mut h, 0, &stranger, withdrawer.pubkey()),
         GovernanceError::UnauthorizedVoteDelegationRemoval,
     );
     assert_rejected(
-        try_remove(&mut h, 0, &id, stranger.pubkey()),
-        GovernanceError::InvalidVoteDelegationCreator,
+        try_remove(&mut h, 0, &id, id.pubkey()),
+        GovernanceError::InvalidVoteDelegationRentRecipient,
     );
-    assert_ok(try_remove(&mut h, 0, &id, id.pubkey()));
+    assert_ok(try_remove(&mut h, 0, &id, withdrawer.pubkey()));
     assert!(fetch_vote_delegation(&h.svm, &vote).is_none());
 
     // Accepted: the hot identity key is locked out, the delegate may resign,
-    // and the creator receives the rent.
+    // and the withdrawer receives the rent.
     assert_ok(try_delegate(&mut h, 0, &id, &delegate.pubkey()));
     assert_ok(try_accept(&mut h, 0, &delegate));
     assert_rejected(
-        try_remove(&mut h, 0, &id, id.pubkey()),
+        try_remove(&mut h, 0, &id, withdrawer.pubkey()),
         GovernanceError::UnauthorizedVoteDelegationRemoval,
     );
     let rent = lamports(&h, &vote_delegation_pda(&vote));
-    let before = lamports(&h, &id.pubkey());
-    assert_ok(try_remove(&mut h, 0, &delegate, id.pubkey()));
-    assert_eq!(lamports(&h, &id.pubkey()), before + rent);
+    let before = lamports(&h, &withdrawer.pubkey());
+    assert_ok(try_remove(&mut h, 0, &delegate, withdrawer.pubkey()));
+    assert_eq!(lamports(&h, &withdrawer.pubkey()), before + rent);
 
     // Accepted, delegate key lost: the authorized withdrawer revokes, after
     // which the identity votes again.
@@ -242,25 +318,38 @@ fn removal_authority_follows_acceptance_with_the_withdrawer_as_escape_hatch() {
         try_cast_vote_as(&mut h, &s, 0, &id, 10_000, 0, 0),
         GovernanceError::NotVoteDelegate,
     );
-    assert_ok(try_remove(&mut h, 0, &withdrawer, id.pubkey()));
+    assert_ok(try_remove(&mut h, 0, &withdrawer, withdrawer.pubkey()));
     assert_ok(try_cast_vote_as(&mut h, &s, 0, &id, 10_000, 0, 0));
 }
 
 #[test]
-fn creator_reclaims_rent_once_the_vote_account_is_gone() {
+fn a_closed_vote_account_falls_back_to_wallet_removal_rules() {
     let mut h = setup_harness(1, 1, 1);
     let id = identity(&h, 0);
     let vote = vote_account(&h, 0);
-    let _delegate = delegate_and_accept(&mut h, 0);
+    let delegate = delegate_and_accept(&mut h, 0);
     let stranger = funded_keypair(&mut h);
 
+    // Without live vote state there is no identity or withdrawer to consult:
+    // only the delegate or the subject key itself may remove, and the rent goes
+    // to the subject address.
     clear_account(&mut h.svm, vote);
     assert_rejected(
-        try_remove(&mut h, 0, &stranger, id.pubkey()),
+        try_remove(&mut h, 0, &stranger, vote),
         GovernanceError::UnauthorizedVoteDelegationRemoval,
     );
-    assert_ok(try_remove(&mut h, 0, &id, id.pubkey()));
+    assert_rejected(
+        try_remove(&mut h, 0, &id, vote),
+        GovernanceError::UnauthorizedVoteDelegationRemoval,
+    );
+    assert_rejected(
+        try_remove(&mut h, 0, &delegate, id.pubkey()),
+        GovernanceError::InvalidVoteDelegationRentRecipient,
+    );
+    let rent = lamports(&h, &vote_delegation_pda(&vote));
+    assert_ok(try_remove(&mut h, 0, &delegate, vote));
     assert!(fetch_vote_delegation(&h.svm, &vote).is_none());
+    assert_eq!(lamports(&h, &vote), rent);
 }
 
 // ---------------------------------------------------------------------------
@@ -452,4 +541,154 @@ fn accepted_delegate_creates_supports_and_edits_proposals_for_the_identity() {
     );
     assert_ok(send(&mut h, &delegate, ix));
     assert_eq!(fetch_proposal(&h.svm, &proposal).description, UPDATED_LINK);
+}
+
+// ---------------------------------------------------------------------------
+// Stakers: the subject is the voting wallet itself.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_wallet_delegates_only_its_own_vote_and_keeps_control() {
+    let (mut h, s) = voting_fixture();
+    let staker = s.voters[0].delegators[0].wallet.insecure_clone();
+    let subject = staker.pubkey();
+    let delegate = funded_keypair(&mut h);
+    let stranger = funded_keypair(&mut h);
+
+    // Nobody else can delegate a wallet's vote: the wallet must sign.
+    assert_rejected(
+        try_delegate_wallet(&mut h, &stranger, &subject, &delegate.pubkey()),
+        GovernanceError::UnauthorizedVoteDelegation,
+    );
+    assert_ok(try_delegate_wallet(
+        &mut h,
+        &staker,
+        &subject,
+        &delegate.pubkey(),
+    ));
+    let state = fetch_vote_delegation(&h.svm, &subject).expect("delegation must exist");
+    assert_eq!(state.subject, subject.to_bytes());
+    assert!(!state.delegation_accepted);
+
+    // The wallet is its own root authority, so unlike a validator identity it
+    // may revoke even after acceptance; the delegate may still resign.
+    assert_ok(try_accept_wallet(&mut h, &delegate, &subject));
+    assert_rejected(
+        try_remove_wallet(&mut h, &stranger, &subject, subject),
+        GovernanceError::UnauthorizedVoteDelegationRemoval,
+    );
+    assert_ok(try_remove_wallet(&mut h, &staker, &subject, subject));
+    assert!(fetch_vote_delegation(&h.svm, &subject).is_none());
+
+    assert_ok(try_delegate_wallet(
+        &mut h,
+        &staker,
+        &subject,
+        &delegate.pubkey(),
+    ));
+    assert_ok(try_accept_wallet(&mut h, &delegate, &subject));
+    assert_ok(try_remove_wallet(&mut h, &delegate, &subject, subject));
+    assert!(fetch_vote_delegation(&h.svm, &subject).is_none());
+}
+
+#[test]
+fn accepted_wallet_delegate_overrides_with_the_stakers_stake() {
+    let (mut h, s) = voting_fixture();
+    let staker = s.voters[0].delegators[0].wallet.insecure_clone();
+    let subject = staker.pubkey();
+    let delegate = funded_keypair(&mut h);
+    let stranger = funded_keypair(&mut h);
+
+    // Pending: the delegate is told to accept first, strangers are rejected,
+    // and the staker still votes.
+    assert_ok(try_delegate_wallet(
+        &mut h,
+        &staker,
+        &subject,
+        &delegate.pubkey(),
+    ));
+    assert_rejected(
+        try_override_as(&mut h, &s, 0, 0, &delegate, (10_000, 0, 0)),
+        GovernanceError::VoteDelegationNotAccepted,
+    );
+    assert_rejected(
+        try_override_as(&mut h, &s, 0, 0, &stranger, (10_000, 0, 0)),
+        GovernanceError::UnauthorizedVoteSigner,
+    );
+
+    // Accepted: the delegate alone overrides, with the staker's stake, and the
+    // override stays attributed to the staker.
+    assert_ok(try_accept_wallet(&mut h, &delegate, &subject));
+    assert_rejected(
+        try_override_as(&mut h, &s, 0, 0, &staker, (10_000, 0, 0)),
+        GovernanceError::NotVoteDelegate,
+    );
+    assert_ok(try_override_as(&mut h, &s, 0, 0, &delegate, (10_000, 0, 0)));
+    let vote_override = fetch_vote_override(&h, &s, 0, 0).expect("override must exist");
+    assert_eq!(vote_override.delegator, subject.to_bytes());
+    assert_eq!(vote_override.stake_amount, D0);
+    let state = fetch_proposal(&h.svm, &s.proposal);
+    assert_eq!(
+        (state.for_votes_lamports, state.against_votes_lamports),
+        (D0, 0)
+    );
+
+    assert_rejected(
+        try_modify_override_as(&mut h, &s, 0, 0, &staker, (0, 10_000, 0)),
+        GovernanceError::NotVoteDelegate,
+    );
+    assert_ok(try_modify_override_as(
+        &mut h,
+        &s,
+        0,
+        0,
+        &delegate,
+        (0, 10_000, 0),
+    ));
+
+    // The staker revokes and takes the vote back.
+    assert_ok(try_remove_wallet(&mut h, &staker, &subject, subject));
+    assert_ok(try_modify_override_as(
+        &mut h,
+        &s,
+        0,
+        0,
+        &staker,
+        (0, 0, 10_000),
+    ));
+
+    // The validator votes afterwards; the overridden stake is carved out as usual.
+    cast_validator_vote(&mut h, &s, 0, 10_000, 0, 0);
+    let state = finalize_proposal(&mut h, &s);
+    assert_eq!(
+        (
+            state.for_votes_lamports,
+            state.against_votes_lamports,
+            state.abstain_votes_lamports
+        ),
+        (V_ACTIVE - D0, 0, D0)
+    );
+}
+
+#[test]
+fn a_wallet_delegation_does_not_grant_the_validator_vote() {
+    let (mut h, s) = voting_fixture();
+    let id = identity(&h, 0);
+    let delegate = funded_keypair(&mut h);
+
+    // The identity delegates as a wallet (subject = its own key), which covers
+    // stake it withdraws, not the validator vote keyed by the vote account.
+    assert_ok(try_delegate_wallet(
+        &mut h,
+        &id,
+        &id.pubkey(),
+        &delegate.pubkey(),
+    ));
+    assert_ok(try_accept_wallet(&mut h, &delegate, &id.pubkey()));
+
+    assert_rejected(
+        try_cast_vote_as(&mut h, &s, 0, &delegate, 10_000, 0, 0),
+        GovernanceError::UnauthorizedVoteSigner,
+    );
+    assert_ok(try_cast_vote_as(&mut h, &s, 0, &id, 10_000, 0, 0));
 }

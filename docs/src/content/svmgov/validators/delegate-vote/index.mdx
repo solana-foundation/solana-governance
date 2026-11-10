@@ -2,58 +2,69 @@ import { Callout } from 'nextra/components'
 
 # Delegate Vote
 
-Let another key create, support and vote on proposals for your validator, so the validator identity key never has to sign governance transactions.
+Let another key vote for you, so the key that controls your validator or your stake never has to sign governance transactions.
 
 ## Description
 
-By default the governance voter for a vote account is its **node identity**, the hot key that runs the validator. Signing governance transactions with it is tedious and poor key hygiene. A **vote delegation** names a different key, the **delegate**, as the governance voter for the vote account.
+By default the governance voter is the key the snapshot names as **voting wallet**: a validator's **node identity** (the hot key that runs the validator), or, for a stake account, its **withdraw authority** (the pool manager's wallet for stake-pool stake). Signing governance transactions with those keys is tedious and poor key hygiene. A **vote delegation** names a different key, the **delegate**, as the governance voter for a **subject**:
+
+- an **SPL vote account**, delegating the validator's vote, or
+- a **wallet**, delegating the override vote for every stake account that wallet is the voting wallet of.
 
 Delegation is a two-step handshake, so a mistyped key can never lock you out:
 
-1. `delegate-vote`, signed by the vote account's node identity **or** authorized withdrawer, names the delegate. The delegation is **pending** and has no effect yet: the identity keeps voting.
-2. `accept-vote-delegation`, signed by the delegate, activates it. From then on the delegate alone may `create-proposal`, `support-proposal`, `cast-vote`, `modify-vote` and `update-proposal-description` for the vote account, and the identity key is **locked out** of governance until the delegation is removed.
+1. `delegate-vote` names the delegate. For a vote account it is signed by the node identity **or** the authorized withdrawer; for a wallet (`--wallet`) by the wallet itself. The delegation is **pending** and has no effect yet.
+2. `accept-vote-delegation`, signed by the delegate, activates it. From then on the delegate alone acts for the subject: `create-proposal`, `support-proposal`, `cast-vote`, `modify-vote` and `update-proposal-description` for a vote account; `cast-vote-override` and `modify-vote-override` for a wallet's stake. The subject's own key is **locked out** until the delegation is removed.
 
-All on-chain records stay attributed to the validator: a `Vote` cast by the delegate still names the identity, counts the validator's full stake, and can be overridden by stakers exactly as before.
+All on-chain records stay attributed to the voter: a `Vote` cast by a delegate still names the identity and counts the validator's full stake, and a `VoteOverride` still names the staker's wallet.
 
 <Callout type="info">
-  The delegate can be any key that can sign a transaction, including a multisig vault PDA such as Squads (acceptance is signed through the multisig). Delegating to a Squads vault from this CLI is not yet supported; use the multisig's own tooling to sign the `accept_vote_delegation` instruction.
+  The delegate can be any key that can sign a transaction, including a multisig vault PDA such as Squads (acceptance is signed through the multisig). Routing the delegation commands themselves through `--squads` is not yet supported by this CLI.
 </Callout>
 
 ## Removing a delegation
 
-`remove-vote-delegation` closes the delegation and returns its rent to whoever created it. Who may remove depends on whether it was accepted:
+`remove-vote-delegation` closes the delegation and returns its rent to the subject's root authority: the vote account's authorized withdrawer, or the wallet itself. Who may remove depends on the subject and on whether it was accepted:
 
 | Signer | Pending | Accepted |
 |---|---|---|
 | Delegate | Yes | Yes (resign) |
-| Authorized withdrawer | Yes | Yes (revoke) |
-| Node identity | Yes | **No** |
+| Vote account: authorized withdrawer | Yes | Yes (revoke) |
+| Vote account: node identity | Yes | **No** |
+| Wallet: the wallet itself | Yes | Yes (revoke) |
 
-The authorized withdrawer is the cold root authority of the vote account, so a lost or hostile delegate key never strands the vote: the withdrawer revokes and the identity votes again (or delegates to a new key).
+For a vote account the authorized withdrawer is the cold root authority, so a lost or hostile delegate key never strands the vote: the withdrawer revokes and the identity votes again (or delegates to a new key). A wallet is its own root authority and keeps that control.
 
 <Callout type="warning">
-  Once accepted, the identity key cannot vote or revoke. Keep the authorized withdrawer key safe; it is the escape hatch.
+  Once a vote account delegation is accepted, the identity key cannot vote or revoke. Keep the authorized withdrawer key safe; it is the escape hatch.
 </Callout>
 
 ## Usage
 
 ```bash
-# 1. As the validator identity: name the delegate
+# Validator, step 1: as the node identity, name the delegate
 svmgov -k /path/to/identity.json delegate-vote --delegate <DELEGATE_PUBKEY>
 
-# 2. As the delegate: accept
-svmgov -k /path/to/delegate.json accept-vote-delegation --vote-account <VOTE_ACCOUNT>
+# Staker, step 1: as the stake withdraw authority, name the delegate for your wallet
+svmgov -k /path/to/staker.json delegate-vote --wallet --delegate <DELEGATE_PUBKEY>
 
-# 3. As the delegate: vote as usual. The CLI finds the delegated vote account.
+# Step 2: as the delegate, accept (the subject is the vote account or the wallet)
+svmgov -k /path/to/delegate.json accept-vote-delegation --subject <VOTE_ACCOUNT_OR_WALLET>
+
+# Then vote as usual. The CLI finds the delegated vote account; overrides use the stake account.
 svmgov -k /path/to/delegate.json cast-vote --proposal-id "ABC123..." \
+  --for-votes 10000 --against-votes 0 --abstain-votes 0
+svmgov cast-vote-override --proposal-id "ABC123..." --stake-account <STAKE_ACCOUNT> \
+  --vote-account <VALIDATOR_VOTE_ACCOUNT> --staker-keypair /path/to/delegate.json \
   --for-votes 10000 --against-votes 0 --abstain-votes 0
 
 # Inspect
-svmgov show-vote-delegation --vote-account <VOTE_ACCOUNT>
+svmgov show-vote-delegation --subject <VOTE_ACCOUNT_OR_WALLET>
 
-# Remove (delegate, withdrawer, or identity while pending)
+# Remove
 svmgov -k /path/to/delegate.json remove-vote-delegation
 svmgov -k /path/to/withdrawer.json remove-vote-delegation --vote-account <VOTE_ACCOUNT>
+svmgov -k /path/to/staker.json remove-vote-delegation --wallet
 ```
 
 ## Commands
@@ -62,41 +73,45 @@ svmgov -k /path/to/withdrawer.json remove-vote-delegation --vote-account <VOTE_A
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `--delegate` | String | **Yes** | Base58 pubkey that will vote for the vote account |
-| `--vote-account` | String | No | SPL vote account to delegate. Defaults to the one whose node identity is the signer; required when signing as the authorized withdrawer |
+| `--delegate` | String | **Yes** | Base58 pubkey that will vote for the subject |
+| `--vote-account` | String | No | SPL vote account to delegate. Defaults to the one whose node identity is the signer; required when signing as the authorized withdrawer. Conflicts with `--wallet` |
+| `--wallet` | flag | No | Delegate the signer's own wallet: the override vote for every stake account it is the voting wallet of |
 
 ### `accept-vote-delegation`
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `--vote-account` | String | **Yes** | SPL vote account whose pending delegation to accept |
+| `--subject` | String | **Yes** | SPL vote account or staker wallet whose pending delegation to accept |
 
 ### `remove-vote-delegation`
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `--vote-account` | String | No | SPL vote account whose delegation to remove. Defaults to the signer's own vote account, or the one delegated to the signer |
+| `--vote-account` | String | No | SPL vote account whose delegation to remove. Defaults to the signer's own vote account, or the one delegated to the signer. Conflicts with `--wallet` |
+| `--wallet` | flag | No | Remove the delegation of the signer's own wallet |
 
 ### `show-vote-delegation`
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `--vote-account` | String | **Yes** | SPL vote account to inspect |
+| `--subject` | String | **Yes** | SPL vote account or staker wallet to inspect |
 | `--json` | flag | No | Print the delegation as JSON |
 
 ## Acting as a delegate
 
 Every validator command accepts `--vote-account`. Without it the CLI resolves the vote account from the signer: first the vote account whose node identity is the signer, then the single vote account with an accepted delegation naming the signer. A delegate for several validators must pass `--vote-account` to choose one.
 
+The override commands already take the stake account explicitly, so a wallet delegate simply signs them with its own keypair (`--staker-keypair`).
+
 ## What Happens On-Chain
 
-- `delegate_vote` reads `node_pubkey` and `authorized_withdrawer` from the live SPL vote account, requires the signer to be one of them, and creates a `VoteDelegation` PDA (seeds `["vote_delegation", vote_account]`) with `delegation_accepted = false`.
+- `delegate_vote` creates a `VoteDelegation` PDA (seeds `["vote_delegation", subject]`) with `delegation_accepted = false`. When the subject is a live SPL vote account the program reads its `node_pubkey` and `authorized_withdrawer` and requires the signer to be one of them; otherwise the subject must be the signer. The owner of the subject account alone decides which rule applies.
 - `accept_vote_delegation` requires the delegate's signature and sets `delegation_accepted = true`.
-- `create_proposal`, `support_proposal`, `cast_vote`, `modify_vote` and `update_proposal_description` take the `VoteDelegation` PDA as an account. With an accepted delegation the signer must be the delegate; otherwise the signer must be the identity (the snapshot's `voting_wallet` for votes).
-- `remove_vote_delegation` closes the PDA to its creator under the rules in the table above.
+- `create_proposal`, `support_proposal`, `cast_vote`, `modify_vote` and `update_proposal_description` take the vote account's `VoteDelegation` PDA; `cast_vote_override` and `modify_vote_override` take the stake leaf's voting wallet's. With an accepted delegation the signer must be the delegate; otherwise the signer must be the voter's own key (the snapshot's `voting_wallet` for votes and overrides).
+- `remove_vote_delegation` closes the PDA under the rules in the table above, paying the rent to the vote account's authorized withdrawer or to the wallet. If the vote account has since been closed, the wallet rules apply to its address.
 
 ## Related
 
 - [Cast Vote](/svmgov/validators/cast-vote)
 - [Support Proposal](/svmgov/validators/support-proposal)
-- [Create Proposal](/svmgov/validators/create-proposal)
+- [Cast Vote Override](/svmgov/stakers/cast-vote-override)
