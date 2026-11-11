@@ -133,7 +133,7 @@ svmgov -k /path/to/member.json cast-vote --proposal-id "ABC123..." \
 </Callout>
 
 <Callout type="warning">
-  `support-proposal` (and `create-proposal --with-support`) has two more conditions at execution. It needs a raised compute unit limit; the CLI prints the amount. And its ballot box account is bound to the epoch the vault transaction was created in, which the program checks only when this support crosses the activation threshold. Approve and execute within that epoch: a later execution that crosses the threshold fails with `InvalidBallotBox`, and the vault transaction must be cancelled and re-created. The CLI prints the epoch.
+  `support-proposal` re-tallies every existing supporter, so its compute need grows with the supporter list and can exceed the default limit at execution; the CLI prints the amount to set. Both `support-proposal` and `create-proposal --with-support` bind their ballot box account to the epoch the vault transaction was created in, which the program checks only when the support crosses the activation threshold. Approve and execute within that epoch: a later execution that crosses the threshold fails with `InvalidBallotBox`, and the vault transaction must be cancelled and re-created. The CLI prints the epoch.
 </Callout>
 
 ## What Happens On-Chain
