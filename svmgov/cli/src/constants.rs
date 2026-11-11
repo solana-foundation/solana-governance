@@ -37,6 +37,16 @@ pub const SUPPORT_CU_PER_SUPPORTER: u32 = 132;
 /// cannot know whether its own call will be the one that crosses.
 pub const SUPPORT_CU_ACTIVATION: u32 = 28_000;
 
+/// Allowance for the PDAs the handler derives by bump search from keys that
+/// differ per proposal: the support and delegation records, the proposal
+/// signer inside `init_ballot_box`, the consensus result, and the ballot box
+/// twice. Each failed attempt costs 1,500 CU and the count depends on the
+/// keys, so no fixed request covers every proposal; 18 failed attempts leaves
+/// about one proposal in 300 needing more. `tests/ncn_flow.rs` measures the
+/// activating call net of its own searches and asserts the model covers that
+/// floor plus this allowance.
+pub const SUPPORT_CU_BUMP_SEARCH: u32 = 27_000;
+
 /// Margin over the modelled cost. Chiefly covers supporters that land between
 /// reading `num_supporters` and the transaction executing, at ~132 CU each.
 pub const SUPPORT_CU_HEADROOM_PERCENT: u32 = 15;
@@ -54,7 +64,8 @@ pub const MAX_SUPPORTERS_LIMIT: u32 = 2_000;
 pub fn support_compute_unit_limit(num_supporters: u32) -> u32 {
     let modelled = SUPPORT_CU_BASE
         .saturating_add(SUPPORT_CU_PER_SUPPORTER.saturating_mul(num_supporters))
-        .saturating_add(SUPPORT_CU_ACTIVATION);
+        .saturating_add(SUPPORT_CU_ACTIVATION)
+        .saturating_add(SUPPORT_CU_BUMP_SEARCH);
     // div_ceil, matching Math.ceil in the TypeScript mirror — plain integer
     // division would round the two clients apart on inexact results.
     let with_headroom =
@@ -67,15 +78,18 @@ mod tests {
     use super::*;
 
     /// Mirrors the peak measured in `tests/support_compute_budget.rs` at the
-    /// 2000-supporter cap (284,953 CU, ballot box already created).
-    const MEASURED_AT_CAP: u32 = 284_953;
+    /// 2000-supporter cap (294,240 CU, ballot box already created).
+    const MEASURED_AT_CAP: u32 = 294_240;
+    /// Mirrors the floor measured in `tests/ncn_flow.rs` for the activating
+    /// call at the 64-operator maximum, net of its bump searches.
+    const MEASURED_ACTIVATION_FLOOR: u32 = 47_878;
 
     #[test]
     fn covers_measured_cost_with_headroom() {
-        // No supporters yet, and this call could be the one that activates:
-        // ncn_flow measured 43,817-47,610 CU for that path.
-        assert!(support_compute_unit_limit(0) > 49_473);
-        assert!(support_compute_unit_limit(2_000) > MEASURED_AT_CAP);
+        // No supporters yet, and this call could be the one that activates.
+        // Either measurement may also pay the whole search allowance.
+        assert!(support_compute_unit_limit(0) > MEASURED_ACTIVATION_FLOOR + SUPPORT_CU_BUMP_SEARCH);
+        assert!(support_compute_unit_limit(2_000) > MEASURED_AT_CAP + SUPPORT_CU_BUMP_SEARCH);
     }
 
     #[test]
@@ -92,8 +106,8 @@ mod tests {
         // Both clients must request the same budget for the same state; these
         // values are pinned identically in the frontend's
         // supportComputeUnitLimit test.
-        assert_eq!(support_compute_unit_limit(0), 58_075);
-        assert_eq!(support_compute_unit_limit(2_000), 361_675);
+        assert_eq!(support_compute_unit_limit(0), 89_125);
+        assert_eq!(support_compute_unit_limit(2_000), 392_725);
     }
 
     #[test]

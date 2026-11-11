@@ -51,15 +51,29 @@ pub const MAX_SUPPORTERS: u32 = 2_000;
 pub const SUPPORT_CU_BASE: u32 = 22_500;
 pub const SUPPORT_CU_PER_SUPPORTER: u32 = 132;
 pub const SUPPORT_CU_ACTIVATION: u32 = 28_000;
+pub const SUPPORT_CU_BUMP_SEARCH: u32 = 27_000;
 pub const SUPPORT_CU_HEADROOM_PERCENT: u32 = 15;
+
+/// Compute units `find_program_address` spends per attempt: the runtime's
+/// `create_program_address` syscall cost.
+pub const CU_PER_BUMP_ATTEMPT: u64 = 1_500;
 
 /// Compute units the clients request for a support/retally at `num_supporters`.
 pub fn modelled_support_limit(num_supporters: u32) -> u64 {
     let modelled = SUPPORT_CU_BASE
         .saturating_add(SUPPORT_CU_PER_SUPPORTER.saturating_mul(num_supporters))
-        .saturating_add(SUPPORT_CU_ACTIVATION);
+        .saturating_add(SUPPORT_CU_ACTIVATION)
+        .saturating_add(SUPPORT_CU_BUMP_SEARCH);
     (u64::from(modelled) * u64::from(100 + SUPPORT_CU_HEADROOM_PERCENT)).div_ceil(100)
 }
+
+/// Failed attempts `find_program_address` makes before reaching the bump for
+/// `seeds` under `program_id`; each costs `CU_PER_BUMP_ATTEMPT` on-chain.
+pub fn failed_bump_attempts(seeds: &[&[u8]], program_id: &Address) -> u64 {
+    let (_, bump) = Address::find_program_address(seeds, program_id);
+    u64::from(u8::MAX - bump)
+}
+
 /// Anchor `#[error_code]` offset (`anchor_lang::error::ERROR_CODE_OFFSET`).
 pub const ANCHOR_ERROR_CODE_OFFSET: u32 = 6000;
 
