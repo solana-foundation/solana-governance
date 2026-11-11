@@ -37,10 +37,14 @@ Your vote is immediately added to the proposal's on-chain tallies; it never depe
 
 **Path B — Validator hasn't voted yet:** Your vote is counted right away, and your overridden stake is recorded in a `VoteOverrideCache`. If the validator later calls `cast_vote`, their vote is cast with the cached stake excluded from their weight, so your stake is never counted twice.
 
+## Voting Through a Delegate
+
+The key that signs an override is the stake account's **voting wallet**: its withdraw authority. If you would rather not sign governance transactions with that key, delegate your wallet's override vote to another key with `delegate-vote --wallet`. Once the delegate accepts, it alone signs `cast-vote-override` and `modify-vote-override` for every stake account your wallet controls, and the records still name your wallet and count your stake. The delegate can be any key, including a Squads vault; and if the withdraw authority is itself a Squads vault, pass `--squads` to sign as it. See [Delegate Vote](/svmgov/validators/delegate-vote).
+
 ## Requirements
 
 - A stake account with active delegation to a validator
-- The staker keypair (withdraw authority or signing key for the stake account)
+- The staker keypair (the stake account's withdraw authority), or the keypair of a delegate the wallet has delegated its vote to (see [Delegate Vote](/svmgov/validators/delegate-vote))
 - The validator's vote account address
 - Access to operator API for Merkle proofs. The CLI defaults to the <a href="/ncn/router">main NCN router</a>: `https://ncn-governance.solana.com`.
 
@@ -72,6 +76,7 @@ svmgov config set operator-api-url https://your-operator-api.example.com
 <Cards>
   <Cards.Card title="Cast Vote Override" href="/svmgov/stakers/cast-vote-override" />
   <Cards.Card title="Modify Vote Override" href="/svmgov/stakers/modify-vote-override" />
+  <Cards.Card title="Delegate Vote" href="/svmgov/validators/delegate-vote" />
 </Cards>
 
 ## Global Arguments

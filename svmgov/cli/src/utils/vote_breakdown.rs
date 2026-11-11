@@ -27,6 +27,24 @@ use crate::{
 
 const IDL: &str = include_str!("../../idls/svmgov_program.json");
 
+// Account size of an IDL field type. Anchor sizes accounts for the longest
+// encoding, so an `option` counts as its tag plus a full payload even though
+// `None` serializes to the tag alone.
+fn field_size(name: &str, ty: &Value) -> Result<usize> {
+    if let Some(inner) = ty.get("option") {
+        return Ok(1 + field_size(name, inner)?);
+    }
+    Ok(match ty.as_str() {
+        Some("pubkey") => 32,
+        Some("u64" | "i64") => 8,
+        Some("u32" | "i32") => 4,
+        Some("u16" | "i16") => 2,
+        Some("u8" | "i8" | "bool") => 1,
+        Some("u128" | "i128") => 16,
+        _ => bail!("Unsupported IDL field type in {name}: {ty}"),
+    })
+}
+
 // Only fixed Borsh fields can be used to derive RPC byte offsets. Fail closed
 // if a future schema introduces variable-length or unsupported fields.
 fn account_layout(idl: &Value, name: &str, discriminator_len: usize) -> Result<(usize, usize)> {
@@ -47,15 +65,7 @@ fn account_layout(idl: &Value, name: &str, discriminator_len: usize) -> Result<(
             );
             proposal_offset = Some(size);
         }
-        size += match field["type"].as_str() {
-            Some("pubkey") => 32,
-            Some("u64" | "i64") => 8,
-            Some("u32" | "i32") => 4,
-            Some("u16" | "i16") => 2,
-            Some("u8" | "i8" | "bool") => 1,
-            Some("u128" | "i128") => 16,
-            _ => bail!("Unsupported IDL field type in {name}: {}", field["type"]),
-        };
+        size += field_size(name, &field["type"])?;
     }
     Ok((size, proposal_offset.context("IDL proposal field missing")?))
 }
@@ -356,10 +366,14 @@ mod tests {
     fn filters_track_serialized_account_layouts_and_schema_changes() {
         let idl: Value = serde_json::from_str(IDL).unwrap();
         let proposal = Pubkey::new_unique();
+        // `delegate_signer` is an `Option`, so only its `Some` encoding reaches
+        // the account size the filters must match.
         let mut vote: Vote = empty_account();
         vote.proposal = proposal;
+        vote.delegate_signer = Some(Pubkey::new_unique());
         let mut override_vote: VoteOverride = empty_account();
         override_vote.proposal = proposal;
+        override_vote.delegate_signer = Some(Pubkey::new_unique());
         let mut vote_bytes = Vec::new();
         vote.try_serialize(&mut vote_bytes).unwrap();
         let mut override_bytes = Vec::new();

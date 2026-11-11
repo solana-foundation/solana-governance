@@ -6,6 +6,7 @@ mod instructions;
 mod merkle_helpers;
 mod state;
 mod utils;
+mod vote_authority;
 use anchor_lang::prelude::*;
 use instructions::*;
 
@@ -155,6 +156,34 @@ pub mod svmgov_program {
         Ok(())
     }
 
+    /// Step 1 of vote delegation: names `delegate` as the key that will vote for
+    /// the subject, an SPL vote account (signed by its node identity or authorized
+    /// withdrawer) or a voting wallet (signed by the wallet itself). Takes effect
+    /// only once the delegate calls `accept_vote_delegation`.
+    pub fn delegate_vote(ctx: Context<DelegateVote>, delegate: Pubkey) -> Result<()> {
+        ctx.accounts.delegate_vote(delegate, &ctx.bumps)?;
+        Ok(())
+    }
+
+    /// Step 2 of vote delegation: the named delegate accepts. From then on the
+    /// delegate alone acts for the subject (creating, supporting, voting and
+    /// modifying for a vote account; overriding for a wallet's stake), and the
+    /// subject's own key is locked out until the delegation is removed.
+    pub fn accept_vote_delegation(ctx: Context<AcceptVoteDelegation>) -> Result<()> {
+        ctx.accounts.accept_vote_delegation()?;
+        Ok(())
+    }
+
+    /// Removes a vote delegation and returns its rent to the subject's root
+    /// authority. The delegate may always remove. For a vote account the
+    /// authorized withdrawer may always remove, the node identity only while the
+    /// delegation is not yet accepted, and the rent goes to the withdrawer; for a
+    /// wallet the wallet itself may always remove and receives the rent.
+    pub fn remove_vote_delegation(ctx: Context<RemoveVoteDelegation>) -> Result<()> {
+        ctx.accounts.remove_vote_delegation()?;
+        Ok(())
+    }
+
     pub fn cast_vote_override(
         ctx: Context<CastVoteOverride>,
         for_votes_bp: u64,
@@ -197,6 +226,17 @@ pub mod svmgov_program {
         ctx.accounts.finalize_proposal()?;
 
         Ok(())
+    }
+
+    /// Grows `Vote` and `VoteOverride` accounts recorded before `delegate_signer`
+    /// existed to the current layout, with the field reading `None`. Permissionless:
+    /// the signer pays the added rent. Pass the accounts to migrate as remaining
+    /// accounts; any already at the current size are skipped, so a batch may be
+    /// retried.
+    pub fn migrate_vote_records<'info>(
+        ctx: Context<'_, '_, 'info, 'info, MigrateVoteRecords<'info>>,
+    ) -> Result<()> {
+        ctx.accounts.migrate_vote_records(ctx.remaining_accounts)
     }
 
     pub fn flush_merkle_root(ctx: Context<FlushMerkleRoot>) -> Result<()> {

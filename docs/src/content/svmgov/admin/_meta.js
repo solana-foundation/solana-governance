@@ -14,4 +14,7 @@ export default {
   'transfer-admin': {
     title: 'Transfer Admin',
   },
+  'migrate-vote-records': {
+    title: 'Migrate Vote Records',
+  },
 };

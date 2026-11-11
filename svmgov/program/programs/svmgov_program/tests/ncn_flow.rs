@@ -119,6 +119,12 @@ struct FlowCtx {
     /// Compute units burned by the support that crossed the threshold — the
     /// call that runs the real `init_ballot_box` CPI.
     activation_compute_units: u64,
+    /// Keys that support derived PDAs from: the proposal (its seed and its
+    /// author's vote account) and the supporter's own vote account.
+    proposal: Address,
+    proposal_seed: u64,
+    author_vote: Address,
+    activating_vote: Address,
     nonce: u32,
 }
 
@@ -179,7 +185,10 @@ fn setup_flow(operator_count: usize) -> (Harness, FlowCtx) {
 
     // Create + fully support a proposal; the activating support CPIs
     // init_ballot_box with the Proposal PDA as signer.
-    let proposal = create_proposal(&mut h, 7, "ncn flow");
+    let proposal_seed = 7;
+    let proposal = create_proposal(&mut h, proposal_seed, "ncn flow");
+    let author_vote = h.validators[0].vote.pubkey();
+    let activating_vote = h.validators[h.supporter_count - 1].vote.pubkey();
     let snapshot_slot = expected_snapshot_slot(CREATION_EPOCH);
     let ballot_box = ballot_box_pda(snapshot_slot);
     let clock = h.svm.get_sysvar::<Clock>();
@@ -213,6 +222,10 @@ fn setup_flow(operator_count: usize) -> (Harness, FlowCtx) {
         activation_slot: clock.slot,
         vote_expiry_slot: expected_vote_expiry_slot,
         activation_compute_units,
+        proposal,
+        proposal_seed,
+        author_vote,
+        activating_vote,
         nonce,
     };
     (h, ctx)
@@ -1008,22 +1021,52 @@ fn direct_init_ballot_box_without_proposal_pda_rejected() {
 /// clients' compute model has to cover, so measure it here — at the maximum
 /// operator whitelist, since `init_ballot_box` clones the whitelist into the
 /// ballot box and a longer list costs more to serialize.
+///
+/// The call also derives six PDAs by bump search from keys that differ per
+/// proposal: the support and delegation records, the proposal signer inside
+/// `init_ballot_box`, the consensus result, and the ballot box twice (checked,
+/// then created). Each failed attempt costs `CU_PER_BUMP_ATTEMPT`, and the
+/// harness draws its keys at random, so the measurement is normalised to the
+/// floor a proposal whose keys all land on bump 255 would pay. The model
+/// covers the searches separately through `SUPPORT_CU_BUMP_SEARCH`.
 #[test_log::test]
 fn activation_cpi_fits_within_the_modelled_compute_limit() {
     let (_h, ctx) = setup_flow(MAX_OPERATOR_WHITELIST);
+
+    let slot = ctx.snapshot_slot.to_le_bytes();
+    let seed = ctx.proposal_seed.to_le_bytes();
+    let ballot_box_attempts =
+        failed_bump_attempts(&[b"BallotBox", &slot], &NCN_SNAPSHOT_PROGRAM_ID);
+    let attempts = failed_bump_attempts(
+        &[
+            b"support",
+            ctx.proposal.as_ref(),
+            ctx.activating_vote.as_ref(),
+        ],
+        &SVMGOV_PROGRAM_ID,
+    ) + failed_bump_attempts(
+        &[b"vote_delegation", ctx.activating_vote.as_ref()],
+        &SVMGOV_PROGRAM_ID,
+    ) + failed_bump_attempts(
+        &[b"proposal", &seed, ctx.author_vote.as_ref()],
+        &SVMGOV_PROGRAM_ID,
+    ) + failed_bump_attempts(&[b"ConsensusResult", &slot], &NCN_SNAPSHOT_PROGRAM_ID)
+        + 2 * ballot_box_attempts;
+    let floor = ctx.activation_compute_units - attempts * CU_PER_BUMP_ATTEMPT;
 
     // Three supporters in the flow harness, so the activating call re-tallies
     // two prior entries.
     let requested = modelled_support_limit(2);
     println!(
-        "activating support at {MAX_OPERATOR_WHITELIST} operators: {} CU; clients request {requested}",
+        "activating support at {MAX_OPERATOR_WHITELIST} operators: {} CU measured, {attempts} \
+         failed bump attempts, {floor} CU floor; clients request {requested}",
         ctx.activation_compute_units
     );
     assert!(
-        ctx.activation_compute_units < requested,
-        "the activating support consumed {} CU but the clients' model requests only {requested}. \
+        floor + u64::from(SUPPORT_CU_BUMP_SEARCH) <= requested,
+        "the activating support costs {floor} CU before bump searches, but the clients' model \
+         requests only {requested} including its {SUPPORT_CU_BUMP_SEARCH} CU search allowance. \
          Raise SUPPORT_CU_ACTIVATION in tests/common/mod.rs, svmgov/cli/src/constants.rs AND \
          frontend/src/chain/instructions/types.ts.",
-        ctx.activation_compute_units
     );
 }

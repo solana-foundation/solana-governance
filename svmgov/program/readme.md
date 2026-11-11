@@ -9,6 +9,7 @@ This repository contains a Solana program that enables a decentralized governanc
 * **Proposal creation**: Validators can create new proposals with a title, description, and voting period, with merkle proof verification for stake validation.
 * **Proposal support**: Validators can show support for a proposal, which helps to activate voting with enhanced stake verification.
 * **Voting**: Validators can cast votes on a proposal, with their vote weight determined by their stake.
+* **Vote delegation**: A validator's node identity or authorized withdrawer can delegate the validator's governance authority (creating, supporting, voting, modifying) to another key, and a staker's voting wallet can delegate its override vote, so hot identity keys and cold stake authorities never sign governance transactions. A delegation takes effect once the delegate accepts and can be removed by the delegate or the subject's root authority (the withdrawer, or the wallet).
 * **Delegator voting**: Delegators can vote independently on proposals using their stake accounts, either before their validator votes (cached) or as an override after the validator has voted.
 * **Vote override**: When a validator has already voted, delegators can override their validator's vote using stake account verification and merkle proofs.
 * **Vote caching**: When delegators vote before their validator, their votes are cached and will be applied when the validator eventually votes.
@@ -24,8 +25,9 @@ The program is organized into several modules:
 * `lib.rs`: Contains the main program logic, including functions for creating proposals, casting votes, and finalizing results.
 * `merkle_helpers.rs`: Provides utilities for merkle proof verification and cross-program invocation.
 * `utils.rs`: Provides utility functions, such as calculating stake weights in basis points and PDA derivation.
-* `state`: Defines the data structures used to store proposal, vote, vote override, and vote override cache information.
-* `instructions`: Contains the implementation of each instruction, including create proposal, cast vote, cast vote override, modify vote, support proposal, finalize proposal, and add merkle root.
+* `vote_authority.rs`: Resolves who may act for a vote account: its node identity, or the accepted delegate recorded in a `VoteDelegation`.
+* `state`: Defines the data structures used to store proposal, vote, vote delegation, vote override, and vote override cache information.
+* `instructions`: Contains the implementation of each instruction, including create proposal, cast vote, cast vote override, modify vote, support proposal, finalize proposal, vote delegation, and add merkle root.
 
 
 ## CLI Interface
@@ -46,8 +48,10 @@ To use this program, you'll need to:
    - **Independent voting**: If the validator hasn't voted yet, the delegator's vote counts immediately and their stake is recorded in a cache, so it is excluded from the validator's weight if the validator votes later
    - **Override voting**: If the validator has already voted, the delegator's vote overrides the validator's vote for their stake portion
 7. **Modify vote**: Use the `modify_vote` instruction to update an existing vote.
+7. **Delegate the vote (optional)**: `delegate_vote` names a delegate key for a subject: an SPL vote account (signed by its node identity or authorized withdrawer) or a staker's voting wallet (signed by the wallet). The delegate calls `accept_vote_delegation`. From then on the delegate alone signs `create_proposal`, `support_proposal`, `cast_vote`, `modify_vote` and `update_proposal_description` for a vote account, or `cast_vote_override` and `modify_vote_override` for a wallet's stake (each takes the `VoteDelegation` PDA, seeds `["vote_delegation", subject]`), and the subject's own key is locked out. `remove_vote_delegation` closes it: the delegate may always remove, the withdrawer or wallet may always remove, the node identity only while it is still pending. All records (`Proposal.author`, `Support.validator`, `Vote.validator`, `VoteOverride.delegator`) keep naming the voter.
 8. **Add merkle root**: Use the `add_merkle_root` instruction to set the merkle root hash for a proposal.
 9. **Finalize proposal**: Use the `finalize_proposal` instruction to determine the outcome after voting ends.
+10. **Migrate vote records (once, after upgrading to vote delegation)**: `Vote` and `VoteOverride` gained `delegate_signer: Option<Pubkey>`, the accepted delegate that signed the record's current state (`None` when the voter signed itself). Records written before the field existed are 33 bytes short and fail to deserialize until grown. `migrate_vote_records` is permissionless: pass the records as remaining accounts, the signer pays the added rent, and records already at the current size are skipped. Run it right after deploying; `svmgov migrate-vote-records` finds and batches them.
 
 ### Administration
 
@@ -72,6 +76,7 @@ Emitted when a new proposal is created.
 - `end_epoch: u64` - The epoch when voting ends
 - `snapshot_slot: u64` - The slot when the validator stake snapshot was taken
 - `creation_timestamp: i64` - Unix timestamp of proposal creation
+- `signer: Pubkey` - The key that signed: the validator identity, or its accepted vote delegate
 
 </details>
 
@@ -85,6 +90,7 @@ Emitted when a validator supports a proposal.
 - `supporter: Pubkey` - The validator providing support
 - `cluster_support_lamports: u64` - Total lamports of cluster support after this action
 - `voting_activated: bool` - Whether this support activated voting (15% threshold reached)
+- `signer: Pubkey` - The key that signed: the validator identity, or its accepted vote delegate
 
 </details>
 
@@ -104,6 +110,7 @@ Emitted when a validator casts their vote.
 - `against_votes_lamports: u64` - Lamports allocated to "Against" (based on stake)
 - `abstain_votes_lamports: u64` - Lamports allocated to "Abstain" (based on stake)
 - `vote_timestamp: i64` - Unix timestamp of the vote
+- `signer: Pubkey` - The key that signed: the validator identity, or its accepted vote delegate
 
 </details>
 
@@ -125,6 +132,7 @@ Emitted when a delegator votes on a proposal, either as an independent vote (cac
 - `abstain_votes_lamports: u64` - Lamports allocated to "Abstain"
 - `stake_amount: u64` - The amount of stake being used for the override
 - `vote_timestamp: i64` - Unix timestamp of the vote override
+- `signer: Pubkey` - The key that signed: the staker's voting wallet, or its accepted vote delegate
 
 </details>
 
@@ -147,6 +155,44 @@ Emitted when a validator modifies their existing vote.
 - `against_votes_lamports: u64` - Lamports allocated to "Against"
 - `abstain_votes_lamports: u64` - Lamports allocated to "Abstain"
 - `modification_timestamp: i64` - Unix timestamp of the modification
+- `signer: Pubkey` - The key that signed: the validator identity, or its accepted vote delegate
+
+</details>
+
+### VoteDelegationCreated
+Emitted when a vote delegate is named for a subject (pending acceptance).
+
+<details>
+<summary><strong>Click to view event fields</strong></summary>
+
+- `subject: Pubkey` - The SPL vote account (validator) or voting wallet (staker) being delegated
+- `identity: Pubkey` - The subject's own voting key at creation time: the vote account's node identity, or the wallet itself
+- `delegate: Pubkey` - The key named to vote for the subject
+- `signer: Pubkey` - The key that created the delegation: the identity or authorized withdrawer of a vote account, or the wallet
+
+</details>
+
+### VoteDelegationAccepted
+Emitted when the delegate accepts; from this point the delegate alone votes for the subject.
+
+<details>
+<summary><strong>Click to view event fields</strong></summary>
+
+- `subject: Pubkey` - The delegated SPL vote account or wallet
+- `delegate: Pubkey` - The accepting delegate
+
+</details>
+
+### VoteDelegationRemoved
+Emitted when a vote delegation is closed.
+
+<details>
+<summary><strong>Click to view event fields</strong></summary>
+
+- `subject: Pubkey` - The SPL vote account or wallet
+- `delegate: Pubkey` - The delegate that was named
+- `signer: Pubkey` - Who removed it: the delegate, the wallet, the authorized withdrawer, or (while pending) the node identity
+- `was_accepted: bool` - Whether the delegation had been accepted
 
 </details>
 

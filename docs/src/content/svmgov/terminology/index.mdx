@@ -45,6 +45,10 @@ A delegator action that replaces the validator’s vote outcome for that delegat
 
 A per-proposal/per-validator accumulator used when delegators override before the validator has cast their vote. Cached values are applied when validator vote is submitted.
 
+### Vote Delegation
+
+A standing, on-chain grant of a voter's governance authority to another key (the delegate). The subject is either a validator's SPL vote account (created by the node identity or authorized withdrawer) or a staker's voting wallet (created by the wallet). Inert until the delegate accepts; once accepted the delegate alone votes for the subject and the subject's own key is locked out until the delegation is removed by the delegate, the withdrawer, or the wallet. Votes and overrides still count the voter's full stake and stay attributed to the voter.
+
 ### Effective Validator Stake
 
 Validator stake used for final vote math after subtracting delegator-overridden stake portions.

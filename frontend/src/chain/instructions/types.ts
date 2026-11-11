@@ -148,6 +148,16 @@ export interface ChainVoteAccountData {
   nodePubkey: string;
 }
 
+/**
+ * On-chain `VoteDelegation`, keys as base58. The subject is an SPL vote account
+ * (a validator's vote) or a voting wallet (a staker's override vote).
+ */
+export interface VoteDelegationData {
+  subject: string;
+  delegate: string;
+  delegationAccepted: boolean;
+}
+
 export interface VoterSummaryResponse {
   network: string;
   snapshot_slot: number;
@@ -204,6 +214,14 @@ const SUPPORT_CU_PER_SUPPORTER = 132;
  * Always included — a caller cannot know whether its own call will cross.
  */
 const SUPPORT_CU_ACTIVATION = 28_000;
+/**
+ * Allowance for the PDAs the handler derives by bump search from keys that
+ * differ per proposal: the support and delegation records, the proposal signer
+ * inside `init_ballot_box`, the consensus result, and the ballot box twice.
+ * Each failed attempt costs 1,500 CU and the count depends on the keys; 18
+ * failed attempts leaves about one proposal in 300 needing more.
+ */
+export const SUPPORT_CU_BUMP_SEARCH = 27_000;
 /** Covers supporters landing between reading the count and executing. */
 const SUPPORT_CU_HEADROOM_PERCENT = 15;
 /** Per-transaction maximum a client may request. */
@@ -223,7 +241,8 @@ export function supportComputeUnitLimit(numSupporters: number): number {
   const modelled =
     SUPPORT_CU_BASE +
     SUPPORT_CU_PER_SUPPORTER * Math.max(0, numSupporters) +
-    SUPPORT_CU_ACTIVATION;
+    SUPPORT_CU_ACTIVATION +
+    SUPPORT_CU_BUMP_SEARCH;
   const withHeadroom = Math.ceil(
     (modelled * (100 + SUPPORT_CU_HEADROOM_PERCENT)) / 100,
   );

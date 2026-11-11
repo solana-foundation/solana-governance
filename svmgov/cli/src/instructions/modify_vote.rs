@@ -10,10 +10,12 @@ use crate::{
     svmgov_program::{accounts::Proposal, client::{accounts, args}},
     utils::{
         api_helpers::{self, get_vote_account_proof},
-        utils::{create_spinner, derive_vote_pda, setup_all},
+        squads::{SquadsCliOpts, effective_signer, route},
+        utils::{create_spinner, derive_vote_delegation_pda, derive_vote_pda, setup_all},
     },
 };
 
+#[allow(clippy::too_many_arguments)]
 pub async fn modify_vote(
     proposal_id: String,
     for_votes: u64,
@@ -22,6 +24,8 @@ pub async fn modify_vote(
     identity_keypair: Option<String>,
     rpc_url: Option<String>,
     network: String,
+    vote_account_override: Option<String>,
+    squads: Option<SquadsCliOpts>,
 ) -> Result<()> {
     if for_votes + against_votes + abstain_votes != BASIS_POINTS_TOTAL {
         return Err(anyhow!(
@@ -33,8 +37,13 @@ pub async fn modify_vote(
     let proposal_pubkey = Pubkey::from_str(&proposal_id)
         .map_err(|_| anyhow!("Invalid proposal ID: {}", proposal_id))?;
 
-    let (payer, vote_account, program, _merkle_proof_program) =
-        setup_all(identity_keypair, rpc_url).await?;
+    let (payer, vote_account, program, _merkle_proof_program) = setup_all(
+        identity_keypair,
+        rpc_url,
+        vote_account_override,
+        squads.as_ref(),
+    )
+    .await?;
 
     // Fetch proposal to get snapshot_slot and consensus_result
     let proposal = program
@@ -59,7 +68,8 @@ pub async fn modify_vote(
 
     let spinner = create_spinner("Modifying vote...");
 
-    let sig = program
+    let signer = effective_signer(squads.as_ref(), payer.pubkey());
+    let ixs = program
         .request()
         .args(args::ModifyVote {
             for_votes_bp: for_votes,
@@ -67,8 +77,9 @@ pub async fn modify_vote(
             abstain_votes_bp: abstain_votes,
         })
         .accounts(accounts::ModifyVote {
-            signer: payer.pubkey(),
+            signer,
             spl_vote_account: vote_account,
+            vote_delegation: derive_vote_delegation_pda(&vote_account, &program.id()),
             proposal: proposal_pubkey,
             vote: vote_pda,
             consensus_result: consensus_result_pda,
@@ -76,13 +87,21 @@ pub async fn modify_vote(
             snapshot_program: SNAPSHOT_PROGRAM_ID,
             system_program: system_program::ID,
         })
-        .send()
-        .await?;
+        .instructions()?;
 
-    spinner.finish_with_message(format!(
-        "Vote modified successfully. https://explorer.solana.com/tx/{}",
-        sig
-    ));
+    let rpc = program.rpc();
+    let squads_config = squads.as_ref().map(|opts| opts.to_config(payer.pubkey()));
+    let outcome = route(
+        &rpc,
+        ixs,
+        Vec::new(),
+        &[payer.as_ref()],
+        squads_config.as_ref(),
+    )
+    .await?;
+
+    spinner.finish_and_clear();
+    println!("{}", outcome.format_structured());
 
     Ok(())
 }
