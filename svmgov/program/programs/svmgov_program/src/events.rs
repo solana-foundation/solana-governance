@@ -7,6 +7,8 @@ pub struct ProposalCreated {
     pub title: String,
     pub description: String,
     pub creation_timestamp: i64,
+    /// Key that signed the transaction: the identity, or its accepted delegate.
+    pub signer: Pubkey,
 }
 
 #[event]
@@ -16,6 +18,8 @@ pub struct ProposalDescriptionUpdated {
     pub previous_description: String,
     pub new_description: String,
     pub update_timestamp: i64,
+    /// Key that signed the transaction: the identity, or its accepted delegate.
+    pub signer: Pubkey,
 }
 
 #[event]
@@ -25,6 +29,8 @@ pub struct ProposalSupported {
     pub cluster_support_lamports: u64,
     pub voting_activated: bool,
     pub snapshot_slot: u64,
+    /// Key that signed the transaction: the identity, or its accepted delegate.
+    pub signer: Pubkey,
 }
 
 #[event]
@@ -48,6 +54,8 @@ pub struct VoteCast {
     pub against_votes_lamports: u64,
     pub abstain_votes_lamports: u64,
     pub vote_timestamp: i64,
+    /// Key that signed the transaction: the identity, or its accepted delegate.
+    pub signer: Pubkey,
 }
 
 #[event]
@@ -64,6 +72,8 @@ pub struct VoteOverrideCast {
     pub abstain_votes_lamports: u64,
     pub stake_amount: u64,
     pub vote_timestamp: i64,
+    /// Key that signed the transaction: the voting wallet, or its accepted delegate.
+    pub signer: Pubkey,
 }
 
 #[event]
@@ -81,6 +91,8 @@ pub struct VoteModified {
     pub against_votes_lamports: u64,
     pub abstain_votes_lamports: u64,
     pub modification_timestamp: i64,
+    /// Key that signed the transaction: the identity, or its accepted delegate.
+    pub signer: Pubkey,
 }
 
 #[event]
@@ -100,6 +112,8 @@ pub struct VoteOverrideModified {
     pub abstain_votes_lamports: u64,
     pub stake_amount: u64,
     pub modification_timestamp: i64,
+    /// Key that signed the transaction: the voting wallet, or its accepted delegate.
+    pub signer: Pubkey,
 }
 
 #[event]
@@ -131,4 +145,31 @@ pub struct AdminNominated {
 pub struct AdminTransferred {
     pub previous_admin: Pubkey,
     pub new_admin: Pubkey,
+}
+
+#[event]
+pub struct VoteDelegationCreated {
+    /// SPL vote account (validator) or voting wallet (staker) being delegated.
+    pub subject: Pubkey,
+    /// The subject's own voting key at creation time: the vote account's node
+    /// identity, or the wallet itself.
+    pub identity: Pubkey,
+    pub delegate: Pubkey,
+    /// Key that created the delegation: the identity or authorized withdrawer
+    /// of a vote account, or the wallet itself.
+    pub signer: Pubkey,
+}
+
+#[event]
+pub struct VoteDelegationAccepted {
+    pub subject: Pubkey,
+    pub delegate: Pubkey,
+}
+
+#[event]
+pub struct VoteDelegationRemoved {
+    pub subject: Pubkey,
+    pub delegate: Pubkey,
+    pub signer: Pubkey,
+    pub was_accepted: bool,
 }

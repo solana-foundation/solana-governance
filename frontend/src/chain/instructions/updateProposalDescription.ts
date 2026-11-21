@@ -8,6 +8,7 @@ import {
   createProgramWithWallet,
   confirmTransactionByPolling,
   deriveGlobalConfigPda,
+  deriveVoteDelegationPda,
   signTransactionForWallet,
 } from "./helpers";
 import {
@@ -37,7 +38,21 @@ export async function updateProposalDescription(
 
   const proposal = new PublicKey(params.proposalId);
   const proposalAccount = await program.account.proposal.fetch(proposal);
-  if (proposalAccount.author.toBase58() !== signer.toBase58()) {
+  const voteDelegation = deriveVoteDelegationPda(
+    proposalAccount.voteAccountPubkey,
+    program.programId,
+  );
+  // With an accepted delegation on the proposal's vote account only the
+  // delegate may update it; otherwise only the author (the identity) may.
+  const delegation =
+    await program.account.voteDelegation.fetchNullable(voteDelegation);
+  if (delegation?.delegationAccepted) {
+    if (!delegation.delegate.equals(signer)) {
+      throw new Error(
+        "Only the vote account's accepted vote delegate can update the description",
+      );
+    }
+  } else if (!proposalAccount.author.equals(signer)) {
     throw new Error("Only the proposal author can update the description");
   }
   const instruction = await program.methods
@@ -45,6 +60,7 @@ export async function updateProposalDescription(
     .accountsStrict({
       signer,
       proposal,
+      voteDelegation,
       globalConfig,
     })
     .instruction();

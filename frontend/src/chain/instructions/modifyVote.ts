@@ -14,6 +14,8 @@ import {
 import {
   createProgramWithWallet,
   deriveVotePda,
+  deriveVoteDelegationPda,
+  resolveSignerVoteAccount,
   validateVoteBasisPoints,
   createGovV1ProgramWithWallet,
   getVoteAccountProof,
@@ -59,18 +61,8 @@ export async function modifyVote(
   const proposalAccount = await program.account.proposal.fetch(proposalPubkey);
   const slot = resolveProposalSnapshotSlot(proposalAccount.snapshotSlot);
 
-  const voteAccounts = await program.provider.connection.getVoteAccounts();
-  const validatorVoteAccount = voteAccounts.current.find(
-    (acc) => acc.nodePubkey === wallet.publicKey.toBase58()
-  );
-
-  if (!validatorVoteAccount) {
-    throw new Error(
-      `No SPL vote account found for validator identity ${wallet.publicKey.toBase58()}`
-    );
-  }
-
-  const splVoteAccount = new PublicKey(validatorVoteAccount.votePubkey);
+  // The wallet is either the validator identity or its accepted vote delegate.
+  const splVoteAccount = await resolveSignerVoteAccount(program, signer);
 
   // Derive vote PDA - based on IDL, it uses proposal and vote account
   const votePda = deriveVotePda(
@@ -85,7 +77,7 @@ export async function modifyVote(
   );
 
   const voteAccountProof = await getVoteAccountProof(
-    validatorVoteAccount.votePubkey,
+    splVoteAccount.toBase58(),
     blockchainParams.network,
     slot,
     blockchainParams.ncnApiUrl
@@ -157,6 +149,7 @@ export async function modifyVote(
       proposal: proposalPubkey,
       vote: votePda,
       splVoteAccount: splVoteAccount,
+      voteDelegation: deriveVoteDelegationPda(splVoteAccount, program.programId),
       snapshotProgram: SNAPSHOT_PROGRAM_ID,
       consensusResult,
       metaMerkleProof: metaMerkleProofPda,
