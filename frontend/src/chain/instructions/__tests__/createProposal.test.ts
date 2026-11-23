@@ -88,7 +88,14 @@ describe("proposal document transactions", () => {
       account: {
         globalConfig: { fetch: mockFetchGlobalConfig },
         proposal: {
-          fetch: jest.fn().mockResolvedValue({ author: new PublicKey(SIGNER) }),
+          fetch: jest.fn().mockResolvedValue({
+            author: new PublicKey(SIGNER),
+            voteAccountPubkey: new PublicKey(VOTE_ACCOUNT),
+          }),
+        },
+        voteDelegation: {
+          fetchNullable: jest.fn().mockResolvedValue(null),
+          all: jest.fn().mockResolvedValue([]),
         },
       },
     };

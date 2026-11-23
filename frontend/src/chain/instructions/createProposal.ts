@@ -1,4 +1,4 @@
-import { PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import { SystemProgram, Transaction } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
 import {
   BlockchainParams,
@@ -9,6 +9,8 @@ import {
   createProgramWithWallet,
   deriveProposalIndexPda,
   deriveGlobalConfigPda,
+  deriveVoteDelegationPda,
+  resolveSignerVoteAccount,
   signTransactionForWallet,
   confirmTransactionByPolling,
 } from "./helpers";
@@ -50,18 +52,8 @@ export async function createProposal(
     seed ?? Math.floor(Math.random() * Number.MAX_SAFE_INTEGER),
   );
 
-  const voteAccounts = await program.provider.connection.getVoteAccounts();
-  const validatorVoteAccount = voteAccounts.current.find(
-    (acc) => acc.nodePubkey === wallet.publicKey.toBase58(),
-  );
-
-  if (!validatorVoteAccount) {
-    throw new Error(
-      `No SPL vote account found for validator identity ${wallet.publicKey.toBase58()}`,
-    );
-  }
-
-  const splVoteAccount = new PublicKey(validatorVoteAccount.votePubkey);
+  // The wallet is either the validator identity or its accepted vote delegate.
+  const splVoteAccount = await resolveSignerVoteAccount(program, signer);
   const proposalPda = deriveProposalAccount(program, seedValue, splVoteAccount);
 
   // Build and send transaction using accountsPartial like in tests
@@ -71,6 +63,7 @@ export async function createProposal(
       signer: wallet.publicKey,
       proposal: proposalPda,
       splVoteAccount,
+      voteDelegation: deriveVoteDelegationPda(splVoteAccount, program.programId),
       systemProgram: SystemProgram.programId,
       proposalIndex: deriveProposalIndexPda(program.programId),
       globalConfig,

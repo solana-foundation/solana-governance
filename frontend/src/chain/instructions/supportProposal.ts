@@ -19,6 +19,7 @@ import {
   createProgramWithWallet,
   deriveSupportPda,
   deriveGlobalConfigPda,
+  deriveVoteDelegationPda,
   signTransactionForWallet,
 } from "./helpers";
 
@@ -110,6 +111,7 @@ export async function supportProposal(
       proposal: proposalPubkey,
       support: supportPda,
       splVoteAccount,
+      voteDelegation: deriveVoteDelegationPda(splVoteAccount, program.programId),
       systemProgram: SystemProgram.programId,
       ballotBox: ballotBoxPda,
       ballotProgram: SNAPSHOT_PROGRAM_ID,

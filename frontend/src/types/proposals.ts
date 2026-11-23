@@ -25,6 +25,8 @@ export type ProposalRecord = {
   // summary: string; // removed, since github summary is shown only when visible, and isn't fetched for all proposals
   description: string; // GitHub URL (renamed from 'link')
   author: string; // Pubkey
+  /** SPL vote account the proposal was created for; its vote delegation governs who may edit it. */
+  voteAccountPubkey: string;
 
   // Epochs & Timestamps
   creationEpoch: number;

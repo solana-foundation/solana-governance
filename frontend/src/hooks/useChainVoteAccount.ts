@@ -1,5 +1,6 @@
 import { ChainVoteAccountData } from "@/chain";
 import { useEndpoint } from "@/contexts/EndpointContext";
+import { getAcceptedVoteDelegationsForDelegate } from "@/data";
 import { useQuery } from "@tanstack/react-query";
 import { useChainVoteAccounts } from "./useChainVoteAccounts";
 
@@ -28,8 +29,23 @@ export const useChainVoteAccount = (userPubKey: string | undefined) => {
       const chainVoteAccount = chainVoteAccounts.find(
         (voteAccount) => voteAccount.nodePubkey === userPubKey
       );
+      if (chainVoteAccount) return chainVoteAccount;
 
-      return chainVoteAccount || null;
+      // A wallet that is the accepted vote delegate of exactly one validator
+      // acts as that validator everywhere in the validator UI. Delegations
+      // from staker wallets do not make the wallet a validator.
+      const delegations = await getAcceptedVoteDelegationsForDelegate(
+        endpoint,
+        userPubKey
+      );
+      const delegatedVoteAccounts = chainVoteAccounts.filter((voteAccount) =>
+        delegations.some(
+          (delegation) => delegation.subject === voteAccount.voteAccount
+        )
+      );
+      return delegatedVoteAccounts.length === 1
+        ? delegatedVoteAccounts[0]
+        : null;
     },
   });
 

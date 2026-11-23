@@ -32,6 +32,7 @@ svmgov create-proposal \
 | `--skip-link-check` | flag | No | false | Skip the CLI's GitHub fetch and frontmatter preflight; structural URL validation still applies |
 | `--network` | String | No | Config value | Network override for proof fetching: `mainnet`, `testnet` |
 | `--seed` | u64 | No | Random | Unique seed for PDA derivation |
+| `--vote-account` | String | No | Signer's own | SPL vote account to act for. Defaults to the signer's own vote account, or the one whose vote is delegated to the signer (see [Delegate Vote](/svmgov/validators/delegate-vote)) |
 
 ## Global Arguments
 

@@ -142,4 +142,24 @@ pub enum GovernanceError {
     SnapshotWindowTooShort,
     #[msg("Only the original proposal author can update the proposal description")]
     UnauthorizedProposalUpdate,
+    #[msg("Vote delegate cannot be the default (all-zero) pubkey")]
+    InvalidVoteDelegate,
+    #[msg("Only the vote account's node identity or authorized withdrawer, or the voting wallet itself, can delegate its vote")]
+    UnauthorizedVoteDelegation,
+    #[msg("Signer is not the delegate of this vote delegation")]
+    NotVoteDelegate,
+    #[msg("Vote delegation has already been accepted")]
+    VoteDelegationAlreadyAccepted,
+    #[msg("Signer is not authorized to remove this vote delegation")]
+    UnauthorizedVoteDelegationRemoval,
+    #[msg("Rent recipient must be the vote account's authorized withdrawer, or the voting wallet itself")]
+    InvalidVoteDelegationRentRecipient,
+    #[msg("Invalid vote delegation account")]
+    InvalidVoteDelegation,
+    #[msg("Signer is neither the voting wallet nor its accepted vote delegate")]
+    UnauthorizedVoteSigner,
+    #[msg("Vote delegation is pending; the delegate must accept it before acting for the voter")]
+    VoteDelegationNotAccepted,
+    #[msg("Account is not a Vote or VoteOverride of this program at a known layout")]
+    InvalidVoteRecord,
 }

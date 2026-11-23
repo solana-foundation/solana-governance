@@ -24,6 +24,7 @@ const mockGetMetaMerkleProofPda = jest.fn();
 const mockDeriveVotePda = jest.fn();
 const mockDeriveVoteOverridePda = jest.fn();
 const mockDeriveVoteOverrideCachePda = jest.fn();
+const mockDeriveVoteDelegationPda = jest.fn();
 const mockConfirmTransactionByPolling = jest.fn();
 
 jest.mock("../helpers", () => {
@@ -47,6 +48,8 @@ jest.mock("../helpers", () => {
       mockDeriveVoteOverridePda(...args),
     deriveVoteOverrideCachePda: (...args: unknown[]) =>
       mockDeriveVoteOverrideCachePda(...args),
+    deriveVoteDelegationPda: (...args: unknown[]) =>
+      mockDeriveVoteDelegationPda(...args),
     confirmTransactionByPolling: (...args: unknown[]) =>
       mockConfirmTransactionByPolling(...args),
   };
@@ -174,6 +177,7 @@ describe("castVoteOverride", () => {
     mockDeriveVotePda.mockReturnValue(VALIDATOR_VOTE_PDA);
     mockDeriveVoteOverridePda.mockReturnValue(VOTE_OVERRIDE_PDA);
     mockDeriveVoteOverrideCachePda.mockReturnValue(VOTE_OVERRIDE_CACHE_PDA);
+    mockDeriveVoteDelegationPda.mockReturnValue(VOTE_OVERRIDE_CACHE_PDA);
     mockFetchProposal.mockResolvedValue({
       snapshotSlot: new BN(PROPOSAL_SNAPSHOT_SLOT),
       endEpoch: new BN(100),

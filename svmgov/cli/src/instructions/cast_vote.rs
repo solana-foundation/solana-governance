@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use anchor_client::solana_sdk::{pubkey::Pubkey, signer::Signer, transaction::Transaction};
+use anchor_client::solana_sdk::{pubkey::Pubkey, signer::Signer};
 use anchor_lang::system_program;
 use anyhow::{Result, anyhow};
 use ncn_snapshot::{ID as SNAPSHOT_PROGRAM_ID, MetaMerkleLeaf, MetaMerkleProof};
@@ -11,9 +11,10 @@ use crate::{
     svmgov_program::{accounts::Proposal, client::{accounts, args}},
     utils::{
         api_helpers::{self, convert_merkle_proof_strings, get_vote_account_proof},
+        squads::{SquadsCliOpts, effective_signer, route},
         utils::{
-            compute_vote_expiry_timestamp, create_spinner, derive_vote_override_cache_pda,
-            derive_vote_pda, setup_all,
+            compute_vote_expiry_timestamp, create_spinner, derive_vote_delegation_pda,
+            derive_vote_override_cache_pda, derive_vote_pda, setup_all,
         },
     },
 };
@@ -28,6 +29,8 @@ pub async fn cast_vote(
     rpc_url: Option<String>,
     network: String,
     close_timestamp_override: Option<i64>,
+    vote_account_override: Option<String>,
+    squads: Option<SquadsCliOpts>,
 ) -> Result<()> {
     if votes_for + votes_against + abstain != BASIS_POINTS_TOTAL {
         return Err(anyhow!(
@@ -39,8 +42,13 @@ pub async fn cast_vote(
     let proposal_pubkey = Pubkey::from_str(&proposal_id)
         .map_err(|_| anyhow!("Invalid proposal ID: {}", proposal_id))?;
 
-    let (payer, vote_account, program, merkle_proof_program) =
-        setup_all(identity_keypair, rpc_url).await?;
+    let (payer, vote_account, program, merkle_proof_program) = setup_all(
+        identity_keypair,
+        rpc_url,
+        vote_account_override,
+        squads.as_ref(),
+    )
+    .await?;
 
     // Fetch proposal to get snapshot_slot and consensus_result
     let proposal = program
@@ -86,11 +94,13 @@ pub async fn cast_vote(
         );
     }
 
-    // First transaction: Initialize meta merkle proof if needed
+    // The MetaMerkleProof account needs no vault authority and is paid for by
+    // the local keypair, so it is created as a preflight step: in the same
+    // transaction when sending directly, or ahead of the vault transaction
+    // under Squads.
+    let mut preflight_ixs = Vec::new();
     if meta_merkle_proof_account.is_none() {
         info!("Creating meta merkle proof account");
-
-        let init_spinner = create_spinner("Initializing meta merkle proof...");
 
         // Validate every field from the operator API rather than assuming it is
         // well-formed
@@ -118,29 +128,12 @@ pub async fn cast_vote(
             })
             .instructions()?;
 
-        let blockhash = merkle_proof_program.rpc().get_latest_blockhash().await?;
-        let mut transaction =
-            Transaction::new_with_payer(&init_meta_merkle_proof_ix, Some(&payer.pubkey()));
-        transaction.try_sign(&[&payer], blockhash)?;
-
-        let sig = merkle_proof_program
-            .rpc()
-            .send_and_confirm_transaction(&transaction)
-            .await?;
-        log::debug!(
-            "Meta merkle proof initialization transaction sent successfully: signature={}",
-            sig
-        );
-
-        init_spinner.finish_with_message(format!(
-            "Meta merkle proof initialized. https://explorer.solana.com/tx/{}",
-            sig
-        ));
+        preflight_ixs.extend(init_meta_merkle_proof_ix);
     }
 
-    // Second transaction: Cast vote
     let spinner = create_spinner("Sending cast-vote transaction...");
 
+    let signer = effective_signer(squads.as_ref(), payer.pubkey());
     let cast_vote_ixs = program
         .request()
         .args(args::CastVote {
@@ -149,8 +142,9 @@ pub async fn cast_vote(
             abstain_votes_bp: abstain,
         })
         .accounts(accounts::CastVote {
-            signer: payer.pubkey(),
+            signer,
             spl_vote_account: vote_account,
+            vote_delegation: derive_vote_delegation_pda(&vote_account, &program.id()),
             proposal: proposal_pubkey,
             vote: vote_pda,
             vote_override_cache: vote_override_cache_pda,
@@ -161,23 +155,19 @@ pub async fn cast_vote(
         })
         .instructions()?;
 
-    let blockhash = program.rpc().get_latest_blockhash().await?;
-    let mut transaction = Transaction::new_with_payer(&cast_vote_ixs, Some(&payer.pubkey()));
-    transaction.try_sign(&[&payer], blockhash)?;
+    let rpc = program.rpc();
+    let squads_config = squads.as_ref().map(|opts| opts.to_config(payer.pubkey()));
+    let outcome = route(
+        &rpc,
+        cast_vote_ixs,
+        preflight_ixs,
+        &[payer.as_ref()],
+        squads_config.as_ref(),
+    )
+    .await?;
 
-    let sig = program
-        .rpc()
-        .send_and_confirm_transaction(&transaction)
-        .await?;
-    log::debug!(
-        "Cast vote transaction sent successfully: signature={}",
-        sig
-    );
-
-    spinner.finish_with_message(format!(
-        "Vote cast successfully. https://explorer.solana.com/tx/{}",
-        sig
-    ));
+    spinner.finish_and_clear();
+    println!("{}", outcome.format_structured());
 
     Ok(())
 }

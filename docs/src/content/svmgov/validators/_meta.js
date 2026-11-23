@@ -20,6 +20,9 @@ export default {
   'modify-vote': {
     title: 'Modify Vote',
   },
+  'delegate-vote': {
+    title: 'Delegate Vote',
+  },
   'finalize-proposal': {
     title: 'Finalize Proposal',
   },
