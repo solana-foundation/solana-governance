@@ -7,11 +7,13 @@
  */
 
 export * from "./castVoteOverrideVoteOverrideCache";
+export * from "./delegateVoteVoteDelegation";
 export * from "./globalConfig";
 export * from "./programConfig";
 export * from "./proposal";
 export * from "./proposalIndex";
 export * from "./support";
 export * from "./vote";
+export * from "./voteDelegation";
 export * from "./voteOverride";
 export * from "./voteOverrideCache";

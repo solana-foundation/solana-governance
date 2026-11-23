@@ -10,10 +10,14 @@ import {
   combineCodec,
   fixDecoderSize,
   fixEncoderSize,
+  getBooleanDecoder,
+  getBooleanEncoder,
   getBytesDecoder,
   getBytesEncoder,
   getI64Decoder,
   getI64Encoder,
+  getOptionDecoder,
+  getOptionEncoder,
   getStructDecoder,
   getStructEncoder,
   getU16Decoder,
@@ -28,12 +32,14 @@ import {
   type AccountMeta,
   type AccountSignerMeta,
   type Address,
-  type FixedSizeCodec,
-  type FixedSizeDecoder,
-  type FixedSizeEncoder,
+  type Codec,
+  type Decoder,
+  type Encoder,
   type Instruction,
   type InstructionWithAccounts,
   type InstructionWithData,
+  type Option,
+  type OptionOrNullable,
   type ReadonlyAccount,
   type ReadonlyUint8Array,
   type TransactionSigner,
@@ -102,6 +108,7 @@ export type InitializeConfigInstructionData = {
   snapshotEpochExtension: bigint;
   snapshotSlotOffset: bigint;
   maxSupporters: number;
+  newProposalsAllowed: Option<boolean>;
 };
 
 export type InitializeConfigInstructionDataArgs = {
@@ -115,9 +122,10 @@ export type InitializeConfigInstructionDataArgs = {
   snapshotEpochExtension: number | bigint;
   snapshotSlotOffset: number | bigint;
   maxSupporters: number;
+  newProposalsAllowed: OptionOrNullable<boolean>;
 };
 
-export function getInitializeConfigInstructionDataEncoder(): FixedSizeEncoder<InitializeConfigInstructionDataArgs> {
+export function getInitializeConfigInstructionDataEncoder(): Encoder<InitializeConfigInstructionDataArgs> {
   return transformEncoder(
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
@@ -131,12 +139,13 @@ export function getInitializeConfigInstructionDataEncoder(): FixedSizeEncoder<In
       ["snapshotEpochExtension", getU64Encoder()],
       ["snapshotSlotOffset", getI64Encoder()],
       ["maxSupporters", getU32Encoder()],
+      ["newProposalsAllowed", getOptionEncoder(getBooleanEncoder())],
     ]),
     (value) => ({ ...value, discriminator: INITIALIZE_CONFIG_DISCRIMINATOR }),
   );
 }
 
-export function getInitializeConfigInstructionDataDecoder(): FixedSizeDecoder<InitializeConfigInstructionData> {
+export function getInitializeConfigInstructionDataDecoder(): Decoder<InitializeConfigInstructionData> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
     ["maxTitleLength", getU16Decoder()],
@@ -149,10 +158,11 @@ export function getInitializeConfigInstructionDataDecoder(): FixedSizeDecoder<In
     ["snapshotEpochExtension", getU64Decoder()],
     ["snapshotSlotOffset", getI64Decoder()],
     ["maxSupporters", getU32Decoder()],
+    ["newProposalsAllowed", getOptionDecoder(getBooleanDecoder())],
   ]);
 }
 
-export function getInitializeConfigInstructionDataCodec(): FixedSizeCodec<
+export function getInitializeConfigInstructionDataCodec(): Codec<
   InitializeConfigInstructionDataArgs,
   InitializeConfigInstructionData
 > {
@@ -184,6 +194,7 @@ export type InitializeConfigAsyncInput<
   snapshotEpochExtension: InitializeConfigInstructionDataArgs["snapshotEpochExtension"];
   snapshotSlotOffset: InitializeConfigInstructionDataArgs["snapshotSlotOffset"];
   maxSupporters: InitializeConfigInstructionDataArgs["maxSupporters"];
+  newProposalsAllowed: InitializeConfigInstructionDataArgs["newProposalsAllowed"];
 };
 
 export async function getInitializeConfigInstructionAsync<
@@ -290,6 +301,7 @@ export type InitializeConfigInput<
   snapshotEpochExtension: InitializeConfigInstructionDataArgs["snapshotEpochExtension"];
   snapshotSlotOffset: InitializeConfigInstructionDataArgs["snapshotSlotOffset"];
   maxSupporters: InitializeConfigInstructionDataArgs["maxSupporters"];
+  newProposalsAllowed: InitializeConfigInstructionDataArgs["newProposalsAllowed"];
 };
 
 export function getInitializeConfigInstruction<

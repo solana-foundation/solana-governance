@@ -21,6 +21,8 @@ import {
   WALLET_SIGNING_CANCELLED_MESSAGE,
 } from "@/lib/walletSigning";
 import { validateProposalUrl } from "@/lib/github";
+import { ProposalDocumentValidationError } from "@/lib/github";
+import { useGovernanceConfigContext } from "@/contexts/GovernanceConfigContext";
 
 interface CreateProposalModalProps {
   isOpen: boolean;
@@ -44,14 +46,17 @@ export function CreateProposalModal({
   const [error, setError] = React.useState<string | undefined>();
   /** Keeps the field from turning red while the user is still typing the URL. */
   const [descriptionTouched, setDescriptionTouched] = React.useState(false);
+  const [allowUnverified, setAllowUnverified] = React.useState(false);
+  const [canSkipVerification, setCanSkipVerification] = React.useState(false);
 
   const { account } = useConnector();
   const publicKey = account ?? undefined;
   const { mutate: createProposal } = useCreateProposal();
+  const { data: config } = useGovernanceConfigContext();
 
   const descriptionValidation = React.useMemo(
-    () => validateProposalUrl(formData.description),
-    [formData.description],
+    () => validateProposalUrl(formData.description, config?.maxDescriptionLength),
+    [formData.description, config?.maxDescriptionLength],
   );
   const showDescriptionIssues =
     descriptionTouched && formData.description.length > 0;
@@ -64,6 +69,8 @@ export function CreateProposalModal({
       });
       setError(undefined);
       setDescriptionTouched(false);
+      setAllowUnverified(false);
+      setCanSkipVerification(false);
     }
   }, [isOpen]);
 
@@ -74,6 +81,14 @@ export function CreateProposalModal({
   };
 
   const handleError = (err: Error) => {
+    if (err instanceof ProposalDocumentValidationError) {
+      setError(
+        `${err.message} You may explicitly continue without document verification.`,
+      );
+      setCanSkipVerification(true);
+      setIsLoading(false);
+      return;
+    }
     if (isWalletSigningCancellation(err)) {
       toast.info(WALLET_SIGNING_CANCELLED_MESSAGE);
       setIsLoading(false);
@@ -94,12 +109,14 @@ export function CreateProposalModal({
 
     setIsLoading(true);
     setError(undefined);
+    setCanSkipVerification(false);
 
     createProposal(
       {
         title: formData.title,
         description: formData.description,
         publicKey,
+        skipDocumentCheck: allowUnverified,
       },
       {
         onSuccess: handleSuccess,
@@ -115,6 +132,8 @@ export function CreateProposalModal({
     });
     setError(undefined);
     setDescriptionTouched(false);
+    setAllowUnverified(false);
+    setCanSkipVerification(false);
     onClose();
   };
 
@@ -178,9 +197,11 @@ export function CreateProposalModal({
                   id="proposal-description"
                   type="url"
                   value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setFormData({ ...formData, description: e.target.value });
+                    setAllowUnverified(false);
+                    setCanSkipVerification(false);
+                  }}
                   onBlur={() => setDescriptionTouched(true)}
                   aria-invalid={
                     showDescriptionIssues && !descriptionValidation.ok
@@ -215,6 +236,18 @@ export function CreateProposalModal({
                       </p>
                     ))}
                 </div>
+                {canSkipVerification && (
+                  <label className="flex items-center gap-2 text-xs text-white/60">
+                    <input
+                      type="checkbox"
+                      checked={allowUnverified}
+                      onChange={(event) =>
+                        setAllowUnverified(event.target.checked)
+                      }
+                    />
+                    Create without document verification
+                  </label>
+                )}
               </div>
 
               {/* Error Message */}

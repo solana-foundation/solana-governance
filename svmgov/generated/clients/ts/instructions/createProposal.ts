@@ -50,6 +50,7 @@ import {
   findGlobalConfigPda,
   findProposalIndexPda,
   findProposalPda,
+  findVoteDelegationPda,
 } from "../pdas";
 import { SVMGOV_PROGRAM_PROGRAM_ADDRESS } from "../programs";
 
@@ -69,6 +70,7 @@ export type CreateProposalInstruction<
   TAccountProposal extends string | AccountMeta<string> = string,
   TAccountProposalIndex extends string | AccountMeta<string> = string,
   TAccountSplVoteAccount extends string | AccountMeta<string> = string,
+  TAccountVoteDelegation extends string | AccountMeta<string> = string,
   TAccountGlobalConfig extends string | AccountMeta<string> = string,
   TAccountSystemProgram extends string | AccountMeta<string> =
     "11111111111111111111111111111111",
@@ -90,6 +92,9 @@ export type CreateProposalInstruction<
       TAccountSplVoteAccount extends string
         ? ReadonlyAccount<TAccountSplVoteAccount>
         : TAccountSplVoteAccount,
+      TAccountVoteDelegation extends string
+        ? ReadonlyAccount<TAccountVoteDelegation>
+        : TAccountVoteDelegation,
       TAccountGlobalConfig extends string
         ? ReadonlyAccount<TAccountGlobalConfig>
         : TAccountGlobalConfig,
@@ -149,6 +154,7 @@ export type CreateProposalAsyncInput<
   TAccountProposal extends string = string,
   TAccountProposalIndex extends string = string,
   TAccountSplVoteAccount extends string = string,
+  TAccountVoteDelegation extends string = string,
   TAccountGlobalConfig extends string = string,
   TAccountSystemProgram extends string = string,
 > = {
@@ -156,10 +162,16 @@ export type CreateProposalAsyncInput<
   proposal?: Address<TAccountProposal>;
   proposalIndex?: Address<TAccountProposalIndex>;
   /**
-   * enforced here; the handler then deserializes VoteStateVersions and requires
-   * node_pubkey == signer, proving the signer operates this vote account.
+   * enforced here; the handler then reads node_pubkey and requires the signer
+   * to be it (or its accepted delegate), proving the signer operates this
+   * vote account.
    */
   splVoteAccount: Address<TAccountSplVoteAccount>;
+  /**
+   * accepted delegation on record only the delegate may sign, otherwise only
+   * the vote account's node identity may.
+   */
+  voteDelegation?: Address<TAccountVoteDelegation>;
   globalConfig?: Address<TAccountGlobalConfig>;
   systemProgram?: Address<TAccountSystemProgram>;
   seed: CreateProposalInstructionDataArgs["seed"];
@@ -172,6 +184,7 @@ export async function getCreateProposalInstructionAsync<
   TAccountProposal extends string,
   TAccountProposalIndex extends string,
   TAccountSplVoteAccount extends string,
+  TAccountVoteDelegation extends string,
   TAccountGlobalConfig extends string,
   TAccountSystemProgram extends string,
   TProgramAddress extends Address = typeof SVMGOV_PROGRAM_PROGRAM_ADDRESS,
@@ -181,6 +194,7 @@ export async function getCreateProposalInstructionAsync<
     TAccountProposal,
     TAccountProposalIndex,
     TAccountSplVoteAccount,
+    TAccountVoteDelegation,
     TAccountGlobalConfig,
     TAccountSystemProgram
   >,
@@ -192,6 +206,7 @@ export async function getCreateProposalInstructionAsync<
     TAccountProposal,
     TAccountProposalIndex,
     TAccountSplVoteAccount,
+    TAccountVoteDelegation,
     TAccountGlobalConfig,
     TAccountSystemProgram
   >
@@ -206,6 +221,7 @@ export async function getCreateProposalInstructionAsync<
     proposal: { value: input.proposal ?? null, isWritable: true },
     proposalIndex: { value: input.proposalIndex ?? null, isWritable: true },
     splVoteAccount: { value: input.splVoteAccount ?? null, isWritable: false },
+    voteDelegation: { value: input.voteDelegation ?? null, isWritable: false },
     globalConfig: { value: input.globalConfig ?? null, isWritable: false },
     systemProgram: { value: input.systemProgram ?? null, isWritable: false },
   };
@@ -230,6 +246,14 @@ export async function getCreateProposalInstructionAsync<
   if (!accounts.proposalIndex.value) {
     accounts.proposalIndex.value = await findProposalIndexPda();
   }
+  if (!accounts.voteDelegation.value) {
+    accounts.voteDelegation.value = await findVoteDelegationPda({
+      splVoteAccount: getAddressFromResolvedInstructionAccount(
+        "splVoteAccount",
+        accounts.splVoteAccount.value,
+      ),
+    });
+  }
   if (!accounts.globalConfig.value) {
     accounts.globalConfig.value = await findGlobalConfigPda();
   }
@@ -245,6 +269,7 @@ export async function getCreateProposalInstructionAsync<
       getAccountMeta("proposal", accounts.proposal),
       getAccountMeta("proposalIndex", accounts.proposalIndex),
       getAccountMeta("splVoteAccount", accounts.splVoteAccount),
+      getAccountMeta("voteDelegation", accounts.voteDelegation),
       getAccountMeta("globalConfig", accounts.globalConfig),
       getAccountMeta("systemProgram", accounts.systemProgram),
     ],
@@ -258,6 +283,7 @@ export async function getCreateProposalInstructionAsync<
     TAccountProposal,
     TAccountProposalIndex,
     TAccountSplVoteAccount,
+    TAccountVoteDelegation,
     TAccountGlobalConfig,
     TAccountSystemProgram
   >);
@@ -268,6 +294,7 @@ export type CreateProposalInput<
   TAccountProposal extends string = string,
   TAccountProposalIndex extends string = string,
   TAccountSplVoteAccount extends string = string,
+  TAccountVoteDelegation extends string = string,
   TAccountGlobalConfig extends string = string,
   TAccountSystemProgram extends string = string,
 > = {
@@ -275,10 +302,16 @@ export type CreateProposalInput<
   proposal: Address<TAccountProposal>;
   proposalIndex: Address<TAccountProposalIndex>;
   /**
-   * enforced here; the handler then deserializes VoteStateVersions and requires
-   * node_pubkey == signer, proving the signer operates this vote account.
+   * enforced here; the handler then reads node_pubkey and requires the signer
+   * to be it (or its accepted delegate), proving the signer operates this
+   * vote account.
    */
   splVoteAccount: Address<TAccountSplVoteAccount>;
+  /**
+   * accepted delegation on record only the delegate may sign, otherwise only
+   * the vote account's node identity may.
+   */
+  voteDelegation: Address<TAccountVoteDelegation>;
   globalConfig: Address<TAccountGlobalConfig>;
   systemProgram?: Address<TAccountSystemProgram>;
   seed: CreateProposalInstructionDataArgs["seed"];
@@ -291,6 +324,7 @@ export function getCreateProposalInstruction<
   TAccountProposal extends string,
   TAccountProposalIndex extends string,
   TAccountSplVoteAccount extends string,
+  TAccountVoteDelegation extends string,
   TAccountGlobalConfig extends string,
   TAccountSystemProgram extends string,
   TProgramAddress extends Address = typeof SVMGOV_PROGRAM_PROGRAM_ADDRESS,
@@ -300,6 +334,7 @@ export function getCreateProposalInstruction<
     TAccountProposal,
     TAccountProposalIndex,
     TAccountSplVoteAccount,
+    TAccountVoteDelegation,
     TAccountGlobalConfig,
     TAccountSystemProgram
   >,
@@ -310,6 +345,7 @@ export function getCreateProposalInstruction<
   TAccountProposal,
   TAccountProposalIndex,
   TAccountSplVoteAccount,
+  TAccountVoteDelegation,
   TAccountGlobalConfig,
   TAccountSystemProgram
 > {
@@ -323,6 +359,7 @@ export function getCreateProposalInstruction<
     proposal: { value: input.proposal ?? null, isWritable: true },
     proposalIndex: { value: input.proposalIndex ?? null, isWritable: true },
     splVoteAccount: { value: input.splVoteAccount ?? null, isWritable: false },
+    voteDelegation: { value: input.voteDelegation ?? null, isWritable: false },
     globalConfig: { value: input.globalConfig ?? null, isWritable: false },
     systemProgram: { value: input.systemProgram ?? null, isWritable: false },
   };
@@ -347,6 +384,7 @@ export function getCreateProposalInstruction<
       getAccountMeta("proposal", accounts.proposal),
       getAccountMeta("proposalIndex", accounts.proposalIndex),
       getAccountMeta("splVoteAccount", accounts.splVoteAccount),
+      getAccountMeta("voteDelegation", accounts.voteDelegation),
       getAccountMeta("globalConfig", accounts.globalConfig),
       getAccountMeta("systemProgram", accounts.systemProgram),
     ],
@@ -360,6 +398,7 @@ export function getCreateProposalInstruction<
     TAccountProposal,
     TAccountProposalIndex,
     TAccountSplVoteAccount,
+    TAccountVoteDelegation,
     TAccountGlobalConfig,
     TAccountSystemProgram
   >);
@@ -375,12 +414,18 @@ export type ParsedCreateProposalInstruction<
     proposal: TAccountMetas[1];
     proposalIndex: TAccountMetas[2];
     /**
-     * enforced here; the handler then deserializes VoteStateVersions and requires
-     * node_pubkey == signer, proving the signer operates this vote account.
+     * enforced here; the handler then reads node_pubkey and requires the signer
+     * to be it (or its accepted delegate), proving the signer operates this
+     * vote account.
      */
     splVoteAccount: TAccountMetas[3];
-    globalConfig: TAccountMetas[4];
-    systemProgram: TAccountMetas[5];
+    /**
+     * accepted delegation on record only the delegate may sign, otherwise only
+     * the vote account's node identity may.
+     */
+    voteDelegation: TAccountMetas[4];
+    globalConfig: TAccountMetas[5];
+    systemProgram: TAccountMetas[6];
   };
   data: CreateProposalInstructionData;
 };
@@ -393,12 +438,12 @@ export function parseCreateProposalInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedCreateProposalInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 6) {
+  if (instruction.accounts.length < 7) {
     throw new SolanaError(
       SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
       {
         actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 6,
+        expectedAccountMetas: 7,
       },
     );
   }
@@ -415,6 +460,7 @@ export function parseCreateProposalInstruction<
       proposal: getNextAccount(),
       proposalIndex: getNextAccount(),
       splVoteAccount: getNextAccount(),
+      voteDelegation: getNextAccount(),
       globalConfig: getNextAccount(),
       systemProgram: getNextAccount(),
     },

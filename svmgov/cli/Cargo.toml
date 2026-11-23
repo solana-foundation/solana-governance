@@ -1,8 +1,8 @@
 [package]
 name = "svmgov"
-version = "0.5.0-40200"
+version = "0.6.0-40200"
 edition = "2024"
-rust-version = "1.85.0"
+rust-version = "1.88.0"
 authors = ["bergabman", "berg@turbin3.org"]
 description = "CLI for SVM governance: create, browse and vote on Solana governance proposals as a validator or staker"
 license = "Apache-2.0"
@@ -21,6 +21,8 @@ tokio = { version = "1.44.2", features = ["full"] }
 async-trait = "0.1"
 anchor-client = { version = "0.31.1", features = ["async"]}
 anchor-lang = "0.31.1"
+solana-remote-wallet = "=2.2.1"
+uriparse = "0.6.4"
 rand = { version = "0.9.1", features = ["thread_rng"]}
 log = "0.4.27"
 env_logger = "0.11.8"
@@ -30,7 +32,7 @@ indicatif = "0.18.0"
 reqwest = { version = "0.12.23", features = ["json"] }
 bs58 = "0.5.1"
 hex = "0.4.3"
-ncn-snapshot = { path = "../../ncn/programs/ncn-snapshot", version = "0.5.0-40200" }
+ncn-snapshot = { path = "../../ncn/programs/ncn-snapshot", version = "0.6.0-40200" }
 squads-client = { path = "../../squads-client", version = "0.1.0" }
 dotenv = "0.15.0"
 toml = "0.8"
@@ -41,3 +43,8 @@ comfy-table = "7.1"
 [dev-dependencies]
 tempfile = "3.0"
 borsh = "1.5"
+
+[patch.crates-io]
+# Legacy Solana TLS clients need root bundles with the compromised eMudhra paths removed.
+webpki-roots-24 = { package = "webpki-roots", path = "../../ncn-router/vendor/webpki-roots-0.24.0" }
+webpki-roots-25 = { package = "webpki-roots", path = "../../ncn-router/vendor/webpki-roots-0.25.4" }

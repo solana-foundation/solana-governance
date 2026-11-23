@@ -39,7 +39,11 @@ import {
   getAddressFromResolvedInstructionAccount,
   type ResolvedInstructionAccount,
 } from "@solana/program-client-core";
-import { findVoteOverrideCachePda, findVotePda } from "../pdas";
+import {
+  findVoteDelegationPda,
+  findVoteOverrideCachePda,
+  findVotePda,
+} from "../pdas";
 import { SVMGOV_PROGRAM_PROGRAM_ADDRESS } from "../programs";
 
 export const CAST_VOTE_DISCRIMINATOR: ReadonlyUint8Array = new Uint8Array([
@@ -56,6 +60,7 @@ export type CastVoteInstruction<
   TAccountProposal extends string | AccountMeta<string> = string,
   TAccountVote extends string | AccountMeta<string> = string,
   TAccountSplVoteAccount extends string | AccountMeta<string> = string,
+  TAccountVoteDelegation extends string | AccountMeta<string> = string,
   TAccountVoteOverrideCache extends string | AccountMeta<string> = string,
   TAccountSnapshotProgram extends string | AccountMeta<string> = string,
   TAccountConsensusResult extends string | AccountMeta<string> = string,
@@ -80,6 +85,9 @@ export type CastVoteInstruction<
       TAccountSplVoteAccount extends string
         ? ReadonlyAccount<TAccountSplVoteAccount>
         : TAccountSplVoteAccount,
+      TAccountVoteDelegation extends string
+        ? ReadonlyAccount<TAccountVoteDelegation>
+        : TAccountVoteDelegation,
       TAccountVoteOverrideCache extends string
         ? ReadonlyAccount<TAccountVoteOverrideCache>
         : TAccountVoteOverrideCache,
@@ -148,6 +156,7 @@ export type CastVoteAsyncInput<
   TAccountProposal extends string = string,
   TAccountVote extends string = string,
   TAccountSplVoteAccount extends string = string,
+  TAccountVoteDelegation extends string = string,
   TAccountVoteOverrideCache extends string = string,
   TAccountSnapshotProgram extends string = string,
   TAccountConsensusResult extends string = string,
@@ -159,10 +168,16 @@ export type CastVoteAsyncInput<
   vote?: Address<TAccountVote>;
   /**
    * enforced here. The signer-to-vote-account binding is proved in the handler
-   * via the meta merkle proof: voting_wallet == signer AND vote_account ==
-   * spl_vote_account, both anchored to proposal.consensus_result.
+   * via the meta merkle proof (vote_account == spl_vote_account, anchored to
+   * proposal.consensus_result) plus the authority check: signer is the leaf's
+   * voting_wallet, or the accepted delegate in `vote_delegation`.
    */
   splVoteAccount: Address<TAccountSplVoteAccount>;
+  /**
+   * accepted delegation on record only the delegate may sign, otherwise only
+   * the vote account's identity may.
+   */
+  voteDelegation?: Address<TAccountVoteDelegation>;
   voteOverrideCache?: Address<TAccountVoteOverrideCache>;
   snapshotProgram: Address<TAccountSnapshotProgram>;
   consensusResult: Address<TAccountConsensusResult>;
@@ -178,6 +193,7 @@ export async function getCastVoteInstructionAsync<
   TAccountProposal extends string,
   TAccountVote extends string,
   TAccountSplVoteAccount extends string,
+  TAccountVoteDelegation extends string,
   TAccountVoteOverrideCache extends string,
   TAccountSnapshotProgram extends string,
   TAccountConsensusResult extends string,
@@ -190,6 +206,7 @@ export async function getCastVoteInstructionAsync<
     TAccountProposal,
     TAccountVote,
     TAccountSplVoteAccount,
+    TAccountVoteDelegation,
     TAccountVoteOverrideCache,
     TAccountSnapshotProgram,
     TAccountConsensusResult,
@@ -204,6 +221,7 @@ export async function getCastVoteInstructionAsync<
     TAccountProposal,
     TAccountVote,
     TAccountSplVoteAccount,
+    TAccountVoteDelegation,
     TAccountVoteOverrideCache,
     TAccountSnapshotProgram,
     TAccountConsensusResult,
@@ -221,6 +239,7 @@ export async function getCastVoteInstructionAsync<
     proposal: { value: input.proposal ?? null, isWritable: true },
     vote: { value: input.vote ?? null, isWritable: true },
     splVoteAccount: { value: input.splVoteAccount ?? null, isWritable: false },
+    voteDelegation: { value: input.voteDelegation ?? null, isWritable: false },
     voteOverrideCache: {
       value: input.voteOverrideCache ?? null,
       isWritable: false,
@@ -260,6 +279,14 @@ export async function getCastVoteInstructionAsync<
       ),
     });
   }
+  if (!accounts.voteDelegation.value) {
+    accounts.voteDelegation.value = await findVoteDelegationPda({
+      splVoteAccount: getAddressFromResolvedInstructionAccount(
+        "splVoteAccount",
+        accounts.splVoteAccount.value,
+      ),
+    });
+  }
   if (!accounts.voteOverrideCache.value) {
     accounts.voteOverrideCache.value = await findVoteOverrideCachePda({
       proposal: getAddressFromResolvedInstructionAccount(
@@ -284,6 +311,7 @@ export async function getCastVoteInstructionAsync<
       getAccountMeta("proposal", accounts.proposal),
       getAccountMeta("vote", accounts.vote),
       getAccountMeta("splVoteAccount", accounts.splVoteAccount),
+      getAccountMeta("voteDelegation", accounts.voteDelegation),
       getAccountMeta("voteOverrideCache", accounts.voteOverrideCache),
       getAccountMeta("snapshotProgram", accounts.snapshotProgram),
       getAccountMeta("consensusResult", accounts.consensusResult),
@@ -300,6 +328,7 @@ export async function getCastVoteInstructionAsync<
     TAccountProposal,
     TAccountVote,
     TAccountSplVoteAccount,
+    TAccountVoteDelegation,
     TAccountVoteOverrideCache,
     TAccountSnapshotProgram,
     TAccountConsensusResult,
@@ -313,6 +342,7 @@ export type CastVoteInput<
   TAccountProposal extends string = string,
   TAccountVote extends string = string,
   TAccountSplVoteAccount extends string = string,
+  TAccountVoteDelegation extends string = string,
   TAccountVoteOverrideCache extends string = string,
   TAccountSnapshotProgram extends string = string,
   TAccountConsensusResult extends string = string,
@@ -324,10 +354,16 @@ export type CastVoteInput<
   vote: Address<TAccountVote>;
   /**
    * enforced here. The signer-to-vote-account binding is proved in the handler
-   * via the meta merkle proof: voting_wallet == signer AND vote_account ==
-   * spl_vote_account, both anchored to proposal.consensus_result.
+   * via the meta merkle proof (vote_account == spl_vote_account, anchored to
+   * proposal.consensus_result) plus the authority check: signer is the leaf's
+   * voting_wallet, or the accepted delegate in `vote_delegation`.
    */
   splVoteAccount: Address<TAccountSplVoteAccount>;
+  /**
+   * accepted delegation on record only the delegate may sign, otherwise only
+   * the vote account's identity may.
+   */
+  voteDelegation: Address<TAccountVoteDelegation>;
   voteOverrideCache: Address<TAccountVoteOverrideCache>;
   snapshotProgram: Address<TAccountSnapshotProgram>;
   consensusResult: Address<TAccountConsensusResult>;
@@ -343,6 +379,7 @@ export function getCastVoteInstruction<
   TAccountProposal extends string,
   TAccountVote extends string,
   TAccountSplVoteAccount extends string,
+  TAccountVoteDelegation extends string,
   TAccountVoteOverrideCache extends string,
   TAccountSnapshotProgram extends string,
   TAccountConsensusResult extends string,
@@ -355,6 +392,7 @@ export function getCastVoteInstruction<
     TAccountProposal,
     TAccountVote,
     TAccountSplVoteAccount,
+    TAccountVoteDelegation,
     TAccountVoteOverrideCache,
     TAccountSnapshotProgram,
     TAccountConsensusResult,
@@ -368,6 +406,7 @@ export function getCastVoteInstruction<
   TAccountProposal,
   TAccountVote,
   TAccountSplVoteAccount,
+  TAccountVoteDelegation,
   TAccountVoteOverrideCache,
   TAccountSnapshotProgram,
   TAccountConsensusResult,
@@ -384,6 +423,7 @@ export function getCastVoteInstruction<
     proposal: { value: input.proposal ?? null, isWritable: true },
     vote: { value: input.vote ?? null, isWritable: true },
     splVoteAccount: { value: input.splVoteAccount ?? null, isWritable: false },
+    voteDelegation: { value: input.voteDelegation ?? null, isWritable: false },
     voteOverrideCache: {
       value: input.voteOverrideCache ?? null,
       isWritable: false,
@@ -423,6 +463,7 @@ export function getCastVoteInstruction<
       getAccountMeta("proposal", accounts.proposal),
       getAccountMeta("vote", accounts.vote),
       getAccountMeta("splVoteAccount", accounts.splVoteAccount),
+      getAccountMeta("voteDelegation", accounts.voteDelegation),
       getAccountMeta("voteOverrideCache", accounts.voteOverrideCache),
       getAccountMeta("snapshotProgram", accounts.snapshotProgram),
       getAccountMeta("consensusResult", accounts.consensusResult),
@@ -439,6 +480,7 @@ export function getCastVoteInstruction<
     TAccountProposal,
     TAccountVote,
     TAccountSplVoteAccount,
+    TAccountVoteDelegation,
     TAccountVoteOverrideCache,
     TAccountSnapshotProgram,
     TAccountConsensusResult,
@@ -458,15 +500,21 @@ export type ParsedCastVoteInstruction<
     vote: TAccountMetas[2];
     /**
      * enforced here. The signer-to-vote-account binding is proved in the handler
-     * via the meta merkle proof: voting_wallet == signer AND vote_account ==
-     * spl_vote_account, both anchored to proposal.consensus_result.
+     * via the meta merkle proof (vote_account == spl_vote_account, anchored to
+     * proposal.consensus_result) plus the authority check: signer is the leaf's
+     * voting_wallet, or the accepted delegate in `vote_delegation`.
      */
     splVoteAccount: TAccountMetas[3];
-    voteOverrideCache: TAccountMetas[4];
-    snapshotProgram: TAccountMetas[5];
-    consensusResult: TAccountMetas[6];
-    metaMerkleProof: TAccountMetas[7];
-    systemProgram: TAccountMetas[8];
+    /**
+     * accepted delegation on record only the delegate may sign, otherwise only
+     * the vote account's identity may.
+     */
+    voteDelegation: TAccountMetas[4];
+    voteOverrideCache: TAccountMetas[5];
+    snapshotProgram: TAccountMetas[6];
+    consensusResult: TAccountMetas[7];
+    metaMerkleProof: TAccountMetas[8];
+    systemProgram: TAccountMetas[9];
   };
   data: CastVoteInstructionData;
 };
@@ -479,12 +527,12 @@ export function parseCastVoteInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedCastVoteInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 9) {
+  if (instruction.accounts.length < 10) {
     throw new SolanaError(
       SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
       {
         actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 9,
+        expectedAccountMetas: 10,
       },
     );
   }
@@ -501,6 +549,7 @@ export function parseCastVoteInstruction<
       proposal: getNextAccount(),
       vote: getNextAccount(),
       splVoteAccount: getNextAccount(),
+      voteDelegation: getNextAccount(),
       voteOverrideCache: getNextAccount(),
       snapshotProgram: getNextAccount(),
       consensusResult: getNextAccount(),

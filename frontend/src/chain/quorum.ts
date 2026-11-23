@@ -37,13 +37,41 @@ export type QuorumStatus =
       isMet: boolean;
     };
 
+/** Percentages for the three recorded vote options. */
+export type VotePercentageBreakdown =
+  | { known: false }
+  | {
+      known: true;
+      forPercent: number;
+      againstPercent: number;
+      abstainPercent: number;
+    };
+
+/** The distinct percentage views shown for a proposal. */
+export interface ProposalVoteStats {
+  /** Overall participation measured against the frozen snapshot stake. */
+  quorum: QuorumStatus;
+  /** Each option measured against all votes cast. */
+  voteShare: VotePercentageBreakdown;
+  /** Each option measured against the frozen snapshot stake. */
+  stakeShare: VotePercentageBreakdown;
+}
+
+const PERCENT_SCALE = 10_000_000_000n;
+
+/** `part / total` as a 0–100 percentage, truncated to ten decimal places. */
+function percentOf(part: bigint, total: bigint): number {
+  // Convert only the bounded percentage, never a lamport balance.
+  return Number((part * 100n * PERCENT_SCALE) / total) / Number(PERCENT_SCALE);
+}
+
 export function computeQuorum({
   forLamports,
   againstLamports,
   abstainLamports,
   totalActiveStake,
 }: QuorumInput): QuorumStatus {
-  if (totalActiveStake === undefined || totalActiveStake <= 0) {
+  if (totalActiveStake === undefined || totalActiveStake <= 0n) {
     return { known: false };
   }
 
@@ -52,14 +80,50 @@ export function computeQuorum({
   return {
     known: true,
     totalActiveStake,
-    // Convert only the bounded percentage, never a lamport balance.
-    participationPercent:
-      Number((participatingLamports * 100_000_000n) / totalActiveStake) /
-      1_000_000,
+    participationPercent: percentOf(participatingLamports, totalActiveStake),
     isMet:
       participatingLamports >=
       (totalActiveStake * BigInt(QUORUM_NUMERATOR)) /
         BigInt(QUORUM_DENOMINATOR),
+  };
+}
+
+/**
+ * Computes the participation and vote-percentage views shown for a proposal.
+ *
+ * Quorum and stake share use the frozen snapshot stake. Vote share uses only
+ * recorded votes, so it remains available when snapshot metadata is unavailable.
+ */
+export function computeProposalVoteStats(
+  input: QuorumInput,
+): ProposalVoteStats {
+  const quorum = computeQuorum(input);
+  const participatingLamports =
+    input.forLamports + input.againstLamports + input.abstainLamports;
+
+  const voteShare: VotePercentageBreakdown =
+    participatingLamports > 0n
+      ? {
+          known: true,
+          forPercent: percentOf(input.forLamports, participatingLamports),
+          againstPercent: percentOf(input.againstLamports, participatingLamports),
+          abstainPercent: percentOf(input.abstainLamports, participatingLamports),
+        }
+      : { known: false };
+
+  const stakeShare: VotePercentageBreakdown = quorum.known
+    ? {
+        known: true,
+        forPercent: percentOf(input.forLamports, quorum.totalActiveStake),
+        againstPercent: percentOf(input.againstLamports, quorum.totalActiveStake),
+        abstainPercent: percentOf(input.abstainLamports, quorum.totalActiveStake),
+      }
+    : { known: false };
+
+  return {
+    quorum,
+    voteShare,
+    stakeShare,
   };
 }
 

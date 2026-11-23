@@ -1,25 +1,36 @@
-use std::{fmt, fs, str::FromStr, sync::Arc, time::Duration};
+use std::{fmt, str::FromStr, sync::Arc, time::Duration};
 
 use anchor_client::{
-    Client, Cluster, Program,
-    solana_client::nonblocking::rpc_client::RpcClient,
+    Client, Cluster, DynSigner, Program,
+    solana_client::{
+        nonblocking::rpc_client::RpcClient,
+        rpc_filter::{Memcmp, RpcFilterType},
+    },
     solana_sdk::{
         bpf_loader_upgradeable, commitment_config::CommitmentConfig,
-        native_token::LAMPORTS_PER_SOL, signature::Keypair, signer::Signer,
+        derivation_path::DerivationPath, native_token::LAMPORTS_PER_SOL,
+        signature::read_keypair_file, signer::Signer,
     },
 };
 use anchor_lang::{Id, prelude::Pubkey};
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use chrono::prelude::*;
 use indicatif::{ProgressBar, ProgressStyle};
+use solana_remote_wallet::{
+    locator::Locator,
+    remote_keypair::generate_remote_keypair,
+    remote_wallet::{RemoteWalletError, maybe_wallet_manager},
+};
 use textwrap::wrap;
+use uriparse::URIReference;
 
 use crate::{
     constants::*,
     svmgov_program::{
-        accounts::{GlobalConfig, Proposal, Vote},
+        accounts::{GlobalConfig, Proposal, Vote, VoteDelegation},
         program::SvmgovProgram,
     },
+    utils::squads::{SquadsCliOpts, effective_signer},
 };
 
 /// Creates and configures a progress spinner with a custom message
@@ -41,11 +52,15 @@ pub fn create_spinner(message: &str) -> ProgressBar {
 /// svmgov program. Enough for permissionless instructions (retally-support,
 /// finalize-proposal, ...) where any funded keypair may sign; `setup_all`
 /// builds on it for commands that also need the merkle-proof program and the
-/// signer's vote account.
+/// vote account the signer acts for.
 pub fn setup_signer_and_program(
     keypair_path: Option<String>,
     rpc_url: Option<String>,
-) -> Result<(Arc<Keypair>, Program<Arc<Keypair>>, Client<Arc<Keypair>>)> {
+) -> Result<(
+    Arc<DynSigner>,
+    Program<Arc<DynSigner>>,
+    Client<Arc<DynSigner>>,
+)> {
     let identity_keypair = load_identity_keypair(keypair_path)?;
     let identity_keypair_arc = Arc::new(identity_keypair);
 
@@ -62,26 +77,31 @@ pub fn setup_signer_and_program(
     Ok((identity_keypair_arc, program, client))
 }
 
+/// Full setup for validator-side commands: the local keypair, the SPL vote
+/// account acted for (see `resolve_vote_account`), and the svmgov and
+/// merkle-proof programs. The vote account is resolved for the key that signs
+/// the governance instruction: the local keypair, or the vault PDA when
+/// `squads` routes the command through a Squads multisig.
 pub async fn setup_all(
     keypair_path: Option<String>,
     rpc_url: Option<String>,
+    vote_account: Option<String>,
+    squads: Option<&SquadsCliOpts>,
 ) -> Result<(
-    Arc<Keypair>,
+    Arc<DynSigner>,
     Pubkey,
-    Program<Arc<Keypair>>,
-    Program<Arc<Keypair>>,
+    Program<Arc<DynSigner>>,
+    Program<Arc<DynSigner>>,
 )> {
     // Step 1: Signer, cluster and svmgov program
-    let (identity_keypair_arc, program, client) =
-        setup_signer_and_program(keypair_path, rpc_url)?;
+    let (identity_keypair_arc, program, client) = setup_signer_and_program(keypair_path, rpc_url)?;
 
     // Step 2: The merkle-proof (ncn-snapshot) program
     let merkle_proof_program = client.program(ncn_snapshot::id())?;
 
-    // Step 3: Find the vote account using the program's RpcClient
-    let rpc_client = program.rpc();
-    let validator_identity = identity_keypair_arc.pubkey();
-    let vote_account = find_spl_vote_account(&validator_identity, &rpc_client).await?;
+    // Step 3: The vote account the signer acts for
+    let signer = effective_signer(squads, identity_keypair_arc.pubkey());
+    let vote_account = resolve_vote_account(&program, &signer, vote_account).await?;
 
     // Step 4: Log the setup completion
     log::debug!(
@@ -101,9 +121,13 @@ pub async fn setup_all(
 pub fn setup_all_with_staker(
     staker_keypair_path: String,
     rpc_url: Option<String>,
-) -> Result<(Arc<Keypair>, Program<Arc<Keypair>>, Program<Arc<Keypair>>)> {
+) -> Result<(
+    Arc<DynSigner>,
+    Program<Arc<DynSigner>>,
+    Program<Arc<DynSigner>>,
+)> {
     // Step 1: Load the staker keypair
-    let staker_keypair = load_staker_keypair(staker_keypair_path)?;
+    let staker_keypair = load_signer(&staker_keypair_path)?;
     let staker_keypair_arc = Arc::new(staker_keypair);
 
     // Step 2: Set the cluster
@@ -125,82 +149,175 @@ pub fn setup_all_with_staker(
     Ok((staker_keypair_arc, program, merkle_proof_program))
 }
 
-fn load_staker_keypair(keypair_path: String) -> Result<Keypair> {
-    let file_content = fs::read_to_string(&keypair_path).map_err(|e| match e.kind() {
-        std::io::ErrorKind::NotFound => {
-            anyhow!(
-                "The specified staker keypair file does not exist: {}",
-                keypair_path
-            )
-        }
-        _ => anyhow!("Failed to read staker keypair file {}: {}", keypair_path, e),
-    })?;
-
-    let keypair_bytes: Vec<u8> = serde_json::from_str(&file_content).map_err(|e| {
-        anyhow!(
-            "The staker keypair file is not a valid JSON array of bytes: {}. Error: {}",
-            keypair_path,
-            e
-        )
-    })?;
-
-    // Create the Keypair from the bytes
-    let staker_keypair = Keypair::from_bytes(&keypair_bytes).map_err(|e| {
-        anyhow!(
-            "The provided bytes do not form a valid Solana keypair: {}. This might be due to invalid key data.",
-            e
-        )
-    })?;
-
-    Ok(staker_keypair)
+fn load_signer(path: &str) -> Result<DynSigner> {
+    if path.starts_with("usb://") {
+        let uri = URIReference::try_from(path).context("Invalid Ledger URI")?;
+        let locator = Locator::new_from_uri(&uri).context("Invalid Ledger locator")?;
+        let derivation_path = DerivationPath::from_uri_key_query(&uri)
+            .context("Invalid Ledger derivation path")?
+            .unwrap_or_default();
+        let wallet_manager = maybe_wallet_manager()?.ok_or(RemoteWalletError::NoDeviceFound)?;
+        let signer =
+            generate_remote_keypair(locator, derivation_path, &wallet_manager, false, "keypair")?;
+        Ok(DynSigner(Arc::new(signer)))
+    } else {
+        let keypair = read_keypair_file(path)
+            .map_err(|e| anyhow!("Failed to read keypair file {}: {}", path, e))?;
+        Ok(DynSigner(Arc::new(keypair)))
+    }
 }
 
-fn load_identity_keypair(keypair_path: Option<String>) -> Result<Keypair> {
-    // Check if the keypair path is provided
-    let identity_keypair_path = if let Some(path) = keypair_path {
-        path
-    } else {
-        return Err(anyhow!(
+fn load_identity_keypair(keypair_path: Option<String>) -> Result<DynSigner> {
+    let path = keypair_path.ok_or_else(|| {
+        anyhow!(
             "No identity keypair path provided. Please specify the path using the --keypair flag."
-        ));
-    };
+        )
+    })?;
+    let signer = load_signer(&path)?;
+    println!("Loaded identity keypair address -> {:?}", signer.pubkey());
+    Ok(signer)
+}
 
-    let file_content = fs::read_to_string(&identity_keypair_path).map_err(|e| match e.kind() {
-        std::io::ErrorKind::NotFound => {
-            anyhow!(
-                "The specified keypair file does not exist: {}",
-                identity_keypair_path
-            )
+/// Resolves the SPL vote account `signer` acts for: an explicit `--vote-account`
+/// value, else the vote account whose node identity is the signer, else the
+/// single vote account with an accepted vote delegation naming the signer.
+pub async fn resolve_vote_account(
+    program: &Program<Arc<DynSigner>>,
+    signer: &Pubkey,
+    vote_account: Option<String>,
+) -> Result<Pubkey> {
+    if let Some(vote_account) = vote_account {
+        return Pubkey::from_str(&vote_account)
+            .map_err(|_| anyhow!("Invalid vote account: {vote_account}"));
+    }
+    if let Ok(vote_account) = find_spl_vote_account(signer, &program.rpc()).await {
+        return Ok(vote_account);
+    }
+    let delegated = find_accepted_vote_account_delegations(program, signer).await?;
+    match delegated.as_slice() {
+        [delegation] => Ok(delegation.subject),
+        [] => Err(anyhow!(
+            "No vote account found for {signer}: it is not the node identity of any current \
+             vote account and no accepted vote delegation names it. Pass --vote-account to \
+             act for a specific vote account (e.g. as its authorized withdrawer)."
+        )),
+        many => Err(anyhow!(
+            "{signer} is the accepted vote delegate of {} vote accounts; pass --vote-account \
+             to choose one:\n{}",
+            many.len(),
+            many.iter()
+                .map(|d| format!("  {}", d.subject))
+                .collect::<Vec<_>>()
+                .join("\n")
+        )),
+    }
+}
+
+/// Fetches the `VoteDelegation` of `subject` (an SPL vote account or a staker's
+/// wallet), or `None` when it has none.
+pub async fn fetch_vote_delegation(
+    program: &Program<Arc<DynSigner>>,
+    subject: &Pubkey,
+) -> Result<Option<VoteDelegation>> {
+    let pda = derive_vote_delegation_pda(subject, &program.id());
+    match program.account::<VoteDelegation>(pda).await {
+        Ok(delegation) => Ok(Some(delegation)),
+        Err(anchor_client::ClientError::AccountNotFound) => Ok(None),
+        Err(e) => Err(anyhow!("Failed to fetch vote delegation {pda}: {e}")),
+    }
+}
+
+/// The keys of a live SPL vote account that may act on its vote delegation.
+#[derive(Clone, Copy, Debug)]
+pub struct VoteAccountAuthorities {
+    pub node_pubkey: Pubkey,
+    pub authorized_withdrawer: Pubkey,
+}
+
+/// Reads the authorities of `subject` when it is a live SPL vote account.
+/// Returns `None` for anything else: a staker wallet, or a vote account that
+/// has since been closed, both of which the program treats under wallet rules.
+pub async fn vote_account_authorities(
+    program: &Program<Arc<DynSigner>>,
+    subject: &Pubkey,
+) -> Result<Option<VoteAccountAuthorities>> {
+    use anchor_lang::solana_program::vote::{program as vote_program, state::VoteState};
+
+    let rpc = program.rpc();
+    let account = rpc
+        .get_account_with_commitment(subject, rpc.commitment())
+        .await
+        .map_err(|e| anyhow!("Failed to fetch {subject}: {e}"))?
+        .value;
+    match account {
+        Some(a) if a.owner == vote_program::ID && a.data.len() == VoteState::size_of() => {
+            // Every vote state version stores `node_pubkey` then
+            // `authorized_withdrawer` right after the 4-byte version tag, so both
+            // can be read without version-specific decoding. The program
+            // re-derives them on-chain, so a wrong read here is rejected rather
+            // than acted on.
+            let key = |range: std::ops::Range<usize>| {
+                Pubkey::try_from(&a.data[range]).map_err(|_| {
+                    anyhow!("Vote account {subject} is too short to hold its authorities")
+                })
+            };
+            Ok(Some(VoteAccountAuthorities {
+                node_pubkey: key(4..36)?,
+                authorized_withdrawer: key(36..68)?,
+            }))
         }
-        _ => anyhow!(
-            "Failed to read keypair file {}: {}",
-            identity_keypair_path,
-            e
-        ),
-    })?;
+        _ => Ok(None),
+    }
+}
 
-    let keypair_bytes: Vec<u8> = serde_json::from_str(&file_content).map_err(|e| {
-        anyhow!(
-            "The keypair file is not a valid JSON array of bytes: {}. Error: {}",
-            identity_keypair_path,
-            e
-        )
-    })?;
+/// Lists the accepted vote delegations that name `delegate`, whatever their
+/// subject (SPL vote accounts and staker wallets alike).
+pub async fn find_accepted_vote_delegations(
+    program: &Program<Arc<DynSigner>>,
+    delegate: &Pubkey,
+) -> Result<Vec<VoteDelegation>> {
+    // `delegate` is the first field after the 8-byte discriminator.
+    let filters = vec![RpcFilterType::Memcmp(Memcmp::new_base58_encoded(
+        8,
+        &delegate.to_bytes(),
+    ))];
+    let delegations = program
+        .accounts::<VoteDelegation>(filters)
+        .await
+        .map_err(|e| anyhow!("Failed to look up vote delegations for {delegate}: {e}"))?;
+    Ok(delegations
+        .into_iter()
+        .map(|(_, delegation)| delegation)
+        .filter(|delegation| delegation.delegation_accepted)
+        .collect())
+}
 
-    // Create the Keypair from the bytes
-    let identity_keypair = Keypair::from_bytes(&keypair_bytes).map_err(|e| {
-        anyhow!(
-            "The provided bytes do not form a valid Solana keypair: {}. This might be due to invalid key data.",
-            e
-        )
-    })?;
-
-    println!(
-        "Loaded identity keypair address -> {:?}",
-        identity_keypair.pubkey()
-    );
-
-    Ok(identity_keypair)
+/// Lists the accepted vote delegations naming `delegate` whose subject is an SPL
+/// vote account, i.e. the validators the delegate may act for.
+pub async fn find_accepted_vote_account_delegations(
+    program: &Program<Arc<DynSigner>>,
+    delegate: &Pubkey,
+) -> Result<Vec<VoteDelegation>> {
+    let delegations = find_accepted_vote_delegations(program, delegate).await?;
+    if delegations.is_empty() {
+        return Ok(delegations);
+    }
+    let subjects: Vec<Pubkey> = delegations.iter().map(|d| d.subject).collect();
+    let accounts = program
+        .rpc()
+        .get_multiple_accounts(&subjects)
+        .await
+        .map_err(|e| anyhow!("Failed to classify vote delegation subjects: {e}"))?;
+    Ok(delegations
+        .into_iter()
+        .zip(accounts)
+        .filter(|(_, account)| {
+            account
+                .as_ref()
+                .is_some_and(|a| a.owner == anchor_lang::solana_program::vote::program::ID)
+        })
+        .map(|(delegation, _)| delegation)
+        .collect())
 }
 
 async fn find_spl_vote_account(
@@ -231,8 +348,8 @@ fn set_cluster(rpc_url: Option<String>) -> Cluster {
 
 pub fn anchor_client_setup(
     rpc_url: Option<String>,
-    payer: Arc<Keypair>,
-) -> Result<Program<Arc<Keypair>>> {
+    payer: Arc<DynSigner>,
+) -> Result<Program<Arc<DynSigner>>> {
     // Set up the cluster
     let cluster = set_cluster(rpc_url);
 
@@ -247,7 +364,7 @@ pub fn anchor_client_setup(
 pub fn setup_admin(
     keypair_path: Option<String>,
     rpc_url: Option<String>,
-) -> Result<(Arc<Keypair>, Program<Arc<Keypair>>)> {
+) -> Result<(Arc<DynSigner>, Program<Arc<DynSigner>>)> {
     let (payer, program, _client) = setup_signer_and_program(keypair_path, rpc_url)?;
     Ok((payer, program))
 }
@@ -439,6 +556,14 @@ pub fn derive_vote_override_cache_pda(
     let (pda, _) = Pubkey::find_program_address(seeds, program_id);
     pda
 }
+/// Derives the VoteDelegation PDA using the seeds [b"vote_delegation", subject],
+/// where the subject is an SPL vote account or a staker's voting wallet.
+pub fn derive_vote_delegation_pda(subject: &Pubkey, program_id: &Pubkey) -> Pubkey {
+    let seeds = &[b"vote_delegation".as_ref(), subject.as_ref()];
+    let (pda, _) = Pubkey::find_program_address(seeds, program_id);
+    pda
+}
+
 pub fn derive_global_config_pda(program_id: &Pubkey) -> Pubkey {
     let seeds = &[b"global_config".as_ref()];
     let (pda, _) = Pubkey::find_program_address(seeds, program_id);
@@ -454,7 +579,7 @@ pub fn derive_program_data_pda(program_id: &Pubkey) -> Pubkey {
     pda
 }
 
-pub async fn fetch_global_config(program: &Program<Arc<Keypair>>) -> Result<GlobalConfig> {
+pub async fn fetch_global_config(program: &Program<Arc<DynSigner>>) -> Result<GlobalConfig> {
     let pda = derive_global_config_pda(&program.id());
     program
         .account::<GlobalConfig>(pda)
@@ -481,7 +606,7 @@ pub async fn fetch_global_config(program: &Program<Arc<Keypair>>) -> Result<Glob
 /// when projecting into the future — already-expired proposals keep a past timestamp and stay
 /// immediately closable.
 pub async fn compute_vote_expiry_timestamp(
-    program: &Program<Arc<Keypair>>,
+    program: &Program<Arc<DynSigner>>,
     end_epoch: u64,
 ) -> Result<i64> {
     const MS_PER_SLOT: i64 = 400; // solana_sdk::clock::DEFAULT_MS_PER_SLOT
@@ -553,11 +678,147 @@ pub fn derive_program_config_pda(ballot_program_id: &Pubkey) -> Pubkey {
     pda
 }
 
-pub fn get_epoch_slot_range(epoch: u64) -> (u64, u64) {
-    const SLOTS_PER_EPOCH: u64 = 432_000;
+pub const SLOTS_PER_EPOCH: u64 = 432_000;
 
-    let start_slot = epoch * SLOTS_PER_EPOCH;
-    let end_slot = (epoch + 1) * SLOTS_PER_EPOCH - 1;
+/// Derives the ballot snapshot slot using the same checked schedule as the
+/// on-chain support and retally handlers.
+pub fn proposal_snapshot_slot(
+    current_epoch: u64,
+    current_slot: u64,
+    discussion_epochs: u64,
+    snapshot_epoch_extension: u64,
+    snapshot_slot_offset: i64,
+) -> Result<u64> {
+    validate_snapshot_slot_offset(snapshot_slot_offset)?;
 
-    (start_slot, end_slot)
+    let snapshot_epoch = current_epoch
+        .checked_add(discussion_epochs)
+        .and_then(|epoch| epoch.checked_add(snapshot_epoch_extension))
+        .ok_or_else(|| anyhow!("proposal snapshot epoch overflowed"))?;
+    let voting_start_epoch = snapshot_epoch
+        .checked_add(1)
+        .ok_or_else(|| anyhow!("proposal voting start epoch overflowed"))?;
+    let snapshot_epoch_start = snapshot_epoch
+        .checked_mul(SLOTS_PER_EPOCH)
+        .ok_or_else(|| anyhow!("proposal snapshot slot overflowed"))?;
+    let snapshot_epoch_start = i64::try_from(snapshot_epoch_start)
+        .map_err(|_| anyhow!("proposal snapshot slot exceeds the supported range"))?;
+    let snapshot_slot = snapshot_epoch_start
+        .checked_add(snapshot_slot_offset)
+        .and_then(|slot| u64::try_from(slot).ok())
+        .ok_or_else(|| anyhow!("snapshot slot offset produces an invalid slot"))?;
+
+    if snapshot_slot <= current_slot {
+        return Err(anyhow!(
+            "snapshot slot {snapshot_slot} must be after the current slot {current_slot}"
+        ));
+    }
+
+    let voting_start_slot = voting_start_epoch
+        .checked_mul(SLOTS_PER_EPOCH)
+        .ok_or_else(|| anyhow!("proposal voting start slot overflowed"))?;
+    if voting_start_slot.saturating_sub(snapshot_slot) < ncn_snapshot::MIN_VOTE_EXPIRY_SLOTS {
+        return Err(anyhow!(
+            "snapshot slot must leave at least {} slots before voting starts",
+            ncn_snapshot::MIN_VOTE_EXPIRY_SLOTS
+        ));
+    }
+
+    Ok(snapshot_slot)
+}
+
+/// Validates the configured offset against the NCN ballot's minimum voting
+/// window. Negative offsets remain valid and are checked when a proposal is
+/// activated.
+pub fn validate_snapshot_slot_offset(snapshot_slot_offset: i64) -> Result<()> {
+    let latest = SLOTS_PER_EPOCH
+        .checked_sub(ncn_snapshot::MIN_VOTE_EXPIRY_SLOTS)
+        .ok_or_else(|| anyhow!("minimum NCN voting window exceeds one epoch"))?;
+    if snapshot_slot_offset > latest as i64 {
+        return Err(anyhow!(
+            "snapshot_slot_offset must be at most {latest} to leave {} slots before voting starts",
+            ncn_snapshot::MIN_VOTE_EXPIRY_SLOTS
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod schedule_tests {
+    use super::*;
+
+    #[test]
+    fn proposal_snapshot_slot_matches_program_schedule() {
+        assert_eq!(
+            proposal_snapshot_slot(5, 2_160_100, 2, 1, 1_000).unwrap(),
+            3_457_000
+        );
+    }
+
+    #[test]
+    fn snapshot_offset_accepts_latest_valid_boundary() {
+        let latest = (SLOTS_PER_EPOCH - ncn_snapshot::MIN_VOTE_EXPIRY_SLOTS) as i64;
+        assert!(validate_snapshot_slot_offset(latest).is_ok());
+        assert!(validate_snapshot_slot_offset(latest + 1).is_err());
+    }
+
+    #[test]
+    fn proposal_snapshot_slot_rejects_backdating_and_overflow() {
+        assert!(proposal_snapshot_slot(2, 864_000, 0, 0, 0).is_err());
+        assert!(proposal_snapshot_slot(u64::MAX, 0, 1, 0, 0).is_err());
+        assert!(proposal_snapshot_slot(0, 0, 0, 0, -1).is_err());
+    }
+}
+
+#[cfg(test)]
+mod signer_tests {
+    use super::*;
+    use anchor_client::solana_sdk::signature::{Keypair, write_keypair};
+
+    #[test]
+    fn file_signer_preserves_pubkey_and_signatures_for_identity_and_staker() {
+        let keypair = Keypair::new();
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        write_keypair(&keypair, file.as_file_mut()).unwrap();
+        let path = file.path().to_str().unwrap().to_string();
+        let (identity, _, _) = setup_signer_and_program(Some(path.clone()), None).unwrap();
+        let (staker, _, _) = setup_all_with_staker(path, None).unwrap();
+        let message = b"signer regression test";
+
+        for signer in [identity, staker] {
+            assert_eq!(signer.pubkey(), keypair.pubkey());
+            assert!(!signer.is_interactive());
+            let signature = signer.try_sign_message(message).unwrap();
+            assert!(signature.verify(keypair.pubkey().as_ref(), message));
+        }
+    }
+
+    #[test]
+    fn invalid_ledger_derivation_is_rejected_before_device_access() {
+        for uri in [
+            "usb://ledger?key=invalid",
+            "usb://ledger?key=0/0/0",
+            "usb://ledger?key=0&other=1",
+        ] {
+            let error = load_signer(uri)
+                .err()
+                .expect("invalid derivation must fail");
+            assert_eq!(error.to_string(), "Invalid Ledger derivation path");
+        }
+    }
+
+    #[test]
+    fn missing_or_invalid_keypair_file_returns_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("keypair.json");
+        for contents in [None, Some("not json"), Some("[1,2,3]")] {
+            if let Some(contents) = contents {
+                std::fs::write(&path, contents).unwrap();
+            }
+            let error = load_signer(path.to_str().unwrap())
+                .err()
+                .expect("invalid file must fail");
+            assert!(error.to_string().contains("Failed to read keypair file"));
+        }
+    }
 }

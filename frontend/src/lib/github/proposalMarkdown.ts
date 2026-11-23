@@ -4,7 +4,8 @@ import { makeProposalRef, type ProposalRef } from "./proposalUrl";
  * Frontmatter must open on the very first line. Tolerates CRLF, since GitHub serves whatever
  * line endings the author committed.
  */
-const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---/;
+const FRONTMATTER_OPEN = /^---\r?\n/;
+const FRONTMATTER_CLOSE = /^---(?:\r?\n|$)/m;
 
 /**
  * One rule covers both repos: SIMDs write `simd: '0022'` and SGPs write `sgp: 0001`.
@@ -21,6 +22,12 @@ const FALLBACK_SUMMARY_MAX_LENGTH = 600;
 export interface ParsedProposalMarkdown {
   ref: ProposalRef | undefined;
   summary: string;
+}
+
+/** Returns whether markdown begins with a non-empty delimiter-based frontmatter block. */
+export function hasNonEmptyFrontmatter(text: string): boolean {
+  const { frontmatter } = splitFrontmatter(text);
+  return frontmatter !== undefined && frontmatter.trim().length > 0;
 }
 
 /**
@@ -52,11 +59,16 @@ export function splitFrontmatter(text: string): {
   frontmatter: string | undefined;
   body: string;
 } {
-  const match = text.match(FRONTMATTER);
-  if (!match) return { frontmatter: undefined, body: text };
+  const opening = text.match(FRONTMATTER_OPEN);
+  if (!opening) return { frontmatter: undefined, body: text };
+
+  const content = text.slice(opening[0].length);
+  const closingIndex = content.search(FRONTMATTER_CLOSE);
+  if (closingIndex === -1) return { frontmatter: undefined, body: text };
+
   return {
-    frontmatter: match[1],
-    body: text.slice(match[0].length).replace(/^(?:\r?\n)+/, ""),
+    frontmatter: content.slice(0, closingIndex).replace(/\r?\n$/, ""),
+    body: content.slice(closingIndex + 3).replace(/^(?:\r?\n)+/, ""),
   };
 }
 

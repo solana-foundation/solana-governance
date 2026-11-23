@@ -132,6 +132,36 @@ export const SVMGOV_PROGRAM_ERROR__SUPPORTER_LIMIT_REACHED = 0x17a8; // 6056
 export const SVMGOV_PROGRAM_ERROR__INVALID_MAX_SUPPORTERS = 0x17a9; // 6057
 /** SupportAlreadyActivated: Support is closed: this proposal already reached its support threshold and voting has been scheduled */
 export const SVMGOV_PROGRAM_ERROR__SUPPORT_ALREADY_ACTIVATED = 0x17aa; // 6058
+/** NewProposalsNotAllowed: New proposals are not allowed at this time */
+export const SVMGOV_PROGRAM_ERROR__NEW_PROPOSALS_NOT_ALLOWED = 0x17ab; // 6059
+/** SnapshotSlotNotBeforeVotingStart: Snapshot slot must be strictly before the voting start slot */
+export const SVMGOV_PROGRAM_ERROR__SNAPSHOT_SLOT_NOT_BEFORE_VOTING_START = 0x17ac; // 6060
+/** InvalidSnapshotSlotOffset: Snapshot slot offset must remain within the snapshot epoch */
+export const SVMGOV_PROGRAM_ERROR__INVALID_SNAPSHOT_SLOT_OFFSET = 0x17ad; // 6061
+/** SnapshotWindowTooShort: Snapshot slot must leave the minimum required voting window before voting starts */
+export const SVMGOV_PROGRAM_ERROR__SNAPSHOT_WINDOW_TOO_SHORT = 0x17ae; // 6062
+/** UnauthorizedProposalUpdate: Only the original proposal author can update the proposal description */
+export const SVMGOV_PROGRAM_ERROR__UNAUTHORIZED_PROPOSAL_UPDATE = 0x17af; // 6063
+/** InvalidVoteDelegate: Vote delegate cannot be the default (all-zero) pubkey */
+export const SVMGOV_PROGRAM_ERROR__INVALID_VOTE_DELEGATE = 0x17b0; // 6064
+/** UnauthorizedVoteDelegation: Only the vote account's node identity or authorized withdrawer, or the voting wallet itself, can delegate its vote */
+export const SVMGOV_PROGRAM_ERROR__UNAUTHORIZED_VOTE_DELEGATION = 0x17b1; // 6065
+/** NotVoteDelegate: Signer is not the delegate of this vote delegation */
+export const SVMGOV_PROGRAM_ERROR__NOT_VOTE_DELEGATE = 0x17b2; // 6066
+/** VoteDelegationAlreadyAccepted: Vote delegation has already been accepted */
+export const SVMGOV_PROGRAM_ERROR__VOTE_DELEGATION_ALREADY_ACCEPTED = 0x17b3; // 6067
+/** UnauthorizedVoteDelegationRemoval: Signer is not authorized to remove this vote delegation */
+export const SVMGOV_PROGRAM_ERROR__UNAUTHORIZED_VOTE_DELEGATION_REMOVAL = 0x17b4; // 6068
+/** InvalidVoteDelegationRentRecipient: Rent recipient must be the vote account's authorized withdrawer, or the voting wallet itself */
+export const SVMGOV_PROGRAM_ERROR__INVALID_VOTE_DELEGATION_RENT_RECIPIENT = 0x17b5; // 6069
+/** InvalidVoteDelegation: Invalid vote delegation account */
+export const SVMGOV_PROGRAM_ERROR__INVALID_VOTE_DELEGATION = 0x17b6; // 6070
+/** UnauthorizedVoteSigner: Signer is neither the voting wallet nor its accepted vote delegate */
+export const SVMGOV_PROGRAM_ERROR__UNAUTHORIZED_VOTE_SIGNER = 0x17b7; // 6071
+/** VoteDelegationNotAccepted: Vote delegation is pending; the delegate must accept it before acting for the voter */
+export const SVMGOV_PROGRAM_ERROR__VOTE_DELEGATION_NOT_ACCEPTED = 0x17b8; // 6072
+/** InvalidVoteRecord: Account is not a Vote or VoteOverride of this program at a known layout */
+export const SVMGOV_PROGRAM_ERROR__INVALID_VOTE_RECORD = 0x17b9; // 6073
 
 export type SvmgovProgramError =
   | typeof SVMGOV_PROGRAM_ERROR__ARITHMETIC_OVERFLOW
@@ -156,6 +186,7 @@ export type SvmgovProgramError =
   | typeof SVMGOV_PROGRAM_ERROR__INVALID_PROPOSAL_ID
   | typeof SVMGOV_PROGRAM_ERROR__INVALID_SNAPSHOT_PROGRAM
   | typeof SVMGOV_PROGRAM_ERROR__INVALID_SNAPSHOT_SLOT
+  | typeof SVMGOV_PROGRAM_ERROR__INVALID_SNAPSHOT_SLOT_OFFSET
   | typeof SVMGOV_PROGRAM_ERROR__INVALID_STAKE_ACCOUNT
   | typeof SVMGOV_PROGRAM_ERROR__INVALID_STAKE_ACCOUNT_SIZE
   | typeof SVMGOV_PROGRAM_ERROR__INVALID_STAKE_STATE
@@ -163,23 +194,31 @@ export type SvmgovProgramError =
   | typeof SVMGOV_PROGRAM_ERROR__INVALID_VOTE_ACCOUNT
   | typeof SVMGOV_PROGRAM_ERROR__INVALID_VOTE_ACCOUNT_SIZE
   | typeof SVMGOV_PROGRAM_ERROR__INVALID_VOTE_ACCOUNT_VERSION
+  | typeof SVMGOV_PROGRAM_ERROR__INVALID_VOTE_DELEGATE
+  | typeof SVMGOV_PROGRAM_ERROR__INVALID_VOTE_DELEGATION
+  | typeof SVMGOV_PROGRAM_ERROR__INVALID_VOTE_DELEGATION_RENT_RECIPIENT
   | typeof SVMGOV_PROGRAM_ERROR__INVALID_VOTE_DISTRIBUTION
   | typeof SVMGOV_PROGRAM_ERROR__INVALID_VOTE_OVERRIDE_CACHE
+  | typeof SVMGOV_PROGRAM_ERROR__INVALID_VOTE_RECORD
   | typeof SVMGOV_PROGRAM_ERROR__INVALID_VOTING_LENGTH
   | typeof SVMGOV_PROGRAM_ERROR__MERKLE_ROOT_ALREADY_SET
   | typeof SVMGOV_PROGRAM_ERROR__MERKLE_ROOT_NOT_SET
   | typeof SVMGOV_PROGRAM_ERROR__MUST_BE_OWNED_BY_SNAPSHOT_PROGRAM
+  | typeof SVMGOV_PROGRAM_ERROR__NEW_PROPOSALS_NOT_ALLOWED
   | typeof SVMGOV_PROGRAM_ERROR__NO_PENDING_ADMIN
   | typeof SVMGOV_PROGRAM_ERROR__NO_SUPPORTERS
   | typeof SVMGOV_PROGRAM_ERROR__NOT_ENOUGH_ACCOUNTS
   | typeof SVMGOV_PROGRAM_ERROR__NOT_ENOUGH_STAKE
   | typeof SVMGOV_PROGRAM_ERROR__NOT_IN_SUPPORT_PERIOD
   | typeof SVMGOV_PROGRAM_ERROR__NOT_PENDING_ADMIN
+  | typeof SVMGOV_PROGRAM_ERROR__NOT_VOTE_DELEGATE
   | typeof SVMGOV_PROGRAM_ERROR__PROPOSAL_CLOSED
   | typeof SVMGOV_PROGRAM_ERROR__PROPOSAL_FINALIZED
   | typeof SVMGOV_PROGRAM_ERROR__PROPOSAL_NOT_IN_VOTING_PHASE
   | typeof SVMGOV_PROGRAM_ERROR__SNAPSHOT_PROGRAM_UPGRADED
+  | typeof SVMGOV_PROGRAM_ERROR__SNAPSHOT_SLOT_NOT_BEFORE_VOTING_START
   | typeof SVMGOV_PROGRAM_ERROR__SNAPSHOT_SLOT_NOT_IN_FUTURE
+  | typeof SVMGOV_PROGRAM_ERROR__SNAPSHOT_WINDOW_TOO_SHORT
   | typeof SVMGOV_PROGRAM_ERROR__STAKE_ACCOUNT_OWNER_MISMATCH
   | typeof SVMGOV_PROGRAM_ERROR__SUPPORT_ALREADY_ACTIVATED
   | typeof SVMGOV_PROGRAM_ERROR__SUPPORTER_LIMIT_REACHED
@@ -189,6 +228,12 @@ export type SvmgovProgramError =
   | typeof SVMGOV_PROGRAM_ERROR__UNAUTHORIZED
   | typeof SVMGOV_PROGRAM_ERROR__UNAUTHORIZED_ADMIN
   | typeof SVMGOV_PROGRAM_ERROR__UNAUTHORIZED_MERKLE_ROOT_UPDATE
+  | typeof SVMGOV_PROGRAM_ERROR__UNAUTHORIZED_PROPOSAL_UPDATE
+  | typeof SVMGOV_PROGRAM_ERROR__UNAUTHORIZED_VOTE_DELEGATION
+  | typeof SVMGOV_PROGRAM_ERROR__UNAUTHORIZED_VOTE_DELEGATION_REMOVAL
+  | typeof SVMGOV_PROGRAM_ERROR__UNAUTHORIZED_VOTE_SIGNER
+  | typeof SVMGOV_PROGRAM_ERROR__VOTE_DELEGATION_ALREADY_ACCEPTED
+  | typeof SVMGOV_PROGRAM_ERROR__VOTE_DELEGATION_NOT_ACCEPTED
   | typeof SVMGOV_PROGRAM_ERROR__VOTE_NODE_PUBKEY_MISMATCH
   | typeof SVMGOV_PROGRAM_ERROR__VOTING_LENGTH_TOO_LONG
   | typeof SVMGOV_PROGRAM_ERROR__VOTING_NOT_STARTED
@@ -219,6 +264,7 @@ if (process.env["NODE_ENV"] !== "production") {
     [SVMGOV_PROGRAM_ERROR__INVALID_PROPOSAL_ID]: `Invalid proposal ID`,
     [SVMGOV_PROGRAM_ERROR__INVALID_SNAPSHOT_PROGRAM]: `Invalid Snapshot program: provided program ID does not match the expected Merkle Verifier Service program`,
     [SVMGOV_PROGRAM_ERROR__INVALID_SNAPSHOT_SLOT]: `Invalid snapshot slot: snapshot slot must be past or current slot`,
+    [SVMGOV_PROGRAM_ERROR__INVALID_SNAPSHOT_SLOT_OFFSET]: `Snapshot slot offset must remain within the snapshot epoch`,
     [SVMGOV_PROGRAM_ERROR__INVALID_STAKE_ACCOUNT]: `Invalid stake account`,
     [SVMGOV_PROGRAM_ERROR__INVALID_STAKE_ACCOUNT_SIZE]: `Invalid Stake account size`,
     [SVMGOV_PROGRAM_ERROR__INVALID_STAKE_STATE]: `Invalid stake account state`,
@@ -226,23 +272,31 @@ if (process.env["NODE_ENV"] !== "production") {
     [SVMGOV_PROGRAM_ERROR__INVALID_VOTE_ACCOUNT]: `Invalid vote account`,
     [SVMGOV_PROGRAM_ERROR__INVALID_VOTE_ACCOUNT_SIZE]: `Invalid Vote account size`,
     [SVMGOV_PROGRAM_ERROR__INVALID_VOTE_ACCOUNT_VERSION]: `Invalid Vote account version`,
+    [SVMGOV_PROGRAM_ERROR__INVALID_VOTE_DELEGATE]: `Vote delegate cannot be the default (all-zero) pubkey`,
+    [SVMGOV_PROGRAM_ERROR__INVALID_VOTE_DELEGATION]: `Invalid vote delegation account`,
+    [SVMGOV_PROGRAM_ERROR__INVALID_VOTE_DELEGATION_RENT_RECIPIENT]: `Rent recipient must be the vote account's authorized withdrawer, or the voting wallet itself`,
     [SVMGOV_PROGRAM_ERROR__INVALID_VOTE_DISTRIBUTION]: `Vote distribution must add up to 100% in Basis Points`,
     [SVMGOV_PROGRAM_ERROR__INVALID_VOTE_OVERRIDE_CACHE]: `Invalid vote override cache`,
+    [SVMGOV_PROGRAM_ERROR__INVALID_VOTE_RECORD]: `Account is not a Vote or VoteOverride of this program at a known layout`,
     [SVMGOV_PROGRAM_ERROR__INVALID_VOTING_LENGTH]: `Voting length must be bigger than 0`,
     [SVMGOV_PROGRAM_ERROR__MERKLE_ROOT_ALREADY_SET]: `Merkle root hash is already set for this proposal`,
     [SVMGOV_PROGRAM_ERROR__MERKLE_ROOT_NOT_SET]: `Merkle root hash has not been set for this proposal`,
     [SVMGOV_PROGRAM_ERROR__MUST_BE_OWNED_BY_SNAPSHOT_PROGRAM]: `Account must be owned by Snapshot program`,
+    [SVMGOV_PROGRAM_ERROR__NEW_PROPOSALS_NOT_ALLOWED]: `New proposals are not allowed at this time`,
     [SVMGOV_PROGRAM_ERROR__NO_PENDING_ADMIN]: `No pending admin nomination exists to accept`,
     [SVMGOV_PROGRAM_ERROR__NO_SUPPORTERS]: `Proposal has no supporters to retally`,
     [SVMGOV_PROGRAM_ERROR__NOT_ENOUGH_ACCOUNTS]: `Not enough accounts for tally`,
     [SVMGOV_PROGRAM_ERROR__NOT_ENOUGH_STAKE]: `Insufficient stake to perform this action`,
     [SVMGOV_PROGRAM_ERROR__NOT_IN_SUPPORT_PERIOD]: `Not within the support period`,
     [SVMGOV_PROGRAM_ERROR__NOT_PENDING_ADMIN]: `Signer is not the pending admin nominee`,
+    [SVMGOV_PROGRAM_ERROR__NOT_VOTE_DELEGATE]: `Signer is not the delegate of this vote delegation`,
     [SVMGOV_PROGRAM_ERROR__PROPOSAL_CLOSED]: `Proposal voting period has ended`,
     [SVMGOV_PROGRAM_ERROR__PROPOSAL_FINALIZED]: `Proposal has already been finalized`,
     [SVMGOV_PROGRAM_ERROR__PROPOSAL_NOT_IN_VOTING_PHASE]: `Proposal is not in voting phase`,
     [SVMGOV_PROGRAM_ERROR__SNAPSHOT_PROGRAM_UPGRADED]: `Snapshot program has been upgraded, update protection triggered`,
+    [SVMGOV_PROGRAM_ERROR__SNAPSHOT_SLOT_NOT_BEFORE_VOTING_START]: `Snapshot slot must be strictly before the voting start slot`,
     [SVMGOV_PROGRAM_ERROR__SNAPSHOT_SLOT_NOT_IN_FUTURE]: `Snapshot slot must be in the future (greater than the current slot)`,
+    [SVMGOV_PROGRAM_ERROR__SNAPSHOT_WINDOW_TOO_SHORT]: `Snapshot slot must leave the minimum required voting window before voting starts`,
     [SVMGOV_PROGRAM_ERROR__STAKE_ACCOUNT_OWNER_MISMATCH]: `Stake account owner mismatch`,
     [SVMGOV_PROGRAM_ERROR__SUPPORT_ALREADY_ACTIVATED]: `Support is closed: this proposal already reached its support threshold and voting has been scheduled`,
     [SVMGOV_PROGRAM_ERROR__SUPPORTER_LIMIT_REACHED]: `Proposal has reached the maximum number of supporters`,
@@ -252,6 +306,12 @@ if (process.env["NODE_ENV"] !== "production") {
     [SVMGOV_PROGRAM_ERROR__UNAUTHORIZED]: `Unauthorized: caller is not authorized to perform this action`,
     [SVMGOV_PROGRAM_ERROR__UNAUTHORIZED_ADMIN]: `Unauthorized: only the admin can perform this action`,
     [SVMGOV_PROGRAM_ERROR__UNAUTHORIZED_MERKLE_ROOT_UPDATE]: `Only the original proposal author can add the merkle root hash`,
+    [SVMGOV_PROGRAM_ERROR__UNAUTHORIZED_PROPOSAL_UPDATE]: `Only the original proposal author can update the proposal description`,
+    [SVMGOV_PROGRAM_ERROR__UNAUTHORIZED_VOTE_DELEGATION]: `Only the vote account's node identity or authorized withdrawer, or the voting wallet itself, can delegate its vote`,
+    [SVMGOV_PROGRAM_ERROR__UNAUTHORIZED_VOTE_DELEGATION_REMOVAL]: `Signer is not authorized to remove this vote delegation`,
+    [SVMGOV_PROGRAM_ERROR__UNAUTHORIZED_VOTE_SIGNER]: `Signer is neither the voting wallet nor its accepted vote delegate`,
+    [SVMGOV_PROGRAM_ERROR__VOTE_DELEGATION_ALREADY_ACCEPTED]: `Vote delegation has already been accepted`,
+    [SVMGOV_PROGRAM_ERROR__VOTE_DELEGATION_NOT_ACCEPTED]: `Vote delegation is pending; the delegate must accept it before acting for the voter`,
     [SVMGOV_PROGRAM_ERROR__VOTE_NODE_PUBKEY_MISMATCH]: `Deserialized node_pubkey from Vote accounts does not match`,
     [SVMGOV_PROGRAM_ERROR__VOTING_LENGTH_TOO_LONG]: `Voting length exceeds maximum allowed epochs`,
     [SVMGOV_PROGRAM_ERROR__VOTING_NOT_STARTED]: `Voting on proposal not yet started`,

@@ -8,6 +8,9 @@ export default {
   'create-proposal': {
     title: 'Create Proposal',
   },
+  'update-proposal-description': {
+    title: 'Update Proposal Document',
+  },
   'support-proposal': {
     title: 'Support Proposal',
   },
@@ -16,6 +19,9 @@ export default {
   },
   'modify-vote': {
     title: 'Modify Vote',
+  },
+  'delegate-vote': {
+    title: 'Delegate Vote',
   },
   'finalize-proposal': {
     title: 'Finalize Proposal',

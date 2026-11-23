@@ -7,16 +7,17 @@ import {
 } from "@solana/connector/react";
 import {
   appendTransactionMessageInstructions,
+  assertIsTransactionWithBlockhashLifetime,
   createTransactionMessage,
   getSignatureFromTransaction,
-  sendAndConfirmTransactionFactory,
+  sendTransactionWithoutConfirmingFactory,
   setTransactionMessageFeePayerSigner,
   signTransactionMessageWithSigners,
   type Instruction,
   type TransactionModifyingSigner,
-  type TransactionWithBlockhashLifetime,
 } from "@solana/kit";
 import { useCallback } from "react";
+import { confirmTransactionByPolling } from "@/lib/confirmTransaction";
 
 export function useSignTransaction() {
   const { client } = useSolanaClient();
@@ -32,11 +33,11 @@ export function useSignTransaction() {
     );
     const prepared = await prepare(message);
     const signed = await signTransactionMessageWithSigners(prepared);
-    await sendAndConfirmTransactionFactory({
-      rpc: client.rpc,
-      rpcSubscriptions: client.rpcSubscriptions,
-    })(signed as typeof signed & TransactionWithBlockhashLifetime, { commitment: "confirmed" });
-    return getSignatureFromTransaction(signed);
+    assertIsTransactionWithBlockhashLifetime(signed);
+    const signature = getSignatureFromTransaction(signed);
+    await sendTransactionWithoutConfirmingFactory({ rpc: client.rpc })(signed, { commitment: "confirmed" });
+    await confirmTransactionByPolling(client.rpc, signature, signed.lifetimeConstraint.lastValidBlockHeight);
+    return signature;
   }, [client, prepare, signer]);
 
   return { ready: Boolean(client && signer && signerReady && prepareReady), signAndSend, signer };

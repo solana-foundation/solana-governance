@@ -5,3 +5,4 @@ export * from "./OverrideVoteModal";
 export * from "./ModifyOverrideVoteModal";
 export * from "./SettingsModal";
 export * from "./SupportProposalModal";
+export * from "./UpdateProposalDescriptionModal";

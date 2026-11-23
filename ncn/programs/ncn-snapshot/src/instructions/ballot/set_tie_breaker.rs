@@ -15,7 +15,7 @@ pub fn handler(ctx: Context<SetTieBreaker>, ballot: Ballot) -> Result<()> {
     let ballot_box = &mut ctx.accounts.ballot_box;
     let clock = Clock::get()?;
     require!(
-        ballot_box.has_vote_expired(clock.unix_timestamp),
+        ballot_box.has_vote_expired(clock.slot),
         ErrorCode::VotingNotExpired
     );
     require!(

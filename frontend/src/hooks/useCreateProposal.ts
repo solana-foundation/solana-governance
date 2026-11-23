@@ -1,7 +1,9 @@
-import { createSolanaRpc } from "@solana/kit";
+import { address, createSolanaRpc } from "@solana/kit";
+import { fetchGlobalConfig, findGlobalConfigPda } from "@solana/svmgov";
 import { useMutation } from "@tanstack/react-query";
 import { useEndpoint } from "@/contexts/EndpointContext";
-import { assertValidProposalUrl } from "@/lib/github";
+import { assertValidProposalDocument, assertValidProposalUrl } from "@/lib/github";
+import { resolveSignerVoteAccount } from "@/lib/governance/voteDelegations";
 import { buildCreateProposalInstruction } from "@/lib/transactions";
 import { useSignTransaction } from "./useSignTransaction";
 
@@ -10,14 +12,25 @@ export function useCreateProposal() {
   const { signAndSend } = useSignTransaction();
   return useMutation({
     mutationKey: ["create-proposal"],
-    mutationFn: async ({ title, description, publicKey }: { title: string; description: string; publicKey?: string }) => {
+    mutationFn: async ({ title, description, publicKey, skipDocumentCheck }: {
+      title: string;
+      description: string;
+      publicKey?: string;
+      /** Explicitly bypasses off-chain reachability/frontmatter verification. */
+      skipDocumentCheck?: boolean;
+    }) => {
       if (!publicKey) throw new Error("Wallet not connected");
-      const voteAccounts = await createSolanaRpc(endpointUrl).getVoteAccounts().send();
-      const vote = [...voteAccounts.current, ...voteAccounts.delinquent].find((account) => account.nodePubkey === publicKey);
-      if (!vote) throw new Error(`No SPL vote account found for validator identity ${publicKey}`);
-      const normalizedDescription = assertValidProposalUrl(description);
+      const rpc = createSolanaRpc(endpointUrl);
+      const [globalConfig] = await findGlobalConfigPda();
+      const [config, splVoteAccount] = await Promise.all([
+        fetchGlobalConfig(rpc, globalConfig),
+        // The wallet is either the validator identity or its accepted vote delegate.
+        resolveSignerVoteAccount(rpc, address(publicKey)),
+      ]);
+      const normalizedDescription = assertValidProposalUrl(description, config.data.maxDescriptionLength);
+      if (!skipDocumentCheck) await assertValidProposalDocument(normalizedDescription);
       const signature = await signAndSend(({ signer }) => Promise.all([
-        buildCreateProposalInstruction({ description: normalizedDescription, signer, splVoteAccount: vote.votePubkey, title }),
+        buildCreateProposalInstruction({ description: normalizedDescription, signer, splVoteAccount, title }),
       ]));
       return { signature, success: true };
     },

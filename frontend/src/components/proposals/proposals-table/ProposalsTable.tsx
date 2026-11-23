@@ -14,7 +14,7 @@ import {
 } from "@tanstack/react-table";
 import { Check, ChevronDown } from "lucide-react";
 
-import { columns } from "./Columns";
+import { getProposalColumns } from "./Columns";
 import {
   Table,
   TableBody,
@@ -35,6 +35,7 @@ import { AppButton } from "@/components/ui/AppButton";
 import ExternalProposalPanel from "./ExternalProposalPanel";
 import { ProposalStatus } from "@/types";
 import { useProposals } from "@/hooks";
+import { useSnapshotMetas } from "@/hooks/useSnapshotMeta";
 import {
   Fragment,
   useCallback,
@@ -43,8 +44,6 @@ import {
   useRef,
   useState,
 } from "react";
-
-const TABLE_COLUMNS = columns;
 
 type StatusFilter = "all" | ProposalStatus;
 
@@ -80,6 +79,20 @@ export default function ProposalsTable({ title }: { title: string }) {
 
   const data = useMemo(() => proposalsData || [], [proposalsData]);
 
+  // Each proposal votes against its own snapshot, so every row needs the
+  // metadata for its own slot.
+  const snapshotSlots = useMemo(
+    () => data.map((proposal) => proposal.snapshotSlot),
+    [data],
+  );
+  const { bySlot: snapshotMetasBySlot, isLoading: isLoadingSnapshotMeta } =
+    useSnapshotMetas(snapshotSlots);
+
+  const tableColumns = useMemo(
+    () => getProposalColumns({ snapshotMetasBySlot, isLoadingSnapshotMeta }),
+    [snapshotMetasBySlot, isLoadingSnapshotMeta],
+  );
+
   // Rows expand independently: opening one leaves the others as they are.
   const handleRowToggle = useCallback((rowId: string) => {
     setExpanded((previous) => ({
@@ -109,7 +122,7 @@ export default function ProposalsTable({ title }: { title: string }) {
 
   const table = useReactTable({
     data,
-    columns: TABLE_COLUMNS,
+    columns: tableColumns,
     state: {
       sorting,
       columnFilters,
@@ -234,7 +247,7 @@ export default function ProposalsTable({ title }: { title: string }) {
                       ? null
                       : flexRender(
                           header.column.columnDef.header,
-                          header.getContext()
+                          header.getContext(),
                         )}
                   </TableHead>
                 ))}
@@ -295,7 +308,7 @@ export default function ProposalsTable({ title }: { title: string }) {
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}
-                        className={`py-5 px-6 ${
+                        className={`px-4 py-5 ${
                           cell.column.id === "proposalRef"
                             ? "text-left"
                             : "text-center"
@@ -303,7 +316,7 @@ export default function ProposalsTable({ title }: { title: string }) {
                       >
                         {flexRender(
                           cell.column.columnDef.cell,
-                          cell.getContext()
+                          cell.getContext(),
                         )}
                       </TableCell>
                     ))}

@@ -42,3 +42,7 @@ serde = "1"
 # transactions against the surfnet RPC.
 solana-transaction = { version = "3", features = ["bincode"] }
 solana-commitment-config = "3"
+
+[patch.crates-io]
+# Legacy Solana TLS clients need root bundles with the compromised eMudhra paths removed.
+webpki-roots-25 = { package = "webpki-roots", path = "../ncn-router/vendor/webpki-roots-0.25.4" }

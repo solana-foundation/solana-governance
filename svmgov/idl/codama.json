@@ -6,7 +6,7 @@
     "kind": "programNode",
     "name": "svmgovProgram",
     "publicKey": "govYkyQ3ePtGULAtY6V75qjWE8UH4vCUVQ1W4HdCAZU",
-    "version": "0.5.0-40200",
+    "version": "0.6.0-40200",
     "origin": "anchor",
     "accounts": [
       {
@@ -123,6 +123,18 @@
                 "Must be in `1..=MAX_SUPPORTERS_LIMIT`."
               ],
               "type": { "kind": "numberTypeNode", "format": "u32", "endian": "le" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "newProposalsAllowed",
+              "docs": [
+                "Whether new proposals are allowed to be created. This can be use to",
+                "temporarily halt new proposals while a governance upgrade is in progress."
+              ],
+              "type": {
+                "kind": "booleanTypeNode",
+                "size": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+              }
             }
           ]
         },
@@ -385,7 +397,6 @@
       {
         "kind": "accountNode",
         "name": "vote",
-        "size": 145,
         "data": {
           "kind": "structTypeNode",
           "fields": [
@@ -463,6 +474,85 @@
               "kind": "structFieldTypeNode",
               "name": "bump",
               "type": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "delegateSigner",
+              "docs": [
+                "The accepted vote delegate that signed the current state of this vote,",
+                "or `None` when `validator` signed it itself. Always `None` on votes",
+                "recorded before vote delegation existed."
+              ],
+              "type": {
+                "kind": "optionTypeNode",
+                "fixed": false,
+                "item": { "kind": "publicKeyTypeNode" },
+                "prefix": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+              }
+            }
+          ]
+        },
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      },
+      {
+        "kind": "accountNode",
+        "name": "voteDelegation",
+        "size": 74,
+        "data": {
+          "kind": "structTypeNode",
+          "fields": [
+            {
+              "kind": "structFieldTypeNode",
+              "name": "discriminator",
+              "defaultValueStrategy": "omitted",
+              "type": {
+                "kind": "fixedSizeTypeNode",
+                "size": 8,
+                "type": { "kind": "bytesTypeNode" }
+              },
+              "defaultValue": {
+                "kind": "bytesValueNode",
+                "data": "c1318b0d91c7ec1f",
+                "encoding": "base16"
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "delegate",
+              "docs": [
+                "Key authorized to act for `subject` once `delegation_accepted` is set.",
+                "First field so clients can find delegations by delegate with a memcmp at",
+                "offset 8."
+              ],
+              "type": { "kind": "publicKeyTypeNode" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "subject",
+              "docs": [
+                "SPL vote account (validator) or voting wallet (staker) whose governance",
+                "authority is delegated."
+              ],
+              "type": { "kind": "publicKeyTypeNode" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "delegationAccepted",
+              "docs": [
+                "Set by `accept_vote_delegation`. Until then the subject's own key keeps",
+                "voting and the delegate has no authority."
+              ],
+              "type": {
+                "kind": "booleanTypeNode",
+                "size": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "bump",
+              "type": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
             }
           ]
         },
@@ -473,7 +563,6 @@
       {
         "kind": "accountNode",
         "name": "voteOverride",
-        "size": 233,
         "data": {
           "kind": "structTypeNode",
           "fields": [
@@ -561,6 +650,21 @@
               "kind": "structFieldTypeNode",
               "name": "bump",
               "type": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "delegateSigner",
+              "docs": [
+                "The accepted vote delegate that signed the current state of this",
+                "override, or `None` when `delegator` signed it itself. Always `None` on",
+                "overrides recorded before vote delegation existed."
+              ],
+              "type": {
+                "kind": "optionTypeNode",
+                "fixed": false,
+                "item": { "kind": "publicKeyTypeNode" },
+                "prefix": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+              }
             }
           ]
         },
@@ -685,6 +789,49 @@
       },
       {
         "kind": "instructionNode",
+        "name": "acceptVoteDelegation",
+        "docs": [
+          "Step 2 of vote delegation: the named delegate accepts. From then on the",
+          "delegate alone acts for the subject (creating, supporting, voting and",
+          "modifying for a vote account; overriding for a wallet's stake), and the",
+          "subject's own key is locked out until the delegation is removed."
+        ],
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "signer",
+            "isWritable": false,
+            "isSigner": true,
+            "isOptional": false
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "voteDelegation",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "type": { "kind": "fixedSizeTypeNode", "size": 8, "type": { "kind": "bytesTypeNode" } },
+            "defaultValue": {
+              "kind": "bytesValueNode",
+              "data": "e949ac41321a2eb1",
+              "encoding": "base16"
+            }
+          }
+        ],
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      },
+      {
+        "kind": "instructionNode",
         "name": "castVote",
         "optionalAccountStrategy": "programId",
         "accounts": [
@@ -733,9 +880,32 @@
             "isOptional": false,
             "docs": [
               "enforced here. The signer-to-vote-account binding is proved in the handler",
-              "via the meta merkle proof: voting_wallet == signer AND vote_account ==",
-              "spl_vote_account, both anchored to proposal.consensus_result."
+              "via the meta merkle proof (vote_account == spl_vote_account, anchored to",
+              "proposal.consensus_result) plus the authority check: signer is the leaf's",
+              "voting_wallet, or the accepted delegate in `vote_delegation`."
             ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "voteDelegation",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "accepted delegation on record only the delegate may sign, otherwise only",
+              "the vote account's identity may."
+            ],
+            "defaultValue": {
+              "kind": "pdaValueNode",
+              "pda": { "kind": "pdaLinkNode", "name": "voteDelegation" },
+              "seeds": [
+                {
+                  "kind": "pdaSeedValueNode",
+                  "name": "splVoteAccount",
+                  "value": { "kind": "accountValueNode", "name": "splVoteAccount" }
+                }
+              ]
+            }
           },
           {
             "kind": "instructionAccountNode",
@@ -941,6 +1111,17 @@
           },
           {
             "kind": "instructionAccountNode",
+            "name": "voteDelegation",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "exist. With an accepted delegation on record only the delegate may sign,",
+              "otherwise only the voting wallet may."
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
             "name": "snapshotProgram",
             "isWritable": false,
             "isSigner": false,
@@ -1079,9 +1260,32 @@
             "isSigner": false,
             "isOptional": false,
             "docs": [
-              "enforced here; the handler then deserializes VoteStateVersions and requires",
-              "node_pubkey == signer, proving the signer operates this vote account."
+              "enforced here; the handler then reads node_pubkey and requires the signer",
+              "to be it (or its accepted delegate), proving the signer operates this",
+              "vote account."
             ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "voteDelegation",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "accepted delegation on record only the delegate may sign, otherwise only",
+              "the vote account's node identity may."
+            ],
+            "defaultValue": {
+              "kind": "pdaValueNode",
+              "pda": { "kind": "pdaLinkNode", "name": "voteDelegation" },
+              "seeds": [
+                {
+                  "kind": "pdaSeedValueNode",
+                  "name": "splVoteAccount",
+                  "value": { "kind": "accountValueNode", "name": "splVoteAccount" }
+                }
+              ]
+            }
           },
           {
             "kind": "instructionAccountNode",
@@ -1141,6 +1345,89 @@
               "type": { "kind": "stringTypeNode", "encoding": "utf8" },
               "prefix": { "kind": "numberTypeNode", "format": "u32", "endian": "le" }
             }
+          }
+        ],
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      },
+      {
+        "kind": "instructionNode",
+        "name": "delegateVote",
+        "docs": [
+          "Step 1 of vote delegation: names `delegate` as the key that will vote for",
+          "the subject, an SPL vote account (signed by its node identity or authorized",
+          "withdrawer) or a voting wallet (signed by the wallet itself). Takes effect",
+          "only once the delegate calls `accept_vote_delegation`."
+        ],
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "signer",
+            "isWritable": true,
+            "isSigner": true,
+            "isOptional": false
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "subject",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "handler decides which by owner and size, reads the vote account's",
+              "authorities in the former case, and requires the wallet itself to sign in",
+              "the latter."
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "voteDelegation",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false,
+            "defaultValue": {
+              "kind": "pdaValueNode",
+              "pda": { "kind": "pdaLinkNode", "name": "delegateVoteVoteDelegation" },
+              "seeds": [
+                {
+                  "kind": "pdaSeedValueNode",
+                  "name": "subject",
+                  "value": { "kind": "accountValueNode", "name": "subject" }
+                }
+              ]
+            }
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "systemProgram",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "defaultValue": {
+              "kind": "publicKeyValueNode",
+              "publicKey": "11111111111111111111111111111111",
+              "identifier": "systemProgram"
+            }
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "type": { "kind": "fixedSizeTypeNode", "size": 8, "type": { "kind": "bytesTypeNode" } },
+            "defaultValue": {
+              "kind": "bytesValueNode",
+              "data": "0c74cc4457cd28cd",
+              "encoding": "base16"
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "delegate",
+            "type": { "kind": "publicKeyTypeNode" }
           }
         ],
         "discriminators": [
@@ -1219,7 +1506,7 @@
           {
             "kind": "instructionAccountNode",
             "name": "ballotBox",
-            "isWritable": false,
+            "isWritable": true,
             "isSigner": false,
             "isOptional": false
           },
@@ -1399,6 +1686,19 @@
             "kind": "instructionArgumentNode",
             "name": "maxSupporters",
             "type": { "kind": "numberTypeNode", "format": "u32", "endian": "le" }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "newProposalsAllowed",
+            "type": {
+              "kind": "optionTypeNode",
+              "fixed": false,
+              "item": {
+                "kind": "booleanTypeNode",
+                "size": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+              },
+              "prefix": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+            }
           }
         ],
         "discriminators": [
@@ -1460,6 +1760,56 @@
       },
       {
         "kind": "instructionNode",
+        "name": "migrateVoteRecords",
+        "docs": [
+          "Grows `Vote` and `VoteOverride` accounts recorded before `delegate_signer`",
+          "existed to the current layout, with the field reading `None`. Permissionless:",
+          "the signer pays the added rent. Pass the accounts to migrate as remaining",
+          "accounts; any already at the current size are skipped, so a batch may be",
+          "retried."
+        ],
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "payer",
+            "isWritable": true,
+            "isSigner": true,
+            "isOptional": false,
+            "defaultValue": { "kind": "payerValueNode" }
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "systemProgram",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "defaultValue": {
+              "kind": "publicKeyValueNode",
+              "publicKey": "11111111111111111111111111111111",
+              "identifier": "systemProgram"
+            }
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "type": { "kind": "fixedSizeTypeNode", "size": 8, "type": { "kind": "bytesTypeNode" } },
+            "defaultValue": {
+              "kind": "bytesValueNode",
+              "data": "74550a0d40c55072",
+              "encoding": "base16"
+            }
+          }
+        ],
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      },
+      {
+        "kind": "instructionNode",
         "name": "modifyVote",
         "optionalAccountStrategy": "programId",
         "accounts": [
@@ -1508,9 +1858,32 @@
             "isOptional": false,
             "docs": [
               "enforced here. The signer-to-vote-account binding is proved in the handler",
-              "via the meta merkle proof: voting_wallet == signer AND vote_account ==",
-              "spl_vote_account, both anchored to proposal.consensus_result."
+              "via the meta merkle proof (vote_account == spl_vote_account, anchored to",
+              "proposal.consensus_result) plus the authority check: signer is the leaf's",
+              "voting_wallet, or the accepted delegate in `vote_delegation`."
             ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "voteDelegation",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "accepted delegation on record only the delegate may sign, otherwise only",
+              "the vote account's identity may."
+            ],
+            "defaultValue": {
+              "kind": "pdaValueNode",
+              "pda": { "kind": "pdaLinkNode", "name": "voteDelegation" },
+              "seeds": [
+                {
+                  "kind": "pdaSeedValueNode",
+                  "name": "splVoteAccount",
+                  "value": { "kind": "accountValueNode", "name": "splVoteAccount" }
+                }
+              ]
+            }
           },
           {
             "kind": "instructionAccountNode",
@@ -1693,6 +2066,17 @@
           },
           {
             "kind": "instructionAccountNode",
+            "name": "voteDelegation",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "exist. With an accepted delegation on record only the delegate may sign,",
+              "otherwise only the voting wallet may."
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
             "name": "snapshotProgram",
             "isWritable": false,
             "isSigner": false,
@@ -1822,6 +2206,83 @@
             "kind": "instructionArgumentNode",
             "name": "proposedAdmin",
             "type": { "kind": "publicKeyTypeNode" }
+          }
+        ],
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      },
+      {
+        "kind": "instructionNode",
+        "name": "removeVoteDelegation",
+        "docs": [
+          "Removes a vote delegation and returns its rent to the subject's root",
+          "authority. The delegate may always remove. For a vote account the",
+          "authorized withdrawer may always remove, the node identity only while the",
+          "delegation is not yet accepted, and the rent goes to the withdrawer; for a",
+          "wallet the wallet itself may always remove and receives the rent."
+        ],
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "signer",
+            "isWritable": false,
+            "isSigner": true,
+            "isOptional": false
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "subject",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "for; the handler reads a live vote account's authorities to decide who",
+              "may remove and who receives the rent."
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "voteDelegation",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false,
+            "defaultValue": {
+              "kind": "pdaValueNode",
+              "pda": { "kind": "pdaLinkNode", "name": "delegateVoteVoteDelegation" },
+              "seeds": [
+                {
+                  "kind": "pdaSeedValueNode",
+                  "name": "subject",
+                  "value": { "kind": "accountValueNode", "name": "subject" }
+                }
+              ]
+            }
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "rentRecipient",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "the subject's authorized withdrawer for a live vote account, or the",
+              "subject itself otherwise."
+            ]
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "type": { "kind": "fixedSizeTypeNode", "size": 8, "type": { "kind": "bytesTypeNode" } },
+            "defaultValue": {
+              "kind": "bytesValueNode",
+              "data": "d98af895bbd239ff",
+              "encoding": "base16"
+            }
           }
         ],
         "discriminators": [
@@ -1971,10 +2432,32 @@
             "isSigner": false,
             "isOptional": false,
             "docs": [
-              "enforced here; the handler then deserializes VoteStateVersions and requires",
-              "node_pubkey == signer, so a supporter can only pledge stake from a vote",
-              "account they operate."
+              "enforced here; the handler then reads node_pubkey and requires the signer",
+              "to be it (or its accepted delegate), so a supporter can only pledge stake",
+              "from a vote account they operate."
             ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "voteDelegation",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "accepted delegation on record only the delegate may sign, otherwise only",
+              "the vote account's node identity may."
+            ],
+            "defaultValue": {
+              "kind": "pdaValueNode",
+              "pda": { "kind": "pdaLinkNode", "name": "voteDelegation" },
+              "seeds": [
+                {
+                  "kind": "pdaSeedValueNode",
+                  "name": "splVoteAccount",
+                  "value": { "kind": "accountValueNode", "name": "splVoteAccount" }
+                }
+              ]
+            }
           },
           {
             "kind": "instructionAccountNode",
@@ -2190,6 +2673,87 @@
               "item": { "kind": "numberTypeNode", "format": "u32", "endian": "le" },
               "prefix": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
             }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "newProposalsAllowed",
+            "type": {
+              "kind": "optionTypeNode",
+              "fixed": false,
+              "item": {
+                "kind": "booleanTypeNode",
+                "size": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+              },
+              "prefix": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+            }
+          }
+        ],
+        "discriminators": [
+          { "kind": "fieldDiscriminatorNode", "name": "discriminator", "offset": 0 }
+        ]
+      },
+      {
+        "kind": "instructionNode",
+        "name": "updateProposalDescription",
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "signer",
+            "isWritable": false,
+            "isSigner": true,
+            "isOptional": false
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "proposal",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "voteDelegation",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "With an accepted delegation on record only the delegate may update the",
+              "proposal, otherwise only its author (the vote account's identity) may."
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "globalConfig",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "defaultValue": {
+              "kind": "pdaValueNode",
+              "pda": { "kind": "pdaLinkNode", "name": "globalConfig" }
+            }
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "type": { "kind": "fixedSizeTypeNode", "size": 8, "type": { "kind": "bytesTypeNode" } },
+            "defaultValue": {
+              "kind": "bytesValueNode",
+              "data": "fc42a6a7313d7bd6",
+              "encoding": "base16"
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "description",
+            "type": {
+              "kind": "sizePrefixTypeNode",
+              "type": { "kind": "stringTypeNode", "encoding": "utf8" },
+              "prefix": { "kind": "numberTypeNode", "format": "u32", "endian": "le" }
+            }
           }
         ],
         "discriminators": [
@@ -2255,6 +2819,26 @@
             "kind": "variablePdaSeedNode",
             "name": "proposal",
             "type": { "kind": "publicKeyTypeNode" }
+          },
+          {
+            "kind": "variablePdaSeedNode",
+            "name": "splVoteAccount",
+            "type": { "kind": "publicKeyTypeNode" }
+          }
+        ]
+      },
+      {
+        "kind": "pdaNode",
+        "name": "voteDelegation",
+        "seeds": [
+          {
+            "kind": "constantPdaSeedNode",
+            "type": { "kind": "bytesTypeNode" },
+            "value": {
+              "kind": "bytesValueNode",
+              "data": "4KBTp7NTVHRr5hECAc6Gm",
+              "encoding": "base58"
+            }
           },
           {
             "kind": "variablePdaSeedNode",
@@ -2368,6 +2952,26 @@
             "kind": "constantPdaSeedNode",
             "type": { "kind": "bytesTypeNode" },
             "value": { "kind": "bytesValueNode", "data": "CtuUWrs", "encoding": "base58" }
+          }
+        ]
+      },
+      {
+        "kind": "pdaNode",
+        "name": "delegateVoteVoteDelegation",
+        "seeds": [
+          {
+            "kind": "constantPdaSeedNode",
+            "type": { "kind": "bytesTypeNode" },
+            "value": {
+              "kind": "bytesValueNode",
+              "data": "4KBTp7NTVHRr5hECAc6Gm",
+              "encoding": "base58"
+            }
+          },
+          {
+            "kind": "variablePdaSeedNode",
+            "name": "subject",
+            "type": { "kind": "publicKeyTypeNode" }
           }
         ]
       },
@@ -2627,6 +3231,14 @@
                 "kind": "structFieldTypeNode",
                 "name": "creationTimestamp",
                 "type": { "kind": "numberTypeNode", "format": "i64", "endian": "le" }
+              },
+              {
+                "kind": "structFieldTypeNode",
+                "name": "signer",
+                "docs": [
+                  "Key that signed the transaction: the identity, or its accepted delegate."
+                ],
+                "type": { "kind": "publicKeyTypeNode" }
               }
             ]
           },
@@ -2660,6 +3272,93 @@
               "value": {
                 "kind": "bytesValueNode",
                 "data": "ba08a06c510d33ce",
+                "encoding": "base16"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "kind": "eventNode",
+        "name": "proposalDescriptionUpdated",
+        "data": {
+          "kind": "hiddenPrefixTypeNode",
+          "type": {
+            "kind": "structTypeNode",
+            "fields": [
+              {
+                "kind": "structFieldTypeNode",
+                "name": "proposalId",
+                "type": { "kind": "publicKeyTypeNode" }
+              },
+              {
+                "kind": "structFieldTypeNode",
+                "name": "author",
+                "type": { "kind": "publicKeyTypeNode" }
+              },
+              {
+                "kind": "structFieldTypeNode",
+                "name": "previousDescription",
+                "type": {
+                  "kind": "sizePrefixTypeNode",
+                  "type": { "kind": "stringTypeNode", "encoding": "utf8" },
+                  "prefix": { "kind": "numberTypeNode", "format": "u32", "endian": "le" }
+                }
+              },
+              {
+                "kind": "structFieldTypeNode",
+                "name": "newDescription",
+                "type": {
+                  "kind": "sizePrefixTypeNode",
+                  "type": { "kind": "stringTypeNode", "encoding": "utf8" },
+                  "prefix": { "kind": "numberTypeNode", "format": "u32", "endian": "le" }
+                }
+              },
+              {
+                "kind": "structFieldTypeNode",
+                "name": "updateTimestamp",
+                "type": { "kind": "numberTypeNode", "format": "i64", "endian": "le" }
+              },
+              {
+                "kind": "structFieldTypeNode",
+                "name": "signer",
+                "docs": [
+                  "Key that signed the transaction: the identity, or its accepted delegate."
+                ],
+                "type": { "kind": "publicKeyTypeNode" }
+              }
+            ]
+          },
+          "prefix": [
+            {
+              "kind": "constantValueNode",
+              "type": {
+                "kind": "fixedSizeTypeNode",
+                "size": 8,
+                "type": { "kind": "bytesTypeNode" }
+              },
+              "value": {
+                "kind": "bytesValueNode",
+                "data": "84b8ed4e2b13a2f8",
+                "encoding": "base16"
+              }
+            }
+          ]
+        },
+        "discriminators": [
+          {
+            "kind": "constantDiscriminatorNode",
+            "offset": 0,
+            "constant": {
+              "kind": "constantValueNode",
+              "type": {
+                "kind": "fixedSizeTypeNode",
+                "size": 8,
+                "type": { "kind": "bytesTypeNode" }
+              },
+              "value": {
+                "kind": "bytesValueNode",
+                "data": "84b8ed4e2b13a2f8",
                 "encoding": "base16"
               }
             }
@@ -2856,6 +3555,14 @@
                 "kind": "structFieldTypeNode",
                 "name": "snapshotSlot",
                 "type": { "kind": "numberTypeNode", "format": "u64", "endian": "le" }
+              },
+              {
+                "kind": "structFieldTypeNode",
+                "name": "signer",
+                "docs": [
+                  "Key that signed the transaction: the identity, or its accepted delegate."
+                ],
+                "type": { "kind": "publicKeyTypeNode" }
               }
             ]
           },
@@ -2952,6 +3659,14 @@
                 "kind": "structFieldTypeNode",
                 "name": "voteTimestamp",
                 "type": { "kind": "numberTypeNode", "format": "i64", "endian": "le" }
+              },
+              {
+                "kind": "structFieldTypeNode",
+                "name": "signer",
+                "docs": [
+                  "Key that signed the transaction: the identity, or its accepted delegate."
+                ],
+                "type": { "kind": "publicKeyTypeNode" }
               }
             ]
           },
@@ -2985,6 +3700,206 @@
               "value": {
                 "kind": "bytesValueNode",
                 "data": "2735c368bc11e1d5",
+                "encoding": "base16"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "kind": "eventNode",
+        "name": "voteDelegationAccepted",
+        "data": {
+          "kind": "hiddenPrefixTypeNode",
+          "type": {
+            "kind": "structTypeNode",
+            "fields": [
+              {
+                "kind": "structFieldTypeNode",
+                "name": "subject",
+                "type": { "kind": "publicKeyTypeNode" }
+              },
+              {
+                "kind": "structFieldTypeNode",
+                "name": "delegate",
+                "type": { "kind": "publicKeyTypeNode" }
+              }
+            ]
+          },
+          "prefix": [
+            {
+              "kind": "constantValueNode",
+              "type": {
+                "kind": "fixedSizeTypeNode",
+                "size": 8,
+                "type": { "kind": "bytesTypeNode" }
+              },
+              "value": {
+                "kind": "bytesValueNode",
+                "data": "2c0d8dad91246be7",
+                "encoding": "base16"
+              }
+            }
+          ]
+        },
+        "discriminators": [
+          {
+            "kind": "constantDiscriminatorNode",
+            "offset": 0,
+            "constant": {
+              "kind": "constantValueNode",
+              "type": {
+                "kind": "fixedSizeTypeNode",
+                "size": 8,
+                "type": { "kind": "bytesTypeNode" }
+              },
+              "value": {
+                "kind": "bytesValueNode",
+                "data": "2c0d8dad91246be7",
+                "encoding": "base16"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "kind": "eventNode",
+        "name": "voteDelegationCreated",
+        "data": {
+          "kind": "hiddenPrefixTypeNode",
+          "type": {
+            "kind": "structTypeNode",
+            "fields": [
+              {
+                "kind": "structFieldTypeNode",
+                "name": "subject",
+                "docs": ["SPL vote account (validator) or voting wallet (staker) being delegated."],
+                "type": { "kind": "publicKeyTypeNode" }
+              },
+              {
+                "kind": "structFieldTypeNode",
+                "name": "identity",
+                "docs": [
+                  "The subject's own voting key at creation time: the vote account's node",
+                  "identity, or the wallet itself."
+                ],
+                "type": { "kind": "publicKeyTypeNode" }
+              },
+              {
+                "kind": "structFieldTypeNode",
+                "name": "delegate",
+                "type": { "kind": "publicKeyTypeNode" }
+              },
+              {
+                "kind": "structFieldTypeNode",
+                "name": "signer",
+                "docs": [
+                  "Key that created the delegation: the identity or authorized withdrawer",
+                  "of a vote account, or the wallet itself."
+                ],
+                "type": { "kind": "publicKeyTypeNode" }
+              }
+            ]
+          },
+          "prefix": [
+            {
+              "kind": "constantValueNode",
+              "type": {
+                "kind": "fixedSizeTypeNode",
+                "size": 8,
+                "type": { "kind": "bytesTypeNode" }
+              },
+              "value": {
+                "kind": "bytesValueNode",
+                "data": "84d638f3ffd09885",
+                "encoding": "base16"
+              }
+            }
+          ]
+        },
+        "discriminators": [
+          {
+            "kind": "constantDiscriminatorNode",
+            "offset": 0,
+            "constant": {
+              "kind": "constantValueNode",
+              "type": {
+                "kind": "fixedSizeTypeNode",
+                "size": 8,
+                "type": { "kind": "bytesTypeNode" }
+              },
+              "value": {
+                "kind": "bytesValueNode",
+                "data": "84d638f3ffd09885",
+                "encoding": "base16"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "kind": "eventNode",
+        "name": "voteDelegationRemoved",
+        "data": {
+          "kind": "hiddenPrefixTypeNode",
+          "type": {
+            "kind": "structTypeNode",
+            "fields": [
+              {
+                "kind": "structFieldTypeNode",
+                "name": "subject",
+                "type": { "kind": "publicKeyTypeNode" }
+              },
+              {
+                "kind": "structFieldTypeNode",
+                "name": "delegate",
+                "type": { "kind": "publicKeyTypeNode" }
+              },
+              {
+                "kind": "structFieldTypeNode",
+                "name": "signer",
+                "type": { "kind": "publicKeyTypeNode" }
+              },
+              {
+                "kind": "structFieldTypeNode",
+                "name": "wasAccepted",
+                "type": {
+                  "kind": "booleanTypeNode",
+                  "size": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
+                }
+              }
+            ]
+          },
+          "prefix": [
+            {
+              "kind": "constantValueNode",
+              "type": {
+                "kind": "fixedSizeTypeNode",
+                "size": 8,
+                "type": { "kind": "bytesTypeNode" }
+              },
+              "value": {
+                "kind": "bytesValueNode",
+                "data": "2319f7ea1044a95f",
+                "encoding": "base16"
+              }
+            }
+          ]
+        },
+        "discriminators": [
+          {
+            "kind": "constantDiscriminatorNode",
+            "offset": 0,
+            "constant": {
+              "kind": "constantValueNode",
+              "type": {
+                "kind": "fixedSizeTypeNode",
+                "size": 8,
+                "type": { "kind": "bytesTypeNode" }
+              },
+              "value": {
+                "kind": "bytesValueNode",
+                "data": "2319f7ea1044a95f",
                 "encoding": "base16"
               }
             }
@@ -3063,6 +3978,14 @@
                 "kind": "structFieldTypeNode",
                 "name": "modificationTimestamp",
                 "type": { "kind": "numberTypeNode", "format": "i64", "endian": "le" }
+              },
+              {
+                "kind": "structFieldTypeNode",
+                "name": "signer",
+                "docs": [
+                  "Key that signed the transaction: the identity, or its accepted delegate."
+                ],
+                "type": { "kind": "publicKeyTypeNode" }
               }
             ]
           },
@@ -3169,6 +4092,14 @@
                 "kind": "structFieldTypeNode",
                 "name": "voteTimestamp",
                 "type": { "kind": "numberTypeNode", "format": "i64", "endian": "le" }
+              },
+              {
+                "kind": "structFieldTypeNode",
+                "name": "signer",
+                "docs": [
+                  "Key that signed the transaction: the voting wallet, or its accepted delegate."
+                ],
+                "type": { "kind": "publicKeyTypeNode" }
               }
             ]
           },
@@ -3290,6 +4221,14 @@
                 "kind": "structFieldTypeNode",
                 "name": "modificationTimestamp",
                 "type": { "kind": "numberTypeNode", "format": "i64", "endian": "le" }
+              },
+              {
+                "kind": "structFieldTypeNode",
+                "name": "signer",
+                "docs": [
+                  "Key that signed the transaction: the voting wallet, or its accepted delegate."
+                ],
+                "type": { "kind": "publicKeyTypeNode" }
               }
             ]
           },
@@ -3766,6 +4705,131 @@
         "message": "Support is closed: this proposal already reached its support threshold and voting has been scheduled",
         "docs": [
           "SupportAlreadyActivated: Support is closed: this proposal already reached its support threshold and voting has been scheduled"
+        ]
+      },
+      {
+        "kind": "errorNode",
+        "name": "newProposalsNotAllowed",
+        "code": 6059,
+        "message": "New proposals are not allowed at this time",
+        "docs": ["NewProposalsNotAllowed: New proposals are not allowed at this time"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "snapshotSlotNotBeforeVotingStart",
+        "code": 6060,
+        "message": "Snapshot slot must be strictly before the voting start slot",
+        "docs": [
+          "SnapshotSlotNotBeforeVotingStart: Snapshot slot must be strictly before the voting start slot"
+        ]
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidSnapshotSlotOffset",
+        "code": 6061,
+        "message": "Snapshot slot offset must remain within the snapshot epoch",
+        "docs": [
+          "InvalidSnapshotSlotOffset: Snapshot slot offset must remain within the snapshot epoch"
+        ]
+      },
+      {
+        "kind": "errorNode",
+        "name": "snapshotWindowTooShort",
+        "code": 6062,
+        "message": "Snapshot slot must leave the minimum required voting window before voting starts",
+        "docs": [
+          "SnapshotWindowTooShort: Snapshot slot must leave the minimum required voting window before voting starts"
+        ]
+      },
+      {
+        "kind": "errorNode",
+        "name": "unauthorizedProposalUpdate",
+        "code": 6063,
+        "message": "Only the original proposal author can update the proposal description",
+        "docs": [
+          "UnauthorizedProposalUpdate: Only the original proposal author can update the proposal description"
+        ]
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidVoteDelegate",
+        "code": 6064,
+        "message": "Vote delegate cannot be the default (all-zero) pubkey",
+        "docs": ["InvalidVoteDelegate: Vote delegate cannot be the default (all-zero) pubkey"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "unauthorizedVoteDelegation",
+        "code": 6065,
+        "message": "Only the vote account's node identity or authorized withdrawer, or the voting wallet itself, can delegate its vote",
+        "docs": [
+          "UnauthorizedVoteDelegation: Only the vote account's node identity or authorized withdrawer, or the voting wallet itself, can delegate its vote"
+        ]
+      },
+      {
+        "kind": "errorNode",
+        "name": "notVoteDelegate",
+        "code": 6066,
+        "message": "Signer is not the delegate of this vote delegation",
+        "docs": ["NotVoteDelegate: Signer is not the delegate of this vote delegation"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "voteDelegationAlreadyAccepted",
+        "code": 6067,
+        "message": "Vote delegation has already been accepted",
+        "docs": ["VoteDelegationAlreadyAccepted: Vote delegation has already been accepted"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "unauthorizedVoteDelegationRemoval",
+        "code": 6068,
+        "message": "Signer is not authorized to remove this vote delegation",
+        "docs": [
+          "UnauthorizedVoteDelegationRemoval: Signer is not authorized to remove this vote delegation"
+        ]
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidVoteDelegationRentRecipient",
+        "code": 6069,
+        "message": "Rent recipient must be the vote account's authorized withdrawer, or the voting wallet itself",
+        "docs": [
+          "InvalidVoteDelegationRentRecipient: Rent recipient must be the vote account's authorized withdrawer, or the voting wallet itself"
+        ]
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidVoteDelegation",
+        "code": 6070,
+        "message": "Invalid vote delegation account",
+        "docs": ["InvalidVoteDelegation: Invalid vote delegation account"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "unauthorizedVoteSigner",
+        "code": 6071,
+        "message": "Signer is neither the voting wallet nor its accepted vote delegate",
+        "docs": [
+          "UnauthorizedVoteSigner: Signer is neither the voting wallet nor its accepted vote delegate"
+        ]
+      },
+      {
+        "kind": "errorNode",
+        "name": "voteDelegationNotAccepted",
+        "code": 6072,
+        "message": "Vote delegation is pending; the delegate must accept it before acting for the voter",
+        "docs": [
+          "VoteDelegationNotAccepted: Vote delegation is pending; the delegate must accept it before acting for the voter"
+        ]
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidVoteRecord",
+        "code": 6073,
+        "message": "Account is not a Vote or VoteOverride of this program at a known layout",
+        "docs": [
+          "InvalidVoteRecord: Account is not a Vote or VoteOverride of this program at a known layout"
         ]
       }
     ]

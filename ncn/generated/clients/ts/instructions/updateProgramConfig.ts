@@ -14,8 +14,6 @@ import {
   getAddressEncoder,
   getBytesDecoder,
   getBytesEncoder,
-  getI64Decoder,
-  getI64Encoder,
   getOptionDecoder,
   getOptionEncoder,
   getStructDecoder,
@@ -81,7 +79,6 @@ export type UpdateProgramConfigInstructionData = {
   proposedAuthority: Option<Address>;
   minConsensusThresholdBps: Option<number>;
   tieBreakerAdmin: Option<Address>;
-  voteDuration: Option<bigint>;
   svmgovProgramPubkey: Option<Address>;
 };
 
@@ -89,7 +86,6 @@ export type UpdateProgramConfigInstructionDataArgs = {
   proposedAuthority: OptionOrNullable<Address>;
   minConsensusThresholdBps: OptionOrNullable<number>;
   tieBreakerAdmin: OptionOrNullable<Address>;
-  voteDuration: OptionOrNullable<number | bigint>;
   svmgovProgramPubkey: OptionOrNullable<Address>;
 };
 
@@ -100,7 +96,6 @@ export function getUpdateProgramConfigInstructionDataEncoder(): Encoder<UpdatePr
       ["proposedAuthority", getOptionEncoder(getAddressEncoder())],
       ["minConsensusThresholdBps", getOptionEncoder(getU16Encoder())],
       ["tieBreakerAdmin", getOptionEncoder(getAddressEncoder())],
-      ["voteDuration", getOptionEncoder(getI64Encoder())],
       ["svmgovProgramPubkey", getOptionEncoder(getAddressEncoder())],
     ]),
     (value) => ({
@@ -116,7 +111,6 @@ export function getUpdateProgramConfigInstructionDataDecoder(): Decoder<UpdatePr
     ["proposedAuthority", getOptionDecoder(getAddressDecoder())],
     ["minConsensusThresholdBps", getOptionDecoder(getU16Decoder())],
     ["tieBreakerAdmin", getOptionDecoder(getAddressDecoder())],
-    ["voteDuration", getOptionDecoder(getI64Decoder())],
     ["svmgovProgramPubkey", getOptionDecoder(getAddressDecoder())],
   ]);
 }
@@ -140,7 +134,6 @@ export type UpdateProgramConfigInput<
   proposedAuthority: UpdateProgramConfigInstructionDataArgs["proposedAuthority"];
   minConsensusThresholdBps: UpdateProgramConfigInstructionDataArgs["minConsensusThresholdBps"];
   tieBreakerAdmin: UpdateProgramConfigInstructionDataArgs["tieBreakerAdmin"];
-  voteDuration: UpdateProgramConfigInstructionDataArgs["voteDuration"];
   svmgovProgramPubkey: UpdateProgramConfigInstructionDataArgs["svmgovProgramPubkey"];
 };
 

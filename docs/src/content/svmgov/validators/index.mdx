@@ -10,7 +10,7 @@ The `svmgov` CLI provides validators with commands to create and manage governan
 
 ## Requirements
 
-- Solana validator identity keypair
+- Solana validator identity keypair, or a key the validator has delegated its vote to (see [Delegate Vote](/svmgov/validators/delegate-vote))
 - Minimum **100,000 SOL** staked to create a proposal
 - Any active stake to support a proposal or vote
 - Access to a Solana RPC endpoint
@@ -35,7 +35,7 @@ svmgov config set operator-api-url https://your-operator-api.example.com
 ```
 
 <Callout type="info">
-  Release tags are named `v<version>` (for example `v0.5.0-40200`) and match the `svmgov` crate version. The `git checkout` above resolves the newest one for you, leaving you on a detached HEAD — expected, and fine for building. To build a specific version instead, pick its tag from <a href="https://github.com/solana-foundation/solana-governance/releases">Releases</a> and check that out by name. `main` is the development branch and can sit ahead of the latest release, so prefer a tag unless you need an unreleased change.
+  Release tags are named `v<version>` (for example `v0.6.0-40200`) and match the `svmgov` crate version. The `git checkout` above resolves the newest one for you, leaving you on a detached HEAD — expected, and fine for building. To build a specific version instead, pick its tag from <a href="https://github.com/solana-foundation/solana-governance/releases">Releases</a> and check that out by name. `main` is the development branch and can sit ahead of the latest release, so prefer a tag unless you need an unreleased change.
 </Callout>
 
 ## Available Commands
@@ -43,9 +43,11 @@ svmgov config set operator-api-url https://your-operator-api.example.com
 <Cards>
   <Cards.Card title="Initialize Index" href="/svmgov/validators/init-index" />
   <Cards.Card title="Create Proposal" href="/svmgov/validators/create-proposal" />
+  <Cards.Card title="Update Proposal Document" href="/svmgov/validators/update-proposal-description" />
   <Cards.Card title="Support Proposal" href="/svmgov/validators/support-proposal" />
   <Cards.Card title="Cast Vote" href="/svmgov/validators/cast-vote" />
   <Cards.Card title="Modify Vote" href="/svmgov/validators/modify-vote" />
+  <Cards.Card title="Delegate Vote" href="/svmgov/validators/delegate-vote" />
   <Cards.Card title="Finalize Proposal" href="/svmgov/validators/finalize-proposal" />
   <Cards.Card title="List Proposals" href="/svmgov/validators/list-proposals" />
   <Cards.Card title="View Proposal" href="/svmgov/validators/proposal" />

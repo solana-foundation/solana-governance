@@ -21,8 +21,6 @@ import {
   getArrayEncoder,
   getBytesDecoder,
   getBytesEncoder,
-  getI64Decoder,
-  getI64Encoder,
   getOptionDecoder,
   getOptionEncoder,
   getStructDecoder,
@@ -70,8 +68,11 @@ export type ProgramConfig = {
   minConsensusThresholdBps: number;
   /** Admin allowed to decide the winning ballot if vote expires before consensus. */
   tieBreakerAdmin: Address;
-  /** Duration for which ballot box will be opened for voting. */
-  voteDuration: bigint;
+  /**
+   * Reserved to preserve the deployed account layout. This was the legacy
+   * timestamp-based vote duration and is no longer read or configurable.
+   */
+  reserved: ReadonlyUint8Array;
   /**
    * The svmgov governance program whose Proposal PDAs are authorized to open
    * ballot boxes. Checked in `init_ballot_box`; updatable by the authority so
@@ -94,8 +95,11 @@ export type ProgramConfigArgs = {
   minConsensusThresholdBps: number;
   /** Admin allowed to decide the winning ballot if vote expires before consensus. */
   tieBreakerAdmin: Address;
-  /** Duration for which ballot box will be opened for voting. */
-  voteDuration: number | bigint;
+  /**
+   * Reserved to preserve the deployed account layout. This was the legacy
+   * timestamp-based vote duration and is no longer read or configurable.
+   */
+  reserved: ReadonlyUint8Array;
   /**
    * The svmgov governance program whose Proposal PDAs are authorized to open
    * ballot boxes. Checked in `init_ballot_box`; updatable by the authority so
@@ -114,7 +118,7 @@ export function getProgramConfigEncoder(): Encoder<ProgramConfigArgs> {
       ["whitelistedOperators", getArrayEncoder(getAddressEncoder())],
       ["minConsensusThresholdBps", getU16Encoder()],
       ["tieBreakerAdmin", getAddressEncoder()],
-      ["voteDuration", getI64Encoder()],
+      ["reserved", fixEncoderSize(getBytesEncoder(), 8)],
       ["svmgovProgramPubkey", getAddressEncoder()],
     ]),
     (value) => ({ ...value, discriminator: PROGRAM_CONFIG_DISCRIMINATOR }),
@@ -130,7 +134,7 @@ export function getProgramConfigDecoder(): Decoder<ProgramConfig> {
     ["whitelistedOperators", getArrayDecoder(getAddressDecoder())],
     ["minConsensusThresholdBps", getU16Decoder()],
     ["tieBreakerAdmin", getAddressDecoder()],
-    ["voteDuration", getI64Decoder()],
+    ["reserved", fixDecoderSize(getBytesDecoder(), 8)],
     ["svmgovProgramPubkey", getAddressDecoder()],
   ]);
 }

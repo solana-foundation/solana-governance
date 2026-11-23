@@ -3,9 +3,14 @@ import { getValidatorProposalVoteAccount } from "@/data";
 import { GET_VALIDATOR_HAS_VOTED } from "@/helpers";
 import { useConnector } from "@solana/connector/react";
 import { useQuery } from "@tanstack/react-query";
+import { useChainVoteAccount } from "./useChainVoteAccount";
 import { useWalletRole } from "./useWalletRole";
 import { WalletRole } from "@/types";
 
+/**
+ * Whether the validator the connected wallet acts for (as its identity or its
+ * accepted vote delegate) has voted on the proposal.
+ */
 export const useHasValidatorVoted = (
   proposalPublicKey: string | undefined,
   enabledProp = true
@@ -15,6 +20,9 @@ export const useHasValidatorVoted = (
   const publicKey = account ?? undefined;
 
   const { walletRole } = useWalletRole(publicKey);
+  const { data: chainVoteAccount, isLoading: isResolvingIdentity } =
+    useChainVoteAccount(publicKey);
+  const validatorIdentity = chainVoteAccount?.nodePubkey ?? publicKey;
 
   const isValidator = walletRole === WalletRole.VALIDATOR;
   const isBoth = walletRole === WalletRole.BOTH;
@@ -24,14 +32,15 @@ export const useHasValidatorVoted = (
     !!publicKey &&
     enabledProp &&
     !!proposalPublicKey &&
-    (isValidator || isBoth);
+    (isValidator || isBoth) &&
+    !isResolvingIdentity;
 
   const query = useQuery({
     queryKey: [
       GET_VALIDATOR_HAS_VOTED,
       endpoint,
       proposalPublicKey,
-      publicKey,
+      validatorIdentity,
     ],
     enabled,
     staleTime: 1000 * 120, // 2 minutes
@@ -39,7 +48,7 @@ export const useHasValidatorVoted = (
       const voteAccount = await getValidatorProposalVoteAccount(
         endpoint,
         proposalPublicKey,
-        publicKey
+        validatorIdentity
       );
       return !!voteAccount;
     },

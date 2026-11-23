@@ -38,7 +38,7 @@ The final, immutable on-chain record of the agreed-upon snapshot. Created by `fi
 
 ### ProgramConfig
 
-The global singleton configuration account for the `ncn-snapshot` program. Stores the operator whitelist, consensus threshold, tie-breaker admin, and vote duration.
+The global singleton configuration account for the `ncn-snapshot` program. Stores the operator whitelist, consensus threshold, tie-breaker admin, and authorized SVMGov program.
 
 **PDA seeds:** `["ProgramConfig"]`
 
@@ -46,9 +46,9 @@ The global singleton configuration account for the `ncn-snapshot` program. Store
 
 A special admin key stored in `ProgramConfig` that can force a winner after voting expires but before consensus is reached. This prevents a permanently deadlocked `BallotBox`. When the tie-breaker sets a result, `tie_breaker_consensus = true` on the `ConsensusResult`.
 
-### Vote Duration
+### Vote Expiry Slot
 
-The number of seconds (from `init_ballot_box`) during which operators can cast and remove votes. After expiry: operators can no longer vote; the tie-breaker admin can act; and `finalize_ballot` can still be called if consensus was already reached before expiry.
+The slot at which an NCN ballot's voting window closes. SVMGov sets it to the first slot of proposal voting, and the snapshot must leave operators at least 18,000 slots to reach consensus. After expiry, operators can no longer cast or remove votes and the tie-breaker admin can act.
 
 ### Consensus Threshold (`min_consensus_threshold_bps`)
 

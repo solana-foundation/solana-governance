@@ -1,0 +1,3 @@
+setup:
+  project: solana-governance
+  config: dev

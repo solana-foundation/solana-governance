@@ -296,4 +296,48 @@ curl -i http://localhost:3000/version
 
 ## Usage Notes
 
-- If verifier service is used with CloudFlare proxy, there may be a origin timeout limit of 100s that will result in 504 errors for long running /upload requests. If modification on CloudFlare is not possible, it is recommended to bypass the proxy and use the public IP address of the instance.
+### Uploading through a proxy
+
+`/upload` does its work inside the request: it decompresses the snapshot, rebuilds a
+stake merkle tree per validator, reconstructs the meta merkle tree, and indexes every
+vote and stake account. That work scales with the number of accounts in the snapshot,
+and it is what makes the request long. Uploading the committed testnet fixture (28k
+stake accounts) to a local instance took 6.5 s, of which reading the request body was
+about 10 ms. A mainnet snapshot has far more accounts and takes considerably longer.
+
+Cloudflare's origin timeout is **100 seconds** and is not configurable below the
+Enterprise plan, so a large upload proxied through it returns 504. Splitting the upload
+into chunks does not help: the processing still happens in one request once the last
+chunk lands.
+
+**Upload from the verifier host**, to whatever host port the container publishes
+(`PORT_HOST` in `setup.sh`; the `curl` example above assumes a locally built binary on
+3000). Copy the snapshot across first with `scp` if it was generated elsewhere. This is
+the supported path — it never crosses the proxy, so no origin timeout applies, and it
+leaves Cloudflare in front of every endpoint that is actually exposed.
+
+If you must upload from another machine, publish a **separate hostname with the
+Cloudflare proxy disabled** (grey cloud) and restrict it to your operator IPs at the
+firewall. Cloudflare does not terminate TLS for a grey-clouded record, so serve that
+hostname with your own certificate.
+
+Do not disable the proxy on the hostname serving `/proof/*` and `/meta`. Those are the
+public read paths, and the service's rate limiting keys on `CF-Connecting-IP` from a
+peer inside `TRUSTED_PROXY_CIDRS` (see [DEPLOYMENT.md](./DEPLOYMENT.md)); exposing the
+origin directly gives that up for every endpoint, not just uploads.
+
+### Reverse proxy body size
+
+If you terminate TLS with your own nginx rather than Cloudflare or an ALB, raise the
+body limit and read timeout — nginx defaults to `client_max_body_size 1m`, which
+rejects a snapshot with 413 before the service sees it:
+
+```nginx
+location /upload {
+    client_max_body_size 128m;  # >= UPLOAD_BODY_LIMIT (default 100 MB)
+    proxy_read_timeout 600s;
+    # The host port the container publishes (PORT_HOST in setup.sh), which is
+    # not the container's own 3000.
+    proxy_pass http://127.0.0.1:<PORT_HOST>;
+}
+```

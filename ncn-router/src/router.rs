@@ -3,6 +3,7 @@ use reqwest::blocking::Client;
 use serde::Deserialize;
 use std::env;
 use std::fs;
+use std::io::Read;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
 
@@ -115,7 +116,59 @@ struct RouterState {
     http_client: Client,
 }
 
+/// All router responses, including early errors, must be readable across origins.
+struct CorsRequest(tiny_http::Request);
+
+struct RoutedRequest {
+    request: CorsRequest,
+    verifier: String,
+}
+
+impl RoutedRequest {
+    fn respond<R: Read>(self, response: Response<R>) -> std::io::Result<()> {
+        self.request.respond(
+            response.with_header(
+                Header::from_bytes("X-NCN-Verifier", self.verifier.as_bytes())
+                    .expect("verifier identity header"),
+            ),
+        )
+    }
+}
+
+impl std::ops::Deref for CorsRequest {
+    type Target = tiny_http::Request;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl CorsRequest {
+    fn respond<R: Read>(self, response: Response<R>) -> std::io::Result<()> {
+        self.0.respond(
+            response
+                .with_header(cors_header("Access-Control-Allow-Origin", "*"))
+                .with_header(cors_header("Access-Control-Allow-Methods", "GET, OPTIONS"))
+                .with_header(cors_header(
+                    "Access-Control-Allow-Headers",
+                    "Accept, Content-Type, sentry-trace, baggage",
+                )),
+        )
+    }
+}
+
+fn cors_header(name: &str, value: &str) -> Header {
+    Header::from_bytes(name.as_bytes(), value.as_bytes()).expect("static CORS header")
+}
+
 fn handle_request(state: Arc<RouterState>, request: tiny_http::Request) {
+    let request = CorsRequest(request);
+    // Preflight must not depend on whitelist availability or redirect to an operator.
+    if request.method() == &Method::Options {
+        let _ = request.respond(Response::empty(204));
+        return;
+    }
+
     if request.method() != &Method::Get {
         let _ = request.respond(Response::from_string("Method Not Allowed").with_status_code(405));
         return;
@@ -226,6 +279,10 @@ fn handle_request(state: Arc<RouterState>, request: tiny_http::Request) {
         url, target, snapshot.network, snapshot.slot
     );
 
+    let request = RoutedRequest {
+        request,
+        verifier: canonical_domain(&chosen.domain),
+    };
     if state.mode == RouterMode::Proxy {
         respond_proxy(&state.http_client, request, &target);
     } else {
@@ -235,7 +292,7 @@ fn handle_request(state: Arc<RouterState>, request: tiny_http::Request) {
     }
 }
 
-fn respond_proxy(client: &Client, request: tiny_http::Request, target: &str) {
+fn respond_proxy(client: &Client, request: RoutedRequest, target: &str) {
     match client.get(target).send() {
         Ok(upstream) => {
             let code = upstream.status().as_u16();
@@ -427,6 +484,163 @@ fn json_header() -> Header {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn serve_once(
+        method: reqwest::Method,
+        path: &str,
+        handler: impl FnOnce(tiny_http::Request) + Send + 'static,
+    ) -> reqwest::blocking::Response {
+        let server = Server::http("127.0.0.1:0").unwrap();
+        let url = format!("http://{}{}", server.server_addr(), path);
+        let worker = std::thread::spawn(move || {
+            handler(
+                server
+                    .recv_timeout(Duration::from_secs(5))
+                    .unwrap()
+                    .unwrap(),
+            );
+        });
+        let response = Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .timeout(Duration::from_secs(5))
+            .build()
+            .unwrap()
+            .request(method, url)
+            .header("Origin", "https://governance.solana.com")
+            .header("Access-Control-Request-Method", "GET")
+            .header("Access-Control-Request-Headers", "sentry-trace,baggage")
+            .send()
+            .unwrap();
+        worker.join().unwrap();
+        response
+    }
+
+    fn assert_cors(response: &reqwest::blocking::Response) {
+        assert_eq!(response.headers()["access-control-allow-origin"], "*");
+        assert_eq!(
+            response
+                .headers()
+                .get_all("access-control-allow-origin")
+                .iter()
+                .count(),
+            1
+        );
+        assert_eq!(
+            response.headers()["access-control-allow-methods"],
+            "GET, OPTIONS"
+        );
+        assert!(response.headers()["access-control-allow-headers"]
+            .to_str()
+            .unwrap()
+            .contains("sentry-trace"));
+    }
+
+    #[test]
+    fn cors_covers_redirects_and_errors_and_preserves_location() {
+        for status in [302, 400, 405, 500, 502, 503] {
+            let response = serve_once(
+                reqwest::Method::GET,
+                "/meta?network=mainnet",
+                move |request| {
+                    let response = Response::empty(status).with_header(cors_header(
+                        "Location",
+                        "https://verifier.example/meta?network=mainnet",
+                    ));
+                    CorsRequest(request).respond(response).unwrap();
+                },
+            );
+            assert_eq!(response.status().as_u16(), status);
+            assert_cors(&response);
+            assert_eq!(
+                response.headers()["location"],
+                "https://verifier.example/meta?network=mainnet"
+            );
+        }
+    }
+
+    #[test]
+    fn verifier_identity_is_available_on_redirects_and_proxy_errors() {
+        for status in [200, 302, 502] {
+            let response = serve_once(
+                reqwest::Method::GET,
+                "/meta?network=mainnet",
+                move |request| {
+                    RoutedRequest {
+                        request: CorsRequest(request),
+                        verifier: "https://verifier.example/".to_string(),
+                    }
+                    .respond(Response::empty(status))
+                    .unwrap();
+                },
+            );
+            assert_eq!(response.status().as_u16(), status);
+            assert_eq!(
+                response.headers()["x-ncn-verifier"],
+                "https://verifier.example/"
+            );
+            assert_cors(&response);
+        }
+    }
+
+    #[test]
+    fn preflight_and_early_errors_work_without_whitelist_data() {
+        for (method, path, status) in [
+            (reqwest::Method::OPTIONS, "/meta?network=mainnet", 204),
+            (reqwest::Method::POST, "/meta?network=mainnet", 405),
+            (reqwest::Method::GET, "/meta?network=devnet", 400),
+            (reqwest::Method::GET, "/meta?network=mainnet", 503),
+        ] {
+            let response = serve_once(method, path, |request| {
+                handle_request(
+                    Arc::new(RouterState {
+                        mainnet_path: String::new(),
+                        testnet_path: String::new(),
+                        mainnet_cache: RwLock::new(CachedWhitelist::new()),
+                        testnet_cache: RwLock::new(CachedWhitelist::new()),
+                        mode: RouterMode::Redirect,
+                        http_client: Client::new(),
+                    }),
+                    request,
+                );
+            });
+            assert_eq!(response.status().as_u16(), status);
+            assert_cors(&response);
+        }
+    }
+
+    #[test]
+    fn proxy_adds_cors_without_duplicating_upstream_policy() {
+        for status in [200, 429, 503] {
+            let upstream = Server::http("127.0.0.1:0").unwrap();
+            let target = format!("http://{}/meta", upstream.server_addr());
+            let worker = std::thread::spawn(move || {
+                upstream
+                    .recv_timeout(Duration::from_secs(5))
+                    .unwrap()
+                    .unwrap()
+                    .respond(
+                        Response::from_string("{}")
+                            .with_status_code(status)
+                            .with_header(cors_header("Access-Control-Allow-Origin", "*")),
+                    )
+                    .unwrap();
+            });
+            let response = serve_once(reqwest::Method::GET, "/meta", move |request| {
+                respond_proxy(
+                    &Client::new(),
+                    RoutedRequest {
+                        request: CorsRequest(request),
+                        verifier: "https://verifier.example/".to_string(),
+                    },
+                    &target,
+                );
+            });
+            worker.join().unwrap();
+            assert_eq!(response.status().as_u16(), status);
+            assert_cors(&response);
+            assert_eq!(response.text().unwrap(), "{}");
+        }
+    }
 
     fn verifier(name: &str, domain: &str, status: &str) -> WhitelistVerifier {
         WhitelistVerifier {

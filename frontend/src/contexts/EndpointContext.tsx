@@ -4,25 +4,19 @@ import React, {
   createContext,
   useContext,
   useEffect,
+  useMemo,
   useState,
-  ReactNode,
+  type ReactNode,
 } from "react";
-import { RPCEndpoint } from "@/types";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { setTag } from "@sentry/nextjs";
-import { env } from "@/env";
-import { getRpcUrls } from "@/lib/getRpcUrls";
-import {
-  resolveSnapshotNetwork,
-  type KnownSnapshotNetwork,
-} from "@/lib/snapshotNetwork";
+import { useQueryClient } from "@tanstack/react-query";
+import type { RpcNetwork } from "@/types";
+import { getRpcProxyUrl } from "@/lib/getRpcProxyUrl";
 
 interface EndpointContextType {
-  endpointType: RPCEndpoint;
+  network: RpcNetwork;
   endpointUrl: string;
-  network: KnownSnapshotNetwork | undefined;
-  isResolvingNetwork: boolean;
-  setEndpoint: (type: RPCEndpoint, url?: string) => void;
+  setEndpoint: (type: RpcNetwork) => void;
   resetToDefault: () => void;
 }
 
@@ -30,89 +24,69 @@ const EndpointContext = createContext<EndpointContextType | undefined>(
   undefined,
 );
 
-export const RPC_URLS = getRpcUrls(env);
+const DEFAULT_NETWORK: RpcNetwork = "mainnet";
+const STORAGE_KEY = "solana-rpc-cluster";
+const LEGACY_STORAGE_KEY = "solana-rpc-endpoint";
+const ENDPOINTS = new Set<RpcNetwork>(["mainnet", "testnet", "devnet"]);
 
-const DEFAULT_TYPE: RPCEndpoint = "mainnet";
-const DEFAULT_URL = RPC_URLS[DEFAULT_TYPE];
+function isRpcEndpoint(value: unknown): value is RpcNetwork {
+  return typeof value === "string" && ENDPOINTS.has(value as RpcNetwork);
+}
 
-const STORAGE_KEY = "solana-rpc-endpoint";
+function getStoredEndpoint(): RpcNetwork {
+  if (typeof window === "undefined") return DEFAULT_NETWORK;
 
-const getStoredValues = () => {
-  if (typeof window !== "undefined") {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const { type, url } = JSON.parse(saved);
-        return { endpointType: type, endpointUrl: url };
-      } catch {
-        console.error("error parsing rpc endpoint from local storage");
-        // fallback
-        return { endpointType: DEFAULT_TYPE, endpointUrl: DEFAULT_URL };
-      }
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (isRpcEndpoint(saved)) return saved;
+
+  // Migrate the previous { type, url } value without retaining its RPC URL.
+  const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+  if (legacy) {
+    try {
+      const { type } = JSON.parse(legacy) as { type?: unknown };
+      if (isRpcEndpoint(type)) return type;
+    } catch {
+      // Ignore malformed legacy settings and fall back to mainnet.
+    } finally {
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
     }
   }
-  return { endpointType: DEFAULT_TYPE, endpointUrl: DEFAULT_URL };
-};
+
+  return DEFAULT_NETWORK;
+}
 
 export function EndpointProvider({ children }: { children: ReactNode }) {
-  const [endpoint, setEndpoint] = useState<{
-    endpointType: RPCEndpoint;
-    endpointUrl: string;
-  }>(getStoredValues());
-
+  const [network, setNetwork] = useState<RpcNetwork>(getStoredEndpoint);
+  const endpointUrl = useMemo(() => getRpcProxyUrl(network), [network]);
   const queryClient = useQueryClient();
 
-  const networkQuery = useQuery({
-    queryKey: ["snapshot-network", endpoint.endpointType, endpoint.endpointUrl],
-    queryFn: async () => {
-      const resolved = await resolveSnapshotNetwork(
-        endpoint.endpointType,
-        endpoint.endpointUrl,
-      );
-      return resolved ?? null;
-    },
-    staleTime: Infinity,
-    enabled: endpoint.endpointType === "custom" && Boolean(endpoint.endpointUrl),
-  });
-
-  const network: KnownSnapshotNetwork | undefined =
-    endpoint.endpointType === "custom"
-      ? (networkQuery.data ?? undefined)
-      : endpoint.endpointType;
-
-  // Which network an error came from is otherwise invisible in Sentry, and it is the first thing
-  // you need: the NCN API serves a different snapshot per network. Type only — a custom
-  // endpointUrl can contain an RPC provider API key.
   useEffect(() => {
-    setTag("solana_network", network ?? endpoint.endpointType);
-  }, [network, endpoint.endpointType]);
+    setTag("solana_network", network);
+  }, [network]);
 
-  const setEndpointData = (type: RPCEndpoint, customUrl?: string) => {
-    const url = type === "custom" ? (customUrl ?? "") : RPC_URLS[type];
-    setEndpoint({
-      endpointType: type,
-      endpointUrl: url,
-    });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ type, url }));
-    queryClient.removeQueries();
+  const setEndpoint = (type: RpcNetwork) => {
+    if (type !== network) {
+      // Query keys for some values derived from multiple RPC sources do not carry the endpoint.
+      // Clear the cache before switching so none can survive into the next cluster.
+      queryClient.removeQueries();
+      setNetwork(type);
+    }
+    localStorage.setItem(STORAGE_KEY, type);
   };
 
   const resetToDefault = () => {
-    setEndpoint({
-      endpointType: DEFAULT_TYPE,
-      endpointUrl: DEFAULT_URL,
-    });
+    if (network !== DEFAULT_NETWORK) queryClient.removeQueries();
+    setNetwork(DEFAULT_NETWORK);
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
   };
 
   return (
     <EndpointContext.Provider
       value={{
-        endpointType: endpoint.endpointType,
-        endpointUrl: endpoint.endpointUrl,
         network,
-        isResolvingNetwork: networkQuery.isFetching,
-        setEndpoint: setEndpointData,
+        endpointUrl,
+        setEndpoint,
         resetToDefault,
       }}
     >

@@ -13,15 +13,18 @@ import {
   decodeProposal,
   decodeSupport,
   decodeVote,
+  decodeVoteDelegation,
   decodeVoteOverride,
   PROPOSAL_DISCRIMINATOR,
   SUPPORT_DISCRIMINATOR,
   SVMGOV_PROGRAM_PROGRAM_ADDRESS,
+  VOTE_DELEGATION_DISCRIMINATOR,
   VOTE_DISCRIMINATOR,
   VOTE_OVERRIDE_DISCRIMINATOR,
   type Proposal,
   type Support,
   type Vote,
+  type VoteDelegation,
   type VoteOverride,
 } from "@solana/svmgov";
 
@@ -65,4 +68,13 @@ export async function fetchVoteOverrides(rpc: Rpc<GetProgramAccountsApi>, filter
   return result.map(({ account, pubkey }) => decodeVoteOverride(parseBase64RpcAccount(pubkey, account)));
 }
 
-export type { Proposal, Support, Vote, VoteOverride };
+/** Fetches vote delegations, pending or accepted, optionally only those naming `delegate`. */
+export async function fetchVoteDelegations(rpc: Rpc<GetProgramAccountsApi>, filters: { delegate?: Address }): Promise<Account<VoteDelegation>[]> {
+  const result = await rpc.getProgramAccounts(SVMGOV_PROGRAM_PROGRAM_ADDRESS, {
+    encoding: "base64",
+    filters: [memcmp(0n, VOTE_DELEGATION_DISCRIMINATOR), ...(filters.delegate ? [addressFilter(8n, filters.delegate)] : [])],
+  }).send();
+  return result.map(({ account, pubkey }) => decodeVoteDelegation(parseBase64RpcAccount(pubkey, account)));
+}
+
+export type { Proposal, Support, Vote, VoteDelegation, VoteOverride };

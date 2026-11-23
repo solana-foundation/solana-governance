@@ -252,7 +252,6 @@ ncn-cli \
   --rpc-url <RPC_URL> \
   update-program-config \
   --min-consensus-threshold-bps 6667 \
-  --vote-duration 86400 \
   --tie-breaker-admin <PUBKEY> \
   --proposed-authority <PUBKEY> \
   --svmgov-program-id <PUBKEY>
@@ -261,7 +260,6 @@ ncn-cli \
 | Argument | Type | Description |
 |---|---|---|
 | `--min-consensus-threshold-bps <u16>` | Optional | Minimum stake-weighted consensus threshold in basis points (10000 = 100%). Example: `6000` for 60%. |
-| `--vote-duration <i64>` | Optional | Voting window duration, in seconds. Operators have this long after a ballot box is created to cast votes. |
 | `--tie-breaker-admin <Pubkey>` | Optional | New tie-breaker admin pubkey (base58). This admin can resolve a stalled ballot box via `set-tie-breaker`. |
 | `--proposed-authority <Pubkey>` | Optional | Proposed new program authority (base58). Becomes active only after `finalize-proposed-authority` is run by this pubkey. |
 | `--svmgov-program-id <Pubkey>` | Optional | New svmgov governance program id (base58) authorized to open ballot boxes. Retargets ncn at a new svmgov deployment without redeploying the ncn program. |

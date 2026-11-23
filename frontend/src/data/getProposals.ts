@@ -116,6 +116,7 @@ export function mapProposalDto(
     title: raw.title,
     description: raw.description,
     author: raw.author,
+    voteAccountPubkey: raw.voteAccountPubkey,
 
     creationEpoch,
     startEpoch,

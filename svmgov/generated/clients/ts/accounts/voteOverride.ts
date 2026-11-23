@@ -21,6 +21,8 @@ import {
   getBytesEncoder,
   getI64Decoder,
   getI64Encoder,
+  getOptionDecoder,
+  getOptionEncoder,
   getStructDecoder,
   getStructEncoder,
   getU64Decoder,
@@ -30,14 +32,16 @@ import {
   transformEncoder,
   type Account,
   type Address,
+  type Codec,
+  type Decoder,
   type EncodedAccount,
+  type Encoder,
   type FetchAccountConfig,
   type FetchAccountsConfig,
-  type FixedSizeCodec,
-  type FixedSizeDecoder,
-  type FixedSizeEncoder,
   type MaybeAccount,
   type MaybeEncodedAccount,
+  type Option,
+  type OptionOrNullable,
   type ReadonlyUint8Array,
 } from "@solana/kit";
 
@@ -67,6 +71,12 @@ export type VoteOverride = {
   stakeAmount: bigint;
   voteOverrideTimestamp: bigint;
   bump: number;
+  /**
+   * The accepted vote delegate that signed the current state of this
+   * override, or `None` when `delegator` signed it itself. Always `None` on
+   * overrides recorded before vote delegation existed.
+   */
+  delegateSigner: Option<Address>;
 };
 
 export type VoteOverrideArgs = {
@@ -84,10 +94,16 @@ export type VoteOverrideArgs = {
   stakeAmount: number | bigint;
   voteOverrideTimestamp: number | bigint;
   bump: number;
+  /**
+   * The accepted vote delegate that signed the current state of this
+   * override, or `None` when `delegator` signed it itself. Always `None` on
+   * overrides recorded before vote delegation existed.
+   */
+  delegateSigner: OptionOrNullable<Address>;
 };
 
 /** Gets the encoder for {@link VoteOverrideArgs} account data. */
-export function getVoteOverrideEncoder(): FixedSizeEncoder<VoteOverrideArgs> {
+export function getVoteOverrideEncoder(): Encoder<VoteOverrideArgs> {
   return transformEncoder(
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
@@ -105,13 +121,14 @@ export function getVoteOverrideEncoder(): FixedSizeEncoder<VoteOverrideArgs> {
       ["stakeAmount", getU64Encoder()],
       ["voteOverrideTimestamp", getI64Encoder()],
       ["bump", getU8Encoder()],
+      ["delegateSigner", getOptionEncoder(getAddressEncoder())],
     ]),
     (value) => ({ ...value, discriminator: VOTE_OVERRIDE_DISCRIMINATOR }),
   );
 }
 
 /** Gets the decoder for {@link VoteOverride} account data. */
-export function getVoteOverrideDecoder(): FixedSizeDecoder<VoteOverride> {
+export function getVoteOverrideDecoder(): Decoder<VoteOverride> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
     ["delegator", getAddressDecoder()],
@@ -128,14 +145,12 @@ export function getVoteOverrideDecoder(): FixedSizeDecoder<VoteOverride> {
     ["stakeAmount", getU64Decoder()],
     ["voteOverrideTimestamp", getI64Decoder()],
     ["bump", getU8Decoder()],
+    ["delegateSigner", getOptionDecoder(getAddressDecoder())],
   ]);
 }
 
 /** Gets the codec for {@link VoteOverride} account data. */
-export function getVoteOverrideCodec(): FixedSizeCodec<
-  VoteOverrideArgs,
-  VoteOverride
-> {
+export function getVoteOverrideCodec(): Codec<VoteOverrideArgs, VoteOverride> {
   return combineCodec(getVoteOverrideEncoder(), getVoteOverrideDecoder());
 }
 
@@ -190,8 +205,4 @@ export async function fetchAllMaybeVoteOverride(
 ): Promise<MaybeAccount<VoteOverride>[]> {
   const maybeAccounts = await fetchEncodedAccounts(rpc, addresses, config);
   return maybeAccounts.map((maybeAccount) => decodeVoteOverride(maybeAccount));
-}
-
-export function getVoteOverrideSize(): number {
-  return 233;
 }

@@ -39,7 +39,7 @@ import {
   getAddressFromResolvedInstructionAccount,
   type ResolvedInstructionAccount,
 } from "@solana/program-client-core";
-import { findVotePda } from "../pdas";
+import { findVoteDelegationPda, findVotePda } from "../pdas";
 import { SVMGOV_PROGRAM_PROGRAM_ADDRESS } from "../programs";
 
 export const MODIFY_VOTE_DISCRIMINATOR: ReadonlyUint8Array = new Uint8Array([
@@ -56,6 +56,7 @@ export type ModifyVoteInstruction<
   TAccountProposal extends string | AccountMeta<string> = string,
   TAccountVote extends string | AccountMeta<string> = string,
   TAccountSplVoteAccount extends string | AccountMeta<string> = string,
+  TAccountVoteDelegation extends string | AccountMeta<string> = string,
   TAccountSnapshotProgram extends string | AccountMeta<string> = string,
   TAccountConsensusResult extends string | AccountMeta<string> = string,
   TAccountMetaMerkleProof extends string | AccountMeta<string> = string,
@@ -79,6 +80,9 @@ export type ModifyVoteInstruction<
       TAccountSplVoteAccount extends string
         ? ReadonlyAccount<TAccountSplVoteAccount>
         : TAccountSplVoteAccount,
+      TAccountVoteDelegation extends string
+        ? ReadonlyAccount<TAccountVoteDelegation>
+        : TAccountVoteDelegation,
       TAccountSnapshotProgram extends string
         ? ReadonlyAccount<TAccountSnapshotProgram>
         : TAccountSnapshotProgram,
@@ -144,6 +148,7 @@ export type ModifyVoteAsyncInput<
   TAccountProposal extends string = string,
   TAccountVote extends string = string,
   TAccountSplVoteAccount extends string = string,
+  TAccountVoteDelegation extends string = string,
   TAccountSnapshotProgram extends string = string,
   TAccountConsensusResult extends string = string,
   TAccountMetaMerkleProof extends string = string,
@@ -154,10 +159,16 @@ export type ModifyVoteAsyncInput<
   vote?: Address<TAccountVote>;
   /**
    * enforced here. The signer-to-vote-account binding is proved in the handler
-   * via the meta merkle proof: voting_wallet == signer AND vote_account ==
-   * spl_vote_account, both anchored to proposal.consensus_result.
+   * via the meta merkle proof (vote_account == spl_vote_account, anchored to
+   * proposal.consensus_result) plus the authority check: signer is the leaf's
+   * voting_wallet, or the accepted delegate in `vote_delegation`.
    */
   splVoteAccount: Address<TAccountSplVoteAccount>;
+  /**
+   * accepted delegation on record only the delegate may sign, otherwise only
+   * the vote account's identity may.
+   */
+  voteDelegation?: Address<TAccountVoteDelegation>;
   snapshotProgram: Address<TAccountSnapshotProgram>;
   consensusResult: Address<TAccountConsensusResult>;
   metaMerkleProof: Address<TAccountMetaMerkleProof>;
@@ -172,6 +183,7 @@ export async function getModifyVoteInstructionAsync<
   TAccountProposal extends string,
   TAccountVote extends string,
   TAccountSplVoteAccount extends string,
+  TAccountVoteDelegation extends string,
   TAccountSnapshotProgram extends string,
   TAccountConsensusResult extends string,
   TAccountMetaMerkleProof extends string,
@@ -183,6 +195,7 @@ export async function getModifyVoteInstructionAsync<
     TAccountProposal,
     TAccountVote,
     TAccountSplVoteAccount,
+    TAccountVoteDelegation,
     TAccountSnapshotProgram,
     TAccountConsensusResult,
     TAccountMetaMerkleProof,
@@ -196,6 +209,7 @@ export async function getModifyVoteInstructionAsync<
     TAccountProposal,
     TAccountVote,
     TAccountSplVoteAccount,
+    TAccountVoteDelegation,
     TAccountSnapshotProgram,
     TAccountConsensusResult,
     TAccountMetaMerkleProof,
@@ -212,6 +226,7 @@ export async function getModifyVoteInstructionAsync<
     proposal: { value: input.proposal ?? null, isWritable: true },
     vote: { value: input.vote ?? null, isWritable: true },
     splVoteAccount: { value: input.splVoteAccount ?? null, isWritable: false },
+    voteDelegation: { value: input.voteDelegation ?? null, isWritable: false },
     snapshotProgram: {
       value: input.snapshotProgram ?? null,
       isWritable: false,
@@ -247,6 +262,14 @@ export async function getModifyVoteInstructionAsync<
       ),
     });
   }
+  if (!accounts.voteDelegation.value) {
+    accounts.voteDelegation.value = await findVoteDelegationPda({
+      splVoteAccount: getAddressFromResolvedInstructionAccount(
+        "splVoteAccount",
+        accounts.splVoteAccount.value,
+      ),
+    });
+  }
   if (!accounts.systemProgram.value) {
     accounts.systemProgram.value =
       "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
@@ -259,6 +282,7 @@ export async function getModifyVoteInstructionAsync<
       getAccountMeta("proposal", accounts.proposal),
       getAccountMeta("vote", accounts.vote),
       getAccountMeta("splVoteAccount", accounts.splVoteAccount),
+      getAccountMeta("voteDelegation", accounts.voteDelegation),
       getAccountMeta("snapshotProgram", accounts.snapshotProgram),
       getAccountMeta("consensusResult", accounts.consensusResult),
       getAccountMeta("metaMerkleProof", accounts.metaMerkleProof),
@@ -274,6 +298,7 @@ export async function getModifyVoteInstructionAsync<
     TAccountProposal,
     TAccountVote,
     TAccountSplVoteAccount,
+    TAccountVoteDelegation,
     TAccountSnapshotProgram,
     TAccountConsensusResult,
     TAccountMetaMerkleProof,
@@ -286,6 +311,7 @@ export type ModifyVoteInput<
   TAccountProposal extends string = string,
   TAccountVote extends string = string,
   TAccountSplVoteAccount extends string = string,
+  TAccountVoteDelegation extends string = string,
   TAccountSnapshotProgram extends string = string,
   TAccountConsensusResult extends string = string,
   TAccountMetaMerkleProof extends string = string,
@@ -296,10 +322,16 @@ export type ModifyVoteInput<
   vote: Address<TAccountVote>;
   /**
    * enforced here. The signer-to-vote-account binding is proved in the handler
-   * via the meta merkle proof: voting_wallet == signer AND vote_account ==
-   * spl_vote_account, both anchored to proposal.consensus_result.
+   * via the meta merkle proof (vote_account == spl_vote_account, anchored to
+   * proposal.consensus_result) plus the authority check: signer is the leaf's
+   * voting_wallet, or the accepted delegate in `vote_delegation`.
    */
   splVoteAccount: Address<TAccountSplVoteAccount>;
+  /**
+   * accepted delegation on record only the delegate may sign, otherwise only
+   * the vote account's identity may.
+   */
+  voteDelegation: Address<TAccountVoteDelegation>;
   snapshotProgram: Address<TAccountSnapshotProgram>;
   consensusResult: Address<TAccountConsensusResult>;
   metaMerkleProof: Address<TAccountMetaMerkleProof>;
@@ -314,6 +346,7 @@ export function getModifyVoteInstruction<
   TAccountProposal extends string,
   TAccountVote extends string,
   TAccountSplVoteAccount extends string,
+  TAccountVoteDelegation extends string,
   TAccountSnapshotProgram extends string,
   TAccountConsensusResult extends string,
   TAccountMetaMerkleProof extends string,
@@ -325,6 +358,7 @@ export function getModifyVoteInstruction<
     TAccountProposal,
     TAccountVote,
     TAccountSplVoteAccount,
+    TAccountVoteDelegation,
     TAccountSnapshotProgram,
     TAccountConsensusResult,
     TAccountMetaMerkleProof,
@@ -337,6 +371,7 @@ export function getModifyVoteInstruction<
   TAccountProposal,
   TAccountVote,
   TAccountSplVoteAccount,
+  TAccountVoteDelegation,
   TAccountSnapshotProgram,
   TAccountConsensusResult,
   TAccountMetaMerkleProof,
@@ -352,6 +387,7 @@ export function getModifyVoteInstruction<
     proposal: { value: input.proposal ?? null, isWritable: true },
     vote: { value: input.vote ?? null, isWritable: true },
     splVoteAccount: { value: input.splVoteAccount ?? null, isWritable: false },
+    voteDelegation: { value: input.voteDelegation ?? null, isWritable: false },
     snapshotProgram: {
       value: input.snapshotProgram ?? null,
       isWritable: false,
@@ -387,6 +423,7 @@ export function getModifyVoteInstruction<
       getAccountMeta("proposal", accounts.proposal),
       getAccountMeta("vote", accounts.vote),
       getAccountMeta("splVoteAccount", accounts.splVoteAccount),
+      getAccountMeta("voteDelegation", accounts.voteDelegation),
       getAccountMeta("snapshotProgram", accounts.snapshotProgram),
       getAccountMeta("consensusResult", accounts.consensusResult),
       getAccountMeta("metaMerkleProof", accounts.metaMerkleProof),
@@ -402,6 +439,7 @@ export function getModifyVoteInstruction<
     TAccountProposal,
     TAccountVote,
     TAccountSplVoteAccount,
+    TAccountVoteDelegation,
     TAccountSnapshotProgram,
     TAccountConsensusResult,
     TAccountMetaMerkleProof,
@@ -420,14 +458,20 @@ export type ParsedModifyVoteInstruction<
     vote: TAccountMetas[2];
     /**
      * enforced here. The signer-to-vote-account binding is proved in the handler
-     * via the meta merkle proof: voting_wallet == signer AND vote_account ==
-     * spl_vote_account, both anchored to proposal.consensus_result.
+     * via the meta merkle proof (vote_account == spl_vote_account, anchored to
+     * proposal.consensus_result) plus the authority check: signer is the leaf's
+     * voting_wallet, or the accepted delegate in `vote_delegation`.
      */
     splVoteAccount: TAccountMetas[3];
-    snapshotProgram: TAccountMetas[4];
-    consensusResult: TAccountMetas[5];
-    metaMerkleProof: TAccountMetas[6];
-    systemProgram: TAccountMetas[7];
+    /**
+     * accepted delegation on record only the delegate may sign, otherwise only
+     * the vote account's identity may.
+     */
+    voteDelegation: TAccountMetas[4];
+    snapshotProgram: TAccountMetas[5];
+    consensusResult: TAccountMetas[6];
+    metaMerkleProof: TAccountMetas[7];
+    systemProgram: TAccountMetas[8];
   };
   data: ModifyVoteInstructionData;
 };
@@ -440,12 +484,12 @@ export function parseModifyVoteInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedModifyVoteInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 8) {
+  if (instruction.accounts.length < 9) {
     throw new SolanaError(
       SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
       {
         actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 8,
+        expectedAccountMetas: 9,
       },
     );
   }
@@ -462,6 +506,7 @@ export function parseModifyVoteInstruction<
       proposal: getNextAccount(),
       vote: getNextAccount(),
       splVoteAccount: getNextAccount(),
+      voteDelegation: getNextAccount(),
       snapshotProgram: getNextAccount(),
       consensusResult: getNextAccount(),
       metaMerkleProof: getNextAccount(),

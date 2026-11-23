@@ -48,6 +48,8 @@ export const NCN_SNAPSHOT_ERROR__BALLOT_TALLIES_NOT_MAX_LENGTH = 0x177e; // 6014
 export const NCN_SNAPSHOT_ERROR__INVALID_PROPOSAL = 0x177f; // 6015
 /** SnapshotSlotNotReached: Current slot must be greater than snapshot slot */
 export const NCN_SNAPSHOT_ERROR__SNAPSHOT_SLOT_NOT_REACHED = 0x1780; // 6016
+/** VoteExpiryTooSoon: Vote expiry slot must leave the minimum required voting window after the snapshot */
+export const NCN_SNAPSHOT_ERROR__VOTE_EXPIRY_TOO_SOON = 0x1781; // 6017
 
 export type NcnSnapshotError =
   | typeof NCN_SNAPSHOT_ERROR__BALLOT_TALLIES_NOT_MAX_LENGTH
@@ -65,6 +67,7 @@ export type NcnSnapshotError =
   | typeof NCN_SNAPSHOT_ERROR__OVERLAPPING_WHITELIST_ENTRIES
   | typeof NCN_SNAPSHOT_ERROR__SNAPSHOT_SLOT_NOT_REACHED
   | typeof NCN_SNAPSHOT_ERROR__VEC_FULL
+  | typeof NCN_SNAPSHOT_ERROR__VOTE_EXPIRY_TOO_SOON
   | typeof NCN_SNAPSHOT_ERROR__VOTING_EXPIRED
   | typeof NCN_SNAPSHOT_ERROR__VOTING_NOT_EXPIRED;
 
@@ -86,6 +89,7 @@ if (process.env["NODE_ENV"] !== "production") {
     [NCN_SNAPSHOT_ERROR__OVERLAPPING_WHITELIST_ENTRIES]: `Overlapping operators in add and remove lists`,
     [NCN_SNAPSHOT_ERROR__SNAPSHOT_SLOT_NOT_REACHED]: `Current slot must be greater than snapshot slot`,
     [NCN_SNAPSHOT_ERROR__VEC_FULL]: `Vector size exceeded`,
+    [NCN_SNAPSHOT_ERROR__VOTE_EXPIRY_TOO_SOON]: `Vote expiry slot must leave the minimum required voting window after the snapshot`,
     [NCN_SNAPSHOT_ERROR__VOTING_EXPIRED]: `Voting has expired`,
     [NCN_SNAPSHOT_ERROR__VOTING_NOT_EXPIRED]: `Voting not expired`,
   };

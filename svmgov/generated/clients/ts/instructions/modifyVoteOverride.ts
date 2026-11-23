@@ -72,6 +72,7 @@ export type ModifyVoteOverrideInstruction<
   TAccountVoteOverride extends string | AccountMeta<string> = string,
   TAccountVoteOverrideCache extends string | AccountMeta<string> = string,
   TAccountSplStakeAccount extends string | AccountMeta<string> = string,
+  TAccountVoteDelegation extends string | AccountMeta<string> = string,
   TAccountSnapshotProgram extends string | AccountMeta<string> = string,
   TAccountConsensusResult extends string | AccountMeta<string> = string,
   TAccountMetaMerkleProof extends string | AccountMeta<string> = string,
@@ -104,6 +105,9 @@ export type ModifyVoteOverrideInstruction<
       TAccountSplStakeAccount extends string
         ? ReadonlyAccount<TAccountSplStakeAccount>
         : TAccountSplStakeAccount,
+      TAccountVoteDelegation extends string
+        ? ReadonlyAccount<TAccountVoteDelegation>
+        : TAccountVoteDelegation,
       TAccountSnapshotProgram extends string
         ? ReadonlyAccount<TAccountSnapshotProgram>
         : TAccountSnapshotProgram,
@@ -189,6 +193,7 @@ export type ModifyVoteOverrideAsyncInput<
   TAccountVoteOverride extends string = string,
   TAccountVoteOverrideCache extends string = string,
   TAccountSplStakeAccount extends string = string,
+  TAccountVoteDelegation extends string = string,
   TAccountSnapshotProgram extends string = string,
   TAccountConsensusResult extends string = string,
   TAccountMetaMerkleProof extends string = string,
@@ -207,6 +212,11 @@ export type ModifyVoteOverrideAsyncInput<
   voteOverride?: Address<TAccountVoteOverride>;
   voteOverrideCache?: Address<TAccountVoteOverrideCache>;
   splStakeAccount: Address<TAccountSplStakeAccount>;
+  /**
+   * exist. With an accepted delegation on record only the delegate may sign,
+   * otherwise only the voting wallet may.
+   */
+  voteDelegation: Address<TAccountVoteDelegation>;
   snapshotProgram: Address<TAccountSnapshotProgram>;
   consensusResult: Address<TAccountConsensusResult>;
   metaMerkleProof: Address<TAccountMetaMerkleProof>;
@@ -226,6 +236,7 @@ export async function getModifyVoteOverrideInstructionAsync<
   TAccountVoteOverride extends string,
   TAccountVoteOverrideCache extends string,
   TAccountSplStakeAccount extends string,
+  TAccountVoteDelegation extends string,
   TAccountSnapshotProgram extends string,
   TAccountConsensusResult extends string,
   TAccountMetaMerkleProof extends string,
@@ -240,6 +251,7 @@ export async function getModifyVoteOverrideInstructionAsync<
     TAccountVoteOverride,
     TAccountVoteOverrideCache,
     TAccountSplStakeAccount,
+    TAccountVoteDelegation,
     TAccountSnapshotProgram,
     TAccountConsensusResult,
     TAccountMetaMerkleProof,
@@ -256,6 +268,7 @@ export async function getModifyVoteOverrideInstructionAsync<
     TAccountVoteOverride,
     TAccountVoteOverrideCache,
     TAccountSplStakeAccount,
+    TAccountVoteDelegation,
     TAccountSnapshotProgram,
     TAccountConsensusResult,
     TAccountMetaMerkleProof,
@@ -281,6 +294,7 @@ export async function getModifyVoteOverrideInstructionAsync<
       value: input.splStakeAccount ?? null,
       isWritable: false,
     },
+    voteDelegation: { value: input.voteDelegation ?? null, isWritable: false },
     snapshotProgram: {
       value: input.snapshotProgram ?? null,
       isWritable: false,
@@ -360,6 +374,7 @@ export async function getModifyVoteOverrideInstructionAsync<
       getAccountMeta("voteOverride", accounts.voteOverride),
       getAccountMeta("voteOverrideCache", accounts.voteOverrideCache),
       getAccountMeta("splStakeAccount", accounts.splStakeAccount),
+      getAccountMeta("voteDelegation", accounts.voteDelegation),
       getAccountMeta("snapshotProgram", accounts.snapshotProgram),
       getAccountMeta("consensusResult", accounts.consensusResult),
       getAccountMeta("metaMerkleProof", accounts.metaMerkleProof),
@@ -378,6 +393,7 @@ export async function getModifyVoteOverrideInstructionAsync<
     TAccountVoteOverride,
     TAccountVoteOverrideCache,
     TAccountSplStakeAccount,
+    TAccountVoteDelegation,
     TAccountSnapshotProgram,
     TAccountConsensusResult,
     TAccountMetaMerkleProof,
@@ -393,6 +409,7 @@ export type ModifyVoteOverrideInput<
   TAccountVoteOverride extends string = string,
   TAccountVoteOverrideCache extends string = string,
   TAccountSplStakeAccount extends string = string,
+  TAccountVoteDelegation extends string = string,
   TAccountSnapshotProgram extends string = string,
   TAccountConsensusResult extends string = string,
   TAccountMetaMerkleProof extends string = string,
@@ -411,6 +428,11 @@ export type ModifyVoteOverrideInput<
   voteOverride: Address<TAccountVoteOverride>;
   voteOverrideCache: Address<TAccountVoteOverrideCache>;
   splStakeAccount: Address<TAccountSplStakeAccount>;
+  /**
+   * exist. With an accepted delegation on record only the delegate may sign,
+   * otherwise only the voting wallet may.
+   */
+  voteDelegation: Address<TAccountVoteDelegation>;
   snapshotProgram: Address<TAccountSnapshotProgram>;
   consensusResult: Address<TAccountConsensusResult>;
   metaMerkleProof: Address<TAccountMetaMerkleProof>;
@@ -430,6 +452,7 @@ export function getModifyVoteOverrideInstruction<
   TAccountVoteOverride extends string,
   TAccountVoteOverrideCache extends string,
   TAccountSplStakeAccount extends string,
+  TAccountVoteDelegation extends string,
   TAccountSnapshotProgram extends string,
   TAccountConsensusResult extends string,
   TAccountMetaMerkleProof extends string,
@@ -444,6 +467,7 @@ export function getModifyVoteOverrideInstruction<
     TAccountVoteOverride,
     TAccountVoteOverrideCache,
     TAccountSplStakeAccount,
+    TAccountVoteDelegation,
     TAccountSnapshotProgram,
     TAccountConsensusResult,
     TAccountMetaMerkleProof,
@@ -459,6 +483,7 @@ export function getModifyVoteOverrideInstruction<
   TAccountVoteOverride,
   TAccountVoteOverrideCache,
   TAccountSplStakeAccount,
+  TAccountVoteDelegation,
   TAccountSnapshotProgram,
   TAccountConsensusResult,
   TAccountMetaMerkleProof,
@@ -483,6 +508,7 @@ export function getModifyVoteOverrideInstruction<
       value: input.splStakeAccount ?? null,
       isWritable: false,
     },
+    voteDelegation: { value: input.voteDelegation ?? null, isWritable: false },
     snapshotProgram: {
       value: input.snapshotProgram ?? null,
       isWritable: false,
@@ -521,6 +547,7 @@ export function getModifyVoteOverrideInstruction<
       getAccountMeta("voteOverride", accounts.voteOverride),
       getAccountMeta("voteOverrideCache", accounts.voteOverrideCache),
       getAccountMeta("splStakeAccount", accounts.splStakeAccount),
+      getAccountMeta("voteDelegation", accounts.voteDelegation),
       getAccountMeta("snapshotProgram", accounts.snapshotProgram),
       getAccountMeta("consensusResult", accounts.consensusResult),
       getAccountMeta("metaMerkleProof", accounts.metaMerkleProof),
@@ -539,6 +566,7 @@ export function getModifyVoteOverrideInstruction<
     TAccountVoteOverride,
     TAccountVoteOverrideCache,
     TAccountSplStakeAccount,
+    TAccountVoteDelegation,
     TAccountSnapshotProgram,
     TAccountConsensusResult,
     TAccountMetaMerkleProof,
@@ -565,10 +593,15 @@ export type ParsedModifyVoteOverrideInstruction<
     voteOverride: TAccountMetas[4];
     voteOverrideCache: TAccountMetas[5];
     splStakeAccount: TAccountMetas[6];
-    snapshotProgram: TAccountMetas[7];
-    consensusResult: TAccountMetas[8];
-    metaMerkleProof: TAccountMetas[9];
-    systemProgram: TAccountMetas[10];
+    /**
+     * exist. With an accepted delegation on record only the delegate may sign,
+     * otherwise only the voting wallet may.
+     */
+    voteDelegation: TAccountMetas[7];
+    snapshotProgram: TAccountMetas[8];
+    consensusResult: TAccountMetas[9];
+    metaMerkleProof: TAccountMetas[10];
+    systemProgram: TAccountMetas[11];
   };
   data: ModifyVoteOverrideInstructionData;
 };
@@ -581,12 +614,12 @@ export function parseModifyVoteOverrideInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedModifyVoteOverrideInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 11) {
+  if (instruction.accounts.length < 12) {
     throw new SolanaError(
       SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
       {
         actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 11,
+        expectedAccountMetas: 12,
       },
     );
   }
@@ -606,6 +639,7 @@ export function parseModifyVoteOverrideInstruction<
       voteOverride: getNextAccount(),
       voteOverrideCache: getNextAccount(),
       splStakeAccount: getNextAccount(),
+      voteDelegation: getNextAccount(),
       snapshotProgram: getNextAccount(),
       consensusResult: getNextAccount(),
       metaMerkleProof: getNextAccount(),

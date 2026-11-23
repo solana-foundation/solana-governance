@@ -1,0 +1,12 @@
+[package]
+name = "webpki-roots"
+version = "0.24.0"
+edition = "2018"
+readme = "README.md"
+license = "MPL-2.0"
+description = "Mozilla's CA root certificates for use with webpki"
+homepage = "https://github.com/rustls/webpki-roots"
+repository = "https://github.com/rustls/webpki-roots"
+
+[dependencies]
+webpki = { package = "rustls-webpki", version = "0.101.0" }

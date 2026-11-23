@@ -1,7 +1,14 @@
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
 interface VoteItemProps {
   label: string;
   amount: string;
   percentage: string;
+  stakePercentage: string | undefined;
   color: string;
 }
 
@@ -9,6 +16,7 @@ export default function VoteItem({
   label,
   amount,
   percentage,
+  stakePercentage,
   color,
 }: VoteItemProps) {
   return (
@@ -23,9 +31,26 @@ export default function VoteItem({
         <p className="text-xs md:text-xs lg:text-sm font-semibold text-foreground/30">
           {amount}
         </p>
-        <p className="text-xs md:text-xs lg:text-sm font-semibold text-foreground/30">
-          {percentage}
-        </p>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label={`${label} share of votes: ${percentage}. Show share of total stake.`}
+              className="cursor-help border-b border-dotted border-white/30 text-xs font-semibold text-foreground/50 tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 md:text-xs lg:text-sm"
+            >
+              {percentage}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent
+            side="top"
+            sideOffset={6}
+            className="border border-white/10 bg-background/95 px-3 py-2 text-foreground shadow-lg"
+          >
+            {stakePercentage === undefined
+              ? "Share of total stake unavailable for this snapshot."
+              : `${label}: ${stakePercentage} of total stake.`}
+          </TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );

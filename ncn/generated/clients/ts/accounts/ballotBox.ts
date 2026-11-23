@@ -23,8 +23,6 @@ import {
   getBooleanEncoder,
   getBytesDecoder,
   getBytesEncoder,
-  getI64Decoder,
-  getI64Encoder,
   getStructDecoder,
   getStructEncoder,
   getU16Decoder,
@@ -90,11 +88,8 @@ export type BallotBox = {
    * one vote; tallies are not stake-weighted.
    */
   ballotTallies: Array<BallotTally>;
-  /**
-   * Timestamp when voting ends. Tie breaker admin will decide the results
-   * if no consensus is reached by then.
-   */
-  voteExpiryTimestamp: bigint;
+  /** Slot when voting ends. */
+  voteExpirySlot: bigint;
   /** Slot for which the snapshot is taken */
   snapshotSlot: bigint;
   /** Snapshot of whitelisted operators at BallotBox creation */
@@ -123,11 +118,8 @@ export type BallotBoxArgs = {
    * one vote; tallies are not stake-weighted.
    */
   ballotTallies: Array<BallotTallyArgs>;
-  /**
-   * Timestamp when voting ends. Tie breaker admin will decide the results
-   * if no consensus is reached by then.
-   */
-  voteExpiryTimestamp: number | bigint;
+  /** Slot when voting ends. */
+  voteExpirySlot: number | bigint;
   /** Slot for which the snapshot is taken */
   snapshotSlot: number | bigint;
   /** Snapshot of whitelisted operators at BallotBox creation */
@@ -149,7 +141,7 @@ export function getBallotBoxEncoder(): Encoder<BallotBoxArgs> {
       ["winningBallot", getBallotEncoder()],
       ["operatorVotes", getArrayEncoder(getOperatorVoteEncoder())],
       ["ballotTallies", getArrayEncoder(getBallotTallyEncoder())],
-      ["voteExpiryTimestamp", getI64Encoder()],
+      ["voteExpirySlot", getU64Encoder()],
       ["snapshotSlot", getU64Encoder()],
       ["voterList", getArrayEncoder(getAddressEncoder())],
       ["tieBreakerConsensus", getBooleanEncoder()],
@@ -170,7 +162,7 @@ export function getBallotBoxDecoder(): Decoder<BallotBox> {
     ["winningBallot", getBallotDecoder()],
     ["operatorVotes", getArrayDecoder(getOperatorVoteDecoder())],
     ["ballotTallies", getArrayDecoder(getBallotTallyDecoder())],
-    ["voteExpiryTimestamp", getI64Decoder()],
+    ["voteExpirySlot", getU64Decoder()],
     ["snapshotSlot", getU64Decoder()],
     ["voterList", getArrayDecoder(getAddressDecoder())],
     ["tieBreakerConsensus", getBooleanDecoder()],

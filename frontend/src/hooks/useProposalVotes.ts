@@ -103,6 +103,7 @@ export const useProposalVotes = (proposalPublicKey: Address | undefined) => {
           validatorName,
           validatorIdentity: identity,
           validatorImage: validator?.image ?? null,
+          validatorVoteAddress: v.voter,
           stakedLamports,
           votePercentage,
           voteTimestamp,
@@ -145,6 +146,7 @@ export const useProposalVotes = (proposalPublicKey: Address | undefined) => {
           votePercentage,
           voteTimestamp,
           stakeAccount: v.stakeAccount,
+          validatorVoteAddress: v.voteAccountValidator,
           voteData: {
             forVotesBp: v.forVotesBp,
             againstVotesBp: v.againstVotesBp,

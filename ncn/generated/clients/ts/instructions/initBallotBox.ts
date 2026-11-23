@@ -94,12 +94,14 @@ export type InitBallotBoxInstructionData = {
   snapshotSlot: bigint;
   proposalSeed: bigint;
   splVoteAccount: Address;
+  voteExpirySlot: bigint;
 };
 
 export type InitBallotBoxInstructionDataArgs = {
   snapshotSlot: number | bigint;
   proposalSeed: number | bigint;
   splVoteAccount: Address;
+  voteExpirySlot: number | bigint;
 };
 
 export function getInitBallotBoxInstructionDataEncoder(): FixedSizeEncoder<InitBallotBoxInstructionDataArgs> {
@@ -109,6 +111,7 @@ export function getInitBallotBoxInstructionDataEncoder(): FixedSizeEncoder<InitB
       ["snapshotSlot", getU64Encoder()],
       ["proposalSeed", getU64Encoder()],
       ["splVoteAccount", getAddressEncoder()],
+      ["voteExpirySlot", getU64Encoder()],
     ]),
     (value) => ({ ...value, discriminator: INIT_BALLOT_BOX_DISCRIMINATOR }),
   );
@@ -120,6 +123,7 @@ export function getInitBallotBoxInstructionDataDecoder(): FixedSizeDecoder<InitB
     ["snapshotSlot", getU64Decoder()],
     ["proposalSeed", getU64Decoder()],
     ["splVoteAccount", getAddressDecoder()],
+    ["voteExpirySlot", getU64Decoder()],
   ]);
 }
 
@@ -153,6 +157,7 @@ export type InitBallotBoxAsyncInput<
   snapshotSlot: InitBallotBoxInstructionDataArgs["snapshotSlot"];
   proposalSeed: InitBallotBoxInstructionDataArgs["proposalSeed"];
   splVoteAccount: InitBallotBoxInstructionDataArgs["splVoteAccount"];
+  voteExpirySlot: InitBallotBoxInstructionDataArgs["voteExpirySlot"];
 };
 
 export async function getInitBallotBoxInstructionAsync<
@@ -257,6 +262,7 @@ export type InitBallotBoxInput<
   snapshotSlot: InitBallotBoxInstructionDataArgs["snapshotSlot"];
   proposalSeed: InitBallotBoxInstructionDataArgs["proposalSeed"];
   splVoteAccount: InitBallotBoxInstructionDataArgs["splVoteAccount"];
+  voteExpirySlot: InitBallotBoxInstructionDataArgs["voteExpirySlot"];
 };
 
 export function getInitBallotBoxInstruction<

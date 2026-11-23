@@ -76,7 +76,7 @@ export type FlushMerkleRootInstruction<
         ? ReadonlyAccount<TAccountSplVoteAccount>
         : TAccountSplVoteAccount,
       TAccountBallotBox extends string
-        ? ReadonlyAccount<TAccountBallotBox>
+        ? WritableAccount<TAccountBallotBox>
         : TAccountBallotBox,
       TAccountBallotProgram extends string
         ? ReadonlyAccount<TAccountBallotProgram>
@@ -193,7 +193,7 @@ export async function getFlushMerkleRootInstructionAsync<
     signer: { value: input.signer ?? null, isWritable: true },
     proposal: { value: input.proposal ?? null, isWritable: true },
     splVoteAccount: { value: input.splVoteAccount ?? null, isWritable: false },
-    ballotBox: { value: input.ballotBox ?? null, isWritable: false },
+    ballotBox: { value: input.ballotBox ?? null, isWritable: true },
     ballotProgram: { value: input.ballotProgram ?? null, isWritable: false },
     programConfig: { value: input.programConfig ?? null, isWritable: false },
     globalConfig: { value: input.globalConfig ?? null, isWritable: false },
@@ -316,7 +316,7 @@ export function getFlushMerkleRootInstruction<
     signer: { value: input.signer ?? null, isWritable: true },
     proposal: { value: input.proposal ?? null, isWritable: true },
     splVoteAccount: { value: input.splVoteAccount ?? null, isWritable: false },
-    ballotBox: { value: input.ballotBox ?? null, isWritable: false },
+    ballotBox: { value: input.ballotBox ?? null, isWritable: true },
     ballotProgram: { value: input.ballotProgram ?? null, isWritable: false },
     programConfig: { value: input.programConfig ?? null, isWritable: false },
     globalConfig: { value: input.globalConfig ?? null, isWritable: false },

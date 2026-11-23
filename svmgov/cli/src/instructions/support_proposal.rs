@@ -1,10 +1,10 @@
 use std::{str::FromStr, sync::Arc};
 
 use anchor_client::{
-    Program,
+    DynSigner, Program,
     solana_sdk::{
-        compute_budget::ComputeBudgetInstruction, instruction::Instruction, pubkey::Pubkey,
-        signature::Keypair, signer::Signer, transaction::Transaction,
+        compute_budget::ComputeBudgetInstruction, epoch_info::EpochInfo, instruction::Instruction,
+        pubkey::Pubkey, signer::Signer,
     },
 };
 use anchor_lang::system_program;
@@ -15,28 +15,37 @@ use crate::{
     constants::{MAX_SUPPORTERS_LIMIT, support_compute_unit_limit},
     svmgov_program::accounts::Proposal,
     svmgov_program::client::{accounts, args},
-    utils::utils::{
-        create_spinner, derive_global_config_pda, derive_program_config_pda, derive_support_pda,
-        fetch_global_config, get_epoch_slot_range, setup_all,
+    utils::{
+        squads::{RoutedOutcome, SquadsCliOpts, effective_signer, route},
+        utils::{
+            create_spinner, derive_global_config_pda, derive_program_config_pda,
+            derive_support_pda, derive_vote_delegation_pda, fetch_global_config,
+            proposal_snapshot_slot, setup_all,
+        },
     },
 };
 
 /// Builds the instructions to support a proposal, deriving the snapshot slot
-/// and all required PDAs from the current epoch and global config.
+/// and all required PDAs from `epoch_info` and the global config. The ballot
+/// box account is bound to `epoch_info.epoch`; the program checks it only when
+/// this support crosses the activation threshold, and the instruction must
+/// then execute in that same epoch.
 pub async fn build_support_proposal_instructions(
-    program: &Program<Arc<Keypair>>,
+    program: &Program<Arc<DynSigner>>,
     signer: Pubkey,
     proposal: Pubkey,
     vote_account: Pubkey,
+    epoch_info: &EpochInfo,
 ) -> Result<Vec<Instruction>> {
     let global_config = fetch_global_config(program).await?;
 
-    let epoch_info = program.rpc().get_epoch_info().await?;
-    let target_epoch =
-        epoch_info.epoch + global_config.discussion_epochs + global_config.snapshot_epoch_extension;
-
-    let (start_slot, _) = get_epoch_slot_range(target_epoch);
-    let snapshot_slot = ((start_slot as i64) + global_config.snapshot_slot_offset) as u64;
+    let snapshot_slot = proposal_snapshot_slot(
+        epoch_info.epoch,
+        epoch_info.absolute_slot,
+        global_config.discussion_epochs,
+        global_config.snapshot_epoch_extension,
+        global_config.snapshot_slot_offset,
+    )?;
 
     let ballot_box_pda = {
         let seeds = &[b"BallotBox".as_ref(), &snapshot_slot.to_le_bytes()];
@@ -56,6 +65,7 @@ pub async fn build_support_proposal_instructions(
             proposal,
             support: support_pda,
             spl_vote_account: vote_account,
+            vote_delegation: derive_vote_delegation_pda(&vote_account, &program.id()),
             ballot_box: ballot_box_pda,
             program_config: program_config_pda,
             ballot_program: SNAPSHOT_PROGRAM_ID,
@@ -67,17 +77,35 @@ pub async fn build_support_proposal_instructions(
     Ok(instructions)
 }
 
+/// Explains that a vault transaction whose support was built in `epoch` must
+/// execute within that epoch to be able to activate voting.
+pub fn squads_epoch_notice(epoch: u64) -> String {
+    format!(
+        "Execute this vault transaction by the end of epoch {epoch}. Its ballot box account is \
+         bound to that epoch, so if it is the support that crosses the activation threshold in a \
+         later epoch the program rejects it with InvalidBallotBox; cancel it in Squads and re-run \
+         this command."
+    )
+}
+
 pub async fn support_proposal(
     proposal_id: String,
     identity_keypair: Option<String>,
     rpc_url: Option<String>,
     _network: String,
+    vote_account_override: Option<String>,
+    squads: Option<SquadsCliOpts>,
 ) -> Result<()> {
     let proposal_pubkey = Pubkey::from_str(&proposal_id)
         .map_err(|_| anyhow!("Invalid proposal ID: {}", proposal_id))?;
 
-    let (payer, vote_account, program, _merkle_proof_program) =
-        setup_all(identity_keypair, rpc_url).await?;
+    let (payer, vote_account, program, _merkle_proof_program) = setup_all(
+        identity_keypair,
+        rpc_url,
+        vote_account_override,
+        squads.as_ref(),
+    )
+    .await?;
 
     // The handler re-tallies every existing supporter, so the compute budget is
     // sized from the current list length rather than a flat worst case. If the
@@ -116,39 +144,51 @@ pub async fn support_proposal(
     };
     let compute_unit_limit = support_compute_unit_limit(num_supporters);
 
-    let mut instructions = vec![ComputeBudgetInstruction::set_compute_unit_limit(
-        compute_unit_limit,
-    )];
+    // A compute budget instruction only applies to the transaction it is a
+    // top-level instruction of. Inside a vault transaction it would do nothing,
+    // so under Squads the budget is left to whoever executes the proposal.
+    let mut instructions = match squads {
+        None => vec![ComputeBudgetInstruction::set_compute_unit_limit(
+            compute_unit_limit,
+        )],
+        Some(_) => Vec::new(),
+    };
 
     let spinner = create_spinner("Supporting proposal...");
 
+    let signer = effective_signer(squads.as_ref(), payer.pubkey());
+    let epoch_info = program.rpc().get_epoch_info().await?;
     instructions.append(
         &mut build_support_proposal_instructions(
             &program,
-            payer.pubkey(),
+            signer,
             proposal_pubkey,
             vote_account,
+            &epoch_info,
         )
         .await?,
     );
 
-    let blockhash = program.rpc().get_latest_blockhash().await?;
-    let transaction = Transaction::new_signed_with_payer(
-        &instructions,
-        Some(&payer.pubkey()),
-        &[&payer],
-        blockhash,
-    );
+    let rpc = program.rpc();
+    let squads_config = squads.as_ref().map(|opts| opts.to_config(payer.pubkey()));
+    let outcome = route(
+        &rpc,
+        instructions,
+        Vec::new(),
+        &[payer.as_ref()],
+        squads_config.as_ref(),
+    )
+    .await?;
 
-    let sig = program
-        .rpc()
-        .send_and_confirm_transaction(&transaction)
-        .await?;
-
-    spinner.finish_with_message(format!(
-        "Proposal supported. https://explorer.solana.com/tx/{}",
-        sig
-    ));
+    spinner.finish_and_clear();
+    println!("{}", outcome.format_structured());
+    if matches!(outcome, RoutedOutcome::Squads { .. }) {
+        println!(
+            "Executing this vault transaction needs about {compute_unit_limit} compute units; \
+             raise the compute unit limit when executing it in Squads."
+        );
+        println!("{}", squads_epoch_notice(epoch_info.epoch));
+    }
 
     Ok(())
 }

@@ -12,6 +12,7 @@ import {
   type StakeMerkleLeaf,
 } from "@solana/ncn-snapshot";
 import {
+  findVoteDelegationPda,
   getCastVoteInstructionAsync,
   getCastVoteOverrideInstructionAsync,
   getCreateProposalInstructionAsync,
@@ -19,6 +20,7 @@ import {
   getModifyVoteInstructionAsync,
   getModifyVoteOverrideInstructionAsync,
   getSupportProposalInstructionAsync,
+  getUpdateProposalDescriptionInstructionAsync,
 } from "@solana/svmgov";
 import type { VoteAccountProof } from "./ncnProofs";
 
@@ -33,6 +35,15 @@ export async function buildCreateProposalInstruction(input: {
   description: string; signer: TransactionModifyingSigner; splVoteAccount: Address; title: string;
 }) {
   return getCreateProposalInstructionAsync({ ...input, seed: crypto.getRandomValues(new BigUint64Array(1))[0] });
+}
+
+export async function buildUpdateProposalDescriptionInstruction(input: {
+  description: string; proposal: Address; signer: TransactionModifyingSigner; voteAccount: Address;
+}) {
+  const [voteDelegation] = await findVoteDelegationPda({ splVoteAccount: input.voteAccount });
+  return getUpdateProposalDescriptionInstructionAsync({
+    description: input.description, proposal: input.proposal, signer: input.signer, voteDelegation,
+  });
 }
 
 export function buildFinalizeProposalInstruction(input: { proposal: Address; signer: TransactionModifyingSigner }) {
@@ -117,13 +128,18 @@ async function buildOverride(
     stakeAccount: Address; stakeMerkleLeaf: StakeMerkleLeaf; stakeMerkleProof: readonly Address[]; voteAccount: Address;
   },
 ) {
-  const [metaMerkleProof] = await findMetaMerkleProofPda({ consensusResult: input.consensusResult, voteAccount: input.voteAccount });
+  const [[metaMerkleProof], [voteDelegation]] = await Promise.all([
+    findMetaMerkleProofPda({ consensusResult: input.consensusResult, voteAccount: input.voteAccount }),
+    // Keyed by the staker's voting wallet, whose accepted delegate may override in its place.
+    findVoteDelegationPda({ splVoteAccount: input.stakeMerkleLeaf.votingWallet }),
+  ]);
   const args = {
     ...basisPoints(input.distribution), consensusResult: input.consensusResult, metaMerkleProof,
     proposal: input.proposal, signer: input.signer, snapshotProgram: NCN_SNAPSHOT_PROGRAM_ADDRESS,
     splStakeAccount: input.stakeAccount, splVoteAccount: input.voteAccount,
     stakeMerkleLeaf: input.stakeMerkleLeaf,
     stakeMerkleProof: input.stakeMerkleProof.map((node) => getAddressEncoder().encode(node)),
+    voteDelegation,
   };
   return modify ? getModifyVoteOverrideInstructionAsync(args) : getCastVoteOverrideInstructionAsync(args);
 }

@@ -20,7 +20,7 @@ pub fn handler(ctx: Context<RemoveVote>) -> Result<()> {
     );
 
     require!(
-        !ballot_box.has_vote_expired(Clock::get()?.unix_timestamp),
+        !ballot_box.has_vote_expired(Clock::get()?.slot),
         ErrorCode::VotingExpired
     );
     require!(

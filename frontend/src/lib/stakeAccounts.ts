@@ -4,15 +4,12 @@ import {
   type StakeStateAccount,
 } from "@solana-program/stake";
 import {
-  getAddressEncoder,
-  getBase64Decoder,
   parseBase64RpcAccount,
   type Account,
   type Address,
-  type Base64EncodedBytes,
+  type Base58EncodedBytes,
   type GetEpochInfoApi,
   type GetProgramAccountsApi,
-  type ReadonlyUint8Array,
   type Rpc,
 } from "@solana/kit";
 
@@ -31,16 +28,11 @@ export type WalletStakeAccount = {
   withdrawer: Address;
 };
 
-function toBase64Bytes(bytes: ReadonlyUint8Array): Base64EncodedBytes {
-  return getBase64Decoder().decode(bytes) as Base64EncodedBytes;
-}
-
-function memcmp(offset: bigint, bytes: Base64EncodedBytes) {
-  return { memcmp: { bytes, encoding: "base64" as const, offset } };
-}
-
-function addressBytes(address: Address): Base64EncodedBytes {
-  return toBase64Bytes(getAddressEncoder().encode(address));
+// Base58 because the RPC proxy only admits stake scans keyed by a base58 public key.
+function addressMemcmp(offset: bigint, address: Address) {
+  return {
+    memcmp: { bytes: address as string as Base58EncodedBytes, encoding: "base58" as const, offset },
+  };
 }
 
 export function getStakeAccountStatus(
@@ -63,7 +55,7 @@ async function fetchStakeAccountsByFilter(
       encoding: "base64",
       filters: [
         { dataSize: STAKE_ACCOUNT_SIZE },
-        memcmp(offset, addressBytes(address)),
+        addressMemcmp(offset, address),
       ],
     })
     .send();

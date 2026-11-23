@@ -5,12 +5,15 @@ import { calculateTimeAgo } from "@/helpers";
 import { bigintToSafeNumber } from "@/helpers/bigint";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { CheckIcon, CopyIcon, Github } from "lucide-react";
-import { useCopyToClipboard } from "@/hooks";
+import { useCopyToClipboard, useEpochInfo, useVoteDelegation } from "@/hooks";
 import LifecycleIndicator from "@/components/ui/LifecycleIndicator";
 import { formatAddress } from "@/lib/governance/formatters";
 import type { ProposalRecord } from "@/types";
 import { ProposalDescription } from "../ProposalDescription";
 import { ProposalRefLabel } from "../ProposalRefLabel";
+import { AppButton } from "@/components/ui/AppButton";
+import { useModal } from "@/contexts/ModalContext";
+import { useConnector } from "@solana/connector/react";
 
 interface ProposalDetailHeaderProps {
   proposal: ProposalRecord | undefined;
@@ -38,6 +41,13 @@ export default function ProposalDetailHeader({
   isLoading,
 }: ProposalDetailHeaderProps) {
   const { copied, copyToClipboard } = useCopyToClipboard();
+  const { data: epochData } = useEpochInfo();
+  const { account } = useConnector();
+  const publicKey = account ?? undefined;
+  const { openModal } = useModal();
+  const { data: voteDelegation } = useVoteDelegation(
+    proposal?.voteAccountPubkey
+  );
 
   if (isLoading) return <ProposalDetailSkeleton />;
   if (!proposal) return <div>No proposal data...</div>;
@@ -45,6 +55,16 @@ export default function ProposalDetailHeader({
   const createdAgo = calculateTimeAgo(bigintToSafeNumber(proposal.creationTimestamp, "proposal creation timestamp"));
   const votingThrough =
     proposal.endEpoch > 0n ? proposal.endEpoch - 1n : "-";
+  // Mirrors the program: an accepted delegation hands editing to the delegate
+  // and locks the author out; otherwise only the author may edit.
+  const isUpdateAuthority = voteDelegation?.delegationAccepted
+    ? publicKey === voteDelegation.delegate
+    : publicKey === proposal.author;
+  const canUpdateDocument = isUpdateAuthority &&
+    (proposal.status === "supporting" ||
+      (proposal.voting &&
+        epochData !== undefined &&
+        epochData.epochInfo.epoch < proposal.startEpoch));
 
   return (
     <div className="glass-card space-y-6 p-6">
@@ -55,6 +75,21 @@ export default function ProposalDetailHeader({
         </div>
 
         <ProposalDescription githubUrl={proposal.description} />
+        {canUpdateDocument && (
+          <div>
+            <AppButton
+              size="default"
+              variant="outline"
+              text="Update Document"
+              onClick={() =>
+                openModal("update-proposal-description", {
+                  proposalId: proposal.publicKey,
+                  currentDescription: proposal.description,
+                })
+              }
+            />
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:flex lg:flex-wrap items-center gap-2 sm:gap-3 lg:gap-6 border-t border-white/10 pt-3 sm:pt-4 text-sm leading-none lg:leading-normal">

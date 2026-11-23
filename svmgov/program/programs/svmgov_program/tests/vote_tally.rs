@@ -33,7 +33,9 @@ const D1: u64 = 200_000_000;
 /// Validator self-stake remaining if both delegators override.
 const V_REMAINDER: u64 = V_ACTIVE - D0 - D1;
 
-/// Mirrors `calculate_vote_lamports!`: stake * bp / 10_000, floored.
+/// `stake * bp / 10_000`. Every stake in the main fixture is a multiple of
+/// 10_000 lamports, so this is exact; see the indivisible-stake suite below
+/// for the rounding behaviour.
 fn lam(stake: u64, bp: u64) -> u64 {
     ((stake as u128) * (bp as u128) / 10_000) as u64
 }
@@ -585,6 +587,93 @@ fn modify_override_then_finalize_without_validator_vote() {
         D0,
         "modified override must survive finalization without a validator vote"
     );
+}
+
+// ---------------------------------------------------------------------------
+// 10. Stakes that do not divide evenly by basis points.
+//
+// Regression for issue #13: per-option floor division dropped up to two
+// lamports per vote, so `for + against + abstain` could fall short of the
+// stake that was actually cast. Every path that converts basis points into
+// lamports is exercised here with stakes that leave a remainder: validator
+// vote, pre-vote and post-vote delegator overrides (which rescale the
+// validator's remaining stake), and both modify instructions.
+// ---------------------------------------------------------------------------
+
+/// Snapshot stakes chosen so 3_333 / 3_333 / 3_334 bp always leaves a remainder.
+const ODD_V: u64 = 1_000_000_001;
+const ODD_D0: u64 = 300_000_007;
+const ODD_D1: u64 = 200_000_003;
+
+fn odd_stake_fixture() -> (Harness, VotingScenario) {
+    let mut h = setup_harness(1, 3, 3);
+    let s = setup_voting_scenario(
+        &mut h,
+        43,
+        "Odd stakes",
+        &[
+            (0, ODD_V, &[ODD_D0, ODD_D1]),
+            (1, ODD_V, &[ODD_D0, ODD_D1]),
+            (2, ODD_V, &[ODD_D0, ODD_D1]),
+        ],
+    );
+    (h, s)
+}
+
+/// A validator's recorded lamports, plus the stake its delegators overrode,
+/// must account for every lamport of its snapshot stake.
+fn assert_vote_accounts_for_full_stake(h: &Harness, s: &VotingScenario, voter: usize) {
+    let vote = fetch_vote(h, s, voter).expect("validator vote");
+    assert_eq!(
+        vote.for_votes_lamports
+            + vote.against_votes_lamports
+            + vote.abstain_votes_lamports
+            + vote.override_lamports,
+        vote.stake,
+        "voter {voter} must cast every lamport of its stake"
+    );
+}
+
+#[test]
+fn indivisible_stakes_tally_every_lamport() {
+    let (mut h, s) = odd_stake_fixture();
+
+    // Validator 0: plain vote. Floors give 333_300_000 / 333_300_000 /
+    // 333_400_000; the dropped lamport goes to the largest option, Abstain.
+    cast_validator_vote(&mut h, &s, 0, 3_333, 3_333, 3_334);
+    let vote = fetch_vote(&h, &s, 0).expect("validator 0 vote");
+    assert_eq!(
+        (
+            vote.for_votes_lamports,
+            vote.against_votes_lamports,
+            vote.abstain_votes_lamports,
+        ),
+        (333_300_000, 333_300_000, 333_400_001)
+    );
+
+    // Validator 1: override before the vote (cache drain rescales the
+    // validator to ODD_V - ODD_D0), then a second override after it.
+    cast_delegator_override(&mut h, &s, 1, 0, 3_333, 3_333, 3_334);
+    cast_validator_vote(&mut h, &s, 1, 3_333, 3_333, 3_334);
+    cast_delegator_override(&mut h, &s, 1, 1, 3_333, 3_333, 3_334);
+
+    // Validator 2: vote, post-vote override, then modify both.
+    cast_validator_vote(&mut h, &s, 2, 5_000, 5_000, 0);
+    cast_delegator_override(&mut h, &s, 2, 0, 1, 9_999, 0);
+    modify_validator_vote(&mut h, &s, 2, 3_333, 3_333, 3_334);
+    modify_delegator_override(&mut h, &s, 2, 0, 3_333, 3_333, 3_334);
+
+    for voter in 0..3 {
+        assert_vote_accounts_for_full_stake(&h, &s, voter);
+    }
+
+    let state = finalize_proposal(&mut h, &s);
+    assert_eq!(
+        state.for_votes_lamports + state.against_votes_lamports + state.abstain_votes_lamports,
+        3 * ODD_V,
+        "proposal totals must equal the full snapshot stake of every voter"
+    );
+    assert_eq!(state.vote_count, 6);
 }
 
 // ---------------------------------------------------------------------------

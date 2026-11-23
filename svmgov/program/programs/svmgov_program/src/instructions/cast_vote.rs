@@ -4,12 +4,13 @@ use anchor_lang::{
 };
 
 use crate::{
-    calculate_vote_lamports,
     constants::*,
     error::GovernanceError,
     events::VoteCast,
     merkle_helpers::verify_merkle_proof_cpi,
-    state::{Proposal, Vote, VoteOverrideCache},
+    state::{Proposal, Vote, VoteDelegation, VoteOverrideCache},
+    utils::{split_vote_lamports, VoteLamports},
+    vote_authority::{delegate_signer, require_vote_authority},
 };
 use ncn_snapshot::{ConsensusResult, MetaMerkleProof};
 
@@ -29,13 +30,22 @@ pub struct CastVote<'info> {
     pub vote: Account<'info, Vote>, // New vote account
     /// CHECK: Owner == vote program and account size == VoteState::size_of() are
     /// enforced here. The signer-to-vote-account binding is proved in the handler
-    /// via the meta merkle proof: voting_wallet == signer AND vote_account ==
-    /// spl_vote_account, both anchored to proposal.consensus_result.
+    /// via the meta merkle proof (vote_account == spl_vote_account, anchored to
+    /// proposal.consensus_result) plus the authority check: signer is the leaf's
+    /// voting_wallet, or the accepted delegate in `vote_delegation`.
     #[account(
         constraint = spl_vote_account.owner == &vote_program::ID @ ProgramError::InvalidAccountOwner,
         constraint = spl_vote_account.data_len() == VoteState::size_of() @ GovernanceError::InvalidVoteAccountSize
     )]
     pub spl_vote_account: UncheckedAccount<'info>,
+    /// CHECK: VoteDelegation PDA for `spl_vote_account`; may not exist. With an
+    /// accepted delegation on record only the delegate may sign, otherwise only
+    /// the vote account's identity may.
+    #[account(
+        seeds = [VoteDelegation::SEED, spl_vote_account.key().as_ref()],
+        bump
+    )]
+    pub vote_delegation: UncheckedAccount<'info>,
     /// CHECK: Vote override cache account. Might not yet exist
     #[account(
         seeds = [b"vote_override_cache", proposal.key().as_ref(), vote.key().as_ref()],
@@ -130,12 +140,15 @@ impl<'info> CastVote<'info> {
             GovernanceError::InvalidConsensusResultPDA
         );
 
-        // Ensure leaf matches signer and has sufficient stake
-        require_eq!(
-            meta_merkle_leaf.voting_wallet,
-            self.signer.key(),
-            GovernanceError::InvalidVoteAccount
-        );
+        // Ensure the signer holds governance authority for the leaf's vote account
+        // (its voting wallet, or the accepted delegate) and the leaf has stake
+        require_vote_authority(
+            &self.signer.key(),
+            &meta_merkle_leaf.voting_wallet,
+            &self.vote_delegation,
+            &self.spl_vote_account.key(),
+            GovernanceError::UnauthorizedVoteSigner,
+        )?;
         require_gt!(
             meta_merkle_leaf.active_stake,
             0u64,
@@ -156,11 +169,17 @@ impl<'info> CastVote<'info> {
             None,
         )?;
 
-        // Calculate effective votes for each category based on actual lamports
         let voter_stake = meta_merkle_leaf.active_stake;
-        let for_votes_lamports = calculate_vote_lamports!(voter_stake, for_votes_bp)?;
-        let against_votes_lamports = calculate_vote_lamports!(voter_stake, against_votes_bp)?;
-        let abstain_votes_lamports = calculate_vote_lamports!(voter_stake, abstain_votes_bp)?;
+        let VoteLamports {
+            for_votes: for_votes_lamports,
+            against_votes: against_votes_lamports,
+            abstain_votes: abstain_votes_lamports,
+        } = split_vote_lamports(
+            voter_stake,
+            for_votes_bp,
+            against_votes_bp,
+            abstain_votes_bp,
+        )?;
 
         // Check if override cache PDA exists and has been initialized.
         // If it does, delegators overrode before this validator vote. Their
@@ -183,13 +202,16 @@ impl<'info> CastVote<'info> {
                 .checked_sub(override_cache.total_stake)
                 .ok_or(GovernanceError::ArithmeticOverflow)?;
 
-            // Calculate new validator votes for each category based on actual lamports
-            let for_votes_lamports_new =
-                calculate_vote_lamports!(new_validator_stake, for_votes_bp)?;
-            let against_votes_lamports_new =
-                calculate_vote_lamports!(new_validator_stake, against_votes_bp)?;
-            let abstain_votes_lamports_new =
-                calculate_vote_lamports!(new_validator_stake, abstain_votes_bp)?;
+            let VoteLamports {
+                for_votes: for_votes_lamports_new,
+                against_votes: against_votes_lamports_new,
+                abstain_votes: abstain_votes_lamports_new,
+            } = split_vote_lamports(
+                new_validator_stake,
+                for_votes_bp,
+                against_votes_bp,
+                abstain_votes_bp,
+            )?;
 
             // Add validator's reduced votes to proposal
             self.proposal.add_vote_lamports(
@@ -200,7 +222,7 @@ impl<'info> CastVote<'info> {
 
             // Initialize the Vote PDA with all required fields
             self.vote.set_inner(Vote {
-                validator: self.signer.key(),
+                validator: meta_merkle_leaf.voting_wallet,
                 proposal: self.proposal.key(),
                 for_votes_bp,
                 against_votes_bp,
@@ -212,12 +234,16 @@ impl<'info> CastVote<'info> {
                 stake: voter_stake,
                 vote_timestamp: clock.unix_timestamp,
                 bump: bumps.vote,
+                delegate_signer: delegate_signer(
+                    &self.signer.key(),
+                    &meta_merkle_leaf.voting_wallet,
+                ),
             });
 
             // Emit the missing VoteCast event
             emit!(VoteCast {
                 proposal_id: self.proposal.key(),
-                voter: self.signer.key(),
+                voter: meta_merkle_leaf.voting_wallet,
                 vote_account: self.spl_vote_account.key(),
                 for_votes_bp,
                 against_votes_bp,
@@ -226,6 +252,7 @@ impl<'info> CastVote<'info> {
                 against_votes_lamports: against_votes_lamports_new,
                 abstain_votes_lamports: abstain_votes_lamports_new,
                 vote_timestamp: clock.unix_timestamp,
+                signer: self.signer.key(),
             });
         } else {
             self.proposal.add_vote_lamports(
@@ -236,7 +263,7 @@ impl<'info> CastVote<'info> {
 
             // Store the vote distribution in the Vote PDA
             self.vote.set_inner(Vote {
-                validator: self.signer.key(),
+                validator: meta_merkle_leaf.voting_wallet,
                 proposal: self.proposal.key(),
                 for_votes_bp,
                 against_votes_bp,
@@ -248,12 +275,16 @@ impl<'info> CastVote<'info> {
                 stake: voter_stake,
                 vote_timestamp: clock.unix_timestamp,
                 bump: bumps.vote,
+                delegate_signer: delegate_signer(
+                    &self.signer.key(),
+                    &meta_merkle_leaf.voting_wallet,
+                ),
             });
 
             // Emit vote cast event
             emit!(VoteCast {
                 proposal_id: self.proposal.key(),
-                voter: self.signer.key(),
+                voter: meta_merkle_leaf.voting_wallet,
                 vote_account: self.spl_vote_account.key(),
                 for_votes_bp,
                 against_votes_bp,
@@ -262,6 +293,7 @@ impl<'info> CastVote<'info> {
                 against_votes_lamports,
                 abstain_votes_lamports,
                 vote_timestamp: clock.unix_timestamp,
+                signer: self.signer.key(),
             });
         }
 

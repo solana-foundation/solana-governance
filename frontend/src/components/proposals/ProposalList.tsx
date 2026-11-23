@@ -3,6 +3,7 @@
 import FilterPanel from "./FilterPanel";
 import ProposalCard, { ProposalCardSkeleton } from "./ProposalCard";
 import { useProposals } from "@/hooks";
+import { useSnapshotMetas } from "@/hooks/useSnapshotMeta";
 import { FilterState } from "./ProposalFilterModal";
 import { useMemo, useState } from "react";
 
@@ -19,6 +20,13 @@ export default function ProposalList() {
   });
 
   const { data: proposals = [], isLoading } = useProposals();
+
+  const snapshotSlots = useMemo(
+    () => proposals.map((proposal) => proposal.snapshotSlot),
+    [proposals],
+  );
+  const { bySlot: snapshotMetasBySlot, isLoading: isLoadingSnapshotMeta } =
+    useSnapshotMetas(snapshotSlots);
 
   const filteredProposals = useMemo(() => {
     return proposals.filter((proposal) => {
@@ -57,7 +65,12 @@ export default function ProposalList() {
       ) : (
         <div className="space-y-4">
           {filteredProposals.map((proposal) => (
-            <ProposalCard key={proposal.id} proposal={proposal} />
+            <ProposalCard
+              key={proposal.id}
+              proposal={proposal}
+              snapshotMeta={snapshotMetasBySlot.get(proposal.snapshotSlot)}
+              isLoadingSnapshotMeta={isLoadingSnapshotMeta}
+            />
           ))}
         </div>
       )}

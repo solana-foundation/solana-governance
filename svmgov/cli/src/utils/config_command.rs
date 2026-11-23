@@ -1,7 +1,7 @@
 use anchor_lang::Id;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
-use crate::config::{get_default_rpc_url, Config, UserType};
+use crate::config::{Config, UserType, get_default_rpc_url};
 use crate::constants::DEFAULT_OPERATOR_API_URL;
 use crate::svmgov_program::program::SvmgovProgram;
 
@@ -18,16 +18,23 @@ pub enum ConfigSubcommand {
     Get {
         /// Configuration key to get
         key: String,
+        /// Output the configuration value as JSON.
+        #[arg(long)]
+        json: bool,
     },
     /// Show all configuration values
-    Show,
+    Show {
+        /// Output all configuration values as JSON.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 pub async fn handle_config_command(cmd: ConfigSubcommand) -> Result<()> {
     match cmd {
         ConfigSubcommand::Set { key, value } => handle_set(&key, &value).await,
-        ConfigSubcommand::Get { key } => handle_get(&key).await,
-        ConfigSubcommand::Show => handle_show().await,
+        ConfigSubcommand::Get { key, json } => handle_get(&key, json).await,
+        ConfigSubcommand::Show { json } => handle_show(json).await,
     }
 }
 
@@ -107,7 +114,7 @@ async fn handle_set(key: &str, value: &str) -> Result<()> {
     Ok(())
 }
 
-async fn handle_get(key: &str) -> Result<()> {
+async fn handle_get(key: &str, json_output: bool) -> Result<()> {
     let config = Config::load()?;
 
     let value = match key.to_lowercase().as_str() {
@@ -139,12 +146,37 @@ async fn handle_get(key: &str) -> Result<()> {
         }
     };
 
-    println!("{} = {}", key, value);
+    if json_output {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({ key: value }))?
+        );
+    } else {
+        println!("{} = {}", key, value);
+    }
     Ok(())
 }
 
-async fn handle_show() -> Result<()> {
+async fn handle_show(json_output: bool) -> Result<()> {
     let config = Config::load()?;
+
+    if json_output {
+        let output = serde_json::json!({
+            "user-type": config.user_type.as_ref().map(|user_type| user_type.to_string()),
+            "identity-keypair": config.identity_keypair_path,
+            "staker-keypair": config.staker_keypair_path,
+            "network": config.network,
+            "rpc-url": config.get_rpc_url(),
+            "program-id": SvmgovProgram::id().to_string(),
+            "operator-api-url": if config.operator_api_url.is_empty() {
+                DEFAULT_OPERATOR_API_URL
+            } else {
+                &config.operator_api_url
+            },
+        });
+        println!("{}", serde_json::to_string_pretty(&output)?);
+        return Ok(());
+    }
 
     println!("Current configuration:");
     println!(

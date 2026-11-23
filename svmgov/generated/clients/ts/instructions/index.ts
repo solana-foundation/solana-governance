@@ -7,16 +7,21 @@
  */
 
 export * from "./acceptAdmin";
+export * from "./acceptVoteDelegation";
 export * from "./castVote";
 export * from "./castVoteOverride";
 export * from "./createProposal";
+export * from "./delegateVote";
 export * from "./finalizeProposal";
 export * from "./flushMerkleRoot";
 export * from "./initializeConfig";
 export * from "./initializeIndex";
+export * from "./migrateVoteRecords";
 export * from "./modifyVote";
 export * from "./modifyVoteOverride";
 export * from "./nominateAdmin";
+export * from "./removeVoteDelegation";
 export * from "./retallySupport";
 export * from "./supportProposal";
 export * from "./updateConfig";
+export * from "./updateProposalDescription";

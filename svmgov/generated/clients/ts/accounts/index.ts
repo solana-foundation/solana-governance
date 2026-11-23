@@ -11,5 +11,6 @@ export * from "./proposal";
 export * from "./proposalIndex";
 export * from "./support";
 export * from "./vote";
+export * from "./voteDelegation";
 export * from "./voteOverride";
 export * from "./voteOverrideCache";

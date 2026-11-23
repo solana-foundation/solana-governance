@@ -17,6 +17,7 @@ import {
   SOLANA_ERROR__PROGRAM_CLIENTS__UNRECOGNIZED_INSTRUCTION_TYPE,
   SolanaError,
   type Address,
+  type ClientWithPayer,
   type ClientWithRpc,
   type ClientWithTransactionPlanning,
   type ClientWithTransactionSending,
@@ -39,6 +40,7 @@ import {
   getProposalIndexCodec,
   getSupportCodec,
   getVoteCodec,
+  getVoteDelegationCodec,
   getVoteOverrideCacheCodec,
   getVoteOverrideCodec,
   type GlobalConfig,
@@ -51,6 +53,8 @@ import {
   type SupportArgs,
   type Vote,
   type VoteArgs,
+  type VoteDelegation,
+  type VoteDelegationArgs,
   type VoteOverride,
   type VoteOverrideArgs,
   type VoteOverrideCache,
@@ -58,69 +62,91 @@ import {
 } from "../accounts";
 import {
   getAcceptAdminInstructionAsync,
+  getAcceptVoteDelegationInstruction,
   getCastVoteInstructionAsync,
   getCastVoteOverrideInstructionAsync,
   getCreateProposalInstructionAsync,
+  getDelegateVoteInstructionAsync,
   getFinalizeProposalInstruction,
   getFlushMerkleRootInstructionAsync,
   getInitializeConfigInstructionAsync,
   getInitializeIndexInstructionAsync,
+  getMigrateVoteRecordsInstruction,
   getModifyVoteInstructionAsync,
   getModifyVoteOverrideInstructionAsync,
   getNominateAdminInstructionAsync,
+  getRemoveVoteDelegationInstructionAsync,
   getRetallySupportInstructionAsync,
   getSupportProposalInstructionAsync,
   getUpdateConfigInstructionAsync,
+  getUpdateProposalDescriptionInstructionAsync,
   parseAcceptAdminInstruction,
+  parseAcceptVoteDelegationInstruction,
   parseCastVoteInstruction,
   parseCastVoteOverrideInstruction,
   parseCreateProposalInstruction,
+  parseDelegateVoteInstruction,
   parseFinalizeProposalInstruction,
   parseFlushMerkleRootInstruction,
   parseInitializeConfigInstruction,
   parseInitializeIndexInstruction,
+  parseMigrateVoteRecordsInstruction,
   parseModifyVoteInstruction,
   parseModifyVoteOverrideInstruction,
   parseNominateAdminInstruction,
+  parseRemoveVoteDelegationInstruction,
   parseRetallySupportInstruction,
   parseSupportProposalInstruction,
   parseUpdateConfigInstruction,
+  parseUpdateProposalDescriptionInstruction,
   type AcceptAdminAsyncInput,
+  type AcceptVoteDelegationInput,
   type CastVoteAsyncInput,
   type CastVoteOverrideAsyncInput,
   type CreateProposalAsyncInput,
+  type DelegateVoteAsyncInput,
   type FinalizeProposalInput,
   type FlushMerkleRootAsyncInput,
   type InitializeConfigAsyncInput,
   type InitializeIndexAsyncInput,
+  type MigrateVoteRecordsInput,
   type ModifyVoteAsyncInput,
   type ModifyVoteOverrideAsyncInput,
   type NominateAdminAsyncInput,
   type ParsedAcceptAdminInstruction,
+  type ParsedAcceptVoteDelegationInstruction,
   type ParsedCastVoteInstruction,
   type ParsedCastVoteOverrideInstruction,
   type ParsedCreateProposalInstruction,
+  type ParsedDelegateVoteInstruction,
   type ParsedFinalizeProposalInstruction,
   type ParsedFlushMerkleRootInstruction,
   type ParsedInitializeConfigInstruction,
   type ParsedInitializeIndexInstruction,
+  type ParsedMigrateVoteRecordsInstruction,
   type ParsedModifyVoteInstruction,
   type ParsedModifyVoteOverrideInstruction,
   type ParsedNominateAdminInstruction,
+  type ParsedRemoveVoteDelegationInstruction,
   type ParsedRetallySupportInstruction,
   type ParsedSupportProposalInstruction,
   type ParsedUpdateConfigInstruction,
+  type ParsedUpdateProposalDescriptionInstruction,
+  type RemoveVoteDelegationAsyncInput,
   type RetallySupportAsyncInput,
   type SupportProposalAsyncInput,
   type UpdateConfigAsyncInput,
+  type UpdateProposalDescriptionAsyncInput,
 } from "../instructions";
 import {
   findCastVoteOverrideVoteOverrideCachePda,
+  findDelegateVoteVoteDelegationPda,
   findGlobalConfigPda,
   findProgramConfigPda,
   findProposalIndexPda,
   findProposalPda,
   findSupportPda,
+  findVoteDelegationPda,
   findVoteOverrideCachePda,
   findVoteOverridePda,
   findVotePda,
@@ -135,6 +161,7 @@ export enum SvmgovProgramAccount {
   ProposalIndex,
   Support,
   Vote,
+  VoteDelegation,
   VoteOverride,
   VoteOverrideCache,
 }
@@ -202,6 +229,17 @@ export function identifySvmgovProgramAccount(
     containsBytes(
       data,
       fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([193, 49, 139, 13, 145, 199, 236, 31]),
+      ),
+      0,
+    )
+  ) {
+    return SvmgovProgramAccount.VoteDelegation;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
         new Uint8Array([130, 93, 172, 50, 168, 151, 176, 188]),
       ),
       0,
@@ -228,19 +266,24 @@ export function identifySvmgovProgramAccount(
 
 export enum SvmgovProgramInstruction {
   AcceptAdmin,
+  AcceptVoteDelegation,
   CastVote,
   CastVoteOverride,
   CreateProposal,
+  DelegateVote,
   FinalizeProposal,
   FlushMerkleRoot,
   InitializeConfig,
   InitializeIndex,
+  MigrateVoteRecords,
   ModifyVote,
   ModifyVoteOverride,
   NominateAdmin,
+  RemoveVoteDelegation,
   RetallySupport,
   SupportProposal,
   UpdateConfig,
+  UpdateProposalDescription,
 }
 
 export function identifySvmgovProgramInstruction(
@@ -257,6 +300,17 @@ export function identifySvmgovProgramInstruction(
     )
   ) {
     return SvmgovProgramInstruction.AcceptAdmin;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([233, 73, 172, 65, 50, 26, 46, 177]),
+      ),
+      0,
+    )
+  ) {
+    return SvmgovProgramInstruction.AcceptVoteDelegation;
   }
   if (
     containsBytes(
@@ -290,6 +344,17 @@ export function identifySvmgovProgramInstruction(
     )
   ) {
     return SvmgovProgramInstruction.CreateProposal;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([12, 116, 204, 68, 87, 205, 40, 205]),
+      ),
+      0,
+    )
+  ) {
+    return SvmgovProgramInstruction.DelegateVote;
   }
   if (
     containsBytes(
@@ -339,6 +404,17 @@ export function identifySvmgovProgramInstruction(
     containsBytes(
       data,
       fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([116, 85, 10, 13, 64, 197, 80, 114]),
+      ),
+      0,
+    )
+  ) {
+    return SvmgovProgramInstruction.MigrateVoteRecords;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
         new Uint8Array([116, 52, 102, 0, 121, 145, 27, 139]),
       ),
       0,
@@ -367,6 +443,17 @@ export function identifySvmgovProgramInstruction(
     )
   ) {
     return SvmgovProgramInstruction.NominateAdmin;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([217, 138, 248, 149, 187, 210, 57, 255]),
+      ),
+      0,
+    )
+  ) {
+    return SvmgovProgramInstruction.RemoveVoteDelegation;
   }
   if (
     containsBytes(
@@ -401,6 +488,17 @@ export function identifySvmgovProgramInstruction(
   ) {
     return SvmgovProgramInstruction.UpdateConfig;
   }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([252, 66, 166, 167, 49, 61, 123, 214]),
+      ),
+      0,
+    )
+  ) {
+    return SvmgovProgramInstruction.UpdateProposalDescription;
+  }
   throw new SolanaError(
     SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_INSTRUCTION,
     { instructionData: data, programName: "svmgovProgram" },
@@ -414,6 +512,9 @@ export type ParsedSvmgovProgramInstruction<
       instructionType: SvmgovProgramInstruction.AcceptAdmin;
     } & ParsedAcceptAdminInstruction<TProgram>)
   | ({
+      instructionType: SvmgovProgramInstruction.AcceptVoteDelegation;
+    } & ParsedAcceptVoteDelegationInstruction<TProgram>)
+  | ({
       instructionType: SvmgovProgramInstruction.CastVote;
     } & ParsedCastVoteInstruction<TProgram>)
   | ({
@@ -422,6 +523,9 @@ export type ParsedSvmgovProgramInstruction<
   | ({
       instructionType: SvmgovProgramInstruction.CreateProposal;
     } & ParsedCreateProposalInstruction<TProgram>)
+  | ({
+      instructionType: SvmgovProgramInstruction.DelegateVote;
+    } & ParsedDelegateVoteInstruction<TProgram>)
   | ({
       instructionType: SvmgovProgramInstruction.FinalizeProposal;
     } & ParsedFinalizeProposalInstruction<TProgram>)
@@ -435,6 +539,9 @@ export type ParsedSvmgovProgramInstruction<
       instructionType: SvmgovProgramInstruction.InitializeIndex;
     } & ParsedInitializeIndexInstruction<TProgram>)
   | ({
+      instructionType: SvmgovProgramInstruction.MigrateVoteRecords;
+    } & ParsedMigrateVoteRecordsInstruction<TProgram>)
+  | ({
       instructionType: SvmgovProgramInstruction.ModifyVote;
     } & ParsedModifyVoteInstruction<TProgram>)
   | ({
@@ -444,6 +551,9 @@ export type ParsedSvmgovProgramInstruction<
       instructionType: SvmgovProgramInstruction.NominateAdmin;
     } & ParsedNominateAdminInstruction<TProgram>)
   | ({
+      instructionType: SvmgovProgramInstruction.RemoveVoteDelegation;
+    } & ParsedRemoveVoteDelegationInstruction<TProgram>)
+  | ({
       instructionType: SvmgovProgramInstruction.RetallySupport;
     } & ParsedRetallySupportInstruction<TProgram>)
   | ({
@@ -451,7 +561,10 @@ export type ParsedSvmgovProgramInstruction<
     } & ParsedSupportProposalInstruction<TProgram>)
   | ({
       instructionType: SvmgovProgramInstruction.UpdateConfig;
-    } & ParsedUpdateConfigInstruction<TProgram>);
+    } & ParsedUpdateConfigInstruction<TProgram>)
+  | ({
+      instructionType: SvmgovProgramInstruction.UpdateProposalDescription;
+    } & ParsedUpdateProposalDescriptionInstruction<TProgram>);
 
 export function parseSvmgovProgramInstruction<TProgram extends string>(
   instruction: Instruction<TProgram> & InstructionWithData<ReadonlyUint8Array>,
@@ -463,6 +576,13 @@ export function parseSvmgovProgramInstruction<TProgram extends string>(
       return {
         instructionType: SvmgovProgramInstruction.AcceptAdmin,
         ...parseAcceptAdminInstruction(instruction),
+      };
+    }
+    case SvmgovProgramInstruction.AcceptVoteDelegation: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: SvmgovProgramInstruction.AcceptVoteDelegation,
+        ...parseAcceptVoteDelegationInstruction(instruction),
       };
     }
     case SvmgovProgramInstruction.CastVote: {
@@ -484,6 +604,13 @@ export function parseSvmgovProgramInstruction<TProgram extends string>(
       return {
         instructionType: SvmgovProgramInstruction.CreateProposal,
         ...parseCreateProposalInstruction(instruction),
+      };
+    }
+    case SvmgovProgramInstruction.DelegateVote: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: SvmgovProgramInstruction.DelegateVote,
+        ...parseDelegateVoteInstruction(instruction),
       };
     }
     case SvmgovProgramInstruction.FinalizeProposal: {
@@ -514,6 +641,13 @@ export function parseSvmgovProgramInstruction<TProgram extends string>(
         ...parseInitializeIndexInstruction(instruction),
       };
     }
+    case SvmgovProgramInstruction.MigrateVoteRecords: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: SvmgovProgramInstruction.MigrateVoteRecords,
+        ...parseMigrateVoteRecordsInstruction(instruction),
+      };
+    }
     case SvmgovProgramInstruction.ModifyVote: {
       assertIsInstructionWithAccounts(instruction);
       return {
@@ -535,6 +669,13 @@ export function parseSvmgovProgramInstruction<TProgram extends string>(
         ...parseNominateAdminInstruction(instruction),
       };
     }
+    case SvmgovProgramInstruction.RemoveVoteDelegation: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: SvmgovProgramInstruction.RemoveVoteDelegation,
+        ...parseRemoveVoteDelegationInstruction(instruction),
+      };
+    }
     case SvmgovProgramInstruction.RetallySupport: {
       assertIsInstructionWithAccounts(instruction);
       return {
@@ -554,6 +695,13 @@ export function parseSvmgovProgramInstruction<TProgram extends string>(
       return {
         instructionType: SvmgovProgramInstruction.UpdateConfig,
         ...parseUpdateConfigInstruction(instruction),
+      };
+    }
+    case SvmgovProgramInstruction.UpdateProposalDescription: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: SvmgovProgramInstruction.UpdateProposalDescription,
+        ...parseUpdateProposalDescriptionInstruction(instruction),
       };
     }
     default:
@@ -586,6 +734,8 @@ export type SvmgovProgramPluginAccounts = {
   support: ReturnType<typeof getSupportCodec> &
     SelfFetchFunctions<SupportArgs, Support>;
   vote: ReturnType<typeof getVoteCodec> & SelfFetchFunctions<VoteArgs, Vote>;
+  voteDelegation: ReturnType<typeof getVoteDelegationCodec> &
+    SelfFetchFunctions<VoteDelegationArgs, VoteDelegation>;
   voteOverride: ReturnType<typeof getVoteOverrideCodec> &
     SelfFetchFunctions<VoteOverrideArgs, VoteOverride>;
   voteOverrideCache: ReturnType<typeof getVoteOverrideCacheCodec> &
@@ -596,6 +746,10 @@ export type SvmgovProgramPluginInstructions = {
   acceptAdmin: (
     input: AcceptAdminAsyncInput,
   ) => ReturnType<typeof getAcceptAdminInstructionAsync> &
+    SelfPlanAndSendFunctions;
+  acceptVoteDelegation: (
+    input: AcceptVoteDelegationInput,
+  ) => ReturnType<typeof getAcceptVoteDelegationInstruction> &
     SelfPlanAndSendFunctions;
   castVote: (
     input: CastVoteAsyncInput,
@@ -608,6 +762,10 @@ export type SvmgovProgramPluginInstructions = {
   createProposal: (
     input: CreateProposalAsyncInput,
   ) => ReturnType<typeof getCreateProposalInstructionAsync> &
+    SelfPlanAndSendFunctions;
+  delegateVote: (
+    input: DelegateVoteAsyncInput,
+  ) => ReturnType<typeof getDelegateVoteInstructionAsync> &
     SelfPlanAndSendFunctions;
   finalizeProposal: (
     input: FinalizeProposalInput,
@@ -625,6 +783,10 @@ export type SvmgovProgramPluginInstructions = {
     input: InitializeIndexAsyncInput,
   ) => ReturnType<typeof getInitializeIndexInstructionAsync> &
     SelfPlanAndSendFunctions;
+  migrateVoteRecords: (
+    input: MakeOptional<MigrateVoteRecordsInput, "payer">,
+  ) => ReturnType<typeof getMigrateVoteRecordsInstruction> &
+    SelfPlanAndSendFunctions;
   modifyVote: (
     input: ModifyVoteAsyncInput,
   ) => ReturnType<typeof getModifyVoteInstructionAsync> &
@@ -636,6 +798,10 @@ export type SvmgovProgramPluginInstructions = {
   nominateAdmin: (
     input: NominateAdminAsyncInput,
   ) => ReturnType<typeof getNominateAdminInstructionAsync> &
+    SelfPlanAndSendFunctions;
+  removeVoteDelegation: (
+    input: RemoveVoteDelegationAsyncInput,
+  ) => ReturnType<typeof getRemoveVoteDelegationInstructionAsync> &
     SelfPlanAndSendFunctions;
   retallySupport: (
     input: RetallySupportAsyncInput,
@@ -649,16 +815,22 @@ export type SvmgovProgramPluginInstructions = {
     input: UpdateConfigAsyncInput,
   ) => ReturnType<typeof getUpdateConfigInstructionAsync> &
     SelfPlanAndSendFunctions;
+  updateProposalDescription: (
+    input: UpdateProposalDescriptionAsyncInput,
+  ) => ReturnType<typeof getUpdateProposalDescriptionInstructionAsync> &
+    SelfPlanAndSendFunctions;
 };
 
 export type SvmgovProgramPluginPdas = {
   globalConfig: typeof findGlobalConfigPda;
   vote: typeof findVotePda;
+  voteDelegation: typeof findVoteDelegationPda;
   voteOverrideCache: typeof findVoteOverrideCachePda;
   voteOverride: typeof findVoteOverridePda;
   castVoteOverrideVoteOverrideCache: typeof findCastVoteOverrideVoteOverrideCachePda;
   proposal: typeof findProposalPda;
   proposalIndex: typeof findProposalIndexPda;
+  delegateVoteVoteDelegation: typeof findDelegateVoteVoteDelegationPda;
   programConfig: typeof findProgramConfigPda;
   support: typeof findSupportPda;
 };
@@ -666,6 +838,7 @@ export type SvmgovProgramPluginPdas = {
 export type SvmgovProgramPluginRequirements = ClientWithRpc<
   GetAccountInfoApi & GetMultipleAccountsApi
 > &
+  ClientWithPayer &
   ClientWithTransactionPlanning &
   ClientWithTransactionSending;
 
@@ -681,6 +854,10 @@ export function svmgovProgramProgram() {
           proposalIndex: addSelfFetchFunctions(client, getProposalIndexCodec()),
           support: addSelfFetchFunctions(client, getSupportCodec()),
           vote: addSelfFetchFunctions(client, getVoteCodec()),
+          voteDelegation: addSelfFetchFunctions(
+            client,
+            getVoteDelegationCodec(),
+          ),
           voteOverride: addSelfFetchFunctions(client, getVoteOverrideCodec()),
           voteOverrideCache: addSelfFetchFunctions(
             client,
@@ -692,6 +869,11 @@ export function svmgovProgramProgram() {
             addSelfPlanAndSendFunctions(
               client,
               getAcceptAdminInstructionAsync(input),
+            ),
+          acceptVoteDelegation: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getAcceptVoteDelegationInstruction(input),
             ),
           castVote: (input) =>
             addSelfPlanAndSendFunctions(
@@ -707,6 +889,11 @@ export function svmgovProgramProgram() {
             addSelfPlanAndSendFunctions(
               client,
               getCreateProposalInstructionAsync(input),
+            ),
+          delegateVote: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getDelegateVoteInstructionAsync(input),
             ),
           finalizeProposal: (input) =>
             addSelfPlanAndSendFunctions(
@@ -728,6 +915,14 @@ export function svmgovProgramProgram() {
               client,
               getInitializeIndexInstructionAsync(input),
             ),
+          migrateVoteRecords: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getMigrateVoteRecordsInstruction({
+                ...input,
+                payer: input.payer ?? client.payer,
+              }),
+            ),
           modifyVote: (input) =>
             addSelfPlanAndSendFunctions(
               client,
@@ -742,6 +937,11 @@ export function svmgovProgramProgram() {
             addSelfPlanAndSendFunctions(
               client,
               getNominateAdminInstructionAsync(input),
+            ),
+          removeVoteDelegation: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getRemoveVoteDelegationInstructionAsync(input),
             ),
           retallySupport: (input) =>
             addSelfPlanAndSendFunctions(
@@ -758,16 +958,23 @@ export function svmgovProgramProgram() {
               client,
               getUpdateConfigInstructionAsync(input),
             ),
+          updateProposalDescription: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getUpdateProposalDescriptionInstructionAsync(input),
+            ),
         },
         pdas: {
           globalConfig: findGlobalConfigPda,
           vote: findVotePda,
+          voteDelegation: findVoteDelegationPda,
           voteOverrideCache: findVoteOverrideCachePda,
           voteOverride: findVoteOverridePda,
           castVoteOverrideVoteOverrideCache:
             findCastVoteOverrideVoteOverrideCachePda,
           proposal: findProposalPda,
           proposalIndex: findProposalIndexPda,
+          delegateVoteVoteDelegation: findDelegateVoteVoteDelegationPda,
           programConfig: findProgramConfigPda,
           support: findSupportPda,
         },
@@ -778,3 +985,5 @@ export function svmgovProgramProgram() {
     });
   };
 }
+
+type MakeOptional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;

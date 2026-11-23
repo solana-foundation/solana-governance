@@ -2,14 +2,15 @@
 
 import { AppProvider, getDefaultConfig, getDefaultMobileConfig } from "@solana/connector/react";
 import { useMemo, type ReactNode } from "react";
-import { useEndpoint, RPC_URLS } from "@/contexts/EndpointContext";
+import { useEndpoint } from "@/contexts/EndpointContext";
+import { getRpcProxyUrl } from "@/lib/getRpcProxyUrl";
 
 function appUrl() {
   return typeof window === "undefined" ? "http://localhost:3000" : window.location.origin;
 }
 
 export function ConnectorProvider({ children }: { children: ReactNode }) {
-  const { endpointUrl, endpointType } = useEndpoint();
+  const { network } = useEndpoint();
   const connectorConfig = useMemo(
     () =>
       getDefaultConfig({
@@ -17,16 +18,15 @@ export function ConnectorProvider({ children }: { children: ReactNode }) {
         appUrl: appUrl(),
         autoConnect: true,
         clusters: [
-          { id: "solana:mainnet", label: "Mainnet", url: RPC_URLS.mainnet },
-          { id: "solana:devnet", label: "Devnet", url: RPC_URLS.devnet },
-          { id: "solana:testnet", label: "Testnet", url: RPC_URLS.testnet },
+          { id: "solana:mainnet", label: "Mainnet", url: getRpcProxyUrl("mainnet") },
+          { id: "solana:devnet", label: "Devnet", url: getRpcProxyUrl("devnet") },
+          { id: "solana:testnet", label: "Testnet", url: getRpcProxyUrl("testnet") },
         ],
-        customClusters: [{ id: "solana:custom", label: "Custom", url: endpointUrl }],
-        network: endpointType === "custom" ? undefined : endpointType,
+        network,
         persistClusterSelection: false,
         walletConnect: false,
       }),
-    [endpointType, endpointUrl],
+    [network],
   );
   const mobile = useMemo(
     () => getDefaultMobileConfig({ appName: "Solana Governance", appUrl: appUrl() }),

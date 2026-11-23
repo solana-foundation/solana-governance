@@ -10,6 +10,8 @@ import {
   combineCodec,
   fixDecoderSize,
   fixEncoderSize,
+  getBooleanDecoder,
+  getBooleanEncoder,
   getBytesDecoder,
   getBytesEncoder,
   getI64Decoder,
@@ -98,6 +100,7 @@ export type UpdateConfigInstructionData = {
   snapshotEpochExtension: Option<bigint>;
   snapshotSlotOffset: Option<bigint>;
   maxSupporters: Option<number>;
+  newProposalsAllowed: Option<boolean>;
 };
 
 export type UpdateConfigInstructionDataArgs = {
@@ -111,6 +114,7 @@ export type UpdateConfigInstructionDataArgs = {
   snapshotEpochExtension: OptionOrNullable<number | bigint>;
   snapshotSlotOffset: OptionOrNullable<number | bigint>;
   maxSupporters: OptionOrNullable<number>;
+  newProposalsAllowed: OptionOrNullable<boolean>;
 };
 
 export function getUpdateConfigInstructionDataEncoder(): Encoder<UpdateConfigInstructionDataArgs> {
@@ -127,6 +131,7 @@ export function getUpdateConfigInstructionDataEncoder(): Encoder<UpdateConfigIns
       ["snapshotEpochExtension", getOptionEncoder(getU64Encoder())],
       ["snapshotSlotOffset", getOptionEncoder(getI64Encoder())],
       ["maxSupporters", getOptionEncoder(getU32Encoder())],
+      ["newProposalsAllowed", getOptionEncoder(getBooleanEncoder())],
     ]),
     (value) => ({ ...value, discriminator: UPDATE_CONFIG_DISCRIMINATOR }),
   );
@@ -145,6 +150,7 @@ export function getUpdateConfigInstructionDataDecoder(): Decoder<UpdateConfigIns
     ["snapshotEpochExtension", getOptionDecoder(getU64Decoder())],
     ["snapshotSlotOffset", getOptionDecoder(getI64Decoder())],
     ["maxSupporters", getOptionDecoder(getU32Decoder())],
+    ["newProposalsAllowed", getOptionDecoder(getBooleanDecoder())],
   ]);
 }
 
@@ -176,6 +182,7 @@ export type UpdateConfigAsyncInput<
   snapshotEpochExtension: UpdateConfigInstructionDataArgs["snapshotEpochExtension"];
   snapshotSlotOffset: UpdateConfigInstructionDataArgs["snapshotSlotOffset"];
   maxSupporters: UpdateConfigInstructionDataArgs["maxSupporters"];
+  newProposalsAllowed: UpdateConfigInstructionDataArgs["newProposalsAllowed"];
 };
 
 export async function getUpdateConfigInstructionAsync<
@@ -262,6 +269,7 @@ export type UpdateConfigInput<
   snapshotEpochExtension: UpdateConfigInstructionDataArgs["snapshotEpochExtension"];
   snapshotSlotOffset: UpdateConfigInstructionDataArgs["snapshotSlotOffset"];
   maxSupporters: UpdateConfigInstructionDataArgs["maxSupporters"];
+  newProposalsAllowed: UpdateConfigInstructionDataArgs["newProposalsAllowed"];
 };
 
 export function getUpdateConfigInstruction<

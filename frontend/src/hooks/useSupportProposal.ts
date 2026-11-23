@@ -2,6 +2,7 @@ import { address, createSolanaRpc } from "@solana/kit";
 import { useMutation } from "@tanstack/react-query";
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { useGovernanceConfigContext } from "@/contexts/GovernanceConfigContext";
+import { resolveSignerVoteAccount } from "@/lib/governance/voteDelegations";
 import { buildSupportProposalInstruction } from "@/lib/transactions";
 import { useSignTransaction } from "./useSignTransaction";
 
@@ -20,15 +21,14 @@ export function useSupportProposal(_userPubKey: string | undefined) {
       const config = configQuery.data;
       if (!config) throw new Error("Governance config not loaded");
       const rpc = createSolanaRpc(endpointUrl);
-      const [votes, epochInfo, epochSchedule] = await Promise.all([
-        rpc.getVoteAccounts().send(), rpc.getEpochInfo().send(), rpc.getEpochSchedule().send(),
+      const [splVoteAccount, epochInfo, epochSchedule] = await Promise.all([
+        // The wallet is either the validator identity or its accepted vote delegate.
+        resolveSignerVoteAccount(rpc, address(publicKey)), rpc.getEpochInfo().send(), rpc.getEpochSchedule().send(),
       ]);
-      const vote = [...votes.current, ...votes.delinquent].find((account) => account.nodePubkey === publicKey);
-      if (!vote) throw new Error(`No SPL vote account found for validator identity ${publicKey}`);
       const targetEpoch = epochInfo.epoch + BigInt(config.discussionEpochs) + BigInt(config.snapshotEpochExtension);
       const snapshotSlot = firstSlotOfEpoch(epochSchedule, targetEpoch) + BigInt(config.snapshotSlotOffset);
       const signature = await signAndSend(({ signer }) => Promise.all([
-        buildSupportProposalInstruction({ proposal: address(proposalId), signer, snapshotSlot, splVoteAccount: vote.votePubkey }),
+        buildSupportProposalInstruction({ proposal: address(proposalId), signer, snapshotSlot, splVoteAccount }),
       ]));
       return { signature, success: true };
     },

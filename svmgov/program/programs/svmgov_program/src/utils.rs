@@ -30,117 +30,114 @@ macro_rules! stake_weight_bp {
     }};
 }
 
-/// Calculates stake-weighted vote amounts from basis points
-///
-/// This macro calculates the vote lamports by multiplying stake amount
-/// by basis points and dividing by 10,000 (the total basis points for 100%).
-/// Uses u128 internally to prevent overflow during multiplication.
-///
-/// # Arguments
-///
-/// * `stake` - The stake amount in lamports (u64)
-/// * `basis_points` - The vote distribution in basis points (u64, 0-10,000)
-///
-/// # Example
-///
-/// ```
-/// use svmgov_program::calculate_vote_lamports;
-///
-/// let vote_lamports = calculate_vote_lamports!(1_000_000u64, 2_500u64).unwrap();
-/// assert_eq!(vote_lamports, 250_000); // 25% of 1 SOL
-/// ```
-#[macro_export]
-macro_rules! calculate_vote_lamports {
-    ($stake:expr, $basis_points:expr) => {{
-        ($stake as u128)
-            .checked_mul($basis_points as u128)
-            .and_then(|product| product.checked_div($crate::BASIS_POINTS_MAX as u128))
-            .ok_or($crate::GovernanceError::ArithmeticOverflow)
-            .map(|result| result as u64)
-    }};
+/// A voter's stake split across the three vote options, in lamports.
+/// Produced by [`split_vote_lamports`]; the three fields sum to the input stake.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VoteLamports {
+    pub for_votes: u64,
+    pub against_votes: u64,
+    pub abstain_votes: u64,
 }
 
-/// Validates that the input points to the approved GitHub proposal repository.
+/// Splits `stake` lamports across the For / Against / Abstain options by basis
+/// points.
+///
+/// Each share is `stake * bp / 10_000` floored. The lamports the floors drop
+/// (at most two) are credited to the option with the most basis points, ties
+/// going to For, then Against, so the shares always sum to exactly `stake`.
+///
+/// The basis points must sum to `BASIS_POINTS_MAX`; every voting instruction
+/// validates that before calling. Returns `ArithmeticOverflow` if a share does
+/// not fit in `u64`.
+pub fn split_vote_lamports(
+    stake: u64,
+    for_bp: u64,
+    against_bp: u64,
+    abstain_bp: u64,
+) -> core::result::Result<VoteLamports, crate::error::GovernanceError> {
+    use crate::error::GovernanceError::ArithmeticOverflow;
+
+    let floor = |bp: u64| {
+        (stake as u128)
+            .checked_mul(bp as u128)
+            .and_then(|product| product.checked_div(crate::constants::BASIS_POINTS_MAX as u128))
+            .and_then(|share| u64::try_from(share).ok())
+            .ok_or(ArithmeticOverflow)
+    };
+    let mut shares = [floor(for_bp)?, floor(against_bp)?, floor(abstain_bp)?];
+
+    let allocated = shares[0]
+        .checked_add(shares[1])
+        .and_then(|sum| sum.checked_add(shares[2]))
+        .ok_or(ArithmeticOverflow)?;
+    let remainder = stake.checked_sub(allocated).ok_or(ArithmeticOverflow)?;
+
+    let largest = if for_bp >= against_bp && for_bp >= abstain_bp {
+        0
+    } else if against_bp >= abstain_bp {
+        1
+    } else {
+        2
+    };
+    shares[largest] = shares[largest]
+        .checked_add(remainder)
+        .ok_or(ArithmeticOverflow)?;
+
+    Ok(VoteLamports {
+        for_votes: shares[0],
+        against_votes: shares[1],
+        abstain_votes: shares[2],
+    })
+}
+
+/// Validates the canonical, immutable GitHub URL used for proposal documents.
+///
+/// Ensures the link value names one markdown file in the approved repository
+/// at a full commit SHA.
 pub fn is_valid_github_link(link: &str) -> bool {
     const PREFIX: &str = "https://github.com/";
-    const REPOSITORY_PATH: &str = "solana-foundation/solana-governance-proposals";
+    const OWNER: &str = "solana-foundation";
+    const REPOSITORY: &str = "solana-governance-proposals";
     const MAX_SEGMENTS: usize = 10;
-    const MIN_SEGMENTS: usize = 2;
 
     if !link.starts_with(PREFIX) {
         return false;
     }
 
-    let mut path = &link[PREFIX.len()..];
-    if path.ends_with('/') {
-        if path.len() == 1 {
-            // If only '/', path would be empty after trim
-            return false;
-        }
-        path = &path[..path.len() - 1];
-    }
-    if path.is_empty() || path.starts_with('/') {
+    let path = &link[PREFIX.len()..];
+    if path.is_empty() || path.starts_with('/') || path.ends_with('/') {
         return false;
     }
 
-    // path must start with repository path followed by another segment
-    if !path
-        .strip_prefix(REPOSITORY_PATH)
-        .is_some_and(|suffix| suffix.starts_with('/'))
+    let segments: Vec<&str> = path.split('/').collect();
+    // owner/repo/blob/<40-hex SHA>/<one or more file path components>
+    if !(5..=MAX_SEGMENTS).contains(&segments.len())
+        || segments[0] != OWNER
+        || segments[1] != REPOSITORY
+        || segments[2] != "blob"
+        || segments
+            .iter()
+            .any(|segment| segment.is_empty() || *segment == "." || *segment == "..")
     {
         return false;
     }
 
-    // URL consumers normalize `..` by walking to a parent path. Reject it here so the
-    // raw on-chain string and the URL that clients resolve always identify the same repo.
-    if path.contains("/../") || path.ends_with("/..") {
+    let commit = segments[3];
+    if commit.len() != 40 || !commit.chars().all(|c| c.is_ascii_hexdigit()) {
         return false;
     }
 
-    let mut segment_count = 0;
-    let mut in_segment = false;
-    let mut has_invalid_char = false;
-
-    for c in path.chars() {
-        match c {
-            '/' => {
-                if !in_segment {
-                    // Consecutive '/' -> empty segment
-                    return false;
-                }
-                in_segment = false;
-                segment_count += 1;
-                if segment_count > MAX_SEGMENTS {
-                    return false;
-                }
-            }
-            ' ' | '?' | '#' => {
-                has_invalid_char = true;
-                break; // Early exit on forbidden chars
-            }
-            _ => {
-                if !in_segment {
-                    in_segment = true;
-                }
-                if !c.is_ascii_alphanumeric() && !matches!(c, '-' | '_' | '.') {
-                    has_invalid_char = true;
-                    break;
-                }
-            }
-        }
-    }
-
-    if has_invalid_char {
+    if !segments.iter().all(|segment| {
+        segment
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+    }) {
         return false;
     }
 
-    // Account for the last segment if it was being processed
-    if in_segment {
-        segment_count += 1;
-    }
-
-    // Check trailing '/' was handled (no empty last segment)
-    (MIN_SEGMENTS..=MAX_SEGMENTS).contains(&segment_count)
+    segments.last().is_some_and(|file_name| {
+        file_name.len() > 3 && file_name[file_name.len() - 3..].eq_ignore_ascii_case(".md")
+    })
 }
 
 /// Calculates the starting and ending slot for a given epoch.
@@ -165,13 +162,64 @@ pub fn is_valid_github_link(link: &str) -> bool {
 /// assert_eq!(get_epoch_slot_range(0), (0, 431_999));
 /// assert_eq!(get_epoch_slot_range(1), (432_000, 863_999));
 /// ```
-pub fn get_epoch_slot_range(epoch: u64) -> (u64, u64) {
-    const SLOTS_PER_EPOCH: u64 = 432_000;
+pub const SLOTS_PER_EPOCH: u64 = 432_000;
 
+pub fn get_epoch_slot_range(epoch: u64) -> (u64, u64) {
     let start_slot = epoch * SLOTS_PER_EPOCH;
     let end_slot = (epoch + 1) * SLOTS_PER_EPOCH - 1;
 
     (start_slot, end_slot)
+}
+
+/// Validates an offset that is added to the beginning of the snapshot epoch.
+/// Negative offsets remain supported and are checked against the current slot
+/// when a proposal is activated; an offset that reaches the next epoch would
+/// put the snapshot at or after voting starts.
+pub fn validate_snapshot_slot_offset(
+    snapshot_slot_offset: i64,
+) -> core::result::Result<(), crate::error::GovernanceError> {
+    let latest_snapshot_offset = SLOTS_PER_EPOCH
+        .checked_sub(ncn_snapshot::MIN_VOTE_EXPIRY_SLOTS)
+        .ok_or(crate::error::GovernanceError::ArithmeticOverflow)?;
+
+    if snapshot_slot_offset > latest_snapshot_offset as i64 {
+        return Err(crate::error::GovernanceError::InvalidSnapshotSlotOffset);
+    }
+    Ok(())
+}
+
+/// Returns the epoch at which SVMGov voting begins for a snapshot epoch.
+/// This is the single source of truth for deriving Proposal::start_epoch and
+/// the NCN ballot expiry slot.
+pub fn voting_start_epoch(
+    snapshot_epoch: u64,
+) -> core::result::Result<u64, crate::error::GovernanceError> {
+    snapshot_epoch
+        .checked_add(1)
+        .ok_or(crate::error::GovernanceError::ArithmeticOverflow)
+}
+
+/// Returns the first slot of the given epoch, or an error if the multiplication overflows u64.
+pub fn epoch_start_slot(epoch: u64) -> core::result::Result<u64, crate::error::GovernanceError> {
+    epoch
+        .checked_mul(SLOTS_PER_EPOCH)
+        .ok_or(crate::error::GovernanceError::ArithmeticOverflow)
+}
+
+/// Ensures the stake snapshot leaves NCN operators the required time to reach
+/// consensus before SVMGov voting opens.
+pub fn ensure_snapshot_before_voting_start(
+    snapshot_slot: u64,
+    voting_start_epoch: u64,
+) -> core::result::Result<u64, crate::error::GovernanceError> {
+    let voting_start_slot = epoch_start_slot(voting_start_epoch)?;
+    if snapshot_slot >= voting_start_slot {
+        return Err(crate::error::GovernanceError::SnapshotSlotNotBeforeVotingStart);
+    }
+    if voting_start_slot.saturating_sub(snapshot_slot) < ncn_snapshot::MIN_VOTE_EXPIRY_SLOTS {
+        return Err(crate::error::GovernanceError::SnapshotWindowTooShort);
+    }
+    Ok(voting_start_slot)
 }
 
 /// Computes the schedule anchor epoch for a proposal: the epoch whose start slot
@@ -192,7 +240,7 @@ pub fn get_epoch_slot_range(epoch: u64) -> (u64, u64) {
 /// previously guarded against cannot occur there.
 ///
 /// Returns `ArithmeticOverflow` if the summed epoch exceeds `u64`.
-pub fn proposal_target_epoch(
+pub fn proposal_snapshot_epoch(
     support_epoch: u64,
     discussion_epochs: u64,
     snapshot_epoch_extension: u64,
@@ -216,12 +264,16 @@ pub fn proposal_target_epoch(
 /// Returns the validated `snapshot_slot`, or an error if the offset underflows
 /// below zero or the resulting slot is not in the future.
 pub fn compute_future_snapshot_slot(
-    target_epoch: u64,
+    snapshot_epoch: u64,
     snapshot_slot_offset: i64,
     current_slot: u64,
 ) -> core::result::Result<u64, crate::error::GovernanceError> {
-    let (start_slot, _) = get_epoch_slot_range(target_epoch);
-    let offset_result = (start_slot as i64)
+    let start_slot = snapshot_epoch
+        .checked_mul(SLOTS_PER_EPOCH)
+        .ok_or(crate::error::GovernanceError::ArithmeticOverflow)?;
+    let start_slot_i64 =
+        i64::try_from(start_slot).map_err(|_| crate::error::GovernanceError::ArithmeticOverflow)?;
+    let offset_result = start_slot_i64
         .checked_add(snapshot_slot_offset)
         .ok_or(crate::error::GovernanceError::ArithmeticOverflow)?;
     if offset_result < 0 {
@@ -302,7 +354,7 @@ mod tests {
     #[test]
     fn github_link_requires_the_allowed_repository_without_traversal() {
         assert!(is_valid_github_link(
-            "https://github.com/solana-foundation/solana-governance-proposals/blob/main/proposals/sgp-0001-title.md"
+            "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/sgp-0001-title.md"
         ));
         assert!(!is_valid_github_link(
             "https://github.com/attacker/repo/blob/ref/0022-x.md"
@@ -318,12 +370,58 @@ mod tests {
     #[test]
     fn github_link_rejects_unicode_path_characters() {
         let prefix =
-            "https://github.com/solana-foundation/solana-governance-proposals/blob/main/proposals/";
+            "https://github.com/solana-foundation/solana-governance-proposals/blob/27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/";
 
         for filename in ["sgp-0001-café.md", "sgp-0001-测试.md", "sgp-0001-а.md"] {
             assert!(
                 !is_valid_github_link(&format!("{prefix}{filename}")),
                 "Unicode path character should be rejected: {filename}"
+            );
+        }
+    }
+
+    #[test]
+    fn github_link_requires_a_full_commit_and_markdown_file() {
+        let prefix = "https://github.com/solana-foundation/solana-governance-proposals/blob/";
+        for link in [
+            format!("{prefix}main/proposals/sgp-0001.md"),
+            format!("{prefix}27bca51/proposals/sgp-0001.md"),
+            format!("{prefix}27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/sgp-0001.txt"),
+            format!("{prefix}27bca51e5c0fc34ddbea6904faf86f5098225316/proposals/sgp-0001.md/"),
+        ] {
+            assert!(!is_valid_github_link(&link), "should reject {link}");
+        }
+    }
+
+    #[test]
+    fn github_link_matches_shared_validation_fixture() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../test-fixtures/proposal-url-validation.json"
+        )))
+        .expect("shared proposal URL fixture must be valid JSON");
+
+        for case in fixture["valid"]
+            .as_array()
+            .expect("valid cases must be an array")
+        {
+            let name = case["name"].as_str().expect("case name must be a string");
+            let url = case["url"].as_str().expect("case URL must be a string");
+            assert!(
+                is_valid_github_link(url),
+                "shared fixture should accept {name}: {url}"
+            );
+        }
+
+        for case in fixture["invalid"]
+            .as_array()
+            .expect("invalid cases must be an array")
+        {
+            let name = case["name"].as_str().expect("case name must be a string");
+            let url = case["url"].as_str().expect("case URL must be a string");
+            assert!(
+                !is_valid_github_link(url),
+                "shared fixture should reject {name}: {url}"
             );
         }
     }
@@ -480,10 +578,123 @@ mod tests {
         assert_eq!(min_stake_threshold(u64::MAX, 10_000).unwrap(), u64::MAX);
     }
 
+    // --- split_vote_lamports ---
+
+    fn lamports(for_votes: u64, against_votes: u64, abstain_votes: u64) -> VoteLamports {
+        VoteLamports {
+            for_votes,
+            against_votes,
+            abstain_votes,
+        }
+    }
+
+    fn total(split: VoteLamports) -> u64 {
+        split.for_votes + split.against_votes + split.abstain_votes
+    }
+
+    #[test]
+    fn split_exact_division_matches_plain_percentages() {
+        assert_eq!(
+            split_vote_lamports(1_000_000, 2_500, 2_500, 5_000).unwrap(),
+            lamports(250_000, 250_000, 500_000)
+        );
+    }
+
+    #[test]
+    fn split_indivisible_stake_sums_exactly_to_stake() {
+        // Floors alone give 333_300_000 + 333_300_000 + 333_400_000, one
+        // lamport short of the stake; the remainder lands on Abstain (3_334 bp).
+        let stake = 1_000_000_001;
+        let split = split_vote_lamports(stake, 3_333, 3_333, 3_334).unwrap();
+        assert_eq!(split, lamports(333_300_000, 333_300_000, 333_400_001));
+        assert_eq!(total(split), stake);
+    }
+
+    #[test]
+    fn split_remainder_goes_to_largest_option_with_for_winning_ties() {
+        // 50/50 on 7 lamports floors to 3 + 3; the odd lamport goes to For.
+        assert_eq!(
+            split_vote_lamports(7, 5_000, 5_000, 0).unwrap(),
+            lamports(4, 3, 0)
+        );
+        // 25/25/50 floors to 1 + 1 + 3; both dropped lamports go to Abstain.
+        assert_eq!(
+            split_vote_lamports(7, 2_500, 2_500, 5_000).unwrap(),
+            lamports(1, 1, 5)
+        );
+    }
+
+    #[test]
+    fn split_zero_bp_option_never_receives_lamports() {
+        for stake in [1u64, 7, 999_999_999_999_999_999] {
+            let split = split_vote_lamports(stake, 0, 9_999, 1).unwrap();
+            assert_eq!(split.for_votes, 0);
+            assert_eq!(total(split), stake);
+        }
+    }
+
     #[test]
     fn epoch_slot_range_is_correct() {
         assert_eq!(get_epoch_slot_range(0), (0, 431_999));
         assert_eq!(get_epoch_slot_range(1), (432_000, 863_999));
+    }
+
+    #[test]
+    fn snapshot_offset_accepts_the_latest_valid_boundary() {
+        let latest = (SLOTS_PER_EPOCH - ncn_snapshot::MIN_VOTE_EXPIRY_SLOTS) as i64;
+
+        assert!(validate_snapshot_slot_offset(-1).is_ok());
+        assert!(validate_snapshot_slot_offset(latest).is_ok());
+        assert!(matches!(
+            validate_snapshot_slot_offset(latest + 1),
+            Err(GovernanceError::InvalidSnapshotSlotOffset)
+        ));
+    }
+
+    #[test]
+    fn snapshot_to_voting_window_enforces_both_boundaries() {
+        let voting_start_epoch = 10;
+        let voting_start_slot = epoch_start_slot(voting_start_epoch).unwrap();
+        let minimum = ncn_snapshot::MIN_VOTE_EXPIRY_SLOTS;
+
+        assert_eq!(
+            ensure_snapshot_before_voting_start(voting_start_slot - minimum, voting_start_epoch)
+                .unwrap(),
+            voting_start_slot
+        );
+        assert!(matches!(
+            ensure_snapshot_before_voting_start(
+                voting_start_slot - minimum + 1,
+                voting_start_epoch
+            ),
+            Err(GovernanceError::SnapshotWindowTooShort)
+        ));
+        for snapshot_slot in [voting_start_slot, voting_start_slot + 1] {
+            assert!(matches!(
+                ensure_snapshot_before_voting_start(snapshot_slot, voting_start_epoch),
+                Err(GovernanceError::SnapshotSlotNotBeforeVotingStart)
+            ));
+        }
+    }
+
+    #[test]
+    fn schedule_helpers_reject_arithmetic_boundaries() {
+        assert!(matches!(
+            voting_start_epoch(u64::MAX),
+            Err(GovernanceError::ArithmeticOverflow)
+        ));
+
+        let first_overflowing_epoch = u64::MAX / SLOTS_PER_EPOCH + 1;
+        assert!(matches!(
+            epoch_start_slot(first_overflowing_epoch),
+            Err(GovernanceError::ArithmeticOverflow)
+        ));
+
+        let first_epoch_past_i64 = i64::MAX as u64 / SLOTS_PER_EPOCH + 1;
+        assert!(matches!(
+            compute_future_snapshot_slot(first_epoch_past_i64, 0, 0),
+            Err(GovernanceError::ArithmeticOverflow)
+        ));
     }
 
     #[test]
@@ -564,7 +775,7 @@ mod tests {
         // support_proposal, anchored on the same epoch, includes the discussion
         // window, so its target is exactly `discussion_epochs` later than flush's.
         let support_target =
-            proposal_target_epoch(current_epoch, discussion_epochs, snapshot_epoch_extension)
+            proposal_snapshot_epoch(current_epoch, discussion_epochs, snapshot_epoch_extension)
                 .unwrap();
         assert_eq!(support_target - flush_target, discussion_epochs);
     }
@@ -573,8 +784,8 @@ mod tests {
     fn target_epoch_includes_discussion_period() {
         // The discussion window must remain part of the schedule. Dropping it (as
         // the old flush did) shortened time-to-vote by exactly `discussion_epochs`.
-        let with_discussion = proposal_target_epoch(9, 3, 1).unwrap();
-        let without_discussion = proposal_target_epoch(9, 0, 1).unwrap();
+        let with_discussion = proposal_snapshot_epoch(9, 3, 1).unwrap();
+        let without_discussion = proposal_snapshot_epoch(9, 0, 1).unwrap();
         assert_eq!(with_discussion - without_discussion, 3);
     }
 
@@ -583,7 +794,7 @@ mod tests {
         // Bounded, admin-set inputs should never reach this, but the checked math
         // surfaces a clean error instead of relying on the release overflow-checks panic.
         assert!(matches!(
-            proposal_target_epoch(u64::MAX, 1, 0),
+            proposal_snapshot_epoch(u64::MAX, 1, 0),
             Err(GovernanceError::ArithmeticOverflow)
         ));
     }

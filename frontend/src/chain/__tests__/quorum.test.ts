@@ -1,4 +1,5 @@
 import {
+  computeProposalVoteStats,
   computeQuorum,
   QUORUM_DENOMINATOR,
   QUORUM_NUMERATOR,
@@ -83,6 +84,65 @@ describe("computeQuorum", () => {
     if (!result.known) throw new Error("unreachable");
     expect(result.participationPercent).toBeCloseTo(87.5, 9);
     expect(result.isMet).toBe(true);
+  });
+});
+
+describe("computeProposalVoteStats", () => {
+  it("separates vote share from participation and stake share", () => {
+    const result = computeProposalVoteStats({
+      forLamports: 200n,
+      againstLamports: 100n,
+      abstainLamports: 50n,
+      totalActiveStake: 1_000n,
+    });
+
+    expect(result.quorum).toEqual({
+      known: true,
+      totalActiveStake: 1_000n,
+      participationPercent: 35,
+      isMet: true,
+    });
+    expect(result.voteShare.known).toBe(true);
+    if (!result.voteShare.known) throw new Error("unreachable");
+    expect(result.voteShare.forPercent).toBeCloseTo(57.142857, 6);
+    expect(result.voteShare.againstPercent).toBeCloseTo(28.571429, 6);
+    expect(result.voteShare.abstainPercent).toBeCloseTo(14.285714, 6);
+    expect(result.stakeShare).toEqual({
+      known: true,
+      forPercent: 20,
+      againstPercent: 10,
+      abstainPercent: 5,
+    });
+  });
+
+  it("keeps vote share available without the snapshot total", () => {
+    const result = computeProposalVoteStats({
+      forLamports: 200n,
+      againstLamports: 100n,
+      abstainLamports: 50n,
+      totalActiveStake: undefined,
+    });
+
+    expect(result.quorum).toEqual({ known: false });
+    expect(result.voteShare.known).toBe(true);
+    expect(result.stakeShare).toEqual({ known: false });
+  });
+
+  it("reports an unknown vote share when no votes have been cast", () => {
+    const result = computeProposalVoteStats({
+      forLamports: 0n,
+      againstLamports: 0n,
+      abstainLamports: 0n,
+      totalActiveStake: 1_000n,
+    });
+
+    expect(result.voteShare).toEqual({ known: false });
+    expect(result.stakeShare).toEqual({
+      known: true,
+      forPercent: 0,
+      againstPercent: 0,
+      abstainPercent: 0,
+    });
   });
 });
 

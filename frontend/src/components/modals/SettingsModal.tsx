@@ -11,44 +11,39 @@ import {
 import { cn } from "@/lib/utils";
 import { AppButton } from "../ui/AppButton";
 import { useEffect, useState } from "react";
-import { RPC_URLS, useEndpoint } from "@/contexts/EndpointContext";
+import { useEndpoint } from "@/contexts/EndpointContext";
 import { useNcnApi } from "@/contexts/NcnApiContext";
-import { RPCEndpoint } from "@/types";
+import { RpcNetwork } from "@/types";
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const ENDPOINTS = ["mainnet", "testnet", "devnet", "custom"];
+const ENDPOINTS: RpcNetwork[] = ["mainnet", "testnet", "devnet"];
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-  const { endpointType, endpointUrl, setEndpoint } = useEndpoint();
+  const { network, setEndpoint } = useEndpoint();
   const { ncnApiUrl, setNcnApiUrl } = useNcnApi();
 
-  const [selectedEndpoint, setSelectedEndpoint] =
-    useState<RPCEndpoint>(endpointType);
+  const [selectedEndpoint, setSelectedEndpoint] = useState<RpcNetwork>(network);
 
-  const [customUrl, setCustomUrl] = useState("");
   const [ncnApiUrlInput, setNcnApiUrlInput] = useState(ncnApiUrl);
 
   // Sync modal state when opened
   useEffect(() => {
     if (isOpen) {
-      setSelectedEndpoint(endpointType);
-      setCustomUrl(endpointType === "custom" ? endpointUrl : "");
+      setSelectedEndpoint(network);
       setNcnApiUrlInput(ncnApiUrl);
     }
-  }, [isOpen, endpointType, endpointUrl, ncnApiUrl]);
+  }, [isOpen, network, ncnApiUrl]);
 
   const normalizeUrl = (url: string): string => {
     return url.replace(/\/$/, "");
   };
 
   const handleSave = () => {
-    const url =
-      selectedEndpoint === "custom" ? customUrl : RPC_URLS[selectedEndpoint];
-    setEndpoint(selectedEndpoint, url);
+    setEndpoint(selectedEndpoint);
     if (ncnApiUrlInput && isValidUrl(ncnApiUrlInput)) {
       setNcnApiUrl(normalizeUrl(ncnApiUrlInput));
     }
@@ -56,7 +51,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   };
   const handleClose = () => {
     setSelectedEndpoint("devnet");
-    setCustomUrl("");
     setNcnApiUrlInput(ncnApiUrl);
     onClose();
   };
@@ -70,10 +64,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
-  const canSave =
-    (selectedEndpoint !== "custom" || (customUrl && isValidUrl(customUrl))) &&
-    ncnApiUrlInput &&
-    isValidUrl(ncnApiUrlInput);
+  const canSave = ncnApiUrlInput && isValidUrl(ncnApiUrlInput);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
@@ -103,7 +94,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       "flex items-center gap-3 cursor-pointer p-3 mt-4 rounded-xl border transition-all",
                       selectedEndpoint === endpoint
                         ? "border-primary bg-primary/10"
-                        : "border-white/10 hover:border-white/20 hover:bg-white/5"
+                        : "border-white/10 hover:border-white/20 hover:bg-white/5",
                     )}
                   >
                     <input
@@ -112,7 +103,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       value={endpoint}
                       checked={selectedEndpoint === endpoint}
                       onChange={() =>
-                        setSelectedEndpoint(endpoint as RPCEndpoint)
+                        setSelectedEndpoint(endpoint as RpcNetwork)
                       }
                       className="size-3 accent-primary"
                     />
@@ -121,22 +112,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     </span>
                   </label>
                 ))}
-
-                {selectedEndpoint === "custom" && (
-                  <input
-                    id="custom-rpc-url"
-                    type="url"
-                    value={customUrl}
-                    onChange={(e) => setCustomUrl(e.target.value)}
-                    placeholder="Custom RPC URL"
-                    className={cn(
-                      "input",
-                      "w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3",
-                      "placeholder:text-sm placeholder:text-white/40",
-                      "focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50"
-                    )}
-                  />
-                )}
               </div>
 
               <div className="flex flex-col gap-3">
@@ -153,7 +128,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     "input",
                     "w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3",
                     "placeholder:text-sm placeholder:text-white/40",
-                    "focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    "focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50",
                   )}
                 />
               </div>

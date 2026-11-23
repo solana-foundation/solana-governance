@@ -7,16 +7,24 @@ use anchor_lang::{
 };
 
 use crate::{
-    calculate_vote_lamports,
     constants::*,
     error::GovernanceError,
     events::VoteOverrideCast,
     merkle_helpers::verify_merkle_proof_cpi,
-    state::{Proposal, Vote, VoteOverride, VoteOverrideCache},
+    state::{Proposal, Vote, VoteDelegation, VoteOverride, VoteOverrideCache},
+    utils::{split_vote_lamports, VoteLamports},
+    vote_authority::{delegate_signer, require_vote_authority},
 };
 use ncn_snapshot::{ConsensusResult, MetaMerkleProof, StakeMerkleLeaf};
 
 #[derive(Accounts)]
+#[instruction(
+    for_votes_bp: u64,
+    against_votes_bp: u64,
+    abstain_votes_bp: u64,
+    stake_merkle_proof: Vec<[u8; 32]>,
+    stake_merkle_leaf: StakeMerkleLeaf
+)]
 pub struct CastVoteOverride<'info> {
     #[account(mut)]
     pub signer: Signer<'info>, // Voter (staker/delegator)
@@ -61,6 +69,14 @@ pub struct CastVoteOverride<'info> {
         constraint = spl_stake_account.owner == &stake_program::ID @ ProgramError::InvalidAccountOwner,
     )]
     pub spl_stake_account: UncheckedAccount<'info>,
+    /// CHECK: VoteDelegation PDA for the stake leaf's voting wallet; may not
+    /// exist. With an accepted delegation on record only the delegate may sign,
+    /// otherwise only the voting wallet may.
+    #[account(
+        seeds = [VoteDelegation::SEED, stake_merkle_leaf.voting_wallet.as_ref()],
+        bump
+    )]
+    pub vote_delegation: UncheckedAccount<'info>,
     /// CHECK: The snapshot program (ncn-snapshot or mock)
     // #[account(constraint = snapshot_program.key() == ncn_snapshot::ID @ GovernanceError::InvalidSnapshotProgram)]
     pub snapshot_program: UncheckedAccount<'info>,
@@ -152,11 +168,15 @@ impl<'info> CastVoteOverride<'info> {
             GovernanceError::InvalidConsensusResultPDA
         );
 
-        require_eq!(
-            stake_merkle_leaf.voting_wallet,
-            self.signer.key(),
-            GovernanceError::StakeAccountOwnerMismatch
-        );
+        // The signer must be the stake leaf's voting wallet, or the accepted
+        // delegate that wallet named
+        require_vote_authority(
+            &self.signer.key(),
+            &stake_merkle_leaf.voting_wallet,
+            &self.vote_delegation,
+            &stake_merkle_leaf.voting_wallet,
+            GovernanceError::UnauthorizedVoteSigner,
+        )?;
 
         require_gt!(
             stake_merkle_leaf.active_stake,
@@ -189,10 +209,16 @@ impl<'info> CastVoteOverride<'info> {
         let delegator_stake = stake_merkle_leaf.active_stake;
         let validator_stake = meta_merkle_leaf.active_stake;
 
-        // Calculate delegator's vote lamports
-        let for_votes_lamports = calculate_vote_lamports!(delegator_stake, for_votes_bp)?;
-        let against_votes_lamports = calculate_vote_lamports!(delegator_stake, against_votes_bp)?;
-        let abstain_votes_lamports = calculate_vote_lamports!(delegator_stake, abstain_votes_bp)?;
+        let VoteLamports {
+            for_votes: for_votes_lamports,
+            against_votes: against_votes_lamports,
+            abstain_votes: abstain_votes_lamports,
+        } = split_vote_lamports(
+            delegator_stake,
+            for_votes_bp,
+            against_votes_bp,
+            abstain_votes_bp,
+        )?;
 
         // Check that validator vote exists
         // If account does not exist, cache the delegator's vote in override PDA
@@ -232,13 +258,16 @@ impl<'info> CastVoteOverride<'info> {
                 .checked_sub(total_overridden)
                 .ok_or(GovernanceError::ArithmeticOverflow)?;
 
-            // Calculate new validator votes for each category based on actual lamports
-            let for_votes_lamports_new =
-                calculate_vote_lamports!(new_validator_stake, validator_vote.for_votes_bp)?;
-            let against_votes_lamports_new =
-                calculate_vote_lamports!(new_validator_stake, validator_vote.against_votes_bp)?;
-            let abstain_votes_lamports_new =
-                calculate_vote_lamports!(new_validator_stake, validator_vote.abstain_votes_bp)?;
+            let VoteLamports {
+                for_votes: for_votes_lamports_new,
+                against_votes: against_votes_lamports_new,
+                abstain_votes: abstain_votes_lamports_new,
+            } = split_vote_lamports(
+                new_validator_stake,
+                validator_vote.for_votes_bp,
+                validator_vote.against_votes_bp,
+                validator_vote.abstain_votes_bp,
+            )?;
 
             // Add validator's new vote
             self.proposal.add_vote_lamports(
@@ -265,7 +294,7 @@ impl<'info> CastVoteOverride<'info> {
 
             // Store override
             self.vote_override.set_inner(VoteOverride {
-                delegator: self.signer.key(),
+                delegator: stake_merkle_leaf.voting_wallet,
                 stake_account: stake_merkle_leaf.stake_account,
                 validator: meta_merkle_leaf.vote_account,
                 proposal: self.proposal.key(),
@@ -279,6 +308,10 @@ impl<'info> CastVoteOverride<'info> {
                 for_votes_lamports,
                 against_votes_lamports,
                 abstain_votes_lamports,
+                delegate_signer: delegate_signer(
+                    &self.signer.key(),
+                    &stake_merkle_leaf.voting_wallet,
+                ),
             });
         } else {
             // Validator has no vote yet.
@@ -352,7 +385,7 @@ impl<'info> CastVoteOverride<'info> {
             // Initialize the VoteOverride account with delegator's vote data
             // This covers both cases: delegator -> delegator and nobody -> delegator
             self.vote_override.set_inner(VoteOverride {
-                delegator: self.signer.key(),
+                delegator: stake_merkle_leaf.voting_wallet,
                 stake_account: stake_merkle_leaf.stake_account,
                 validator: meta_merkle_leaf.vote_account,
                 proposal: self.proposal.key(),
@@ -366,13 +399,17 @@ impl<'info> CastVoteOverride<'info> {
                 for_votes_lamports,
                 against_votes_lamports,
                 abstain_votes_lamports,
+                delegate_signer: delegate_signer(
+                    &self.signer.key(),
+                    &stake_merkle_leaf.voting_wallet,
+                ),
             });
         }
 
         // Emit vote override cast event
         emit!(VoteOverrideCast {
             proposal_id: self.proposal.key(),
-            delegator: self.signer.key(),
+            delegator: stake_merkle_leaf.voting_wallet,
             stake_account: stake_merkle_leaf.stake_account,
             validator: meta_merkle_leaf.vote_account,
             for_votes_bp,
@@ -383,6 +420,7 @@ impl<'info> CastVoteOverride<'info> {
             abstain_votes_lamports,
             stake_amount: delegator_stake,
             vote_timestamp: clock.unix_timestamp,
+            signer: self.signer.key(),
         });
 
         self.proposal.vote_count += 1;

@@ -7,7 +7,7 @@ import { fetchProposal } from "@solana/svmgov";
 import { useMutation } from "@tanstack/react-query";
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { useNcnApi } from "@/contexts/NcnApiContext";
-import { requireKnownSnapshotNetwork } from "@/lib/snapshotNetwork";
+import { resolveSignerVoteAccount } from "@/lib/governance/voteDelegations";
 import {
   assertOverrideProofLineage,
   getStakeAccountProof,
@@ -93,13 +93,13 @@ function useValidatorVoteTransaction(modify: boolean) {
     mutationFn: async (input: VoteInput) => {
       if (!input.publicKey) throw new Error("Wallet not connected");
       const rpc = createSolanaRpc(endpointUrl);
-      const [proposal, voteAccounts] = await Promise.all([
-        fetchProposal(rpc, address(input.proposalId)), rpc.getVoteAccounts().send(),
+      const [proposal, splVoteAccount] = await Promise.all([
+        fetchProposal(rpc, address(input.proposalId)),
+        // The wallet is either the validator identity or its accepted vote delegate.
+        resolveSignerVoteAccount(rpc, address(input.publicKey)),
       ]);
       const snapshotSlot = requireProposalSnapshotSlot(proposal.data.snapshotSlot);
-      const vote = [...voteAccounts.current, ...voteAccounts.delinquent].find((account) => account.nodePubkey === input.publicKey);
-      if (!vote) throw new Error(`No SPL vote account found for validator identity ${input.publicKey}`);
-      const proof = await getVoteAccountProof(vote.votePubkey, requireKnownSnapshotNetwork(network), snapshotSlot, ncnApiUrl);
+      const proof = await getVoteAccountProof(splVoteAccount, network, snapshotSlot, ncnApiUrl);
       const builder = modify ? buildModifyVoteInstruction : buildCastVoteInstruction;
       const signature = await signAndSend(async ({ signer }) => {
         const consensusResult = input.consensusResult;
@@ -110,7 +110,7 @@ function useValidatorVoteTransaction(modify: boolean) {
             proof,
             signer,
           }),
-          builder({ consensusResult, distribution: input, proposal: address(input.proposalId), signer, splVoteAccount: vote.votePubkey, voteAccount: address(proof.meta_merkle_leaf.vote_account) }),
+          builder({ consensusResult, distribution: input, proposal: address(input.proposalId), signer, splVoteAccount, voteAccount: address(proof.meta_merkle_leaf.vote_account) }),
         ]);
         return [...initProofInstruction, voteInstruction];
       });
@@ -129,10 +129,9 @@ function useOverrideVoteTransaction(modify: boolean) {
       if (!input.publicKey) throw new Error("Wallet not connected");
       const proposal = await fetchProposal(createSolanaRpc(endpointUrl), address(input.proposalId));
       const snapshotSlot = requireProposalSnapshotSlot(proposal.data.snapshotSlot);
-      const resolvedNetwork = requireKnownSnapshotNetwork(network);
-      const stakeProof = await getStakeAccountProof(input.stakeAccount, resolvedNetwork, snapshotSlot, ncnApiUrl);
+      const stakeProof = await getStakeAccountProof(input.stakeAccount, network, snapshotSlot, ncnApiUrl);
       if (!stakeProof.vote_account) throw new Error("Stake account proof is missing the snapshot vote_account");
-      const metaProof = await getVoteAccountProof(stakeProof.vote_account, resolvedNetwork, snapshotSlot, ncnApiUrl);
+      const metaProof = await getVoteAccountProof(stakeProof.vote_account, network, snapshotSlot, ncnApiUrl);
       assertOverrideProofLineage(stakeProof, metaProof);
       const builder = modify ? buildModifyVoteOverrideInstruction : buildCastVoteOverrideInstruction;
       const signature = await signAndSend(async ({ signer }) => {

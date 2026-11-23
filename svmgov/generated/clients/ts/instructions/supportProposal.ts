@@ -41,6 +41,7 @@ import {
   findGlobalConfigPda,
   findProgramConfigPda,
   findSupportPda,
+  findVoteDelegationPda,
 } from "../pdas";
 import { SVMGOV_PROGRAM_PROGRAM_ADDRESS } from "../programs";
 
@@ -59,6 +60,7 @@ export type SupportProposalInstruction<
   TAccountProposal extends string | AccountMeta<string> = string,
   TAccountSupport extends string | AccountMeta<string> = string,
   TAccountSplVoteAccount extends string | AccountMeta<string> = string,
+  TAccountVoteDelegation extends string | AccountMeta<string> = string,
   TAccountBallotBox extends string | AccountMeta<string> = string,
   TAccountBallotProgram extends string | AccountMeta<string> = string,
   TAccountProgramConfig extends string | AccountMeta<string> = string,
@@ -83,6 +85,9 @@ export type SupportProposalInstruction<
       TAccountSplVoteAccount extends string
         ? ReadonlyAccount<TAccountSplVoteAccount>
         : TAccountSplVoteAccount,
+      TAccountVoteDelegation extends string
+        ? ReadonlyAccount<TAccountVoteDelegation>
+        : TAccountVoteDelegation,
       TAccountBallotBox extends string
         ? WritableAccount<TAccountBallotBox>
         : TAccountBallotBox,
@@ -136,6 +141,7 @@ export type SupportProposalAsyncInput<
   TAccountProposal extends string = string,
   TAccountSupport extends string = string,
   TAccountSplVoteAccount extends string = string,
+  TAccountVoteDelegation extends string = string,
   TAccountBallotBox extends string = string,
   TAccountBallotProgram extends string = string,
   TAccountProgramConfig extends string = string,
@@ -146,11 +152,16 @@ export type SupportProposalAsyncInput<
   proposal: Address<TAccountProposal>;
   support?: Address<TAccountSupport>;
   /**
-   * enforced here; the handler then deserializes VoteStateVersions and requires
-   * node_pubkey == signer, so a supporter can only pledge stake from a vote
-   * account they operate.
+   * enforced here; the handler then reads node_pubkey and requires the signer
+   * to be it (or its accepted delegate), so a supporter can only pledge stake
+   * from a vote account they operate.
    */
   splVoteAccount: Address<TAccountSplVoteAccount>;
+  /**
+   * accepted delegation on record only the delegate may sign, otherwise only
+   * the vote account's node identity may.
+   */
+  voteDelegation?: Address<TAccountVoteDelegation>;
   ballotBox: Address<TAccountBallotBox>;
   ballotProgram: Address<TAccountBallotProgram>;
   programConfig?: Address<TAccountProgramConfig>;
@@ -163,6 +174,7 @@ export async function getSupportProposalInstructionAsync<
   TAccountProposal extends string,
   TAccountSupport extends string,
   TAccountSplVoteAccount extends string,
+  TAccountVoteDelegation extends string,
   TAccountBallotBox extends string,
   TAccountBallotProgram extends string,
   TAccountProgramConfig extends string,
@@ -175,6 +187,7 @@ export async function getSupportProposalInstructionAsync<
     TAccountProposal,
     TAccountSupport,
     TAccountSplVoteAccount,
+    TAccountVoteDelegation,
     TAccountBallotBox,
     TAccountBallotProgram,
     TAccountProgramConfig,
@@ -189,6 +202,7 @@ export async function getSupportProposalInstructionAsync<
     TAccountProposal,
     TAccountSupport,
     TAccountSplVoteAccount,
+    TAccountVoteDelegation,
     TAccountBallotBox,
     TAccountBallotProgram,
     TAccountProgramConfig,
@@ -206,6 +220,7 @@ export async function getSupportProposalInstructionAsync<
     proposal: { value: input.proposal ?? null, isWritable: true },
     support: { value: input.support ?? null, isWritable: true },
     splVoteAccount: { value: input.splVoteAccount ?? null, isWritable: false },
+    voteDelegation: { value: input.voteDelegation ?? null, isWritable: false },
     ballotBox: { value: input.ballotBox ?? null, isWritable: true },
     ballotProgram: { value: input.ballotProgram ?? null, isWritable: false },
     programConfig: { value: input.programConfig ?? null, isWritable: false },
@@ -224,6 +239,14 @@ export async function getSupportProposalInstructionAsync<
         "proposal",
         accounts.proposal.value,
       ),
+      splVoteAccount: getAddressFromResolvedInstructionAccount(
+        "splVoteAccount",
+        accounts.splVoteAccount.value,
+      ),
+    });
+  }
+  if (!accounts.voteDelegation.value) {
+    accounts.voteDelegation.value = await findVoteDelegationPda({
       splVoteAccount: getAddressFromResolvedInstructionAccount(
         "splVoteAccount",
         accounts.splVoteAccount.value,
@@ -253,6 +276,7 @@ export async function getSupportProposalInstructionAsync<
       getAccountMeta("proposal", accounts.proposal),
       getAccountMeta("support", accounts.support),
       getAccountMeta("splVoteAccount", accounts.splVoteAccount),
+      getAccountMeta("voteDelegation", accounts.voteDelegation),
       getAccountMeta("ballotBox", accounts.ballotBox),
       getAccountMeta("ballotProgram", accounts.ballotProgram),
       getAccountMeta("programConfig", accounts.programConfig),
@@ -267,6 +291,7 @@ export async function getSupportProposalInstructionAsync<
     TAccountProposal,
     TAccountSupport,
     TAccountSplVoteAccount,
+    TAccountVoteDelegation,
     TAccountBallotBox,
     TAccountBallotProgram,
     TAccountProgramConfig,
@@ -280,6 +305,7 @@ export type SupportProposalInput<
   TAccountProposal extends string = string,
   TAccountSupport extends string = string,
   TAccountSplVoteAccount extends string = string,
+  TAccountVoteDelegation extends string = string,
   TAccountBallotBox extends string = string,
   TAccountBallotProgram extends string = string,
   TAccountProgramConfig extends string = string,
@@ -290,11 +316,16 @@ export type SupportProposalInput<
   proposal: Address<TAccountProposal>;
   support: Address<TAccountSupport>;
   /**
-   * enforced here; the handler then deserializes VoteStateVersions and requires
-   * node_pubkey == signer, so a supporter can only pledge stake from a vote
-   * account they operate.
+   * enforced here; the handler then reads node_pubkey and requires the signer
+   * to be it (or its accepted delegate), so a supporter can only pledge stake
+   * from a vote account they operate.
    */
   splVoteAccount: Address<TAccountSplVoteAccount>;
+  /**
+   * accepted delegation on record only the delegate may sign, otherwise only
+   * the vote account's node identity may.
+   */
+  voteDelegation: Address<TAccountVoteDelegation>;
   ballotBox: Address<TAccountBallotBox>;
   ballotProgram: Address<TAccountBallotProgram>;
   programConfig: Address<TAccountProgramConfig>;
@@ -307,6 +338,7 @@ export function getSupportProposalInstruction<
   TAccountProposal extends string,
   TAccountSupport extends string,
   TAccountSplVoteAccount extends string,
+  TAccountVoteDelegation extends string,
   TAccountBallotBox extends string,
   TAccountBallotProgram extends string,
   TAccountProgramConfig extends string,
@@ -319,6 +351,7 @@ export function getSupportProposalInstruction<
     TAccountProposal,
     TAccountSupport,
     TAccountSplVoteAccount,
+    TAccountVoteDelegation,
     TAccountBallotBox,
     TAccountBallotProgram,
     TAccountProgramConfig,
@@ -332,6 +365,7 @@ export function getSupportProposalInstruction<
   TAccountProposal,
   TAccountSupport,
   TAccountSplVoteAccount,
+  TAccountVoteDelegation,
   TAccountBallotBox,
   TAccountBallotProgram,
   TAccountProgramConfig,
@@ -348,6 +382,7 @@ export function getSupportProposalInstruction<
     proposal: { value: input.proposal ?? null, isWritable: true },
     support: { value: input.support ?? null, isWritable: true },
     splVoteAccount: { value: input.splVoteAccount ?? null, isWritable: false },
+    voteDelegation: { value: input.voteDelegation ?? null, isWritable: false },
     ballotBox: { value: input.ballotBox ?? null, isWritable: true },
     ballotProgram: { value: input.ballotProgram ?? null, isWritable: false },
     programConfig: { value: input.programConfig ?? null, isWritable: false },
@@ -372,6 +407,7 @@ export function getSupportProposalInstruction<
       getAccountMeta("proposal", accounts.proposal),
       getAccountMeta("support", accounts.support),
       getAccountMeta("splVoteAccount", accounts.splVoteAccount),
+      getAccountMeta("voteDelegation", accounts.voteDelegation),
       getAccountMeta("ballotBox", accounts.ballotBox),
       getAccountMeta("ballotProgram", accounts.ballotProgram),
       getAccountMeta("programConfig", accounts.programConfig),
@@ -386,6 +422,7 @@ export function getSupportProposalInstruction<
     TAccountProposal,
     TAccountSupport,
     TAccountSplVoteAccount,
+    TAccountVoteDelegation,
     TAccountBallotBox,
     TAccountBallotProgram,
     TAccountProgramConfig,
@@ -404,16 +441,21 @@ export type ParsedSupportProposalInstruction<
     proposal: TAccountMetas[1];
     support: TAccountMetas[2];
     /**
-     * enforced here; the handler then deserializes VoteStateVersions and requires
-     * node_pubkey == signer, so a supporter can only pledge stake from a vote
-     * account they operate.
+     * enforced here; the handler then reads node_pubkey and requires the signer
+     * to be it (or its accepted delegate), so a supporter can only pledge stake
+     * from a vote account they operate.
      */
     splVoteAccount: TAccountMetas[3];
-    ballotBox: TAccountMetas[4];
-    ballotProgram: TAccountMetas[5];
-    programConfig: TAccountMetas[6];
-    globalConfig: TAccountMetas[7];
-    systemProgram: TAccountMetas[8];
+    /**
+     * accepted delegation on record only the delegate may sign, otherwise only
+     * the vote account's node identity may.
+     */
+    voteDelegation: TAccountMetas[4];
+    ballotBox: TAccountMetas[5];
+    ballotProgram: TAccountMetas[6];
+    programConfig: TAccountMetas[7];
+    globalConfig: TAccountMetas[8];
+    systemProgram: TAccountMetas[9];
   };
   data: SupportProposalInstructionData;
 };
@@ -426,12 +468,12 @@ export function parseSupportProposalInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedSupportProposalInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 9) {
+  if (instruction.accounts.length < 10) {
     throw new SolanaError(
       SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
       {
         actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 9,
+        expectedAccountMetas: 10,
       },
     );
   }
@@ -448,6 +490,7 @@ export function parseSupportProposalInstruction<
       proposal: getNextAccount(),
       support: getNextAccount(),
       splVoteAccount: getNextAccount(),
+      voteDelegation: getNextAccount(),
       ballotBox: getNextAccount(),
       ballotProgram: getNextAccount(),
       programConfig: getNextAccount(),

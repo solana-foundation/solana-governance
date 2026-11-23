@@ -17,6 +17,8 @@ import {
   fixEncoderSize,
   getAddressDecoder,
   getAddressEncoder,
+  getBooleanDecoder,
+  getBooleanEncoder,
   getBytesDecoder,
   getBytesEncoder,
   getI64Decoder,
@@ -98,6 +100,11 @@ export type GlobalConfig = {
    * Must be in `1..=MAX_SUPPORTERS_LIMIT`.
    */
   maxSupporters: number;
+  /**
+   * Whether new proposals are allowed to be created. This can be use to
+   * temporarily halt new proposals while a governance upgrade is in progress.
+   */
+  newProposalsAllowed: boolean;
 };
 
 export type GlobalConfigArgs = {
@@ -138,6 +145,11 @@ export type GlobalConfigArgs = {
    * Must be in `1..=MAX_SUPPORTERS_LIMIT`.
    */
   maxSupporters: number;
+  /**
+   * Whether new proposals are allowed to be created. This can be use to
+   * temporarily halt new proposals while a governance upgrade is in progress.
+   */
+  newProposalsAllowed: boolean;
 };
 
 /** Gets the encoder for {@link GlobalConfigArgs} account data. */
@@ -158,6 +170,7 @@ export function getGlobalConfigEncoder(): Encoder<GlobalConfigArgs> {
       ["snapshotSlotOffset", getI64Encoder()],
       ["bump", getU8Encoder()],
       ["maxSupporters", getU32Encoder()],
+      ["newProposalsAllowed", getBooleanEncoder()],
     ]),
     (value) => ({ ...value, discriminator: GLOBAL_CONFIG_DISCRIMINATOR }),
   );
@@ -180,6 +193,7 @@ export function getGlobalConfigDecoder(): Decoder<GlobalConfig> {
     ["snapshotSlotOffset", getI64Decoder()],
     ["bump", getU8Decoder()],
     ["maxSupporters", getU32Decoder()],
+    ["newProposalsAllowed", getBooleanDecoder()],
   ]);
 }
 

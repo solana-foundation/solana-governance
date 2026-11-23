@@ -4,6 +4,7 @@ mod instructions;
 mod utils;
 
 use anchor_client::anchor_lang::declare_program;
+use anchor_client::solana_client::nonblocking::rpc_client::RpcClient;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand};
@@ -14,7 +15,7 @@ use utils::{
     commands,
     config_command::{ConfigSubcommand, handle_config_command},
     init,
-    squads::SquadsCliOpts,
+    squads::{SquadsCliOpts, resolve_multisig},
     utils::*,
 };
 
@@ -36,11 +37,11 @@ declare_program!(svmgov_program);
                     For more information on each subcommand, use --help, e.g., `svmgov create-proposal --help`."
 )]
 struct Cli {
-    /// Path to the keypair JSON file used to sign transactions.
+    /// Keypair JSON file or Ledger URI used to sign transactions.
     #[arg(
         short = 'k',
         long = "keypair",
-        help = "Path to the signer keypair JSON file (or set via SVMGOV_KEY env var)",
+        help = "Signer keypair JSON file or Ledger URI, e.g. usb://ledger?key=0/0 (or SVMGOV_KEY)",
         global = true,
         env = SVMGOV_KEY_ENV
     )]
@@ -65,10 +66,10 @@ struct Cli {
     )]
     network: Option<String>,
 
-    /// Route the transaction through this Squads multisig instead of signing locally.
+    /// Route the transaction through this Squads vault.
     #[arg(
         long = "squads",
-        help = "Route the transaction through this Squads multisig (creates a vault transaction + proposal)",
+        help = "Squads vault address (multisig state addresses are also accepted); creates a vault transaction + proposal",
         global = true
     )]
     squads: Option<Pubkey>,
@@ -76,7 +77,7 @@ struct Cli {
     /// Vault index within the multisig (defaults to 0).
     #[arg(
         long = "squads-vault-index",
-        help = "Vault index within the Squads multisig",
+        help = "Vault index within the Squads multisig; must match the supplied vault address",
         default_value_t = 0,
         global = true
     )]
@@ -140,6 +141,30 @@ enum Commands {
             help = "Add the support instruction to the proposal creation transaction"
         )]
         with_support: bool,
+
+        /// SPL vote account to act for.
+        #[arg(
+            long,
+            help = "SPL vote account to act for; defaults to the signer's own vote account, or the one whose vote is delegated to the signer"
+        )]
+        vote_account: Option<String>,
+    },
+
+    #[command(
+        about = "Update a proposal document before voting starts",
+        long_about = "Updates a proposal's commit-pinned markdown document URL. Only the proposal author may update it, and updates are allowed during support and discussion but never once voting begins.\n\n\
+                      Example:\n\
+                      $ svmgov -k /path/to/key.json update-proposal-description --proposal-id <PROPOSAL_PUBKEY> --description https://github.com/solana-foundation/solana-governance-proposals/blob/<commit-sha>/proposals/sgp-0001-title.md"
+    )]
+    UpdateProposalDescription {
+        #[arg(long, help = "Proposal PDA address")]
+        proposal_id: String,
+
+        #[arg(long, help = "Commit-pinned markdown URL in solana-governance-proposals")]
+        description: String,
+
+        #[arg(long, help = "Skip the network and frontmatter verification of --description")]
+        skip_link_check: bool,
     },
 
     #[command(
@@ -153,6 +178,13 @@ enum Commands {
     SupportProposal {
         #[arg(long, help = "Proposal ID")]
         proposal_id: String,
+
+        /// SPL vote account to act for.
+        #[arg(
+            long,
+            help = "SPL vote account to act for; defaults to the signer's own vote account, or the one whose vote is delegated to the signer"
+        )]
+        vote_account: Option<String>,
     },
 
     #[command(
@@ -167,6 +199,22 @@ enum Commands {
     RetallySupport {
         #[arg(long, help = "Proposal ID")]
         proposal_id: String,
+    },
+
+    #[command(
+        about = "Grow pre-delegation Vote and VoteOverride accounts to the current layout (one-time, permissionless)",
+        long_about = "Finds every Vote and VoteOverride account recorded before vote delegation existed and grows \
+                      it to the current layout, where `delegate_signer` reads as None. Anyone may run it; the \
+                      signer pays the added rent (about 0.00023 SOL per record) and transaction fees. Records are \
+                      migrated in batches and the command may be re-run safely: migrated records are skipped.\n\n\
+                      Example:\n\
+                      $ svmgov -k /path/to/payer.json migrate-vote-records\n\
+                      $ svmgov migrate-vote-records --dry-run"
+    )]
+    MigrateVoteRecords {
+        /// Only report how many records need migrating.
+        #[arg(long, help = "List the legacy records without sending transactions")]
+        dry_run: bool,
     },
 
     #[command(
@@ -205,6 +253,13 @@ enum Commands {
             help = "MetaMerkleProof close timestamp (Unix seconds); defaults to the proposal's vote-expiry time"
         )]
         close_timestamp: Option<i64>,
+
+        /// SPL vote account to act for.
+        #[arg(
+            long,
+            help = "SPL vote account to act for; defaults to the signer's own vote account, or the one whose vote is delegated to the signer"
+        )]
+        vote_account: Option<String>,
     },
 
     #[command(
@@ -231,6 +286,113 @@ enum Commands {
         /// Basis points for 'Abstain' vote.
         #[arg(long, help = "Basis points for 'Abstain'")]
         abstain_votes: u64,
+
+        /// SPL vote account to act for.
+        #[arg(
+            long,
+            help = "SPL vote account to act for; defaults to the signer's own vote account, or the one whose vote is delegated to the signer"
+        )]
+        vote_account: Option<String>,
+    },
+
+    #[command(
+        about = "Delegate a validator's or staker's governance vote to another key (step 1 of 2)",
+        long_about = "Names another key as the governance voter for an SPL vote account or for a staker's \
+                      wallet, so the validator identity or the cold stake authority never has to sign \
+                      governance transactions. A vote account delegation must be signed by its node identity \
+                      or authorized withdrawer (pass --vote-account when signing as the withdrawer); a wallet \
+                      delegation (--wallet) by the wallet itself. The delegation is inert until the delegate \
+                      runs `accept-vote-delegation`; from then on the delegate alone acts for the subject \
+                      (creating, supporting, voting and modifying for a vote account; overriding for a \
+                      wallet's stake), and the subject's own key is locked out until the delegation is \
+                      removed.\n\n\
+                      Examples:\n\
+                      $ svmgov -k /path/to/identity.json delegate-vote --delegate <DELEGATE_PUBKEY>\n\
+                      $ svmgov -k /path/to/staker.json delegate-vote --wallet --delegate <DELEGATE_PUBKEY>"
+    )]
+    DelegateVote {
+        /// Key that will vote on behalf of the subject.
+        #[arg(long, help = "Base58 pubkey that will vote for the vote account or wallet")]
+        delegate: String,
+
+        /// SPL vote account to delegate.
+        #[arg(
+            long,
+            conflicts_with = "wallet",
+            help = "SPL vote account to delegate; defaults to the one whose node identity is the signer (required when signing as the authorized withdrawer)"
+        )]
+        vote_account: Option<String>,
+
+        /// Delegate the signer's own wallet (a staker's override vote) instead of a vote account.
+        #[arg(
+            long,
+            help = "Delegate the signer's own wallet: the override vote for every stake account it is the voting wallet of"
+        )]
+        wallet: bool,
+    },
+
+    #[command(
+        about = "Accept a pending vote delegation (step 2 of 2, delegate only)",
+        long_about = "Completes a vote delegation. Must be signed by the delegate named in `delegate-vote`. \
+                      On success the delegate alone votes for the subject.\n\n\
+                      Example:\n\
+                      $ svmgov -k /path/to/delegate.json accept-vote-delegation --subject <VOTE_ACCOUNT_OR_WALLET>"
+    )]
+    AcceptVoteDelegation {
+        /// SPL vote account or staker wallet whose delegation is being accepted.
+        #[arg(long, help = "SPL vote account or staker wallet whose delegation to accept")]
+        subject: String,
+    },
+
+    #[command(
+        about = "Remove a vote delegation",
+        long_about = "Removes a vote delegation and returns its rent to the subject's root authority: a vote \
+                      account's authorized withdrawer, or the wallet itself. The delegate may always remove it. \
+                      For a vote account the authorized withdrawer may always remove it and the node identity \
+                      only while it is still pending acceptance; for a wallet the wallet may always remove it.\n\n\
+                      Examples:\n\
+                      $ svmgov -k /path/to/delegate.json remove-vote-delegation\n\
+                      $ svmgov -k /path/to/withdrawer.json remove-vote-delegation --vote-account <VOTE_ACCOUNT>\n\
+                      $ svmgov -k /path/to/staker.json remove-vote-delegation --wallet\n\
+                      $ svmgov -k /path/to/delegate.json remove-vote-delegation --subject <STAKER_WALLET>"
+    )]
+    RemoveVoteDelegation {
+        /// SPL vote account or staker wallet whose delegation is being removed.
+        #[arg(
+            long,
+            conflicts_with_all = ["vote_account", "wallet"],
+            help = "SPL vote account or staker wallet whose delegation to remove, e.g. for a delegate resigning from a staker's delegation"
+        )]
+        subject: Option<String>,
+
+        /// SPL vote account whose delegation is being removed.
+        #[arg(
+            long,
+            conflicts_with = "wallet",
+            help = "SPL vote account whose delegation to remove; defaults to the signer's own vote account, or the one delegated to the signer"
+        )]
+        vote_account: Option<String>,
+
+        /// Remove the delegation of the signer's own wallet.
+        #[arg(long, help = "Remove the delegation of the signer's own wallet")]
+        wallet: bool,
+    },
+
+    #[command(
+        about = "Show the vote delegation of a vote account or staker wallet",
+        long_about = "Displays who, if anyone, is delegated to vote for an SPL vote account or a staker's \
+                      wallet and whether the delegation has been accepted.\n\n\
+                      Example:\n\
+                      $ svmgov show-vote-delegation --subject <VOTE_ACCOUNT_OR_WALLET>"
+    )]
+    ShowVoteDelegation {
+        /// SPL vote account or staker wallet to inspect.
+        #[arg(long, help = "SPL vote account or staker wallet to inspect")]
+        subject: String,
+
+        /// Output the delegation as JSON.
+        #[arg(long)]
+        json: bool,
     },
 
     #[command(
@@ -258,6 +420,28 @@ enum Commands {
     Proposal {
         /// Proposal ID to display
         proposal_id: String,
+
+        /// Output the proposal details as JSON.
+        #[arg(long)]
+        json: bool,
+    },
+
+    #[command(
+        about = "Display exact validator and staker vote totals at finalized commitment",
+        long_about = "Fetch the proposal's validator votes and staker overrides at finalized commitment. \
+                      Derives account filters from the bundled IDL and decodes Anchor account types. \
+                      Checks category totals and account counts against the proposal before printing a Markdown report. \
+                      No signing keypair is required. Finalized commitment does not imply voting has ended.\n\n\
+                      Amounts retain nine SOL decimal places; percentages use each row's category sum. \
+                      Zero-total rows show 0.0000%. Use --json for decimal-string lamport amounts, \
+                      original stake, overridden stake, and stake minus category rounding differences."
+    )]
+    VoteBreakdown {
+        /// Proposal public key.
+        proposal_id: Pubkey,
+        /// Print JSON with exact lamport amounts encoded as decimal strings.
+        #[arg(long)]
+        json: bool,
     },
 
     #[command(
@@ -339,8 +523,11 @@ enum Commands {
         )]
         stake_account: String,
 
-        /// Staker keypair for signing the transaction
-        #[arg(long, help = "Staker keypair for signing the transaction")]
+        /// Staker keypair JSON file or Ledger URI for signing the transaction
+        #[arg(
+            long,
+            help = "Staker keypair JSON file or Ledger URI for signing the transaction"
+        )]
         staker_keypair: String,
 
         /// Vote account pubkey for the validator
@@ -401,8 +588,11 @@ enum Commands {
         )]
         stake_account: String,
 
-        /// Staker keypair for signing the transaction
-        #[arg(long, help = "Staker keypair for signing the transaction")]
+        /// Staker keypair JSON file or Ledger URI for signing the transaction
+        #[arg(
+            long,
+            help = "Staker keypair JSON file or Ledger URI for signing the transaction"
+        )]
         staker_keypair: String,
 
         /// Vote account pubkey for the validator
@@ -445,11 +635,14 @@ enum Commands {
         #[arg(long, help = "Number of extra epochs for snapshot extension")]
         snapshot_epoch_extension: u64,
 
-        #[arg(long, help = "Slot offset from epoch start for snapshot computation (can be negative)")]
+        #[arg(long, help = "Slot offset from epoch start for snapshot computation (maximum 414000; can be negative)")]
         snapshot_slot_offset: i64,
 
         #[arg(long, help = "Maximum number of validators allowed to support a proposal (1-2000)")]
         max_supporters: u32,
+        
+        #[arg(long, help = "Whether new proposal creation is allowed. Set to false to pause new proposals.")]
+        new_proposals_allowed: Option<bool>,
     },
 
     #[command(
@@ -485,11 +678,14 @@ enum Commands {
         #[arg(long, help = "Number of extra epochs for snapshot extension")]
         snapshot_epoch_extension: Option<u64>,
 
-        #[arg(long, help = "Slot offset from epoch start for snapshot computation (can be negative)")]
+        #[arg(long, help = "Slot offset from epoch start for snapshot computation (maximum 414000; can be negative)")]
         snapshot_slot_offset: Option<i64>,
 
         #[arg(long, help = "Maximum number of validators allowed to support a proposal (1-2000)")]
         max_supporters: Option<u32>,
+
+        #[arg(long, help = "Whether new proposal creation is allowed. Set to false to pause new proposals.")]
+        new_proposals_allowed: Option<bool>,
     },
 
     #[command(
@@ -498,7 +694,11 @@ enum Commands {
                       Example:\n\
                       $ svmgov show-global-config"
     )]
-    ShowGlobalConfig,
+    ShowGlobalConfig {
+        /// Output the on-chain configuration as JSON.
+        #[arg(long)]
+        json: bool,
+    },
 
     #[command(
         about = "Nominate a new config admin (step 1 of 2, current admin only)",
@@ -585,31 +785,12 @@ fn merge_cli_with_config(cli: Cli, config: &Config) -> Cli {
 /// Returns the `--squads` refusal message for `command`, or `None` if the command is
 /// compatible with vault-PDA signing (or doesn't create a transaction at all).
 ///
-/// Refused commands target on-chain instructions whose signer-identity checks cannot be
-/// satisfied by a Squads vault PDA — the program enforces that the signer is a specific
-/// validator/operator hot key, or the command is permissionless and a multisig only adds
-/// friction. See `plans/squads.md` for the full actor matrix.
-///
-/// The refusal strings cite the exact program file:line of the constraint so a reader can
-/// jump from a CLI error message straight to the source of truth.
+/// Every command whose instruction is gated on a specific signer accepts `--squads`: the
+/// program only compares the signer to an authority (admin, identity, withdrawer, voting
+/// wallet, or accepted vote delegate), and a Squads vault PDA can hold any of those roles.
+/// Refused commands are permissionless, so a multisig would add friction without benefit.
 fn squads_refusal_for(command: &Commands) -> Option<String> {
     let (name, constraint) = match command {
-        Commands::CreateProposal { .. } => (
-            "create-proposal",
-            "the validator identity (vote_state.node_pubkey) to be the signer",
-        ),
-        Commands::SupportProposal { .. } => (
-            "support-proposal",
-            "the validator identity (vote_state.node_pubkey) to be the signer",
-        ),
-        Commands::CastVote { .. } => (
-            "cast-vote",
-            "the snapshot voting wallet (meta_merkle_leaf.voting_wallet) to be the signer",
-        ),
-        Commands::ModifyVote { .. } => (
-            "modify-vote",
-            "the snapshot voting wallet (meta_merkle_leaf.voting_wallet) to be the signer",
-        ),
         Commands::InitIndex {} => (
             "init-index",
             "no particular signer because it is permissionless, so a multisig adds friction without benefit",
@@ -622,13 +803,27 @@ fn squads_refusal_for(command: &Commands) -> Option<String> {
             "retally-support",
             "no particular signer because it is permissionless, so a multisig adds friction without benefit",
         ),
-        Commands::CastVoteOverride { .. }
+        Commands::MigrateVoteRecords { .. } => (
+            "migrate-vote-records",
+            "no particular signer because it is permissionless, so a multisig adds friction without benefit",
+        ),
+        Commands::CreateProposal { .. }
+        | Commands::UpdateProposalDescription { .. }
+        | Commands::SupportProposal { .. }
+        | Commands::CastVote { .. }
+        | Commands::ModifyVote { .. }
+        | Commands::DelegateVote { .. }
+        | Commands::AcceptVoteDelegation { .. }
+        | Commands::RemoveVoteDelegation { .. }
+        | Commands::CastVoteOverride { .. }
         | Commands::ModifyVoteOverride { .. }
         | Commands::InitGlobalConfig { .. }
         | Commands::UpdateGlobalConfig { .. }
         | Commands::Proposal { .. }
         | Commands::ListProposals { .. }
-        | Commands::ShowGlobalConfig
+        | Commands::VoteBreakdown { .. }
+        | Commands::ShowGlobalConfig { .. }
+        | Commands::ShowVoteDelegation { .. }
         | Commands::Init
         | Commands::Config { .. }
         | Commands::NominateAdmin { .. }
@@ -636,8 +831,8 @@ fn squads_refusal_for(command: &Commands) -> Option<String> {
     };
 
     Some(format!(
-        "The `{}` command requires {}. A Squads vault PDA cannot satisfy this on-chain \
-         check, so no vault transaction was created. Re-run without --squads to submit this transaction with your local keypair.",
+        "The `{}` command requires {}, so no vault transaction was created. Re-run without \
+         --squads to submit this transaction with your local keypair.",
         name, constraint,
     ))
 }
@@ -656,22 +851,68 @@ async fn handle_command(cli: Cli) -> Result<()> {
         cli.command
     );
 
-    // Assemble the optional Squads routing options from the global flags.
-    let squads_opts = cli.squads.map(|multisig| SquadsCliOpts {
-        multisig,
-        vault_index: cli.squads_vault_index,
-        program_id: cli.squads_program_id,
-        memo: cli.squads_memo.clone(),
-    });
-
     // Refuse `--squads` up front for commands whose on-chain signer-identity check cannot
     // be satisfied by a vault PDA. Doing this before any setup avoids running RPC lookups
     // (e.g. vote-account resolution) that assume a validator/operator hot key.
-    if squads_opts.is_some() {
+    if cli.squads.is_some() {
         if let Some(msg) = squads_refusal_for(&cli.command) {
             return Err(anyhow!(msg));
         }
     }
+
+    // Resolve only commands that submit Squads transactions. Read-only commands
+    // and local configuration commands do not need a multisig lookup.
+    // Keep this exhaustive so new commands require an explicit routing decision.
+    let squads_address = match &cli.command {
+        Commands::CreateProposal { .. }
+        | Commands::UpdateProposalDescription { .. }
+        | Commands::SupportProposal { .. }
+        | Commands::CastVote { .. }
+        | Commands::ModifyVote { .. }
+        | Commands::DelegateVote { .. }
+        | Commands::AcceptVoteDelegation { .. }
+        | Commands::RemoveVoteDelegation { .. }
+        | Commands::CastVoteOverride { .. }
+        | Commands::ModifyVoteOverride { .. }
+        | Commands::InitGlobalConfig { .. }
+        | Commands::UpdateGlobalConfig { .. }
+        | Commands::NominateAdmin { .. }
+        | Commands::AcceptAdmin => cli.squads,
+        Commands::InitIndex { .. }
+        | Commands::FinalizeProposal { .. }
+        | Commands::RetallySupport { .. }
+        | Commands::MigrateVoteRecords { .. }
+        | Commands::Proposal { .. }
+        | Commands::ListProposals { .. }
+        | Commands::VoteBreakdown { .. }
+        | Commands::ShowGlobalConfig { .. }
+        | Commands::ShowVoteDelegation { .. }
+        | Commands::Init
+        | Commands::Config { .. } => None,
+    };
+    let squads_opts = match squads_address {
+        Some(address) => {
+            let rpc = RpcClient::new(
+                cli.rpc_url
+                    .clone()
+                    .unwrap_or_else(|| DEFAULT_RPC_URL.to_string()),
+            );
+            let multisig = resolve_multisig(
+                &rpc,
+                address,
+                cli.squads_vault_index,
+                cli.squads_program_id,
+            )
+            .await?;
+            Some(SquadsCliOpts {
+                multisig,
+                vault_index: cli.squads_vault_index,
+                program_id: cli.squads_program_id,
+                memo: cli.squads_memo.clone(),
+            })
+        }
+        None => None,
+    };
 
     match &cli.command {
         Commands::CreateProposal {
@@ -680,6 +921,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
             description,
             skip_link_check,
             with_support,
+            vote_account,
         } => {
             instructions::create_proposal(
                 title.to_string(),
@@ -690,19 +932,42 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 network.clone(),
                 *skip_link_check,
                 *with_support,
+                vote_account.clone(),
+                squads_opts.clone(),
+            )
+            .await?;
+        }
+        Commands::UpdateProposalDescription {
+            proposal_id,
+            description,
+            skip_link_check,
+        } => {
+            instructions::update_proposal_description(
+                proposal_id.to_string(),
+                description.to_string(),
+                cli.keypair,
+                cli.rpc_url,
+                *skip_link_check,
+                squads_opts.clone(),
             )
             .await?;
         }
         Commands::SupportProposal {
             proposal_id,
+            vote_account,
         } => {
             instructions::support_proposal(
                 proposal_id.to_string(),
                 cli.keypair,
                 cli.rpc_url,
                 network.clone(),
+                vote_account.clone(),
+                squads_opts.clone(),
             )
             .await?;
+        }
+        Commands::MigrateVoteRecords { dry_run } => {
+            instructions::migrate_vote_records(*dry_run, cli.keypair, cli.rpc_url).await?;
         }
         Commands::RetallySupport { proposal_id } => {
             instructions::retally_support(
@@ -719,6 +984,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
             against_votes,
             abstain_votes,
             close_timestamp,
+            vote_account,
         } => {
             instructions::cast_vote(
                 proposal_id.to_string(),
@@ -729,6 +995,8 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 cli.rpc_url,
                 network.clone(),
                 *close_timestamp,
+                vote_account.clone(),
+                squads_opts.clone(),
             )
             .await?;
         }
@@ -737,6 +1005,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
             for_votes,
             against_votes,
             abstain_votes,
+            vote_account,
         } => {
             instructions::modify_vote(
                 proposal_id.to_string(),
@@ -746,8 +1015,52 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 cli.keypair,
                 cli.rpc_url,
                 network.clone(),
+                vote_account.clone(),
+                squads_opts.clone(),
             )
             .await?;
+        }
+        Commands::DelegateVote {
+            delegate,
+            vote_account,
+            wallet,
+        } => {
+            instructions::delegate_vote(
+                delegate.clone(),
+                vote_account.clone(),
+                *wallet,
+                cli.keypair,
+                cli.rpc_url,
+                squads_opts.clone(),
+            )
+            .await?;
+        }
+        Commands::AcceptVoteDelegation { subject } => {
+            instructions::accept_vote_delegation(
+                subject.clone(),
+                cli.keypair,
+                cli.rpc_url,
+                squads_opts.clone(),
+            )
+            .await?;
+        }
+        Commands::RemoveVoteDelegation {
+            subject,
+            vote_account,
+            wallet,
+        } => {
+            instructions::remove_vote_delegation(
+                subject.clone(),
+                vote_account.clone(),
+                *wallet,
+                cli.keypair,
+                cli.rpc_url,
+                squads_opts.clone(),
+            )
+            .await?;
+        }
+        Commands::ShowVoteDelegation { subject, json } => {
+            instructions::show_vote_delegation(subject.clone(), cli.rpc_url, *json).await?;
         }
         Commands::FinalizeProposal { proposal_id } => {
             instructions::finalize_proposal(
@@ -757,8 +1070,11 @@ async fn handle_command(cli: Cli) -> Result<()> {
             )
             .await?;
         }
-        Commands::Proposal { proposal_id } => {
-            commands::get_proposal(cli.rpc_url.clone(), proposal_id).await?;
+        Commands::Proposal { proposal_id, json } => {
+            commands::get_proposal(cli.rpc_url.clone(), proposal_id, *json).await?;
+        }
+        Commands::VoteBreakdown { proposal_id, json } => {
+            utils::vote_breakdown::vote_breakdown(cli.rpc_url.clone(), *proposal_id, *json).await?;
         }
         Commands::ListProposals {
             status,
@@ -836,6 +1152,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
             snapshot_epoch_extension,
             snapshot_slot_offset,
             max_supporters,
+            new_proposals_allowed
         } => {
             instructions::initialize_global_config(
                 cli.keypair,
@@ -850,6 +1167,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 *snapshot_epoch_extension,
                 *snapshot_slot_offset,
                 *max_supporters,
+                *new_proposals_allowed,
                 squads_opts.clone(),
             )
             .await?;
@@ -865,6 +1183,7 @@ async fn handle_command(cli: Cli) -> Result<()> {
             snapshot_epoch_extension,
             snapshot_slot_offset,
             max_supporters,
+            new_proposals_allowed,
         } => {
             instructions::update_global_config(
                 cli.keypair,
@@ -879,12 +1198,13 @@ async fn handle_command(cli: Cli) -> Result<()> {
                 *snapshot_epoch_extension,
                 *snapshot_slot_offset,
                 *max_supporters,
+                *new_proposals_allowed,
                 squads_opts.clone(),
             )
             .await?;
         }
-        Commands::ShowGlobalConfig => {
-            instructions::show_global_config(cli.rpc_url).await?;
+        Commands::ShowGlobalConfig { json } => {
+            instructions::show_global_config(cli.rpc_url, *json).await?;
         }
         Commands::NominateAdmin { new_admin } => {
             instructions::nominate_admin(
@@ -923,4 +1243,104 @@ fn main() -> Result<()> {
     tokio::runtime::Runtime::new()?.block_on(handle_command(cli))?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod cli_tests {
+    use super::*;
+
+    /// A Squads vault can hold every authority the program checks (identity,
+    /// withdrawer, voting wallet, delegate, admin), so only permissionless
+    /// commands refuse `--squads`.
+    #[test]
+    fn squads_is_refused_only_for_permissionless_commands() {
+        const KEY: &str = "11111111111111111111111111111111";
+        let routed = [
+            vec!["create-proposal", "--title", "t", "--description", "d"],
+            vec![
+                "update-proposal-description",
+                "--proposal-id",
+                KEY,
+                "--description",
+                "d",
+            ],
+            vec!["support-proposal", "--proposal-id", KEY],
+            vec![
+                "cast-vote",
+                "--proposal-id",
+                KEY,
+                "--for-votes",
+                "10000",
+                "--against-votes",
+                "0",
+                "--abstain-votes",
+                "0",
+            ],
+            vec![
+                "modify-vote",
+                "--proposal-id",
+                KEY,
+                "--for-votes",
+                "10000",
+                "--against-votes",
+                "0",
+                "--abstain-votes",
+                "0",
+            ],
+            vec!["delegate-vote", "--delegate", KEY],
+            vec!["delegate-vote", "--delegate", KEY, "--wallet"],
+            vec!["accept-vote-delegation", "--subject", KEY],
+            vec!["remove-vote-delegation", "--subject", KEY],
+        ];
+        for args in routed {
+            let cli =
+                Cli::try_parse_from(["svmgov", "--squads", KEY].into_iter().chain(args.clone()))
+                    .unwrap();
+            assert!(squads_refusal_for(&cli.command).is_none(), "{args:?}");
+        }
+
+        let refused = [
+            vec!["init-index"],
+            vec!["finalize-proposal", "--proposal-id", KEY],
+            vec!["retally-support", "--proposal-id", KEY],
+            vec!["migrate-vote-records"],
+        ];
+        for args in refused {
+            let cli =
+                Cli::try_parse_from(["svmgov", "--squads", KEY].into_iter().chain(args.clone()))
+                    .unwrap();
+            assert!(squads_refusal_for(&cli.command).is_some(), "{args:?}");
+        }
+    }
+
+    #[test]
+    fn display_commands_accept_json_without_a_keypair() {
+        for args in [
+            vec!["proposal", "11111111111111111111111111111111"],
+            vec!["show-global-config"],
+            vec!["config", "show"],
+            vec!["config", "get", "rpc-url"],
+            vec!["list-proposals"],
+            vec!["vote-breakdown", "11111111111111111111111111111111"],
+            vec![
+                "show-vote-delegation",
+                "--subject",
+                "11111111111111111111111111111111",
+            ],
+        ] {
+            let cli =
+                Cli::try_parse_from(["svmgov"].into_iter().chain(args).chain(["--json"])).unwrap();
+            match cli.command {
+                Commands::Proposal { json, .. }
+                | Commands::ShowGlobalConfig { json }
+                | Commands::ShowVoteDelegation { json, .. }
+                | Commands::VoteBreakdown { json, .. }
+                | Commands::Config {
+                    subcommand: ConfigSubcommand::Get { json, .. } | ConfigSubcommand::Show { json },
+                } => assert!(json),
+                Commands::ListProposals { json, .. } => assert_eq!(json.as_deref(), Some("true")),
+                _ => panic!("unexpected command"),
+            }
+        }
+    }
 }

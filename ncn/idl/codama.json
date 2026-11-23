@@ -6,7 +6,7 @@
     "kind": "programNode",
     "name": "ncnSnapshot",
     "publicKey": "ncnwF8AgynRcdEnGLcprSQNaKvgSMTgk3yPRc8cf9Zf",
-    "version": "0.5.0-40200",
+    "version": "0.6.0-40200",
     "origin": "anchor",
     "accounts": [
       {
@@ -97,12 +97,9 @@
             },
             {
               "kind": "structFieldTypeNode",
-              "name": "voteExpiryTimestamp",
-              "docs": [
-                "Timestamp when voting ends. Tie breaker admin will decide the results",
-                "if no consensus is reached by then."
-              ],
-              "type": { "kind": "numberTypeNode", "format": "i64", "endian": "le" }
+              "name": "voteExpirySlot",
+              "docs": ["Slot when voting ends."],
+              "type": { "kind": "numberTypeNode", "format": "u64", "endian": "le" }
             },
             {
               "kind": "structFieldTypeNode",
@@ -330,9 +327,16 @@
             },
             {
               "kind": "structFieldTypeNode",
-              "name": "voteDuration",
-              "docs": ["Duration for which ballot box will be opened for voting."],
-              "type": { "kind": "numberTypeNode", "format": "i64", "endian": "le" }
+              "name": "reserved",
+              "docs": [
+                "Reserved to preserve the deployed account layout. This was the legacy",
+                "timestamp-based vote duration and is no longer read or configurable."
+              ],
+              "type": {
+                "kind": "fixedSizeTypeNode",
+                "size": 8,
+                "type": { "kind": "bytesTypeNode" }
+              }
             },
             {
               "kind": "structFieldTypeNode",
@@ -629,6 +633,11 @@
             "kind": "instructionArgumentNode",
             "name": "splVoteAccount",
             "type": { "kind": "publicKeyTypeNode" }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "voteExpirySlot",
+            "type": { "kind": "numberTypeNode", "format": "u64", "endian": "le" }
           }
         ],
         "discriminators": [
@@ -1052,16 +1061,6 @@
           },
           {
             "kind": "instructionArgumentNode",
-            "name": "voteDuration",
-            "type": {
-              "kind": "optionTypeNode",
-              "fixed": false,
-              "item": { "kind": "numberTypeNode", "format": "i64", "endian": "le" },
-              "prefix": { "kind": "numberTypeNode", "format": "u8", "endian": "le" }
-            }
-          },
-          {
-            "kind": "instructionArgumentNode",
             "name": "svmgovProgramPubkey",
             "type": {
               "kind": "optionTypeNode",
@@ -1472,6 +1471,15 @@
         "code": 6016,
         "message": "Current slot must be greater than snapshot slot",
         "docs": ["SnapshotSlotNotReached: Current slot must be greater than snapshot slot"]
+      },
+      {
+        "kind": "errorNode",
+        "name": "voteExpiryTooSoon",
+        "code": 6017,
+        "message": "Vote expiry slot must leave the minimum required voting window after the snapshot",
+        "docs": [
+          "VoteExpiryTooSoon: Vote expiry slot must leave the minimum required voting window after the snapshot"
+        ]
       }
     ]
   }

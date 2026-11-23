@@ -13,5 +13,7 @@ export * from "./getProposalVotes";
 export * from "./getProposalVoteOverrides";
 
 export * from "./getVoterWalletSummary";
+export * from "./getAcceptedVoteDelegations";
+export * from "./getVoteDelegation";
 
 export * from "./getValidators";
