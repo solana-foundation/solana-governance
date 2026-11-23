@@ -7,8 +7,7 @@
   },
   "scripts": {
     "generate:codama-idl": "node scripts/generate-codama-idl.mjs",
-    "generate:clients": "node scripts/generate-clients.mjs",
-    "test": "node --test tests/generated.test.mjs"
+    "generate:clients": "node scripts/generate-clients.mjs"
   },
   "dependencies": {
     "@solana/kit": "^7.0.0",

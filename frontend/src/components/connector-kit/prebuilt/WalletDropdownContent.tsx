@@ -9,7 +9,7 @@ import { shortAddress } from '@/components/connector-kit/common/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 
-export interface WalletDropdownContentProps {
+interface WalletDropdownContentProps {
   selectedAccount: string;
   walletIcon?: string;
   walletName: string;

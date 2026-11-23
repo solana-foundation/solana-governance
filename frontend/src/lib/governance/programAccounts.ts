@@ -77,4 +77,4 @@ export async function fetchVoteDelegations(rpc: Rpc<GetProgramAccountsApi>, filt
   return result.map(({ account, pubkey }) => decodeVoteDelegation(parseBase64RpcAccount(pubkey, account)));
 }
 
-export type { Proposal, Support, Vote, VoteDelegation, VoteOverride };
+export type { Proposal, Vote, VoteOverride };

@@ -16,7 +16,6 @@ import {
 const STAKE_ACCOUNT_SIZE = 200n;
 const AUTHORIZED_STAKER_OFFSET = 12n;
 const AUTHORIZED_WITHDRAWER_OFFSET = 44n;
-const DELEGATION_VOTER_OFFSET = 124n;
 const PERMANENT_DELEGATION_EPOCH = 18_446_744_073_709_551_615n;
 
 export type WalletStakeAccount = {
@@ -35,7 +34,7 @@ function addressMemcmp(offset: bigint, address: Address) {
   };
 }
 
-export function getStakeAccountStatus(
+function getStakeAccountStatus(
   delegatedStakeLamports: bigint,
   deactivationEpoch: bigint,
   currentEpoch: bigint,
@@ -71,9 +70,9 @@ async function fetchStakeAccountsByFilter(
   });
 }
 
-export function toWalletStakeAccount(
+function toWalletStakeAccount(
   account: Account<StakeStateAccount>,
-  currentEpoch = 0n,
+  currentEpoch: bigint,
 ): WalletStakeAccount | null {
   const { state } = account.data;
   if (state.__kind !== "Initialized" && state.__kind !== "Stake") return null;
@@ -114,20 +113,4 @@ export async function fetchStakeAccounts(
     if (mapped) byAddress.set(mapped.address, mapped);
   }
   return [...byAddress.values()];
-}
-
-export async function fetchDelegatedStakeAccounts(
-  rpc: Rpc<GetProgramAccountsApi>,
-  voteAccount: Address,
-  currentEpoch = 0n,
-): Promise<WalletStakeAccount[]> {
-  const accounts = await fetchStakeAccountsByFilter(
-    rpc,
-    DELEGATION_VOTER_OFFSET,
-    voteAccount,
-  );
-  return accounts.flatMap((account) => {
-    const mapped = toWalletStakeAccount(account, currentEpoch);
-    return mapped ? [mapped] : [];
-  });
 }

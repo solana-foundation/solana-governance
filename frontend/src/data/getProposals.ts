@@ -10,7 +10,7 @@ import type { RawVoteAccountsData } from "@/lib/rpcVoteAccounts";
 import type { ProposalRecord } from "@/types";
 import { createSolanaRpc, type Address, unwrapOption } from "@solana/kit";
 
-export interface EpochInfoData {
+interface EpochInfoData {
   absoluteSlot: bigint;
   epoch: bigint;
 }

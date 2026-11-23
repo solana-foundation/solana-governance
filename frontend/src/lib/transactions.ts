@@ -16,7 +16,6 @@ import {
   getCastVoteInstructionAsync,
   getCastVoteOverrideInstructionAsync,
   getCreateProposalInstructionAsync,
-  getFinalizeProposalInstruction,
   getModifyVoteInstructionAsync,
   getModifyVoteOverrideInstructionAsync,
   getSupportProposalInstructionAsync,
@@ -44,10 +43,6 @@ export async function buildUpdateProposalDescriptionInstruction(input: {
   return getUpdateProposalDescriptionInstructionAsync({
     description: input.description, proposal: input.proposal, signer: input.signer, voteDelegation,
   });
-}
-
-export function buildFinalizeProposalInstruction(input: { proposal: Address; signer: TransactionModifyingSigner }) {
-  return getFinalizeProposalInstruction(input);
 }
 
 /**

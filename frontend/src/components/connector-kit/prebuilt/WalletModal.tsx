@@ -4,7 +4,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 
 import { WalletContent, type WalletContentProps } from './WalletContent';
 
-export type WalletModalProps = WalletContentProps;
+type WalletModalProps = WalletContentProps;
 
 export function WalletModal(props: WalletModalProps) {
   return (

@@ -4,7 +4,7 @@ export type VoteAccountProof = {
   meta_merkle_leaf: { active_stake: number; stake_merkle_root: string; vote_account: string; voting_wallet: string };
   meta_merkle_proof: string[];
 };
-export type StakeAccountProof = {
+type StakeAccountProof = {
   stake_merkle_leaf: { active_stake: number; stake_account: string; voting_wallet: string };
   stake_merkle_proof: string[];
   vote_account: string;
