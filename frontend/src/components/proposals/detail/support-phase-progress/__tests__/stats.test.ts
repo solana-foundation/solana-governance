@@ -32,6 +32,17 @@ describe("computeSupportStats", () => {
     expect(stats.remainingLamports).toBe(0n);
   });
 
+  it.each([
+    ["5", TOTAL * 5n / 100n],
+    ["0.5", TOTAL * 5n / 1_000n],
+    ["12.25", TOTAL * 1_225n / 10_000n],
+  ])("requires %s%% of total stake", (thresholdPercent, required) => {
+    // Regression: single-digit and fractional thresholds were read as ten
+    // times their value ("5" as 50%, "0.5" as 5%).
+    const stats = computeSupportStats({ ...base, thresholdPercent });
+    expect(stats.requiredThresholdLamports).toBe(required);
+  });
+
   it("does not report success before validator stake is known", () => {
     // Regression: validator stake arrives from a separate query, so the required
     // threshold is 0 on first paint and `support >= 0` was true — the panel

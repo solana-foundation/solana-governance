@@ -76,6 +76,22 @@ describe("proposal snapshot proof invariants", () => {
 });
 
 describe("deserializeNetworkMeta", () => {
+  it("reads the numeric slot and stake a verifier sends", () => {
+    expect(
+      deserializeNetworkMeta({
+        network: "mainnet",
+        slot: 440_208_000,
+        merkle_root: "root",
+        snapshot_hash: "hash",
+        created_at: "2026-08-25T00:00:00Z",
+        total_active_stake: 1_605_407_797_433_492,
+      }),
+    ).toMatchObject({
+      slot: 440_208_000n,
+      total_active_stake: 1_605_407_797_433_492n,
+    });
+  });
+
   it("preserves u64 slot and stake values as bigint", () => {
     expect(
       deserializeNetworkMeta({

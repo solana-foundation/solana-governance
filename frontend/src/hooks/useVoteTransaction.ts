@@ -127,32 +127,51 @@ function useOverrideVoteTransaction(modify: boolean) {
     mutationKey: [modify ? "modify-vote-override" : "cast-vote-override"],
     mutationFn: async (input: OverrideInput) => {
       if (!input.publicKey) throw new Error("Wallet not connected");
-      const proposal = await fetchProposal(createSolanaRpc(endpointUrl), address(input.proposalId));
+      const rpc = createSolanaRpc(endpointUrl);
+      const proposal = await fetchProposal(rpc, address(input.proposalId));
       const snapshotSlot = requireProposalSnapshotSlot(proposal.data.snapshotSlot);
       const stakeProof = await getStakeAccountProof(input.stakeAccount, network, snapshotSlot, ncnApiUrl);
       if (!stakeProof.vote_account) throw new Error("Stake account proof is missing the snapshot vote_account");
       const metaProof = await getVoteAccountProof(stakeProof.vote_account, network, snapshotSlot, ncnApiUrl);
       assertOverrideProofLineage(stakeProof, metaProof);
       const builder = modify ? buildModifyVoteOverrideInstruction : buildCastVoteOverrideInstruction;
-      const signature = await signAndSend(async ({ signer }) => {
-        const consensusResult = input.consensusResult;
-        const rpc = createSolanaRpc(endpointUrl);
-        const [initProofInstruction, voteInstruction] = await Promise.all([
-          buildMetaMerkleProofInitialization(rpc, {
-            consensusResult,
-            endEpoch: proposal.data.endEpoch,
-            proof: metaProof,
-            signer,
-          }),
-          builder({
-            consensusResult, distribution: input, proposal: address(input.proposalId), signer,
-            stakeAccount: address(input.stakeAccount),
-            stakeMerkleLeaf: { activeStake: BigInt(stakeProof.stake_merkle_leaf.active_stake), stakeAccount: address(stakeProof.stake_merkle_leaf.stake_account), votingWallet: address(stakeProof.stake_merkle_leaf.voting_wallet) },
-            stakeMerkleProof: stakeProof.stake_merkle_proof.map(address), voteAccount: address(stakeProof.vote_account),
-          }),
-        ]);
-        return [...initProofInstruction, voteInstruction];
+      const consensusResult = input.consensusResult;
+
+      // The meta proof and the stake proof together exceed the 1,232-byte
+      // transaction limit, so the shared meta proof is confirmed on its own
+      // first. Its close timestamp is the proposal's vote expiry, so it cannot
+      // be closed between the two transactions.
+      const [metaMerkleProof] = await findMetaMerkleProofPda({
+        consensusResult,
+        voteAccount: address(metaProof.meta_merkle_leaf.vote_account),
       });
+      const isProofInitialized = async () =>
+        (await fetchMaybeMetaMerkleProof(rpc, metaMerkleProof)).exists;
+      if (!(await isProofInitialized())) {
+        try {
+          await signAndSend(({ signer }) =>
+            buildMetaMerkleProofInitialization(rpc, {
+              consensusResult,
+              endEpoch: proposal.data.endEpoch,
+              proof: metaProof,
+              signer,
+            }),
+          );
+        } catch (error) {
+          // Every delegator of a validator shares this account, so another
+          // wallet creating it first fails this transaction harmlessly.
+          if (!(await isProofInitialized())) throw error;
+        }
+      }
+
+      const signature = await signAndSend(async ({ signer }) => [
+        await builder({
+          consensusResult, distribution: input, proposal: address(input.proposalId), signer,
+          stakeAccount: address(input.stakeAccount),
+          stakeMerkleLeaf: { activeStake: BigInt(stakeProof.stake_merkle_leaf.active_stake), stakeAccount: address(stakeProof.stake_merkle_leaf.stake_account), votingWallet: address(stakeProof.stake_merkle_leaf.voting_wallet) },
+          stakeMerkleProof: stakeProof.stake_merkle_proof.map(address), voteAccount: address(stakeProof.vote_account),
+        }),
+      ]);
       return { signature, success: true };
     },
   });

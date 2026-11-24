@@ -19,12 +19,17 @@ export type NetworkMetaResponse = {
   total_active_stake: bigint | null;
 };
 
+/**
+ * Snapshot metadata as a verifier sends it. The u64 fields arrive as JSON
+ * numbers, or as decimal strings from a verifier that preserves their full
+ * precision.
+ */
 export type NetworkMetaWireResponse = Omit<
   NetworkMetaResponse,
   "slot" | "total_active_stake"
 > & {
-  slot: string;
-  total_active_stake: string | null;
+  slot: number | string;
+  total_active_stake?: number | string | null;
 };
 
 export function deserializeNetworkMeta(
@@ -34,7 +39,7 @@ export function deserializeNetworkMeta(
     ...meta,
     slot: BigInt(meta.slot),
     total_active_stake:
-      meta.total_active_stake === null
+      meta.total_active_stake == null
         ? null
         : BigInt(meta.total_active_stake),
   };

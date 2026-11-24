@@ -86,17 +86,19 @@ export const useValidatorsVoterSplits = () => {
         vote_identity,
         { for: f, against: a, abstain: ab, count },
       ] of Object.entries(voteSums)) {
-        const avgFor = f / count;
-        const avgAgainst = a / count;
-        const avgAbstain = ab / count;
-        const undecided = 10000n - (avgFor + avgAgainst + avgAbstain);
+        // Each sum is at most 10,000 bps per vote, so the averages are
+        // bounded percentages that a number holds exactly enough to display.
+        const averagePercent = (sumBp: bigint) =>
+          Number(sumBp) / Number(count) / 100;
+        const yes = averagePercent(f);
+        const no = averagePercent(a);
+        const abstain = averagePercent(ab);
 
         result[vote_identity] = {
-          // These are derived protocol-bounded percentages, not chain values.
-          yes: Number((avgFor / 100n).toString()),
-          no: Number((avgAgainst / 100n).toString()),
-          abstain: Number((avgAbstain / 100n).toString()),
-          undecided: Number((undecided / 100n).toString()),
+          yes,
+          no,
+          abstain,
+          undecided: 100 - (yes + no + abstain),
         };
       }
 

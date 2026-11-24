@@ -13,7 +13,6 @@ use axum::{
     Router,
 };
 use database::{constants::DEFAULT_DB_PATH, init_pool, models::*, operations::db_operation};
-use serde::Serialize;
 use serde_json::{json, Value};
 use sqlx::sqlite::SqlitePool;
 use std::net::SocketAddr;
@@ -179,7 +178,7 @@ async fn admin_stats(headers: HeaderMap) -> Result<Json<serde_json::Value>, Stat
 async fn get_meta(
     State(pool): State<SqlitePool>,
     Query(params): Query<NetworkQuery>,
-) -> Result<Json<SnapshotMetaResponse>, StatusCode> {
+) -> Result<Json<SnapshotMetaRecord>, StatusCode> {
     let network = params.network.as_deref().unwrap_or(DEFAULT_NETWORK);
     validate_network(network)?;
 
@@ -195,7 +194,7 @@ async fn get_meta(
     .await?;
 
     match meta_record_option {
-        Some(record) => Ok(Json(record.into())),
+        Some(record) => Ok(Json(record)),
         None => {
             match params.slot {
                 Some(slot) => info!("No snapshot at slot {} for network: {}", slot, network),
@@ -214,7 +213,7 @@ async fn get_meta(
 async fn get_metas(
     State(pool): State<SqlitePool>,
     Query(params): Query<MetasQuery>,
-) -> Result<Json<Vec<SnapshotMetaResponse>>, StatusCode> {
+) -> Result<Json<Vec<SnapshotMetaRecord>>, StatusCode> {
     let network = params.network.as_deref().unwrap_or(DEFAULT_NETWORK);
     validate_network(network)?;
 
@@ -242,30 +241,7 @@ async fn get_metas(
     )
     .await?;
 
-    Ok(Json(records.into_iter().map(Into::into).collect()))
-}
-
-#[derive(Serialize)]
-struct SnapshotMetaResponse {
-    network: String,
-    slot: String,
-    merkle_root: String,
-    snapshot_hash: String,
-    created_at: String,
-    total_active_stake: Option<String>,
-}
-
-impl From<SnapshotMetaRecord> for SnapshotMetaResponse {
-    fn from(record: SnapshotMetaRecord) -> Self {
-        Self {
-            network: record.network,
-            slot: record.slot.to_string(),
-            merkle_root: record.merkle_root,
-            snapshot_hash: record.snapshot_hash,
-            created_at: record.created_at,
-            total_active_stake: record.total_active_stake.map(|stake| stake.to_string()),
-        }
-    }
+    Ok(Json(records))
 }
 
 async fn get_voter_summary(

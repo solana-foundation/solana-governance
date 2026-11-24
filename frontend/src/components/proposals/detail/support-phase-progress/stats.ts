@@ -44,7 +44,9 @@ export function computeSupportStats({
   numOfValidators,
   thresholdCrossed = false,
 }: SupportStatsInput): SupportStats {
-  const thresholdBasisPoints = BigInt(thresholdPercent.replace(".", "").padEnd(4, "0"));
+  const [whole, fraction = ""] = thresholdPercent.split(".");
+  const thresholdBasisPoints =
+    BigInt(whole) * 100n + BigInt(fraction.padEnd(2, "0"));
   const requiredThresholdLamports =
     (totalStakedLamports * thresholdBasisPoints) / 10_000n;
 

@@ -31,9 +31,12 @@ export function getLiveSlotTimeMs(
 ): number {
   for (let index = FEATURE_GATES.length - 1; index >= 0; index--) {
     const account = accounts[index];
-    if (!account || account.owner !== FEATURE_GATE_PROGRAM || account.data.length !== 9) {
-      // unreachable
-      throw new Error(`Invalid feature gate account: ${account}`);
+    // A gate nobody has created yet cannot have activated its slot time.
+    if (!account) continue;
+    if (account.owner !== FEATURE_GATE_PROGRAM || account.data.length !== 9) {
+      throw new Error(
+        `Invalid feature gate account: ${FEATURE_GATES[index].address}`,
+      );
     }
 
     if (account.data[0] !== 1) continue;

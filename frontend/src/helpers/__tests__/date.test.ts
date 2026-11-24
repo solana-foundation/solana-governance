@@ -36,6 +36,21 @@ describe("getLiveSlotTimeMs", () => {
     ).toBe(400);
   });
 
+  it("skips gates the cluster has not created", () => {
+    // Regression: a cluster missing any listed gate account failed every
+    // future-epoch date estimate instead of using the gates it does have.
+    const activationSlot = 440_208_000n;
+    expect(
+      getLiveSlotTimeMs(activationSlot + 432_000n, [
+        featureAccount(activationSlot),
+        null,
+        null,
+        null,
+      ]),
+    ).toBe(350);
+    expect(getLiveSlotTimeMs(1_000_000n, [null, null, null, null])).toBe(400);
+  });
+
   it("rejects invalid feature accounts", () => {
     expect(() =>
       getLiveSlotTimeMs(1_000_000n, [
