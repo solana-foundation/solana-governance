@@ -3,7 +3,7 @@
 import { useConnector } from '@solana/connector/react';
 import { Wallet, ChevronDown } from 'lucide-react';
 
-import { shortAddress } from '@/components/connector-kit/common/utils';
+import { formatAddress } from '@/lib/governance/formatters';
 import { useWallet } from '@/contexts/WalletContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -40,7 +40,7 @@ export function ConnectButton({
                 <Wallet className="size-3" />
               </AvatarFallback>
             </Avatar>
-            <span className="text-xs">{shortAddress(account)}</span>
+            <span className="text-xs">{formatAddress(account)}</span>
             <ChevronDown className="h-4 w-4 opacity-50" />
           </Button>
         </DropdownMenuTrigger>

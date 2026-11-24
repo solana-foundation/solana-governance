@@ -5,7 +5,7 @@ import { Wallet, Copy, Check, LogOut } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 
-import { shortAddress } from '@/components/connector-kit/common/utils';
+import { formatAddress } from '@/lib/governance/formatters';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 
@@ -50,7 +50,7 @@ export function WalletDropdownContent({
             </AvatarFallback>
           </Avatar>
           <div>
-            <div className="text-lg font-semibold">{shortAddress(selectedAccount)}</div>
+            <div className="text-lg font-semibold">{formatAddress(selectedAccount)}</div>
             <div className="text-xs text-muted-foreground">{walletName}</div>
           </div>
         </div>

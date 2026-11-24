@@ -5,6 +5,7 @@ import { useEndpoint } from "@/contexts/EndpointContext";
 import { assertValidProposalDocument, assertValidProposalUrl } from "@/lib/github";
 import { buildCreateProposalInstruction } from "@/lib/transactions";
 import { useResolveSignerVoteAccount } from "./useResolveSignerVoteAccount";
+import { withReadableErrors } from "@/lib/transactionErrors";
 import { useSignTransaction } from "./useSignTransaction";
 
 export function useCreateProposal() {
@@ -13,7 +14,7 @@ export function useCreateProposal() {
   const resolveSignerVoteAccount = useResolveSignerVoteAccount();
   return useMutation({
     mutationKey: ["create-proposal"],
-    mutationFn: async ({ title, description, publicKey, skipDocumentCheck }: {
+    mutationFn: withReadableErrors(async ({ title, description, publicKey, skipDocumentCheck }: {
       title: string;
       description: string;
       publicKey?: string;
@@ -34,6 +35,6 @@ export function useCreateProposal() {
         buildCreateProposalInstruction({ description: normalizedDescription, signer, splVoteAccount, title }),
       ]));
       return { signature, success: true };
-    },
+    }),
   });
 }

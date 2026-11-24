@@ -11,6 +11,7 @@ import {
 } from "@/lib/supportComputeBudget";
 import { buildSupportProposalInstruction } from "@/lib/transactions";
 import { useResolveSignerVoteAccount } from "./useResolveSignerVoteAccount";
+import { withReadableErrors } from "@/lib/transactionErrors";
 import { useSignTransaction } from "./useSignTransaction";
 
 export function useSupportProposal(_userPubKey: string | undefined) {
@@ -20,7 +21,7 @@ export function useSupportProposal(_userPubKey: string | undefined) {
   const resolveSignerVoteAccount = useResolveSignerVoteAccount();
   return useMutation({
     mutationKey: ["support-proposal", configQuery.dataUpdatedAt],
-    mutationFn: async ({ proposalId, publicKey }: { proposalId: string; publicKey?: string }) => {
+    mutationFn: withReadableErrors(async ({ proposalId, publicKey }: { proposalId: string; publicKey?: string }) => {
       if (!publicKey) throw new Error("Wallet not connected");
       const config = configQuery.data;
       if (!config) throw new Error("Governance config not loaded");
@@ -50,6 +51,6 @@ export function useSupportProposal(_userPubKey: string | undefined) {
         await buildSupportProposalInstruction({ proposal: address(proposalId), signer, snapshotSlot, splVoteAccount }),
       ]);
       return { signature, success: true };
-    },
+    }),
   });
 }

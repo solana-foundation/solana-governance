@@ -27,6 +27,7 @@ import {
   type VoteDistribution,
 } from "@/lib/transactions";
 import { useResolveSignerVoteAccount } from "./useResolveSignerVoteAccount";
+import { withReadableErrors } from "@/lib/transactionErrors";
 import { useSignTransaction } from "./useSignTransaction";
 
 type VoteInput = VoteDistribution & { proposalId: string; consensusResult: Address; publicKey?: string };
@@ -89,7 +90,7 @@ function useValidatorVoteTransaction(modify: boolean) {
   return useMutation({
     mutationKey: [modify ? "modify-vote" : "cast-vote"],
     ...voteAnalytics(modify ? "Modify Vote" : "Cast Vote"),
-    mutationFn: async (input: VoteInput) => {
+    mutationFn: withReadableErrors(async (input: VoteInput) => {
       if (!input.publicKey) throw new Error("Wallet not connected");
       const rpc = createSolanaRpc(endpointUrl);
       const [proposal, splVoteAccount] = await Promise.all([
@@ -114,7 +115,7 @@ function useValidatorVoteTransaction(modify: boolean) {
         return [...initProofInstruction, voteInstruction];
       });
       return { signature, success: true };
-    },
+    }),
   });
 }
 
@@ -125,7 +126,7 @@ function useOverrideVoteTransaction(modify: boolean) {
   return useMutation({
     mutationKey: [modify ? "modify-vote-override" : "cast-vote-override"],
     ...voteAnalytics(modify ? "Modify Vote Override" : "Cast Vote Override"),
-    mutationFn: async (input: OverrideInput) => {
+    mutationFn: withReadableErrors(async (input: OverrideInput) => {
       if (!input.publicKey) throw new Error("Wallet not connected");
       const rpc = createSolanaRpc(endpointUrl);
       const proposal = await fetchProposal(rpc, address(input.proposalId));
@@ -168,7 +169,7 @@ function useOverrideVoteTransaction(modify: boolean) {
         }),
       ]);
       return { signature, success: true };
-    },
+    }),
   });
 }
 

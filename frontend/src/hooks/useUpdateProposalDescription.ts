@@ -10,6 +10,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { assertValidProposalDocument, assertValidProposalUrl } from "@/lib/github";
 import { buildUpdateProposalDescriptionInstruction } from "@/lib/transactions";
+import { withReadableErrors } from "@/lib/transactionErrors";
 import { useSignTransaction } from "./useSignTransaction";
 
 /** Creates a mutation that replaces an eligible proposal's commit-pinned document URL. */
@@ -18,7 +19,7 @@ export function useUpdateProposalDescription() {
   const { signAndSend } = useSignTransaction();
   return useMutation({
     mutationKey: ["update-proposal-description"],
-    mutationFn: async ({ proposalId, description, publicKey, skipDocumentCheck }: {
+    mutationFn: withReadableErrors(async ({ proposalId, description, publicKey, skipDocumentCheck }: {
       proposalId: string;
       description: string;
       publicKey?: string;
@@ -57,6 +58,6 @@ export function useUpdateProposalDescription() {
         }),
       ]));
       return { signature, success: true };
-    },
+    }),
   });
 }

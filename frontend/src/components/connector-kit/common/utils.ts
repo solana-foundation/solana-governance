@@ -1,7 +1,3 @@
-export function shortAddress(id: string) {
-  return `${id.slice(0, 4)}...${id.slice(-4)}`;
-}
-
 export function getInstallUrl(walletName: string, walletUrl?: string): string | undefined {
   if (walletUrl) return walletUrl;
 
