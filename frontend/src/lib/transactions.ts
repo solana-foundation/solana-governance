@@ -24,10 +24,12 @@ import {
 import type { VoteAccountProof } from "./ncnProofs";
 
 export type VoteDistribution = { forVotesBp: number; againstVotesBp: number; abstainVotesBp: number };
+// Callers derive basis points as `percent * 100`, which is not always an
+// integer in floating point (33.34 * 100 is 3334.0000000000005).
 const basisPoints = (distribution: VoteDistribution) => ({
-  forVotesBp: BigInt(distribution.forVotesBp),
-  againstVotesBp: BigInt(distribution.againstVotesBp),
-  abstainVotesBp: BigInt(distribution.abstainVotesBp),
+  forVotesBp: BigInt(Math.round(distribution.forVotesBp)),
+  againstVotesBp: BigInt(Math.round(distribution.againstVotesBp)),
+  abstainVotesBp: BigInt(Math.round(distribution.abstainVotesBp)),
 });
 
 export async function buildCreateProposalInstruction(input: {

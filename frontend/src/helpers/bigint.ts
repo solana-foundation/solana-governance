@@ -24,3 +24,18 @@ export function formatBigintPercentage(
   const fraction = (scaled % scale).toString().padStart(decimalPlaces, "0");
   return decimalPlaces > 0 ? `${whole}.${fraction}` : whole.toString();
 }
+
+const PERCENTAGE_SCALE = 10_000_000_000n;
+
+/**
+ * Returns `numerator / denominator` as a percentage, accurate to ten decimal
+ * places, or 0 when the denominator is 0. Only the bounded ratio becomes a
+ * number, never either operand.
+ */
+export function bigintPercentage(numerator: bigint, denominator: bigint): number {
+  if (denominator === 0n) return 0;
+  return (
+    Number((numerator * 100n * PERCENTAGE_SCALE) / denominator) /
+    Number(PERCENTAGE_SCALE)
+  );
+}

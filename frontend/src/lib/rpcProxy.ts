@@ -48,7 +48,7 @@ const ALLOWED_PROGRAM_IDS = new Set([
 const STAKE_PROGRAM_ID = "Stake11111111111111111111111111111111111111";
 const STAKE_ACCOUNT_DATA_SIZE = 200;
 // Authorized staker, authorized withdrawer, and delegation voter.
-const STAKE_ACCOUNT_MEMCMP_OFFSETS = new Set([12, 44, 124]);
+const STAKE_ACCOUNT_MEMCMP_OFFSETS = new Set([44, 124]);
 const MAX_MULTIPLE_ACCOUNTS = 100;
 const BASE58_PUBLIC_KEY = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 

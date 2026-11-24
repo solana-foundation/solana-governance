@@ -1,65 +1,32 @@
-import { calculateVotingEndsIn, getLiveSlotTimeMs } from "../date";
+import { calculateVotingEndsIn, estimateSlotTimeMs } from "../date";
 
-const FEATURE_OWNER = "Feature111111111111111111111111111111111111";
-
-function featureAccount(activatedAt: bigint | null) {
-  const data = new Uint8Array(9);
-  if (activatedAt !== null) {
-    data[0] = 1;
-    new DataView(data.buffer).setBigUint64(1, activatedAt, true);
-  }
-  return { data, owner: FEATURE_OWNER };
-}
-
-describe("getLiveSlotTimeMs", () => {
-  it("uses the active 350ms gate after its one-epoch warmup", () => {
-    const activationSlot = 440_208_000n;
+describe("estimateSlotTimeMs", () => {
+  it("uses the slot-weighted duration from recent performance samples", () => {
     expect(
-      getLiveSlotTimeMs(activationSlot + 432_000n, [
-        featureAccount(activationSlot),
-        featureAccount(null),
-        featureAccount(null),
-        featureAccount(null),
+      estimateSlotTimeMs([
+        { numSlots: 170n, samplePeriodSecs: 60 },
+        { numSlots: 160n, samplePeriodSecs: 60 },
       ]),
+    ).toBeCloseTo(120_000 / 330);
+  });
+
+  it("ignores empty samples", () => {
+    expect(
+      estimateSlotTimeMs([
+        { numSlots: 0n, samplePeriodSecs: 60 },
+        { numSlots: 165n, samplePeriodSecs: 60 },
+      ]),
+    ).toBeCloseTo(60_000 / 165);
+  });
+
+  it("falls back to 350ms for missing or implausible samples", () => {
+    expect(estimateSlotTimeMs([])).toBe(350);
+    expect(
+      estimateSlotTimeMs([{ numSlots: 0n, samplePeriodSecs: 0 }]),
     ).toBe(350);
-  });
-
-  it("keeps the 400ms baseline during a later gate's warmup epoch", () => {
-    const activationSlot = 440_208_000n;
     expect(
-      getLiveSlotTimeMs(activationSlot + 431_999n, [
-        featureAccount(null),
-        featureAccount(activationSlot),
-        featureAccount(null),
-        featureAccount(null),
-      ]),
-    ).toBe(400);
-  });
-
-  it("skips gates the cluster has not created", () => {
-    // Regression: a cluster missing any listed gate account failed every
-    // future-epoch date estimate instead of using the gates it does have.
-    const activationSlot = 440_208_000n;
-    expect(
-      getLiveSlotTimeMs(activationSlot + 432_000n, [
-        featureAccount(activationSlot),
-        null,
-        null,
-        null,
-      ]),
+      estimateSlotTimeMs([{ numSlots: 1n, samplePeriodSecs: 60 }]),
     ).toBe(350);
-    expect(getLiveSlotTimeMs(1_000_000n, [null, null, null, null])).toBe(400);
-  });
-
-  it("rejects invalid feature accounts", () => {
-    expect(() =>
-      getLiveSlotTimeMs(1_000_000n, [
-        featureAccount(1n),
-        featureAccount(1n),
-        { data: featureAccount(1n).data, owner: "NotAFeatureProgram" },
-        featureAccount(null),
-      ]),
-    ).toThrow("Invalid feature gate account");
   });
 });
 

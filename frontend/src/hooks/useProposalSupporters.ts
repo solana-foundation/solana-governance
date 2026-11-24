@@ -5,7 +5,7 @@ import { accentColors } from "@/types/topVoters";
 import { buildSupportFilters, useSupportAccounts } from "./useSupportAccounts";
 import { useGetValidators } from "./useGetValidators";
 import { useValidatorsTotalStakedLamports } from "./useValidatorsTotalStakedLamports";
-import { formatBigintPercentage } from "@/helpers/bigint";
+import { bigintPercentage } from "@/helpers/bigint";
 
 const getColorFromString = (str: string): string => {
   let hash = 0;
@@ -64,7 +64,7 @@ export const useProposalSupporters = (
       const stakedLamports = validator?.activated_stake;
       const stakePercentage =
         totalStakedLamports && stakedLamports !== undefined
-          ? Number(formatBigintPercentage(stakedLamports, totalStakedLamports))
+          ? bigintPercentage(stakedLamports, totalStakedLamports)
           : undefined;
 
       return {

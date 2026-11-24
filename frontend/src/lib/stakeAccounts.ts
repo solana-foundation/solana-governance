@@ -14,7 +14,6 @@ import {
 } from "@solana/kit";
 
 const STAKE_ACCOUNT_SIZE = 200n;
-const AUTHORIZED_STAKER_OFFSET = 12n;
 const AUTHORIZED_WITHDRAWER_OFFSET = 44n;
 const PERMANENT_DELEGATION_EPOCH = 18_446_744_073_709_551_615n;
 
@@ -101,16 +100,16 @@ export async function fetchStakeAccounts(
   rpc: Rpc<GetEpochInfoApi & GetProgramAccountsApi>,
   owner: Address,
 ): Promise<WalletStakeAccount[]> {
-  const [epochInfo, byStaker, byWithdrawer] = await Promise.all([
+  // Only the withdrawer is queried: a snapshot leaf's voting wallet is the
+  // withdraw authority, so a wallet that is merely the staker cannot vote with
+  // the account.
+  const [epochInfo, accounts] = await Promise.all([
     rpc.getEpochInfo().send(),
-    fetchStakeAccountsByFilter(rpc, AUTHORIZED_STAKER_OFFSET, owner),
     fetchStakeAccountsByFilter(rpc, AUTHORIZED_WITHDRAWER_OFFSET, owner),
   ]);
 
-  const byAddress = new Map<string, WalletStakeAccount>();
-  for (const account of [...byStaker, ...byWithdrawer]) {
+  return accounts.flatMap((account) => {
     const mapped = toWalletStakeAccount(account, epochInfo.epoch);
-    if (mapped) byAddress.set(mapped.address, mapped);
-  }
-  return [...byAddress.values()];
+    return mapped ? [mapped] : [];
+  });
 }

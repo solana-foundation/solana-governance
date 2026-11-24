@@ -5,6 +5,7 @@ import {
   getVoteAccountProof,
   requireProposalSnapshotSlot,
 } from "../ncnProofs";
+import { isNcnProofNotFound } from "../ncnApi";
 
 describe("proposal snapshot proof invariants", () => {
   const originalFetch = global.fetch;
@@ -18,7 +19,7 @@ describe("proposal snapshot proof invariants", () => {
     const fetchMock = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({}),
+      text: async () => "{}",
     } as Response);
     global.fetch = fetchMock as unknown as typeof fetch;
 
@@ -48,7 +49,7 @@ describe("proposal snapshot proof invariants", () => {
         { vote_account: "validator-vote" },
         {
           meta_merkle_leaf: {
-            active_stake: 10,
+            active_stake: "10",
             stake_merkle_root: "root",
             vote_account: "validator-vote",
             voting_wallet: "validator-identity-wallet",
@@ -64,7 +65,7 @@ describe("proposal snapshot proof invariants", () => {
         { vote_account: "validator-vote-a" },
         {
           meta_merkle_leaf: {
-            active_stake: 10,
+            active_stake: "10",
             stake_merkle_root: "root",
             vote_account: "validator-vote-b",
             voting_wallet: "validator-identity-wallet",
@@ -72,6 +73,46 @@ describe("proposal snapshot proof invariants", () => {
         },
       ),
     ).toThrow("different snapshots");
+  });
+});
+
+describe("proof responses", () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it("keeps a leaf's active stake exact above the safe integer range", async () => {
+    // Regression: 12345678901234567 parsed as a double rounds to ...568, and
+    // the program rejects a leaf whose hash no longer matches the snapshot.
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        '{"meta_merkle_leaf":{"active_stake":12345678901234567},"meta_merkle_proof":[]}',
+    } as Response) as unknown as typeof fetch;
+
+    const proof = await getVoteAccountProof("validator-vote", "mainnet", 1n);
+
+    expect(proof.meta_merkle_leaf.active_stake).toBe("12345678901234567");
+  });
+
+  it.each([
+    ["vote account", () => getVoteAccountProof("validator-vote", "mainnet", 1n)],
+    ["stake account", () => getStakeAccountProof("delegator-stake", "mainnet", 1n)],
+  ])("reports a %s missing from the snapshot as a proof miss", async (_name, request) => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      text: async () => "",
+      url: "https://ncn.example/proof",
+    } as Response) as unknown as typeof fetch;
+
+    const error = await request().catch((caught: unknown) => caught);
+
+    expect(isNcnProofNotFound(error)).toBe(true);
   });
 });
 

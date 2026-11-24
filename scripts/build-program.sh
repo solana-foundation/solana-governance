@@ -3,6 +3,20 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+# Regenerates the Codama IDL and the TypeScript client the frontend imports
+# from a freshly built Anchor IDL, so a program change cannot leave them stale.
+generate_client() {
+  local package="$1"
+  if ! command -v pnpm >/dev/null 2>&1; then
+    echo "ERROR: pnpm is required to regenerate the $package client"
+    exit 1
+  fi
+  echo "Regenerating the $package Codama IDL and TypeScript client..."
+  cd "$REPO_ROOT"
+  pnpm --filter "$package" run generate:codama-idl
+  pnpm --filter "$package" run generate:clients
+}
+
 build_svmgov() {
   echo "Building svmgov program..."
   cd "$REPO_ROOT/svmgov/program"
@@ -17,14 +31,17 @@ build_svmgov() {
   fi
 
   cp "$IDL_SRC" "$REPO_ROOT/svmgov/cli/idls/svmgov_program.json"
-  cp "$IDL_SRC" "$REPO_ROOT/frontend/src/chain/idl/svmgov_program.json"
-  echo "IDL synced to svmgov/cli/idls/ and frontend/src/chain/idl/"
+  echo "IDL synced to svmgov/cli/idls/"
+
+  generate_client @solana/svmgov
 }
 
 build_ncn() {
   echo "Building ncn program..."
   cd "$REPO_ROOT/ncn"
   anchor build
+
+  generate_client @solana/ncn-snapshot
   echo "ncn build complete"
 }
 

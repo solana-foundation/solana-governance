@@ -3,7 +3,7 @@
 import React, { useMemo } from "react";
 import { useSpring, animated, to } from "@react-spring/web";
 import { formatSOL } from "@/lib/governance/formatters";
-import { formatBigintPercentage } from "@/helpers/bigint";
+import { bigintPercentage } from "@/helpers/bigint";
 import {
   Tooltip,
   TooltipContent,
@@ -22,11 +22,11 @@ const defaultColors = {
 };
 
 interface QuorumDonutProps {
-  forLamports: bigint | number;
-  againstLamports: bigint | number;
-  abstainLamports: bigint | number;
+  forLamports: bigint;
+  againstLamports: bigint;
+  abstainLamports: bigint;
   /** Snapshot total; `undefined` when the snapshot did not record it. */
-  totalLamports: bigint | number | undefined;
+  totalLamports: bigint | undefined;
 }
 
 /** Shown in the donut centre when total network stake could not be loaded. */
@@ -90,14 +90,8 @@ export default function QuorumDonut({
   // No arcs when the denominator is unknown: an empty ring is the honest
   // rendering, and it matches the "—" in the centre.
   const hasTotal = totalLamports !== undefined && totalLamports > 0;
-  // SVG needs bounded floating-point ratios; derive them from a decimal string,
-  // never by coercing a lamport bigint itself.
-  const ratio = (value: bigint | number) => {
-    if (!hasTotal || totalLamports === undefined || typeof value !== typeof totalLamports) return 0;
-    return typeof value === "bigint" && typeof totalLamports === "bigint"
-      ? Number(formatBigintPercentage(value, totalLamports, 6)) / 100
-      : (value as number) / (totalLamports as number);
-  };
+  const ratio = (value: bigint) =>
+    hasTotal ? bigintPercentage(value, totalLamports) / 100 : 0;
   const forPercent = ratio(chartData[0].value);
   const againstPercent = ratio(chartData[1].value);
   const abstainPercent = ratio(chartData[2].value);

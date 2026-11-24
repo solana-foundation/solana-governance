@@ -60,8 +60,10 @@ decide, and the **contract initialization** order.
 - [ ] `make sync-dry-run NETWORK=mainnet` — review every program-ID / RPC rewrite.
 - [ ] `make sync NETWORK=mainnet` — rewrites IDs + RPCs across programs, both CLIs, frontend,
       ncn-router (`scripts/sync-program-ids.sh`).
-- [ ] `make build-programs` — builds `svmgov` + `ncn` and copies IDL into `svmgov/cli/idls/`
-      and `frontend/src/chain/idl/`.
+- [ ] `make build-programs` — builds `svmgov` + `ncn`, copies the svmgov IDL into
+      `svmgov/cli/idls/`, and regenerates the Codama IDLs (`svmgov/idl/`, `ncn/idl/`) and the
+      TypeScript clients the frontend imports (`svmgov/generated/`, `ncn/generated/`). Needs
+      `pnpm install` to have been run. Commit the regenerated files.
 - [ ] Confirm built `declare_id!` in both `lib.rs` == `networks.toml` IDs == on-chain target.
 - [ ] ⚠️ Confirm svmgov was rebuilt **after** `make sync` — svmgov bakes in the ncn program ID
       (`ncn_snapshot::ID`) at build time, and this svmgov→ncn pointer is **not stored in any
@@ -200,8 +202,8 @@ by full path, or `cargo run --release --bin ncn-cli --` for ncn.
 - [ ] Set `SOLANA_RPC_URL_MAINNET` (+ testnet/devnet) to production RPCs;
       `NEXT_PUBLIC_SENTRY_DSN` / `SENTRY_AUTH_TOKEN` if using Sentry.
 - [ ] Frontend NCN API defaults to `https://ncn-governance.solana.com`.
-- [ ] Confirm IDL in `frontend/src/chain/idl/` is the freshly-built one (Phase 1) and program
-      IDs match.
+- [ ] Confirm the generated clients in `svmgov/generated/` and `ncn/generated/` are the
+      freshly-built ones (Phase 1) and program IDs match.
 - [ ] `pnpm build` → deploy (Vercel default; `/api/governance/config` caches on-chain
       `GlobalConfig` for 1h).
 - [ ] Verify dashboard loads config, proposals, and verifier-backed proofs.

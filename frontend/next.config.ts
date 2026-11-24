@@ -3,12 +3,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
-  webpack: (config) => {
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      "@solana/web3.js": false,
-    };
-    return config;
+  turbopack: {
+    resolveAlias: {
+      // The wallet connector imports web3.js only to hand back legacy
+      // transaction objects, which this app never passes it.
+      "@solana/web3.js": "./src/lib/emptyModule.ts",
+    },
   },
 };
 

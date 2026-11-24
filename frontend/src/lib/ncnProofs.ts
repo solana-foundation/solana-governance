@@ -1,11 +1,16 @@
 import { DEFAULT_NCN_API_URL, fetchNcnJson } from "@/lib/ncnApi";
 
+/**
+ * Proofs as `getVoteAccountProof` and `getStakeAccountProof` return them:
+ * `active_stake` is a decimal string, since a rounded lamport changes the leaf
+ * hash the program verifies.
+ */
 export type VoteAccountProof = {
-  meta_merkle_leaf: { active_stake: number; stake_merkle_root: string; vote_account: string; voting_wallet: string };
+  meta_merkle_leaf: { active_stake: string; stake_merkle_root: string; vote_account: string; voting_wallet: string };
   meta_merkle_proof: string[];
 };
 type StakeAccountProof = {
-  stake_merkle_leaf: { active_stake: number; stake_account: string; voting_wallet: string };
+  stake_merkle_leaf: { active_stake: string; stake_account: string; voting_wallet: string };
   stake_merkle_proof: string[];
   vote_account: string;
 };
@@ -51,11 +56,19 @@ export type VoterSummaryResponse = {
 };
 
 export function getVoteAccountProof(voteAccount: string, network: string, slot: bigint, ncnApiUrl?: string) {
-  return fetchNcnJson<VoteAccountProof>(`${ncnApiUrl ?? DEFAULT_NCN_API_URL}/proof/vote_account/${voteAccount}?network=${network}&slot=${slot}`, { label: "vote account proof" });
+  return fetchNcnJson<VoteAccountProof>(`${ncnApiUrl ?? DEFAULT_NCN_API_URL}/proof/vote_account/${voteAccount}?network=${network}&slot=${slot}`, {
+    label: "vote account proof",
+    losslessIntegerFields: ["active_stake"],
+    resource: "vote-account-proof",
+  });
 }
 
 export function getStakeAccountProof(stakeAccount: string, network: string, slot: bigint, ncnApiUrl?: string) {
-  return fetchNcnJson<StakeAccountProof>(`${ncnApiUrl ?? DEFAULT_NCN_API_URL}/proof/stake_account/${stakeAccount}?network=${network}&slot=${slot}`, { label: "stake account proof" });
+  return fetchNcnJson<StakeAccountProof>(`${ncnApiUrl ?? DEFAULT_NCN_API_URL}/proof/stake_account/${stakeAccount}?network=${network}&slot=${slot}`, {
+    label: "stake account proof",
+    losslessIntegerFields: ["active_stake"],
+    resource: "stake-account-proof",
+  });
 }
 
 /**

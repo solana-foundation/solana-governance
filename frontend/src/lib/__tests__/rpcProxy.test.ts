@@ -68,7 +68,7 @@ describe("parseJsonRpcRequest", () => {
     ).toEqual(expect.objectContaining({ method: "getProgramAccounts" }));
   });
 
-  it("accepts the stake scan by authorized staker the wallet view issues", () => {
+  it("accepts the base58 stake scan by withdraw authority the wallet view issues", () => {
     expect(
       parseJsonRpcRequest({
         jsonrpc: "2.0",
@@ -80,7 +80,7 @@ describe("parseJsonRpcRequest", () => {
             encoding: "base64",
             filters: [
               { dataSize: 200 },
-              { memcmp: { offset: 12, bytes: PUBLIC_KEY, encoding: "base58" } },
+              { memcmp: { offset: 44, bytes: PUBLIC_KEY, encoding: "base58" } },
             ],
           },
         ],

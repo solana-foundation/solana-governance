@@ -58,7 +58,7 @@ export const columns: ColumnDef<OldVoteAccountData>[] = [
     accessorKey: "activeStake",
     header: "DELEGATED STAKE",
     cell: ({ row }) => {
-      const stake = row.getValue("activeStake") as number;
+      const stake = row.getValue("activeStake") as bigint;
       const solAmount = formatLamportsDisplay(stake);
       return <div>{solAmount.value}</div>;
     },

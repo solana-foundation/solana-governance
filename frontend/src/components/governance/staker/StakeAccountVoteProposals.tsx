@@ -121,21 +121,21 @@ export function StakeAccountVoteProposals({
                   <div className="flex items-center space-x-1">
                     <span className="text-green-400">●</span>
                     <span className="text-white/70">
-                      {(voteProposal.voteAccount.forVotesBp / 100n).toString()}%
+                      {Number(voteProposal.voteAccount.forVotesBp) / 100}%
                       For
                     </span>
                   </div>
                   <div className="flex items-center space-x-1">
                     <span className="text-red-400">●</span>
                     <span className="text-white/70">
-                      {(voteProposal.voteAccount.againstVotesBp / 100n).toString()}
+                      {Number(voteProposal.voteAccount.againstVotesBp) / 100}
                       % Against
                     </span>
                   </div>
                   <div className="flex items-center space-x-1">
                     <span className="text-gray-400">●</span>
                     <span className="text-white/70">
-                      {(voteProposal.voteAccount.abstainVotesBp / 100n).toString()}
+                      {Number(voteProposal.voteAccount.abstainVotesBp) / 100}
                       % Abstain
                     </span>
                   </div>

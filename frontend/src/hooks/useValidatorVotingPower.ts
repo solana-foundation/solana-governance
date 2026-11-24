@@ -11,7 +11,7 @@ export function useValidatorVotingPower(
   );
 
   const votingPower = useMemo(
-    () => voteAccount?.activeStake || 0,
+    () => voteAccount?.activeStake ?? 0n,
     [voteAccount]
   );
 

@@ -1,0 +1,73 @@
+import {
+  buildSetComputeUnitLimitInstruction,
+  MAX_SUPPORTERS,
+  SUPPORT_CU_BUMP_SEARCH,
+  supportComputeUnitLimit,
+} from "../supportComputeBudget";
+
+/** Peak measured in the program's tests/support_compute_budget.rs at the cap. */
+const MEASURED_AT_CAP = 294_240;
+/**
+ * Floor of the activating call measured in the program's tests/ncn_flow.rs at
+ * the 64-operator maximum, net of its bump searches.
+ */
+const MEASURED_ACTIVATION_FLOOR = 47_878;
+
+describe("supportComputeUnitLimit", () => {
+  it("covers the measured cost with headroom", () => {
+    // An empty list can still be the call that activates voting and creates the
+    // ballot box via CPI, which is the expensive path at that size. Either
+    // measurement may also pay the whole search allowance.
+    expect(supportComputeUnitLimit(0)).toBeGreaterThan(
+      MEASURED_ACTIVATION_FLOOR + SUPPORT_CU_BUMP_SEARCH,
+    );
+    expect(supportComputeUnitLimit(2_000)).toBeGreaterThan(
+      MEASURED_AT_CAP + SUPPORT_CU_BUMP_SEARCH,
+    );
+  });
+
+  it("scales with the supporter count", () => {
+    // The point of modelling: a small list must request far less than the flat
+    // 600k it used to.
+    expect(supportComputeUnitLimit(0)).toBeLessThan(100_000);
+    expect(supportComputeUnitLimit(50)).toBeLessThan(
+      supportComputeUnitLimit(500),
+    );
+    expect(supportComputeUnitLimit(500)).toBeLessThan(
+      supportComputeUnitLimit(2_000),
+    );
+  });
+
+  it("the fallback supporter count covers the worst case", () => {
+    // useSupportProposal passes MAX_SUPPORTERS when the real count cannot be read,
+    // so that request must be at least as large as any real list would need.
+    const fallback = supportComputeUnitLimit(MAX_SUPPORTERS);
+    expect(fallback).toBeGreaterThan(MEASURED_AT_CAP);
+    for (const n of [0, 1, 500, 1_999, MAX_SUPPORTERS]) {
+      expect(supportComputeUnitLimit(n)).toBeLessThanOrEqual(fallback);
+    }
+  });
+
+  it("never exceeds the per-transaction maximum", () => {
+    expect(supportComputeUnitLimit(1_000_000)).toBe(1_400_000);
+  });
+
+  it("matches the Rust mirror in svmgov/cli/src/constants.rs", () => {
+    // Both clients must request the same budget for the same state; these are
+    // the values support_compute_unit_limit() produces.
+    expect(supportComputeUnitLimit(0)).toBe(89_125);
+    expect(supportComputeUnitLimit(2_000)).toBe(392_725);
+  });
+});
+
+describe("buildSetComputeUnitLimitInstruction", () => {
+  it("encodes the limit the way the Compute Budget program reads it", () => {
+    const instruction = buildSetComputeUnitLimitInstruction(392_725);
+
+    expect(instruction.programAddress).toBe(
+      "ComputeBudget111111111111111111111111111111",
+    );
+    // Discriminator 2 (SetComputeUnitLimit), then the limit as a u32 LE.
+    expect(Array.from(instruction.data ?? [])).toEqual([2, 0x15, 0xfe, 0x05, 0x00]);
+  });
+});

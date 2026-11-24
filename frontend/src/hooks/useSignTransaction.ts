@@ -1,44 +1,58 @@
 "use client";
 
-import {
-  useKitTransactionSigner,
-  useSolanaClient,
-  useTransactionPreparer,
-} from "@solana/connector/react";
+import { useKitTransactionSigner } from "@solana/connector/react";
 import {
   appendTransactionMessageInstructions,
-  assertIsTransactionWithBlockhashLifetime,
+  createSolanaRpc,
   createTransactionMessage,
   getSignatureFromTransaction,
+  pipe,
   sendTransactionWithoutConfirmingFactory,
   setTransactionMessageFeePayerSigner,
+  setTransactionMessageLifetimeUsingBlockhash,
   signTransactionMessageWithSigners,
   type Instruction,
   type TransactionModifyingSigner,
 } from "@solana/kit";
 import { useCallback } from "react";
+import { useEndpoint } from "@/contexts/EndpointContext";
 import { confirmTransactionByPolling } from "@/lib/confirmTransaction";
+import { assertSignedByAccount } from "@/lib/walletSigning";
 
+/**
+ * Signs with the connected wallet and submits through the app's selected
+ * endpoint.
+ *
+ * `signAndSend` builds a transaction from the instructions `build` returns,
+ * has the wallet sign it, sends it, and resolves with its signature once it is
+ * confirmed. The blockhash, submission and confirmation all use the same RPC
+ * the instructions were built against, whatever cluster the wallet connector
+ * itself is on.
+ */
 export function useSignTransaction() {
-  const { client } = useSolanaClient();
-  const { prepare, ready: prepareReady } = useTransactionPreparer();
-  const { ready: signerReady, signer } = useKitTransactionSigner();
+  const { endpointUrl } = useEndpoint();
+  const { ready, signer } = useKitTransactionSigner();
 
   const signAndSend = useCallback(async (build: (input: { signer: TransactionModifyingSigner }) => Promise<readonly Instruction[]>) => {
-    if (!client || !signer) throw new Error("Wallet not connected");
-    const instructions = await build({ signer });
-    const message = appendTransactionMessageInstructions(
-      [...instructions],
-      setTransactionMessageFeePayerSigner(signer, createTransactionMessage({ version: 0 })),
+    if (!signer) throw new Error("Wallet not connected");
+    const rpc = createSolanaRpc(endpointUrl);
+    const [instructions, { value: latestBlockhash }] = await Promise.all([
+      build({ signer }),
+      rpc.getLatestBlockhash({ commitment: "confirmed" }).send(),
+    ]);
+    const message = pipe(
+      createTransactionMessage({ version: 0 }),
+      (m) => setTransactionMessageFeePayerSigner(signer, m),
+      (m) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, m),
+      (m) => appendTransactionMessageInstructions([...instructions], m),
     );
-    const prepared = await prepare(message);
-    const signed = await signTransactionMessageWithSigners(prepared);
-    assertIsTransactionWithBlockhashLifetime(signed);
+    const signed = await signTransactionMessageWithSigners(message);
+    await assertSignedByAccount(signed, signer.address);
     const signature = getSignatureFromTransaction(signed);
-    await sendTransactionWithoutConfirmingFactory({ rpc: client.rpc })(signed, { commitment: "confirmed" });
-    await confirmTransactionByPolling(client.rpc, signature, signed.lifetimeConstraint.lastValidBlockHeight);
+    await sendTransactionWithoutConfirmingFactory({ rpc })(signed, { commitment: "confirmed" });
+    await confirmTransactionByPolling(rpc, signature, latestBlockhash.lastValidBlockHeight);
     return signature;
-  }, [client, prepare, signer]);
+  }, [endpointUrl, signer]);
 
-  return { ready: Boolean(client && signer && signerReady && prepareReady), signAndSend, signer };
+  return { ready: Boolean(signer && ready), signAndSend, signer };
 }

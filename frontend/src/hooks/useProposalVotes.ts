@@ -5,7 +5,7 @@ import { Validator } from "@/types";
 import { getProposalVotes, getProposalVoteOverrides } from "@/data";
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { useGetValidators } from "./useGetValidators";
-import { bigintToSafeNumber, formatBigintPercentage } from "@/helpers/bigint";
+import { bigintToSafeNumber, bigintPercentage } from "@/helpers/bigint";
 
 const accentColors = [
   "linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)",
@@ -86,7 +86,7 @@ export const useProposalVotes = (proposalPublicKey: Address | undefined) => {
         const stakedLamports = v.activeStake || 0n;
         const votePercentage =
           totalStakedLamports > 0n && stakedLamports > 0n
-            ? Number(formatBigintPercentage(stakedLamports, totalStakedLamports))
+            ? bigintPercentage(stakedLamports, totalStakedLamports)
             : 0;
         // If voteTimestamp is unix/BN, convert to string
         let voteTimestamp: string;
@@ -125,7 +125,7 @@ export const useProposalVotes = (proposalPublicKey: Address | undefined) => {
         const stakedLamports = v.activeStake || 0n;
         const votePercentage =
           totalStakedLamports > 0n && stakedLamports > 0n
-            ? Number(formatBigintPercentage(stakedLamports, totalStakedLamports))
+            ? bigintPercentage(stakedLamports, totalStakedLamports)
             : 0;
         // If voteTimestamp is unix/BN, convert to string
         let voteTimestamp: string;

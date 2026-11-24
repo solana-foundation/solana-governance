@@ -9,22 +9,31 @@ export type LamportsDisplay = {
   showRaw: boolean;
 };
 
-export function formatSOL(lamports: bigint | number): string {
-  if (typeof lamports === "number") {
-    const sol = lamports / LAMPORTS_PER_SOL;
-    return sol.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-  const whole = lamports / 1_000_000_000n;
-  const fraction = (lamports % 1_000_000_000n).toString().padStart(9, "0").slice(0, 2);
+const LAMPORTS_PER_SOL_BIGINT = 1_000_000_000n;
 
-  // Only use compact notation for amounts >= 10M
-  if (whole >= 1_000_000_000n) {
-    return `${whole / 1_000_000_000n}.${((whole % 1_000_000_000n) / 10_000_000n).toString().padStart(2, "0")}B`;
-  } else if (whole >= 10_000_000n) {
-    return `${whole / 1_000_000n}.${((whole % 1_000_000n) / 10_000n).toString().padStart(2, "0")}M`;
-  }
+/** `value / unit` rounded half up to two decimals, e.g. "1,234,567.90". */
+function formatHundredths(value: bigint, unit: bigint, group: boolean): string {
+  const hundredths = (value * 100n + unit / 2n) / unit;
+  const whole = hundredths / 100n;
+  const fraction = (hundredths % 100n).toString().padStart(2, "0");
+  return `${group ? whole.toLocaleString("en-US") : whole}.${fraction}`;
+}
 
-  return `${whole}.${fraction}`;
+const formatGroupedSOL = (lamports: bigint) =>
+  formatHundredths(lamports, LAMPORTS_PER_SOL_BIGINT, true);
+
+/**
+ * Formats lamports as SOL with two decimals. Amounts of 10M SOL or more use
+ * compact notation ("12.35M", "1.20B"); smaller ones are grouped by thousands.
+ */
+export function formatSOL(lamports: bigint): string {
+  if (lamports >= 1_000_000_000n * LAMPORTS_PER_SOL_BIGINT) {
+    return `${formatHundredths(lamports, 1_000_000_000n * LAMPORTS_PER_SOL_BIGINT, false)}B`;
+  }
+  if (lamports >= 10_000_000n * LAMPORTS_PER_SOL_BIGINT) {
+    return `${formatHundredths(lamports, 1_000_000n * LAMPORTS_PER_SOL_BIGINT, false)}M`;
+  }
+  return formatGroupedSOL(lamports);
 }
 
 export function formatPercentage(percentage: number, decimals?: number) {
@@ -57,7 +66,7 @@ export function formatOptionalCount(
 }
 
 export function formatLamportsDisplay(
-  lamports: bigint | number | null | undefined,
+  lamports: bigint | null | undefined,
 ): LamportsDisplay {
   if (lamports === null || lamports === undefined) {
     return {
@@ -66,18 +75,11 @@ export function formatLamportsDisplay(
     };
   }
 
-  const compact = formatSOL(lamports);
-  const value = compact.includes("SOL") ? compact : `${compact} SOL`;
-
-  const rawValue = formatSOL(lamports);
-
-  const showRaw = typeof lamports === "bigint"
-    ? lamports >= 10_000_000n * 1_000_000_000n
-    : lamports >= 10_000_000 * LAMPORTS_PER_SOL;
+  const showRaw = lamports >= 10_000_000n * LAMPORTS_PER_SOL_BIGINT;
 
   return {
-    value,
-    rawValue: showRaw ? `${rawValue} SOL` : undefined,
+    value: `${formatSOL(lamports)} SOL`,
+    rawValue: showRaw ? `${formatGroupedSOL(lamports)} SOL` : undefined,
     showRaw,
   };
 }

@@ -5,6 +5,7 @@ import {
 } from "@solana/ncn-snapshot";
 import { fetchProposal } from "@solana/svmgov";
 import { useMutation } from "@tanstack/react-query";
+import { track } from "@vercel/analytics";
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { useNcnApi } from "@/contexts/NcnApiContext";
 import { resolveSignerVoteAccount } from "@/lib/governance/voteDelegations";
@@ -26,6 +27,21 @@ import { useSignTransaction } from "./useSignTransaction";
 
 type VoteInput = VoteDistribution & { proposalId: string; consensusResult: Address; publicKey?: string };
 type OverrideInput = VoteInput & { stakeAccount: string };
+
+/** Funnel events for one vote action, named `<action> init|success|error`. */
+function voteAnalytics(action: string) {
+  return {
+    onMutate: ({ proposalId }: VoteInput) => {
+      track(`${action} init`, { proposalId });
+    },
+    onSuccess: (_data: unknown, { proposalId }: VoteInput) => {
+      track(`${action} success`, { proposalId });
+    },
+    onError: (error: Error, { proposalId }: VoteInput) => {
+      track(`${action} error`, { proposalId, error: error.name });
+    },
+  };
+}
 
 async function computeProofCloseTimestamp(
   rpc: ReturnType<typeof createSolanaRpc>,
@@ -90,6 +106,7 @@ function useValidatorVoteTransaction(modify: boolean) {
   const { signAndSend } = useSignTransaction();
   return useMutation({
     mutationKey: [modify ? "modify-vote" : "cast-vote"],
+    ...voteAnalytics(modify ? "Modify Vote" : "Cast Vote"),
     mutationFn: async (input: VoteInput) => {
       if (!input.publicKey) throw new Error("Wallet not connected");
       const rpc = createSolanaRpc(endpointUrl);
@@ -125,6 +142,7 @@ function useOverrideVoteTransaction(modify: boolean) {
   const { signAndSend } = useSignTransaction();
   return useMutation({
     mutationKey: [modify ? "modify-vote-override" : "cast-vote-override"],
+    ...voteAnalytics(modify ? "Modify Vote Override" : "Cast Vote Override"),
     mutationFn: async (input: OverrideInput) => {
       if (!input.publicKey) throw new Error("Wallet not connected");
       const rpc = createSolanaRpc(endpointUrl);
