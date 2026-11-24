@@ -2,7 +2,7 @@
 
 import { DisconnectElement } from '@solana/connector/react';
 import { Wallet, Copy, Check, LogOut } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { useState } from 'react';
 
 import { shortAddress } from '@/components/connector-kit/common/utils';

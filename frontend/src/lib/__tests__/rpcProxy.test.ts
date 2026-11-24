@@ -88,15 +88,15 @@ describe("parseJsonRpcRequest", () => {
     ).toEqual(expect.objectContaining({ method: "getProgramAccounts" }));
   });
 
-  it("caps the number of accounts in one getMultipleAccounts request", () => {
+  it("rejects methods the app never calls", () => {
     expect(() =>
       parseJsonRpcRequest({
         jsonrpc: "2.0",
         id: 1,
         method: "getMultipleAccounts",
-        params: [Array.from({ length: 101 }, () => PUBLIC_KEY)],
+        params: [[PUBLIC_KEY]],
       }),
-    ).toThrow("at most 100 addresses");
+    ).toThrow("RPC method is not allowed");
   });
 
   it("rejects unfiltered stake-program scans", () => {

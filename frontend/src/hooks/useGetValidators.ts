@@ -1,5 +1,5 @@
 import { useEndpoint } from "@/contexts/EndpointContext";
-import { getStakeWizValidators } from "@/data";
+import { getStakeWizValidators, type StakeWizValidator } from "@/data";
 import { fetchRawVoteAccounts } from "@/lib/rpcVoteAccounts";
 import { Validator, Validators } from "@/types";
 import { useQuery } from "@tanstack/react-query";
@@ -13,6 +13,10 @@ export const useGetValidators = () => {
     queryFn: () => getValidators(endpoint),
   });
 };
+
+/** Converts a StakeWiz count to a bigint, treating a missing or fractional value as 0. */
+const toBigInt = (value: unknown): bigint =>
+  typeof value === "number" && Number.isInteger(value) ? BigInt(value) : 0n;
 
 const getValidators = async (endpoint: string): Promise<Validators> => {
   // The RPC is the source of truth for both the validator set and its stake, so
@@ -39,7 +43,7 @@ const getValidators = async (endpoint: string): Promise<Validators> => {
     );
   }
 
-  const metadataByVoteAccount = new Map<string, Validator>();
+  const metadataByVoteAccount = new Map<string, StakeWizValidator>();
   if (stakeWizValidators.status === "fulfilled") {
     for (const validator of stakeWizValidators.value.data) {
       metadataByVoteAccount.set(validator.vote_identity, validator);
@@ -65,8 +69,10 @@ const getValidators = async (endpoint: string): Promise<Validators> => {
         // SOL figure, so sourcing it here left one array holding two different
         // measurements depending on whether a validator happened to match.
         activated_stake: vote.activatedStake,
+        epoch_credits: toBigInt(metadata.epoch_credits),
+        last_vote: toBigInt(metadata.last_vote),
         identity: metadata.identity ?? vote.nodePubkey,
-      };
+      } satisfies Validator;
     }
 
     unknownCount++;

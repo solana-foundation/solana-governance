@@ -125,9 +125,16 @@ export async function epochToDate(
   return new Date(estimatedTime);
 }
 
-function getFirstSlotInEpoch(
+/**
+ * Returns the first slot of `epoch` under `schedule`, including the doubling
+ * epochs of a cluster that started with warmup enabled.
+ */
+export function getFirstSlotInEpoch(
   epoch: bigint,
-  schedule: EpochInfoData["epochSchedule"],
+  schedule: Pick<
+    EpochInfoData["epochSchedule"],
+    "firstNormalEpoch" | "firstNormalSlot" | "slotsPerEpoch" | "warmup"
+  >,
 ): bigint {
   if (!schedule.warmup || epoch >= schedule.firstNormalEpoch) {
     return schedule.firstNormalSlot +

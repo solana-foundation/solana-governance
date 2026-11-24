@@ -8,8 +8,8 @@ export const useChainVoteAccounts = () => {
   return useQuery({
     staleTime: 1000 * 120, // 2 minutes
     queryKey: ["chain_vote_accounts", endpoint],
-    queryFn: async (): Promise<ChainVoteAccountData[]> => {
-      const voteAccounts = await fetchRawVoteAccounts(endpoint);
+    queryFn: async ({ signal }): Promise<ChainVoteAccountData[]> => {
+      const voteAccounts = await fetchRawVoteAccounts(endpoint, signal);
 
       const mappedVoteAccounts = voteAccounts.current.map(
         mapChainVoteAccountDto

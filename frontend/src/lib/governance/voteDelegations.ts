@@ -1,4 +1,4 @@
-import type { Address, GetProgramAccountsApi, GetVoteAccountsApi, Rpc } from "@solana/kit";
+import type { Address, GetProgramAccountsApi, Rpc } from "@solana/kit";
 import type { VoteDelegationData } from "@/types";
 import { fetchVoteDelegations } from "./programAccounts";
 
@@ -21,9 +21,12 @@ export async function fetchAcceptedVoteDelegations(
     }));
 }
 
+type VoteAccountKeys = { nodePubkey: string; votePubkey: string };
+
 /**
- * Resolves the SPL vote account `signer` acts for: the vote account whose node
- * identity is `signer`, or otherwise the single vote account with an accepted
+ * Resolves the SPL vote account `signer` acts for, given the cluster's
+ * `voteAccounts`: the current vote account whose node identity is `signer`, or
+ * otherwise the single vote account, current or delinquent, with an accepted
  * vote delegation naming `signer`. Delegations whose subject is a staker wallet
  * are ignored here.
  *
@@ -31,15 +34,21 @@ export async function fetchAcceptedVoteDelegations(
  * delegate of exactly one vote account.
  */
 export async function resolveSignerVoteAccount(
-  rpc: Rpc<GetProgramAccountsApi & GetVoteAccountsApi>,
+  rpc: Rpc<GetProgramAccountsApi>,
+  voteAccounts: {
+    current: readonly VoteAccountKeys[];
+    delinquent: readonly VoteAccountKeys[];
+  },
   signer: Address,
 ): Promise<Address> {
-  const voteAccounts = await rpc.getVoteAccounts().send();
-  const allVoteAccounts = [...voteAccounts.current, ...voteAccounts.delinquent];
-  const own = allVoteAccounts.find((account) => account.nodePubkey === signer);
-  if (own) return own.votePubkey;
+  const own = voteAccounts.current.find((account) => account.nodePubkey === signer);
+  if (own) return own.votePubkey as Address;
 
-  const votePubkeys = new Set<string>(allVoteAccounts.map((account) => account.votePubkey));
+  const votePubkeys = new Set<string>(
+    [...voteAccounts.current, ...voteAccounts.delinquent].map(
+      (account) => account.votePubkey,
+    ),
+  );
   const delegated = (await fetchAcceptedVoteDelegations(rpc, signer)).filter(
     ({ subject }) => votePubkeys.has(subject),
   );

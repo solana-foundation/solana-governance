@@ -1,11 +1,6 @@
 import {
-  decodeStakeStateAccount,
-  STAKE_PROGRAM_ADDRESS,
-  type StakeStateAccount,
-} from "@solana-program/stake";
-import {
-  parseBase64RpcAccount,
-  type Account,
+  getAddressDecoder,
+  getBase64Encoder,
   type Address,
   type Base58EncodedBytes,
   type GetEpochInfoApi,
@@ -13,6 +8,8 @@ import {
   type Rpc,
 } from "@solana/kit";
 
+const STAKE_PROGRAM_ADDRESS =
+  "Stake11111111111111111111111111111111111111" as Address;
 const STAKE_ACCOUNT_SIZE = 200n;
 const AUTHORIZED_WITHDRAWER_OFFSET = 44n;
 const PERMANENT_DELEGATION_EPOCH = 18_446_744_073_709_551_615n;
@@ -43,73 +40,80 @@ function getStakeAccountStatus(
   return deactivationEpoch >= currentEpoch ? "deactivating" : "cooldown";
 }
 
-async function fetchStakeAccountsByFilter(
-  rpc: Rpc<GetProgramAccountsApi>,
-  offset: bigint,
+// StakeStateV2 layout: a u32 variant, then Meta (rent reserve, staker,
+// withdrawer, lockup) and, for delegated accounts, the Delegation.
+const STATE_INITIALIZED = 1;
+const STATE_STAKE = 2;
+const STAKER_OFFSET = 12;
+const WITHDRAWER_OFFSET = 44;
+const VOTER_OFFSET = 124;
+const DELEGATED_STAKE_OFFSET = 156;
+const DEACTIVATION_EPOCH_OFFSET = 172;
+
+/**
+ * Decodes a stake account's raw data, or returns `null` when the account is
+ * neither initialized nor delegated (uninitialized and rewards-pool accounts
+ * have no authorities).
+ */
+export function decodeWalletStakeAccount(
   address: Address,
-): Promise<Account<StakeStateAccount>[]> {
-  const accounts = await rpc
-    .getProgramAccounts(STAKE_PROGRAM_ADDRESS, {
-      encoding: "base64",
-      filters: [
-        { dataSize: STAKE_ACCOUNT_SIZE },
-        addressMemcmp(offset, address),
-      ],
-    })
-    .send();
-
-  return accounts.flatMap(({ account, pubkey }) => {
-    try {
-      return [decodeStakeStateAccount(parseBase64RpcAccount(pubkey, account))];
-    } catch {
-      // The size filter also admits non-decodable legacy data. Ignore it just as
-      // getParsedProgramAccounts did by only returning parsed stake accounts.
-      return [];
-    }
-  });
-}
-
-function toWalletStakeAccount(
-  account: Account<StakeStateAccount>,
+  data: Uint8Array,
   currentEpoch: bigint,
 ): WalletStakeAccount | null {
-  const { state } = account.data;
-  if (state.__kind !== "Initialized" && state.__kind !== "Stake") return null;
+  if (data.length < Number(STAKE_ACCOUNT_SIZE)) return null;
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const variant = view.getUint32(0, true);
+  if (variant !== STATE_INITIALIZED && variant !== STATE_STAKE) return null;
 
-  const meta = state.fields[0];
-  const delegation = state.__kind === "Stake" ? state.fields[1].delegation : null;
+  const readAddress = (offset: number) =>
+    getAddressDecoder().decode(data, offset);
+  const authorities = {
+    address,
+    staker: readAddress(STAKER_OFFSET),
+    withdrawer: readAddress(WITHDRAWER_OFFSET),
+  };
+  if (variant === STATE_INITIALIZED) {
+    return { ...authorities, activeStakeLamports: 0n, state: "initialized", voter: null };
+  }
 
+  const delegatedStake = view.getBigUint64(DELEGATED_STAKE_OFFSET, true);
   return {
-    activeStakeLamports: delegation?.stake ?? 0n,
-    address: account.address,
-    staker: meta.authorized.staker,
-    state:
-      state.__kind === "Stake"
-        ? getStakeAccountStatus(
-            delegation?.stake ?? 0n,
-            delegation?.deactivationEpoch ?? PERMANENT_DELEGATION_EPOCH,
-            currentEpoch,
-          )
-        : "initialized",
-    voter: delegation?.voterPubkey ?? null,
-    withdrawer: meta.authorized.withdrawer,
+    ...authorities,
+    activeStakeLamports: delegatedStake,
+    state: getStakeAccountStatus(
+      delegatedStake,
+      view.getBigUint64(DEACTIVATION_EPOCH_OFFSET, true),
+      currentEpoch,
+    ),
+    voter: readAddress(VOTER_OFFSET),
   };
 }
 
+/**
+ * Lists the stake accounts whose withdraw authority is `owner`. A wallet that
+ * is only the staker is not matched: a snapshot leaf's voting wallet is the
+ * withdraw authority, so only the withdrawer can vote with the account.
+ */
 export async function fetchStakeAccounts(
   rpc: Rpc<GetEpochInfoApi & GetProgramAccountsApi>,
   owner: Address,
 ): Promise<WalletStakeAccount[]> {
-  // Only the withdrawer is queried: a snapshot leaf's voting wallet is the
-  // withdraw authority, so a wallet that is merely the staker cannot vote with
-  // the account.
   const [epochInfo, accounts] = await Promise.all([
     rpc.getEpochInfo().send(),
-    fetchStakeAccountsByFilter(rpc, AUTHORIZED_WITHDRAWER_OFFSET, owner),
+    rpc
+      .getProgramAccounts(STAKE_PROGRAM_ADDRESS, {
+        encoding: "base64",
+        filters: [
+          { dataSize: STAKE_ACCOUNT_SIZE },
+          addressMemcmp(AUTHORIZED_WITHDRAWER_OFFSET, owner),
+        ],
+      })
+      .send(),
   ]);
 
-  return accounts.flatMap((account) => {
-    const mapped = toWalletStakeAccount(account, epochInfo.epoch);
+  return accounts.flatMap(({ account, pubkey }) => {
+    const data = new Uint8Array(getBase64Encoder().encode(account.data[0]));
+    const mapped = decodeWalletStakeAccount(pubkey, data, epochInfo.epoch);
     return mapped ? [mapped] : [];
   });
 }

@@ -9,7 +9,6 @@ export const RPC_METHODS = [
   "getEpochInfo",
   "getEpochSchedule",
   "getLatestBlockhash",
-  "getMultipleAccounts",
   "getProgramAccounts",
   "getRecentPerformanceSamples",
   "getSignatureStatuses",
@@ -47,14 +46,12 @@ const ALLOWED_PROGRAM_IDS = new Set([
 ]);
 const STAKE_PROGRAM_ID = "Stake11111111111111111111111111111111111111";
 const STAKE_ACCOUNT_DATA_SIZE = 200;
-// Authorized staker, authorized withdrawer, and delegation voter.
+// Authorized withdrawer and delegation voter.
 const STAKE_ACCOUNT_MEMCMP_OFFSETS = new Set([44, 124]);
-const MAX_MULTIPLE_ACCOUNTS = 100;
 const BASE58_PUBLIC_KEY = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
 const CACHE_POLICIES: Partial<Record<AllowedRpcMethod, RpcCachePolicy>> = {
   getAccountInfo: { stale: 1, revalidate: 2, expire: 10 },
-  getMultipleAccounts: { stale: 1, revalidate: 2, expire: 10 },
   getEpochInfo: { stale: 2, revalidate: 5, expire: 15 },
   getProgramAccounts: { stale: 10, revalidate: 30, expire: 120 },
   getRecentPerformanceSamples: { stale: 10, revalidate: 30, expire: 120 },
@@ -174,17 +171,6 @@ function validateMethodParams(
           400,
         );
       }
-    }
-  }
-
-  if (method === "getMultipleAccounts") {
-    const addresses = params[0];
-    if (!Array.isArray(addresses) || addresses.length > MAX_MULTIPLE_ACCOUNTS) {
-      throw new RpcRequestError(
-        `getMultipleAccounts accepts at most ${MAX_MULTIPLE_ACCOUNTS} addresses`,
-        -32602,
-        400,
-      );
     }
   }
 

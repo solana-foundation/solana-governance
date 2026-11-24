@@ -4,7 +4,10 @@ import {
   SOLANA_ERROR__INSTRUCTION_ERROR__CUSTOM,
   type Signature,
 } from "@solana/kit";
-import { confirmTransactionByPolling } from "../confirmTransaction";
+import {
+  confirmTransactionByPolling,
+  TransactionOutcomeUnknownError,
+} from "../confirmTransaction";
 
 const SIGNATURE = "signature" as Signature;
 
@@ -68,5 +71,53 @@ describe("confirmTransactionByPolling", () => {
     const error = await confirmTransactionByPolling(rpc, SIGNATURE, 123n).catch((e: unknown) => e);
     expect(isSolanaError(error, SOLANA_ERROR__BLOCK_HEIGHT_EXCEEDED)).toBe(true);
     expect(getBlockHeight).toHaveBeenCalledWith({ commitment: "confirmed" });
+  });
+
+  describe("when a poll fails after the transaction was submitted", () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    const confirmed = {
+      value: [{ confirmationStatus: "confirmed", confirmations: 1n, err: null, slot: 123n }],
+    };
+
+    it("keeps polling instead of reporting a failure", async () => {
+      // A single 429 or 502 from the RPC proxy used to reject the mutation even
+      // though the transaction went on to land, inviting a duplicate retry.
+      const getSignatureStatuses = jest
+        .fn()
+        .mockReturnValueOnce({ send: () => Promise.reject(new Error("HTTP error (429)")) })
+        .mockReturnValue({ send: () => Promise.resolve(confirmed) });
+      const rpc = { getSignatureStatuses } as unknown as Parameters<
+        typeof confirmTransactionByPolling
+      >[0];
+
+      const confirmation = confirmTransactionByPolling(rpc, SIGNATURE, 123n);
+      await jest.advanceTimersByTimeAsync(1_000);
+
+      await expect(confirmation).resolves.toBeUndefined();
+      expect(getSignatureStatuses).toHaveBeenCalledTimes(2);
+    });
+
+    it("reports an unknown outcome, not a failure, once the RPC stays unreachable", async () => {
+      const rpc = {
+        getSignatureStatuses: () => ({
+          send: () => Promise.reject(new Error("HTTP error (502)")),
+        }),
+      } as unknown as Parameters<typeof confirmTransactionByPolling>[0];
+
+      const outcome = confirmTransactionByPolling(rpc, SIGNATURE, 123n).catch(
+        (e: unknown) => e,
+      );
+      await jest.advanceTimersByTimeAsync(95_000);
+
+      const error = await outcome;
+      expect(error).toBeInstanceOf(TransactionOutcomeUnknownError);
+      expect((error as Error).message).toContain("may still have been processed");
+    });
   });
 });

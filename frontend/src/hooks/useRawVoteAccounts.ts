@@ -3,10 +3,22 @@ import {
   fetchRawVoteAccounts,
   type RawVoteAccountsData,
 } from "@/lib/rpcVoteAccounts";
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 import { GET_VOTE_ACCOUNTS } from "@/helpers";
 
 export type { RawVoteAccountsData } from "@/lib/rpcVoteAccounts";
+
+/**
+ * Query for the cluster's raw vote accounts (current and delinquent), shared
+ * so every reader of `endpointUrl` reuses one cached download.
+ */
+export function rawVoteAccountsQueryOptions(endpointUrl: string) {
+  return queryOptions<RawVoteAccountsData>({
+    queryKey: [GET_VOTE_ACCOUNTS, endpointUrl],
+    queryFn: ({ signal }) => fetchRawVoteAccounts(endpointUrl, signal),
+    staleTime: 1000 * 120, // 2 minutes
+  });
+}
 
 /**
  * Hook to fetch raw Solana vote accounts (current and delinquent)
@@ -16,12 +28,8 @@ export type { RawVoteAccountsData } from "@/lib/rpcVoteAccounts";
 export function useRawVoteAccounts() {
   const { endpointUrl } = useEndpoint();
 
-  return useQuery<RawVoteAccountsData>({
-    queryKey: [GET_VOTE_ACCOUNTS, endpointUrl],
-    queryFn: async () => {
-      return fetchRawVoteAccounts(endpointUrl);
-    },
-    staleTime: 1000 * 120, // 2 minutes
+  return useQuery({
+    ...rawVoteAccountsQueryOptions(endpointUrl),
     refetchOnWindowFocus: false,
   });
 }

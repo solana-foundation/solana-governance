@@ -129,6 +129,19 @@ describe("useGetValidators", () => {
 
     expect(result.current.data?.[0].identity).toBe(IDENTITY);
   });
+
+  it("converts StakeWiz's numeric counts to bigints like the RPC-sourced rows", async () => {
+    // Matched rows used to keep StakeWiz's JSON numbers under fields typed
+    // bigint, so one list mixed numbers and bigints.
+    mockGetStakeWizValidators.mockResolvedValue(stakeWiz());
+    mockGetVoteAccounts.mockResolvedValue(voteAccounts());
+
+    const { result } = renderHook(() => useGetValidators(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data?.[0].last_vote).toBe(999n);
+    expect(result.current.data?.[0].epoch_credits).toBe(123n);
+  });
 });
 
 describe("useValidatorsTotalStakedLamports", () => {

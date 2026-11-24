@@ -42,8 +42,17 @@ function mapVoteAccount(account: {
   };
 }
 
-export async function fetchRawVoteAccounts(endpoint: string): Promise<RawVoteAccountsData> {
-  const accounts = await createSolanaRpc(endpoint).getVoteAccounts().send();
+/**
+ * Fetches every vote account on the cluster, current and delinquent. Aborting
+ * `abortSignal` cancels the download.
+ */
+export async function fetchRawVoteAccounts(
+  endpoint: string,
+  abortSignal?: AbortSignal,
+): Promise<RawVoteAccountsData> {
+  const accounts = await createSolanaRpc(endpoint)
+    .getVoteAccounts()
+    .send({ abortSignal });
   return {
     current: accounts.current.map(mapVoteAccount),
     delinquent: accounts.delinquent.map(mapVoteAccount),

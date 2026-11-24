@@ -1,3 +1,5 @@
+import { bigintPercentage } from "@/helpers/bigint";
+
 /**
  * Quorum per SGP-0001 Art. IV.3: one-third of network stake must participate,
  * participation being `For + Against + Abstain`.
@@ -57,14 +59,6 @@ export interface ProposalVoteStats {
   stakeShare: VotePercentageBreakdown;
 }
 
-const PERCENT_SCALE = 10_000_000_000n;
-
-/** `part / total` as a 0–100 percentage, truncated to ten decimal places. */
-function percentOf(part: bigint, total: bigint): number {
-  // Convert only the bounded percentage, never a lamport balance.
-  return Number((part * 100n * PERCENT_SCALE) / total) / Number(PERCENT_SCALE);
-}
-
 export function computeQuorum({
   forLamports,
   againstLamports,
@@ -80,7 +74,7 @@ export function computeQuorum({
   return {
     known: true,
     totalActiveStake,
-    participationPercent: percentOf(participatingLamports, totalActiveStake),
+    participationPercent: bigintPercentage(participatingLamports, totalActiveStake),
     isMet:
       participatingLamports >=
       (totalActiveStake * BigInt(QUORUM_NUMERATOR)) /
@@ -105,18 +99,18 @@ export function computeProposalVoteStats(
     participatingLamports > 0n
       ? {
           known: true,
-          forPercent: percentOf(input.forLamports, participatingLamports),
-          againstPercent: percentOf(input.againstLamports, participatingLamports),
-          abstainPercent: percentOf(input.abstainLamports, participatingLamports),
+          forPercent: bigintPercentage(input.forLamports, participatingLamports),
+          againstPercent: bigintPercentage(input.againstLamports, participatingLamports),
+          abstainPercent: bigintPercentage(input.abstainLamports, participatingLamports),
         }
       : { known: false };
 
   const stakeShare: VotePercentageBreakdown = quorum.known
     ? {
         known: true,
-        forPercent: percentOf(input.forLamports, quorum.totalActiveStake),
-        againstPercent: percentOf(input.againstLamports, quorum.totalActiveStake),
-        abstainPercent: percentOf(input.abstainLamports, quorum.totalActiveStake),
+        forPercent: bigintPercentage(input.forLamports, quorum.totalActiveStake),
+        againstPercent: bigintPercentage(input.againstLamports, quorum.totalActiveStake),
+        abstainPercent: bigintPercentage(input.abstainLamports, quorum.totalActiveStake),
       }
     : { known: false };
 

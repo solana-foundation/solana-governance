@@ -17,6 +17,7 @@ import {
 import { useCallback } from "react";
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { confirmTransactionByPolling } from "@/lib/confirmTransaction";
+import { rethrowAsTransactionFailure } from "@/lib/transactionErrors";
 import { assertSignedByAccount } from "@/lib/walletSigning";
 
 /**
@@ -28,6 +29,9 @@ import { assertSignedByAccount } from "@/lib/walletSigning";
  * confirmed. The blockhash, submission and confirmation all use the same RPC
  * the instructions were built against, whatever cluster the wallet connector
  * itself is on.
+ *
+ * A transaction that fails simulation or execution rejects with a
+ * `TransactionFailedError` whose message states the reason.
  */
 export function useSignTransaction() {
   const { endpointUrl } = useEndpoint();
@@ -49,8 +53,12 @@ export function useSignTransaction() {
     const signed = await signTransactionMessageWithSigners(message);
     await assertSignedByAccount(signed, signer.address);
     const signature = getSignatureFromTransaction(signed);
-    await sendTransactionWithoutConfirmingFactory({ rpc })(signed, { commitment: "confirmed" });
-    await confirmTransactionByPolling(rpc, signature, latestBlockhash.lastValidBlockHeight);
+    try {
+      await sendTransactionWithoutConfirmingFactory({ rpc })(signed, { commitment: "confirmed" });
+      await confirmTransactionByPolling(rpc, signature, latestBlockhash.lastValidBlockHeight);
+    } catch (error) {
+      rethrowAsTransactionFailure(error);
+    }
     return signature;
   }, [endpointUrl, signer]);
 

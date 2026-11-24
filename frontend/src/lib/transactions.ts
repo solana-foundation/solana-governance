@@ -48,9 +48,8 @@ export async function buildUpdateProposalDescriptionInstruction(input: {
 }
 
 /**
- * Builds the proof initialization that must precede a vote when the NCN proof
- * PDA has not yet been created. It is submitted in the same transaction as
- * the vote so a proof cannot be removed between initialization and use.
+ * Builds the instruction that creates the NCN meta merkle proof account a vote
+ * reads. `closeTimestamp` is the earliest time the account may be closed.
  */
 export async function buildInitializeMetaMerkleProofInstruction(input: {
   closeTimestamp: bigint;

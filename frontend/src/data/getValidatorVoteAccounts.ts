@@ -8,8 +8,11 @@ export const getValidatorVoteAccounts = async (
   if (!validatorPubkey) throw new Error("User public key is required");
 
   const voteAccounts = await createSolanaRpc(endpoint).getVoteAccounts().send();
-  const validatorVoteAccount = [...voteAccounts.current, ...voteAccounts.delinquent]
-    .find((account) => account.nodePubkey === validatorPubkey);
+  // Delinquent vote accounts are excluded, as in useChainVoteAccounts, so the
+  // wallet's voting power and its detected role always agree.
+  const validatorVoteAccount = voteAccounts.current.find(
+    (account) => account.nodePubkey === validatorPubkey,
+  );
 
   if (!validatorVoteAccount) {
     console.warn(`No SPL vote account found for validator identity ${validatorPubkey}`);

@@ -8,7 +8,10 @@ import { useMutation } from "@tanstack/react-query";
 import { track } from "@vercel/analytics";
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { useNcnApi } from "@/contexts/NcnApiContext";
-import { resolveSignerVoteAccount } from "@/lib/governance/voteDelegations";
+import {
+  computeProofCloseTimestamp,
+  ensureMetaMerkleProofInitialized,
+} from "@/lib/metaMerkleProofSetup";
 import {
   assertOverrideProofLineage,
   getStakeAccountProof,
@@ -23,6 +26,7 @@ import {
   buildModifyVoteOverrideInstruction,
   type VoteDistribution,
 } from "@/lib/transactions";
+import { useResolveSignerVoteAccount } from "./useResolveSignerVoteAccount";
 import { useSignTransaction } from "./useSignTransaction";
 
 type VoteInput = VoteDistribution & { proposalId: string; consensusResult: Address; publicKey?: string };
@@ -43,67 +47,45 @@ function voteAnalytics(action: string) {
   };
 }
 
-async function computeProofCloseTimestamp(
-  rpc: ReturnType<typeof createSolanaRpc>,
-  endEpoch: bigint,
-): Promise<bigint> {
-  const epochInfo = await rpc.getEpochInfo().send();
-  const epochStartSlot = epochInfo.absoluteSlot - epochInfo.slotIndex;
-  const targetSlot = epochStartSlot +
-    (endEpoch - epochInfo.epoch) * epochInfo.slotsInEpoch;
-
-  let blockTime: bigint | null = null;
-  let referenceSlot = epochInfo.absoluteSlot;
-  for (let attempt = 0; attempt < 8 && referenceSlot >= 0n; attempt += 1) {
-    try {
-      blockTime = await rpc.getBlockTime(referenceSlot).send();
-      if (blockTime !== null) break;
-    } catch {
-      // Skipped slots and pruned RPC history can both lack a block time.
-    }
-    referenceSlot -= 1n;
-  }
-  if (blockTime === null) {
-    throw new Error("Failed to fetch a recent block time for the proof expiry");
-  }
-
-  const projectedSeconds = ((targetSlot - referenceSlot) * 400n) / 1_000n;
-  const bufferSeconds = projectedSeconds > 0n
-    ? (projectedSeconds * 20n) / 100n > 3_600n
-      ? (projectedSeconds * 20n) / 100n
-      : 3_600n
-    : 0n;
-  return blockTime + projectedSeconds + bufferSeconds;
-}
+type MetaMerkleProofInitialization = {
+  consensusResult: Address;
+  endEpoch: bigint;
+  proof: Awaited<ReturnType<typeof getVoteAccountProof>>;
+  signer: Parameters<typeof buildCastVoteInstruction>[0]["signer"];
+};
 
 async function buildMetaMerkleProofInitialization(
   rpc: ReturnType<typeof createSolanaRpc>,
-  input: {
-    consensusResult: ReturnType<typeof address>;
-    endEpoch: bigint;
-    proof: Awaited<ReturnType<typeof getVoteAccountProof>>;
-    signer: Parameters<typeof buildCastVoteInstruction>[0]["signer"];
-  },
+  input: MetaMerkleProofInitialization,
+) {
+  return buildInitializeMetaMerkleProofInstruction({
+    closeTimestamp: await computeProofCloseTimestamp(rpc, input.endEpoch),
+    consensusResult: input.consensusResult,
+    proof: input.proof,
+    signer: input.signer,
+  });
+}
+
+/** The proof initialization, or nothing when the proof account already exists. */
+async function buildMissingMetaMerkleProofInitialization(
+  rpc: ReturnType<typeof createSolanaRpc>,
+  input: MetaMerkleProofInitialization,
 ) {
   const [merkleProof] = await findMetaMerkleProofPda({
     consensusResult: input.consensusResult,
     voteAccount: address(input.proof.meta_merkle_leaf.vote_account),
   });
   const existingProof = await fetchMaybeMetaMerkleProof(rpc, merkleProof);
-  if (existingProof.exists) return [];
-
-  return [await buildInitializeMetaMerkleProofInstruction({
-    closeTimestamp: await computeProofCloseTimestamp(rpc, input.endEpoch),
-    consensusResult: input.consensusResult,
-    proof: input.proof,
-    signer: input.signer,
-  })];
+  return existingProof.exists
+    ? []
+    : [await buildMetaMerkleProofInitialization(rpc, input)];
 }
 
 function useValidatorVoteTransaction(modify: boolean) {
   const { endpointUrl, network } = useEndpoint();
   const { ncnApiUrl } = useNcnApi();
   const { signAndSend } = useSignTransaction();
+  const resolveSignerVoteAccount = useResolveSignerVoteAccount();
   return useMutation({
     mutationKey: [modify ? "modify-vote" : "cast-vote"],
     ...voteAnalytics(modify ? "Modify Vote" : "Cast Vote"),
@@ -113,7 +95,7 @@ function useValidatorVoteTransaction(modify: boolean) {
       const [proposal, splVoteAccount] = await Promise.all([
         fetchProposal(rpc, address(input.proposalId)),
         // The wallet is either the validator identity or its accepted vote delegate.
-        resolveSignerVoteAccount(rpc, address(input.publicKey)),
+        resolveSignerVoteAccount(input.publicKey),
       ]);
       const snapshotSlot = requireProposalSnapshotSlot(proposal.data.snapshotSlot);
       const proof = await getVoteAccountProof(splVoteAccount, network, snapshotSlot, ncnApiUrl);
@@ -121,7 +103,7 @@ function useValidatorVoteTransaction(modify: boolean) {
       const signature = await signAndSend(async ({ signer }) => {
         const consensusResult = input.consensusResult;
         const [initProofInstruction, voteInstruction] = await Promise.all([
-          buildMetaMerkleProofInitialization(rpc, {
+          buildMissingMetaMerkleProofInitialization(rpc, {
             consensusResult,
             endEpoch: proposal.data.endEpoch,
             proof,
@@ -163,24 +145,19 @@ function useOverrideVoteTransaction(modify: boolean) {
         consensusResult,
         voteAccount: address(metaProof.meta_merkle_leaf.vote_account),
       });
-      const isProofInitialized = async () =>
-        (await fetchMaybeMetaMerkleProof(rpc, metaMerkleProof)).exists;
-      if (!(await isProofInitialized())) {
-        try {
-          await signAndSend(({ signer }) =>
-            buildMetaMerkleProofInitialization(rpc, {
+      await ensureMetaMerkleProofInitialized({
+        isInitialized: async () =>
+          (await fetchMaybeMetaMerkleProof(rpc, metaMerkleProof)).exists,
+        initialize: () =>
+          signAndSend(async ({ signer }) => [
+            await buildMetaMerkleProofInitialization(rpc, {
               consensusResult,
               endEpoch: proposal.data.endEpoch,
               proof: metaProof,
               signer,
             }),
-          );
-        } catch (error) {
-          // Every delegator of a validator shares this account, so another
-          // wallet creating it first fails this transaction harmlessly.
-          if (!(await isProofInitialized())) throw error;
-        }
-      }
+          ]),
+      });
 
       const signature = await signAndSend(async ({ signer }) => [
         await builder({

@@ -3,18 +3,37 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+# Packages whose client could not be regenerated because no package manager
+# was available. Reported after every program has been built.
+STALE_CLIENTS=()
+
+# Runs pnpm, falling back to npx (which ships with Node) when pnpm is not
+# installed. Returns non-zero when neither is available.
+run_pnpm() {
+  if command -v pnpm >/dev/null 2>&1; then
+    pnpm "$@"
+  elif command -v npx >/dev/null 2>&1; then
+    local version
+    version="$(sed -n 's/.*"packageManager": *"pnpm@\([^"+]*\).*/\1/p' "$REPO_ROOT/package.json")"
+    npx --yes "pnpm@${version:-9}" "$@"
+  else
+    return 127
+  fi
+}
+
 # Regenerates the Codama IDL and the TypeScript client the frontend imports
 # from a freshly built Anchor IDL, so a program change cannot leave them stale.
 generate_client() {
   local package="$1"
-  if ! command -v pnpm >/dev/null 2>&1; then
-    echo "ERROR: pnpm is required to regenerate the $package client"
-    exit 1
+  if ! command -v pnpm >/dev/null 2>&1 && ! command -v npx >/dev/null 2>&1; then
+    echo "WARNING: neither pnpm nor npx is installed; the $package client was not regenerated"
+    STALE_CLIENTS+=("$package")
+    return 0
   fi
   echo "Regenerating the $package Codama IDL and TypeScript client..."
   cd "$REPO_ROOT"
-  pnpm --filter "$package" run generate:codama-idl
-  pnpm --filter "$package" run generate:clients
+  run_pnpm --filter "$package" run generate:codama-idl
+  run_pnpm --filter "$package" run generate:clients
 }
 
 build_svmgov() {
@@ -51,3 +70,9 @@ case "${1:-all}" in
   all)    build_svmgov; build_ncn ;;
   *)      echo "Usage: $0 [svmgov|ncn|all]"; exit 1 ;;
 esac
+
+if [ "${#STALE_CLIENTS[@]}" -gt 0 ]; then
+  echo "ERROR: the programs were built, but these TypeScript clients are stale: ${STALE_CLIENTS[*]}"
+  echo "Install pnpm and rerun, or run generate:codama-idl and generate:clients for each package."
+  exit 1
+fi
