@@ -20,9 +20,9 @@ export type NetworkMetaResponse = {
 };
 
 /**
- * Snapshot metadata as a verifier sends it. The u64 fields arrive as JSON
- * numbers, or as decimal strings from a verifier that preserves their full
- * precision.
+ * Snapshot metadata as a verifier sends it. The u64 fields are JSON numbers on
+ * the wire; a caller that needs `total_active_stake` exact asks `fetchNcnJson`
+ * to read it losslessly, which yields a decimal string instead.
  */
 export type NetworkMetaWireResponse = Omit<
   NetworkMetaResponse,

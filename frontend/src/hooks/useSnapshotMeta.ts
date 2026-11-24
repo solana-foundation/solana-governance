@@ -11,6 +11,10 @@ import { useMemo } from "react";
 
 const SNAPSHOT_META_STALE_TIME_MS = 1000 * 120;
 
+// Total stake exceeds Number.MAX_SAFE_INTEGER on mainnet, and a rounded total
+// can flip a quorum that sits on the boundary.
+const LOSSLESS_META_FIELDS = ["total_active_stake"] as const;
+
 function snapshotMetaQuery(
   ncnApiUrl: string,
   network: string,
@@ -28,6 +32,7 @@ function snapshotMetaQuery(
       return fetchNcnJson<NetworkMetaWireResponse>(url, {
         signal,
         label: "snapshot meta info",
+        losslessIntegerFields: LOSSLESS_META_FIELDS,
         resource: "snapshot-meta",
       }).then(deserializeNetworkMeta);
     },
@@ -63,7 +68,12 @@ function snapshotMetasQuery(
     queryFn: ({ signal }) =>
       fetchNcnJson<NetworkMetaWireResponse[]>(
         `${ncnApiUrl}/metas?network=${network}&slots=${slots}`,
-        { signal, label: "snapshot meta info", resource: "snapshot-meta" },
+        {
+          signal,
+          label: "snapshot meta info",
+          losslessIntegerFields: LOSSLESS_META_FIELDS,
+          resource: "snapshot-meta",
+        },
       ).then((metas) => metas.map(deserializeNetworkMeta)),
   });
 }
