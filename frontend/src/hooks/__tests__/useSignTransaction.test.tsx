@@ -1,6 +1,12 @@
 import {
   createSolanaRpc,
+  decompileTransactionMessage,
   generateKeyPairSigner,
+  getBase64Encoder,
+  getCompiledTransactionMessageDecoder,
+  getTransactionDecoder,
+  getTransactionMessageComputeUnitLimit,
+  getTransactionMessageLoadedAccountsDataSizeLimit,
   signBytes,
   SOLANA_ERROR__RPC__TRANSPORT_HTTP_ERROR,
   SolanaError,
@@ -15,9 +21,14 @@ import { TransactionOutcomeUnknownError } from "@/lib/confirmTransaction";
 import { useSignTransaction } from "../useSignTransaction";
 
 const mockUseKitTransactionSigner = jest.fn();
+const mockWalletSupportsV1 = jest.fn();
 
 jest.mock("@solana/connector/react", () => ({
+  useConnector: () => ({ selectedWallet: { features: {} } }),
   useKitTransactionSigner: () => mockUseKitTransactionSigner(),
+}));
+jest.mock("@solana/connector/headless", () => ({
+  walletSupportsTransactionVersion: () => mockWalletSupportsV1(),
 }));
 jest.mock("@/contexts/EndpointContext", () => ({
   useEndpoint: () => ({ endpointUrl: "https://rpc.example/api/rpc?cluster=testnet" }),
@@ -40,6 +51,7 @@ const request = (response: () => Promise<unknown>) => jest.fn(() => ({ send: res
 function useRpc(overrides: {
   getSignatureStatuses?: () => Promise<unknown>;
   sendTransaction?: () => Promise<unknown>;
+  simulateTransaction?: () => Promise<unknown>;
 }) {
   const rpc = {
     getBlockHeight: request(() => Promise.resolve(1n)),
@@ -52,6 +64,13 @@ function useRpc(overrides: {
       overrides.getSignatureStatuses ?? (() => Promise.resolve(CONFIRMED)),
     ),
     sendTransaction: request(overrides.sendTransaction ?? (() => Promise.resolve("sig"))),
+    simulateTransaction: request(
+      overrides.simulateTransaction ??
+        (() =>
+          Promise.resolve({
+            value: { err: null, loadedAccountsDataSize: 40_000, logs: [], unitsConsumed: 10_000n },
+          })),
+    ),
   };
   jest.mocked(createSolanaRpc).mockReturnValue(rpc as unknown as ReturnType<typeof createSolanaRpc>);
   return rpc;
@@ -68,12 +87,21 @@ beforeAll(async () => {
 beforeEach(() => {
   jest.clearAllMocks();
   mockUseKitTransactionSigner.mockReturnValue({ ready: true, signer: wallet });
+  mockWalletSupportsV1.mockReturnValue(true);
 });
 
-const signAndSend = () =>
-  renderHook(() => useSignTransaction()).result.current.signAndSend(() =>
-    Promise.resolve([INSTRUCTION]),
+const signAndSend = (options?: { computeUnitLimit?: number }) =>
+  renderHook(() => useSignTransaction()).result.current.signAndSend(
+    () => Promise.resolve([INSTRUCTION]),
+    options,
   );
+
+/** Decodes the transaction message the hook submitted to the RPC. */
+function sentMessage(rpc: ReturnType<typeof useRpc>) {
+  const [[wire]] = rpc.sendTransaction.mock.calls as unknown as [[string]];
+  const { messageBytes } = getTransactionDecoder().decode(getBase64Encoder().encode(wire));
+  return decompileTransactionMessage(getCompiledTransactionMessageDecoder().decode(messageBytes));
+}
 
 describe("useSignTransaction", () => {
   it("submits through the app's selected endpoint and resolves once confirmed", async () => {
@@ -86,6 +114,59 @@ describe("useSignTransaction", () => {
     expect(createSolanaRpc).toHaveBeenCalledWith("https://rpc.example/api/rpc?cluster=testnet");
     expect(rpc.sendTransaction).toHaveBeenCalledTimes(1);
     expect(rpc.getSignatureStatuses).toHaveBeenCalled();
+  });
+
+  it("sends v1 with resource limits sized by simulation when the wallet can sign v1", async () => {
+    const rpc = useRpc({});
+
+    await signAndSend();
+
+    const message = sentMessage(rpc);
+    expect(message.version).toBe(1);
+    // An unset v1 limit budgets zero, so both must come from the simulation,
+    // with headroom: 10% more compute, and data rounded past the next page.
+    expect(getTransactionMessageComputeUnitLimit(message)).toBe(11_000);
+    expect(getTransactionMessageLoadedAccountsDataSizeLimit(message)).toBe(64 * 1024);
+    expect(message.instructions).toHaveLength(1);
+  });
+
+  it("keeps an explicit compute-unit limit on a v1 transaction", async () => {
+    const rpc = useRpc({});
+
+    await signAndSend({ computeUnitLimit: 250_000 });
+
+    expect(getTransactionMessageComputeUnitLimit(sentMessage(rpc))).toBe(250_000);
+  });
+
+  it("falls back to v0 for a wallet that has not declared v1", async () => {
+    // Wallets that predate v1 reject it outright, so a v1 transaction would
+    // leave them unable to vote.
+    mockWalletSupportsV1.mockReturnValue(false);
+    const rpc = useRpc({});
+
+    await signAndSend({ computeUnitLimit: 250_000 });
+
+    const message = sentMessage(rpc);
+    expect(message.version).toBe(0);
+    expect(rpc.simulateTransaction).not.toHaveBeenCalled();
+    expect(getTransactionMessageComputeUnitLimit(message)).toBe(250_000);
+  });
+
+  it("explains a failure found while sizing a v1 transaction", async () => {
+    const rpc = useRpc({
+      simulateTransaction: () =>
+        Promise.resolve({
+          value: {
+            err: { InstructionError: [0, { Custom: 6012 }] },
+            loadedAccountsDataSize: 40_000,
+            logs: ["Program log: AnchorError occurred. Error Code: AlreadyVoted. Error Number: 6012. Error Message: Validator has already voted."],
+            unitsConsumed: 10_000n,
+          },
+        }),
+    });
+
+    await expect(signAndSend()).rejects.toThrow("Transaction failed: Validator has already voted");
+    expect(rpc.sendTransaction).not.toHaveBeenCalled();
   });
 
   it("explains a simulation failure in the program's own words", async () => {

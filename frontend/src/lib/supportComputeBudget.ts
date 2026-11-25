@@ -1,10 +1,3 @@
-import {
-  AccountRole,
-  address,
-  getU32Encoder,
-  type Instruction,
-} from "@solana/kit";
-
 // The support_proposal handler re-tallies the whole supporter list on every
 // call, so its cost is linear in `num_supporters`. Requesting a flat worst case
 // would overshoot a typical call by ~10x, and priority fees price the
@@ -59,21 +52,4 @@ export function supportComputeUnitLimit(numSupporters: number): number {
     (modelled * (100 + SUPPORT_CU_HEADROOM_PERCENT)) / 100,
   );
   return Math.min(withHeadroom, MAX_COMPUTE_UNIT_LIMIT);
-}
-
-const COMPUTE_BUDGET_PROGRAM_ADDRESS = address(
-  "ComputeBudget111111111111111111111111111111",
-);
-const SET_COMPUTE_UNIT_LIMIT_DISCRIMINATOR = 2;
-
-/** Builds the Compute Budget instruction that requests `units` compute units. */
-export function buildSetComputeUnitLimitInstruction(units: number): Instruction {
-  return {
-    accounts: [] as { address: ReturnType<typeof address>; role: AccountRole }[],
-    data: new Uint8Array([
-      SET_COMPUTE_UNIT_LIMIT_DISCRIMINATOR,
-      ...getU32Encoder().encode(units),
-    ]),
-    programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS,
-  };
 }

@@ -4,11 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { useGovernanceConfigContext } from "@/contexts/GovernanceConfigContext";
 import { getFirstSlotInEpoch } from "@/helpers/date";
-import {
-  buildSetComputeUnitLimitInstruction,
-  MAX_SUPPORTERS,
-  supportComputeUnitLimit,
-} from "@/lib/supportComputeBudget";
+import { MAX_SUPPORTERS, supportComputeUnitLimit } from "@/lib/supportComputeBudget";
 import { buildSupportProposalInstruction } from "@/lib/transactions";
 import { useResolveSignerVoteAccount } from "./useResolveSignerVoteAccount";
 import { withReadableErrors } from "@/lib/transactionErrors";
@@ -46,10 +42,12 @@ export function useSupportProposal(_userPubKey: string | undefined) {
       ]);
       const targetEpoch = epochInfo.epoch + BigInt(config.discussionEpochs) + BigInt(config.snapshotEpochExtension);
       const snapshotSlot = getFirstSlotInEpoch(targetEpoch, epochSchedule) + BigInt(config.snapshotSlotOffset);
-      const signature = await signAndSend(async ({ signer }) => [
-        buildSetComputeUnitLimitInstruction(supportComputeUnitLimit(numSupporters)),
-        await buildSupportProposalInstruction({ proposal: address(proposalId), signer, snapshotSlot, splVoteAccount }),
-      ]);
+      const signature = await signAndSend(
+        async ({ signer }) => [
+          await buildSupportProposalInstruction({ proposal: address(proposalId), signer, snapshotSlot, splVoteAccount }),
+        ],
+        { computeUnitLimit: supportComputeUnitLimit(numSupporters) },
+      );
       return { signature, success: true };
     }),
   });
