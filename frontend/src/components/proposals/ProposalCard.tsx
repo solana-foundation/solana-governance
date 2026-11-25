@@ -9,14 +9,14 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import { useRouter } from "next/navigation";
 import { useModal } from "@/contexts/ModalContext";
 import { motion } from "framer-motion";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnector } from "@solana/connector/react";
 import { useChainVoteAccount, useWalletRole } from "@/hooks";
 import { toast } from "sonner";
 import { getProposalDetailPagePath } from "@/helpers/proposalPage";
 import { getVoteModalNames } from "@/lib/governance/role-detection";
 import { ProposalRefLabel } from "./ProposalRefLabel";
 import { getProposalVoteStats, ProposalVoteShare } from "./ProposalVoteStats";
-import type { NetworkMetaResponse } from "@/chain";
+import type { NetworkMetaResponse } from "@/lib/ncnProofs";
 
 type ProposalStatus = ProposalRecord["status"];
 interface VotingDetailItem {
@@ -221,12 +221,11 @@ export default function ProposalCard({
   const router = useRouter();
   const { openModal } = useModal();
 
-  const { publicKey: walletPubKey, connected } = useWallet();
-  const { walletRole, isLoading: isLoadingWalletRole } = useWalletRole(
-    walletPubKey?.toBase58(),
-  );
+  const { account, isConnected: connected } = useConnector();
+  const walletPubKey = account ?? undefined;
+  const { walletRole, isLoading: isLoadingWalletRole } = useWalletRole(walletPubKey);
   const { data: chainVoteAccount, isLoading: isLoadingChainVoteAccount } =
-    useChainVoteAccount(walletPubKey?.toBase58());
+    useChainVoteAccount(walletPubKey);
 
   const {
     status,
@@ -238,7 +237,7 @@ export default function ProposalCard({
     consensusResult,
   } = proposal;
 
-  const votingThroughEpoch = endEpoch > 0 ? endEpoch - 1 : null;
+  const votingThroughEpoch = endEpoch > 0n ? endEpoch - 1n : null;
   const votingStatusValue = getVotingStatusValue(
     status,
     votingThroughEpoch?.toString() ?? null,
@@ -274,7 +273,7 @@ export default function ProposalCard({
   };
 
   const handleAction = (action: ProposalAction) => {
-    const proposalId = publicKey.toBase58();
+    const proposalId = publicKey;
 
     if (action === "view-details") {
       router.push(getProposalDetailPagePath(proposalId));

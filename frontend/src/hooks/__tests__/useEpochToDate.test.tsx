@@ -18,13 +18,19 @@ jest.mock("../useEpochInfo", () => ({
 
 import { useEpochToDate } from "../useEpochToDate";
 
-const TARGET_EPOCH = 1024;
+const TARGET_EPOCH = 1024n;
 
-function epochInfo(epoch: number, absoluteSlot: number) {
+function epochInfo(epoch: bigint, absoluteSlot: bigint) {
   return {
     data: {
-      epochInfo: { epoch, absoluteSlot, slotIndex: 0, slotsInEpoch: 432_000 },
-      epochSchedule: { getFirstSlotInEpoch: () => absoluteSlot + 1_000 },
+      epochInfo: { epoch, absoluteSlot, slotIndex: 0n, slotsInEpoch: 432_000n },
+      epochSchedule: {
+        firstNormalEpoch: 0n,
+        firstNormalSlot: 0n,
+        leaderScheduleSlotOffset: 432_000n,
+        slotsPerEpoch: 432_000n,
+        warmup: false,
+      },
     },
     isLoading: false,
   };
@@ -53,7 +59,7 @@ describe("useEpochToDate", () => {
     // useEpochInfo produced a new cache entry instead of reusing one. Each was a
     // fresh miss, so staleTime never applied and epochToDate — which makes one
     // or two RPC calls — ran again for an answer that had not changed.
-    mockUseEpochInfo.mockReturnValue(epochInfo(1020, 500_000_000));
+    mockUseEpochInfo.mockReturnValue(epochInfo(1020n, 500_000_000n));
 
     const { rerender } = renderHook(() => useEpochToDate(TARGET_EPOCH), {
       wrapper: makeWrapper(),
@@ -62,9 +68,9 @@ describe("useEpochToDate", () => {
     await waitFor(() => expect(mockEpochToDate).toHaveBeenCalledTimes(1));
 
     // Same epoch, later slot — what a useEpochInfo refetch looks like.
-    mockUseEpochInfo.mockReturnValue(epochInfo(1020, 500_000_750));
+    mockUseEpochInfo.mockReturnValue(epochInfo(1020n, 500_000_750n));
     rerender();
-    mockUseEpochInfo.mockReturnValue(epochInfo(1020, 500_001_500));
+    mockUseEpochInfo.mockReturnValue(epochInfo(1020n, 500_001_500n));
     rerender();
 
     await waitFor(() => expect(mockEpochToDate).toHaveBeenCalledTimes(1));
@@ -73,7 +79,7 @@ describe("useEpochToDate", () => {
   it("recomputes when the epoch rolls over", async () => {
     // The projection reads the epoch's actual block time once the target is no
     // longer in the future, so a rollover must not wait for the interval.
-    mockUseEpochInfo.mockReturnValue(epochInfo(1020, 500_000_000));
+    mockUseEpochInfo.mockReturnValue(epochInfo(1020n, 500_000_000n));
 
     const { rerender } = renderHook(() => useEpochToDate(TARGET_EPOCH), {
       wrapper: makeWrapper(),
@@ -81,7 +87,7 @@ describe("useEpochToDate", () => {
 
     await waitFor(() => expect(mockEpochToDate).toHaveBeenCalledTimes(1));
 
-    mockUseEpochInfo.mockReturnValue(epochInfo(1021, 500_432_000));
+    mockUseEpochInfo.mockReturnValue(epochInfo(1021n, 500_432_000n));
     rerender();
 
     await waitFor(() => expect(mockEpochToDate).toHaveBeenCalledTimes(2));
@@ -89,15 +95,15 @@ describe("useEpochToDate", () => {
 
   it("computes separately for each target epoch", async () => {
     // A proposal detail page mounts three of these, one per phase boundary.
-    mockUseEpochInfo.mockReturnValue(epochInfo(1020, 500_000_000));
+    mockUseEpochInfo.mockReturnValue(epochInfo(1020n, 500_000_000n));
     const wrapper = makeWrapper();
 
-    renderHook(() => useEpochToDate(1021), { wrapper });
-    renderHook(() => useEpochToDate(1024), { wrapper });
+    renderHook(() => useEpochToDate(1021n), { wrapper });
+    renderHook(() => useEpochToDate(1024n), { wrapper });
 
     await waitFor(() => expect(mockEpochToDate).toHaveBeenCalledTimes(2));
     expect(mockEpochToDate.mock.calls.map((call) => call[0])).toEqual([
-      1021, 1024,
+      1021n, 1024n,
     ]);
   });
 });

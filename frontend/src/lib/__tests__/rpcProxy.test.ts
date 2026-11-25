@@ -68,6 +68,37 @@ describe("parseJsonRpcRequest", () => {
     ).toEqual(expect.objectContaining({ method: "getProgramAccounts" }));
   });
 
+  it("accepts the base58 stake scan by withdraw authority the wallet view issues", () => {
+    expect(
+      parseJsonRpcRequest({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "getProgramAccounts",
+        params: [
+          STAKE_PROGRAM_ID,
+          {
+            encoding: "base64",
+            filters: [
+              { dataSize: 200 },
+              { memcmp: { offset: 44, bytes: PUBLIC_KEY, encoding: "base58" } },
+            ],
+          },
+        ],
+      }),
+    ).toEqual(expect.objectContaining({ method: "getProgramAccounts" }));
+  });
+
+  it("rejects methods the app never calls", () => {
+    expect(() =>
+      parseJsonRpcRequest({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "getMultipleAccounts",
+        params: [[PUBLIC_KEY]],
+      }),
+    ).toThrow("RPC method is not allowed");
+  });
+
   it("rejects unfiltered stake-program scans", () => {
     expect(() =>
       parseJsonRpcRequest({

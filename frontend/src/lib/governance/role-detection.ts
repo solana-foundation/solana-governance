@@ -1,4 +1,4 @@
-import { ChainVoteAccountData } from "@/chain";
+import type { ChainVoteAccountData } from "@/lib/rpcVoteAccounts";
 import { ViewType } from "@/types";
 
 export enum WalletRole {

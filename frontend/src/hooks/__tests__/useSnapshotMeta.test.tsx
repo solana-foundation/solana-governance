@@ -18,10 +18,15 @@ jest.mock("@/lib/ncnApi", () => ({
 import { useSnapshotMeta, useSnapshotMetas } from "../useSnapshotMeta";
 
 /** Every slot resolves except 700, standing in for one the cleanup job pruned. */
-const PRUNED_SLOT = 700;
+const PRUNED_SLOT = 700n;
 
-function metaFor(slot: number) {
-  return { network: "mainnet", slot, total_active_stake: slot * 10 };
+/** The verifier's wire shape, which encodes u64 values as decimal strings. */
+function metaFor(slot: bigint) {
+  return {
+    network: "mainnet",
+    slot: slot.toString(),
+    total_active_stake: (slot * 10n).toString(),
+  };
 }
 
 function makeWrapper() {
@@ -49,14 +54,14 @@ beforeEach(() => {
       return Promise.resolve(
         slots
           .split(",")
-          .map(Number)
+          .map(BigInt)
           .filter((slot) => slot !== PRUNED_SLOT)
           .map(metaFor),
       );
     }
 
     const slot = params.get("slot");
-    return Promise.resolve(metaFor(slot === null ? 999 : Number(slot)));
+    return Promise.resolve(metaFor(slot === null ? 999n : BigInt(slot)));
   });
 });
 
@@ -71,13 +76,13 @@ describe("useSnapshotMeta", () => {
   });
 
   it("asks for one snapshot when given its slot", async () => {
-    const { result } = renderHook(() => useSnapshotMeta(500), {
+    const { result } = renderHook(() => useSnapshotMeta(500n), {
       wrapper: makeWrapper(),
     });
 
     await waitFor(() => expect(result.current.data).toBeDefined());
     expect(lastUrl().searchParams.get("slot")).toBe("500");
-    expect(result.current.data?.slot).toBe(500);
+    expect(result.current.data?.slot).toBe(500n);
   });
 });
 
@@ -85,20 +90,20 @@ describe("useSnapshotMetas", () => {
   it("keys each proposal's snapshot by its own slot", async () => {
     // The reported bug: every row was measured against whichever snapshot was
     // newest, so quorum resolved for at most one proposal.
-    const { result } = renderHook(() => useSnapshotMetas([500, 600]), {
+    const { result } = renderHook(() => useSnapshotMetas([500n, 600n]), {
       wrapper: makeWrapper(),
     });
 
     await waitFor(() => expect(result.current.bySlot.size).toBe(2));
-    expect(result.current.bySlot.get(500)?.total_active_stake).toBe(5_000);
-    expect(result.current.bySlot.get(600)?.total_active_stake).toBe(6_000);
+    expect(result.current.bySlot.get(500n)?.total_active_stake).toBe(5_000n);
+    expect(result.current.bySlot.get(600n)?.total_active_stake).toBe(6_000n);
   });
 
   it("asks for every slot in a single request", async () => {
     // One request per row would exhaust the verifier's burst limit on a page
     // holding more proposals than the limit allows.
     const { result } = renderHook(
-      () => useSnapshotMetas([500, 600, 500, 800]),
+      () => useSnapshotMetas([500n, 600n, 500n, 800n]),
       { wrapper: makeWrapper() },
     );
 
@@ -110,7 +115,7 @@ describe("useSnapshotMetas", () => {
   it("splits a history longer than one request accepts", async () => {
     // The verifier rejects an over-long slot list, and a rejected batch would
     // leave every row without a denominator rather than just the overflow.
-    const slots = Array.from({ length: 250 }, (_, index) => 1_000 + index);
+    const slots = Array.from({ length: 250 }, (_, index) => 1_000n + BigInt(index));
 
     const { result } = renderHook(() => useSnapshotMetas(slots), {
       wrapper: makeWrapper(),
@@ -125,7 +130,7 @@ describe("useSnapshotMetas", () => {
   });
 
   it("omits a slot the response does not carry", async () => {
-    const { result } = renderHook(() => useSnapshotMetas([500, PRUNED_SLOT]), {
+    const { result } = renderHook(() => useSnapshotMetas([500n, PRUNED_SLOT]), {
       wrapper: makeWrapper(),
     });
 
@@ -135,7 +140,7 @@ describe("useSnapshotMetas", () => {
 
   it("skips proposals with no snapshot slot", async () => {
     // snapshot_slot is 0 until activate_voting sets it.
-    const { result } = renderHook(() => useSnapshotMetas([0, undefined, 500]), {
+    const { result } = renderHook(() => useSnapshotMetas([0n, undefined, 500n]), {
       wrapper: makeWrapper(),
     });
 
@@ -144,7 +149,7 @@ describe("useSnapshotMetas", () => {
   });
 
   it("makes no request when nothing has a snapshot yet", async () => {
-    const { result } = renderHook(() => useSnapshotMetas([0, undefined]), {
+    const { result } = renderHook(() => useSnapshotMetas([0n, undefined]), {
       wrapper: makeWrapper(),
     });
 

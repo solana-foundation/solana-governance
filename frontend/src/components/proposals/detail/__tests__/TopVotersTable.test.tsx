@@ -1,4 +1,3 @@
-import BN from "bn.js";
 import { render, screen } from "@testing-library/react";
 import { useProposalVotes } from "@/hooks/useProposalVotes";
 import type { TopVoterRecord } from "@/types";
@@ -21,13 +20,13 @@ const voter: TopVoterRecord = {
   validatorIdentity: "validator-address",
   validatorVoteAddress: "validator-vote-address",
   stakeAccount: "stake-address",
-  stakedLamports: 1_500_000_000,
+  stakedLamports: 1_500_000_000n,
   votePercentage: 12.5,
   voteTimestamp: "2026-08-28T12:34:56.000Z",
   voteData: {
-    forVotesBp: new BN(7_500),
-    againstVotesBp: new BN(2_000),
-    abstainVotesBp: new BN(500),
+    forVotesBp: 7_500n,
+    againstVotesBp: 2_000n,
+    abstainVotesBp: 500n,
   },
   accentColor: "#000",
   walletType: "staker",

@@ -2,14 +2,14 @@ import { render, screen } from "@testing-library/react";
 import QuorumDonut from "../QuorumDonut";
 
 const props = {
-  forLamports: 30_000_000_000,
-  againstLamports: 10_000_000_000,
-  abstainLamports: 10_000_000_000,
+  forLamports: 30_000_000_000n,
+  againstLamports: 10_000_000_000n,
+  abstainLamports: 10_000_000_000n,
 };
 
 describe("QuorumDonut", () => {
   it("renders the total when network stake is known", () => {
-    render(<QuorumDonut {...props} totalLamports={100_000_000_000} />);
+    render(<QuorumDonut {...props} totalLamports={100_000_000_000n} />);
     expect(screen.getByText("Total SOL")).toBeInTheDocument();
     expect(screen.getByText("100.00")).toBeInTheDocument();
   });

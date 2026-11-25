@@ -1,7 +1,7 @@
 "use client";
 
-import type { NetworkMetaResponse } from "@/chain";
-import { computeProposalVoteStats, resolveQuorumDenominator } from "@/chain";
+import type { NetworkMetaResponse } from "@/lib/ncnProofs";
+import { computeProposalVoteStats, resolveQuorumDenominator } from "@/chain/quorum";
 import { cn } from "@/lib/utils";
 import type { ProposalRecord } from "@/types";
 

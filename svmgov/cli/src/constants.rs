@@ -17,7 +17,7 @@ pub const BASIS_POINTS_TOTAL: u64 = 10_000;
 // overshoot a typical call by ~10x; priority fees price the *requested* limit
 // rather than what is consumed, so the request is modelled instead.
 //
-// Keep in sync with the mirror in `frontend/src/chain/instructions/types.ts`.
+// Keep in sync with the mirror in `frontend/src/lib/supportComputeBudget.ts`.
 // `tests/support_compute_budget.rs` asserts the model covers measured cost.
 
 /// Fixed cost before the per-supporter re-tally. Measured at 22,434 CU for a

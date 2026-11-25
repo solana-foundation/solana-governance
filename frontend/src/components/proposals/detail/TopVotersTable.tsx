@@ -54,9 +54,9 @@ function matchesVoteFilter(
   { forVotesBp, againstVotesBp, abstainVotesBp }: TopVoterRecord["voteData"],
   filter: VoteFilter,
 ) {
-  if (filter === "for") return !forVotesBp.isZero();
-  if (filter === "against") return !againstVotesBp.isZero();
-  if (filter === "abstain") return !abstainVotesBp.isZero();
+  if (filter === "for") return forVotesBp !== 0n;
+  if (filter === "against") return againstVotesBp !== 0n;
+  if (filter === "abstain") return abstainVotesBp !== 0n;
   return true;
 }
 

@@ -1,7 +1,6 @@
-import { createProgramWitDummyWallet, VoteAccount } from "@/chain";
 import { VoteAccountData } from "@/types";
-
-import { PublicKey } from "@solana/web3.js";
+import { createSolanaRpc, type Address } from "@solana/kit";
+import { fetchVotes, type Vote } from "@/lib/governance/programAccounts";
 
 /**
  * Fetches a validator's vote account for a specific proposal
@@ -17,30 +16,14 @@ export const getValidatorProposalVoteAccount = async (
   if (validatorPublicKey === undefined)
     throw new Error("Validator public key is required");
 
-  const program = createProgramWitDummyWallet(endpoint);
-  const proposalPubkey = new PublicKey(proposalPublicKey);
-  const validatorPubkey = new PublicKey(validatorPublicKey);
-
-  // Filter by validator (offset 8) and proposal (offset 40)
-  // Vote account structure: 8 bytes discriminator + 32 bytes validator + 32 bytes proposal + ...
-  const voteAccounts = await program.account.vote.all([
-    {
-      memcmp: {
-        offset: 8, // Validator field offset (after 8-byte discriminator)
-        bytes: validatorPubkey.toBase58(),
-      },
-    },
-    {
-      memcmp: {
-        offset: 40, // Proposal field offset (8 discriminator + 32 validator)
-        bytes: proposalPubkey.toBase58(),
-      },
-    },
-  ]);
+  const voteAccounts = await fetchVotes(createSolanaRpc(endpoint), {
+    proposal: proposalPublicKey as Address,
+    validator: validatorPublicKey as Address,
+  });
 
   if (voteAccounts.length === 0) {
     console.warn(
-      `No program vote account found for validator ${validatorPubkey.toBase58()} and proposal ${proposalPubkey.toBase58()}`,
+      `No program vote account found for validator ${validatorPublicKey} and proposal ${proposalPublicKey}`,
     );
     return null;
   }
@@ -48,29 +31,22 @@ export const getValidatorProposalVoteAccount = async (
   // Should only be one result since PDA is unique per (proposal, spl_vote_account)
   if (voteAccounts.length > 1) {
     console.warn(
-      `Multiple vote accounts found for validator ${validatorPubkey.toBase58()} and proposal ${proposalPubkey.toBase58()}, using first one`,
+      `Multiple vote accounts found for validator ${validatorPublicKey} and proposal ${proposalPublicKey}, using first one`,
     );
   }
 
-  return mapVoteAccountDto(voteAccounts[0].account);
+  return mapVoteAccountDto(voteAccounts[0].data);
 };
 
 /**
  * Maps raw on-chain vote account to internal type.
  */
-function mapVoteAccountDto(raw: VoteAccount): VoteAccountData {
+function mapVoteAccountDto(raw: Vote): VoteAccountData {
   return {
-    validator: raw.validator,
-    proposal: raw.proposal,
-    forVotesBp: raw.forVotesBp,
-    againstVotesBp: raw.againstVotesBp,
-    abstainVotesBp: raw.abstainVotesBp,
-    forVotesLamports: raw.forVotesLamports,
-    againstVotesLamports: raw.againstVotesLamports,
-    abstainVotesLamports: raw.abstainVotesLamports,
-    stake: raw.stake,
-    overrideLamports: raw.overrideLamports,
-    voteTimestamp: raw.voteTimestamp,
+    validator: raw.validator, proposal: raw.proposal,
+    forVotesBp: raw.forVotesBp, againstVotesBp: raw.againstVotesBp, abstainVotesBp: raw.abstainVotesBp,
+    forVotesLamports: raw.forVotesLamports, againstVotesLamports: raw.againstVotesLamports, abstainVotesLamports: raw.abstainVotesLamports,
+    stake: raw.stake, overrideLamports: raw.overrideLamports, voteTimestamp: raw.voteTimestamp,
     bump: raw.bump,
   };
 }

@@ -1,26 +1,19 @@
-import { VoteOverrideAccount } from "@/chain";
-import { PublicKey } from "@solana/web3.js";
-import BN from "bn.js";
+import type { Address } from "@solana/kit";
 
 export interface VoteOverrideAccountData {
-  publicKey: PublicKey;
-  stakeAccount: PublicKey;
-  delegator: PublicKey;
-  validator: PublicKey;
-  proposal: PublicKey;
-  voteAccountValidator: PublicKey;
-  forVotesBp: BN;
-  againstVotesBp: BN;
-  abstainVotesBp: BN;
-  forVotesLamports: BN;
-  againstVotesLamports: BN;
-  abstainVotesLamports: BN;
-  stakeAmount: BN;
-  voteOverrideTimestamp: BN;
+  publicKey: Address;
+  stakeAccount: Address;
+  delegator: Address;
+  validator: Address;
+  proposal: Address;
+  voteAccountValidator: Address;
+  forVotesBp: bigint;
+  againstVotesBp: bigint;
+  abstainVotesBp: bigint;
+  forVotesLamports: bigint;
+  againstVotesLamports: bigint;
+  abstainVotesLamports: bigint;
+  stakeAmount: bigint;
+  voteOverrideTimestamp: bigint;
   bump: number;
-}
-
-export interface RawVoteOverrideAccountDataAccount {
-  account: VoteOverrideAccount;
-  publicKey: PublicKey;
 }

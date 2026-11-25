@@ -22,10 +22,10 @@ import {
 } from "@/hooks";
 import { toast } from "sonner";
 import { WalletRole } from "@/types";
-import { useAnchorWallet } from "@solana/wallet-adapter-react";
+import { useConnector } from "@solana/connector/react";
 import { FormEvent, useEffect, useState } from "react";
 import { GetVoteOverrideFilters } from "@/data";
-import { PublicKey } from "@solana/web3.js";
+import type { Address } from "@solana/kit";
 import { VotingProposalsDropdown } from "../VotingProposalsDropdown";
 import { StakeAccountsDropdown } from "../StakeAccountsDropdown";
 import { captureException } from "@sentry/nextjs";
@@ -43,7 +43,7 @@ import { hasOnChainValidatorIdentity } from "@/lib/governance/role-detection";
 export type OverrideVoteModalDataProps =
   | {
       proposalId: string;
-      consensusResult: PublicKey;
+      consensusResult: Address;
       initialVoteDist?: VoteDistribution;
     }
   | {
@@ -62,7 +62,7 @@ type OverrideVoteModalProps = {
  */
 function buildVoteOverrideFilters(
   proposalPublicKey: string | undefined,
-  delegatorPublicKey: PublicKey | null
+  delegatorPublicKey: string | null
 ): GetVoteOverrideFilters {
   const filters: GetVoteOverrideFilters = [];
 
@@ -76,7 +76,7 @@ function buildVoteOverrideFilters(
   if (delegatorPublicKey) {
     filters.push({
       name: "delegator" as const,
-      value: delegatorPublicKey.toBase58(),
+      value: delegatorPublicKey,
     });
   }
 
@@ -113,22 +113,23 @@ export function OverrideVoteModal({
     resetDistribution,
   } = useVoteDistribution(initialVoteDist);
 
-  const wallet = useAnchorWallet();
+  const { account } = useConnector();
+  const publicKey = account ?? undefined;
 
   const { data: stakeAccounts } = useWalletStakeAccounts(
-    wallet?.publicKey?.toBase58()
+    publicKey
   );
   const { data: chainVoteAccount, isLoading: isLoadingChainVoteAccount } =
-    useChainVoteAccount(wallet?.publicKey?.toBase58());
+    useChainVoteAccount(publicKey);
   const voteOverrideFilters = buildVoteOverrideFilters(
     selectedProposal.id,
-    wallet?.publicKey ?? null
+    publicKey ?? null
   );
 
   const { data: voteOverrideAccounts = [] } =
     useVoteOverrideAccounts(voteOverrideFilters);
 
-  const { walletRole } = useWalletRole(wallet?.publicKey?.toBase58());
+  const { walletRole } = useWalletRole(publicKey);
 
   const { mutate: castVoteOverride } = useCastVoteOverride();
 
@@ -148,7 +149,7 @@ export function OverrideVoteModal({
 
   const handleProposalChange = (
     proposalId: string,
-    consensusResult: PublicKey
+    consensusResult: Address
   ) => {
     setSelectedProposal({ id: proposalId, consensusResult });
   };
@@ -178,7 +179,7 @@ export function OverrideVoteModal({
   };
 
   const handleVote = (voteDistribution: VoteDistribution) => {
-    if (!wallet) {
+    if (!publicKey) {
       toast.error("Wallet not connected");
       setIsLoading(false);
       return;
@@ -234,7 +235,7 @@ export function OverrideVoteModal({
       // redelegated stake account can still override using its snapshot-time validator.
       castVoteOverride(
         {
-          wallet,
+          publicKey,
           proposalId: selectedProposal.id,
           forVotesBp: voteDistribution.for * 100,
           againstVotesBp: voteDistribution.against * 100,
@@ -333,7 +334,7 @@ export function OverrideVoteModal({
                   value={selectedStakeAccount}
                   onValueChange={setSelectedStakeAccount}
                   disabledAccounts={voteOverrideAccounts.map((voa) =>
-                    voa.stakeAccount.toBase58()
+                    voa.stakeAccount
                   )}
                 />
               </div>

@@ -1,34 +1,31 @@
-import { PublicKey } from "@solana/web3.js";
-import { BN } from "@coral-xyz/anchor";
+import { getAddressDecoder, type Address } from "@solana/kit";
 
 import { mapVoteAccountDto } from "../getVoteAccounts";
-import type { RawVoteAccountDataAccount } from "@/types";
+import type { Vote } from "@/lib/governance/programAccounts";
 
-const key = (byte: number) => new PublicKey(new Uint8Array(32).fill(byte));
+const key = (byte: number): Address =>
+  getAddressDecoder().decode(new Uint8Array(32).fill(byte));
 
-function rawVoteAccount(): RawVoteAccountDataAccount {
+function rawVoteAccount(): Vote {
   return {
-    publicKey: key(3),
-    account: {
-      validator: key(1),
-      proposal: key(2),
-      forVotesBp: new BN(10_000),
-      againstVotesBp: new BN(0),
-      abstainVotesBp: new BN(0),
-      forVotesLamports: new BN(25_000_000_000),
-      againstVotesLamports: new BN(0),
-      abstainVotesLamports: new BN(0),
-      stake: new BN(25_000_000_000),
-      overrideLamports: new BN(0),
-      voteTimestamp: new BN(1_700_000_000),
-      bump: 254,
-    },
-  } as unknown as RawVoteAccountDataAccount;
+    validator: key(1),
+    proposal: key(2),
+    forVotesBp: 10_000n,
+    againstVotesBp: 0n,
+    abstainVotesBp: 0n,
+    forVotesLamports: 25_000_000_000n,
+    againstVotesLamports: 0n,
+    abstainVotesLamports: 0n,
+    stake: 25_000_000_000n,
+    overrideLamports: 0n,
+    voteTimestamp: 1_700_000_000n,
+    bump: 254,
+  } as Vote;
 }
 
 describe("mapVoteAccountDto", () => {
   it("leaves validator metadata unset", () => {
-    const mapped = mapVoteAccountDto(rawVoteAccount());
+    const mapped = mapVoteAccountDto(rawVoteAccount(), key(3));
 
     expect(mapped.commission).toBeUndefined();
     expect(mapped.lastVote).toBeUndefined();
@@ -40,18 +37,16 @@ describe("mapVoteAccountDto", () => {
   it("carries the fields the table needs from the account", () => {
     // The proposal and the ballot are both on the record, so a row can be
     // attributed to a proposal and show which way it voted.
-    const mapped = mapVoteAccountDto(rawVoteAccount());
+    const mapped = mapVoteAccountDto(rawVoteAccount(), key(3));
 
-    expect(mapped.proposal.equals(key(2))).toBe(true);
-    expect(mapped.identity?.equals(key(1))).toBe(true);
-    expect(mapped.forVotesBp.toNumber()).toBe(10_000);
-    expect(mapped.activeStake).toBe(25_000_000_000);
+    expect(mapped.proposal).toBe(key(2));
+    expect(mapped.identity).toBe(key(1));
+    expect(mapped.forVotesBp).toBe(10_000n);
+    expect(mapped.activeStake).toBe(25_000_000_000n);
   });
 
   it("uses the record's own address as the row key", () => {
     // This is the Vote PDA, not the validator's vote account.
-    expect(mapVoteAccountDto(rawVoteAccount()).voteAccount.equals(key(3))).toBe(
-      true,
-    );
+    expect(mapVoteAccountDto(rawVoteAccount(), key(3)).voteAccount).toBe(key(3));
   });
 });

@@ -44,7 +44,7 @@ const VoteBreakdown = ({
   isLoading: isLoadingParent,
 }: VoteBreakdownProps) => {
   const { data: hasUserVoted = false, isLoading: isLoadingHasUserVoted } =
-    useHasUserVoted(proposal?.publicKey?.toBase58());
+    useHasUserVoted(proposal?.publicKey);
 
   // The proposal's own snapshot total, not a live cluster sum: Art. IV.2 fixes
   // the distribution for the voting period, so a live total drifts.

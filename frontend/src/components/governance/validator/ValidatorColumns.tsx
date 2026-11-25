@@ -22,13 +22,13 @@ export const columns: ColumnDef<OldVoteAccountData>[] = [
           {/* Mobile: Simple text without copy button */}
           <div className="sm:hidden">
             <p className="font-mono text-white/90 text-xs">
-              {formatAddress(account.toBase58(), 4)}
+              {formatAddress(account, 4)}
             </p>
           </div>
           {/* Desktop: Full CopyableAddress component */}
           <div className="hidden sm:block">
             <CopyableAddress
-              address={account.toBase58()}
+              address={account}
               shortenedLength={4}
               copyLabel="Copy full address"
             />
@@ -45,7 +45,7 @@ export const columns: ColumnDef<OldVoteAccountData>[] = [
       // The name where the validator is known, the address otherwise; the
       // column is too narrow for both.
       const cellValue =
-        name ?? (identity ? formatAddress(identity.toBase58(), 6) : undefined);
+        name ?? (identity ? formatAddress(identity, 6) : undefined);
 
       return (
         <p className="hidden sm:block font-mono text-xs lg:text-sm">
@@ -58,7 +58,7 @@ export const columns: ColumnDef<OldVoteAccountData>[] = [
     accessorKey: "activeStake",
     header: "DELEGATED STAKE",
     cell: ({ row }) => {
-      const stake = row.getValue("activeStake") as number;
+      const stake = row.getValue("activeStake") as bigint;
       const solAmount = formatLamportsDisplay(stake);
       return <div>{solAmount.value}</div>;
     },

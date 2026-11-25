@@ -1,4 +1,3 @@
-import BN from "bn.js";
 import type { PropsWithChildren } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useProposalVotes } from "@/hooks/useProposalVotes";
@@ -45,13 +44,13 @@ const voter = (
   validatorName: name,
   validatorIdentity: `${name} identity`,
   validatorVoteAddress: `${name} vote`,
-  stakedLamports: 1_000_000_000,
+  stakedLamports: 1_000_000_000n,
   votePercentage: 1,
   voteTimestamp: "2026-08-28T12:34:56.000Z",
   voteData: {
-    forVotesBp: new BN(forBp),
-    againstVotesBp: new BN(againstBp),
-    abstainVotesBp: new BN(abstainBp),
+    forVotesBp: BigInt(forBp),
+    againstVotesBp: BigInt(againstBp),
+    abstainVotesBp: BigInt(abstainBp),
   },
   accentColor: "#000",
   walletType: "validator",

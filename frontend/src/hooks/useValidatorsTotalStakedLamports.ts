@@ -18,8 +18,8 @@ export const useValidatorsTotalStakedLamports = () => {
     }
 
     return validators.reduce(
-      (sum, validator) => sum + (validator.activated_stake || 0),
-      0
+      (sum, validator) => sum + validator.activated_stake,
+      0n,
     );
   }, [validators]);
 

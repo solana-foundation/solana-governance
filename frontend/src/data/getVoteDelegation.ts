@@ -1,9 +1,6 @@
-import {
-  createProgramWitDummyWallet,
-  deriveVoteDelegationPda,
-  VoteDelegationData,
-} from "@/chain";
-import { PublicKey } from "@solana/web3.js";
+import { address, createSolanaRpc } from "@solana/kit";
+import { fetchMaybeVoteDelegation, findVoteDelegationPda } from "@solana/svmgov";
+import type { VoteDelegationData } from "@/types";
 
 /**
  * Fetches the vote delegation of `subject` (an SPL vote account or a staker
@@ -15,17 +12,13 @@ export const getVoteDelegation = async (
 ): Promise<VoteDelegationData | null> => {
   if (subject === undefined) throw new Error("Subject public key is required");
 
-  const program = createProgramWitDummyWallet(endpoint);
-  const pda = deriveVoteDelegationPda(
-    new PublicKey(subject),
-    program.programId,
-  );
-  const account = await program.account.voteDelegation.fetchNullable(pda);
-  if (!account) return null;
+  const [pda] = await findVoteDelegationPda({ splVoteAccount: address(subject) });
+  const account = await fetchMaybeVoteDelegation(createSolanaRpc(endpoint), pda);
+  if (!account.exists) return null;
 
   return {
-    subject: account.subject.toBase58(),
-    delegate: account.delegate.toBase58(),
-    delegationAccepted: account.delegationAccepted,
+    subject: account.data.subject,
+    delegate: account.data.delegate,
+    delegationAccepted: account.data.delegationAccepted,
   };
 };

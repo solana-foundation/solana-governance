@@ -18,6 +18,13 @@ import { captureException } from "@sentry/nextjs";
 
 const GOVERNANCE_CONFIG_PERSIST_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour (aligns with useGovernanceConfig stale time)
 
+/**
+ * Identifies the shape of the persisted governance config. A cache saved under
+ * another version is discarded on restore rather than handed to consumers that
+ * expect this one, so bump it whenever a persisted field changes type.
+ */
+const GOVERNANCE_CONFIG_PERSIST_VERSION = "bigint-1";
+
 /** Host only, never the full URL: voter summary URLs carry a wallet address, and tags are indexed. */
 const ncnFailureTags = (error: unknown): Record<string, string> => {
   if (error instanceof NcnApiHttpError) {
@@ -109,6 +116,21 @@ export const queryClient = new QueryClient({
 const governanceConfigPersister = createAsyncStoragePersister({
   storage: typeof window === "undefined" ? undefined : window.localStorage,
   key: "REACT_QUERY_GOVERNANCE_CONFIG",
+  // GovernanceConfigDto deliberately retains Kit bigint values. TanStack's
+  // persisted cache is JSON, so tag and revive only bigints instead of losing
+  // precision by coercing them to numbers or leaving them as plain strings.
+  serialize: (client) =>
+    JSON.stringify(client, (_key, value) =>
+      typeof value === "bigint"
+        ? { __solanaGovernanceBigint: value.toString() }
+        : value,
+    ),
+  deserialize: (cached) =>
+    JSON.parse(cached, (_key, value) =>
+      value && typeof value === "object" && "__solanaGovernanceBigint" in value
+        ? BigInt(value.__solanaGovernanceBigint)
+        : value,
+    ),
 });
 
 export default function Providers({ children }: { children: React.ReactNode }) {
@@ -118,6 +140,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       persistOptions={{
         persister: governanceConfigPersister,
         maxAge: GOVERNANCE_CONFIG_PERSIST_MAX_AGE_MS,
+        buster: GOVERNANCE_CONFIG_PERSIST_VERSION,
         dehydrateOptions: {
           shouldDehydrateQuery: (query) =>
             query.queryKey[0] === GET_GOVERNANCE_CONFIG,

@@ -45,7 +45,7 @@ pub const VOTING_EPOCHS: u64 = 3;
 pub const MAX_SUPPORTERS: u32 = 2_000;
 
 // Mirror of `support_compute_unit_limit` in svmgov/cli/src/constants.rs and
-// `supportComputeUnitLimit` in frontend/src/chain/instructions/types.ts. The
+// `supportComputeUnitLimit` in frontend/src/lib/supportComputeBudget.ts. The
 // clients size their compute request from the supporter count; these suites are
 // what justify the model, so the constants must move together.
 pub const SUPPORT_CU_BASE: u32 = 22_500;

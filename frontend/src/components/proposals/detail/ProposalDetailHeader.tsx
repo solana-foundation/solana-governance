@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { calculateTimeAgo } from "@/helpers";
+import { bigintToSafeNumber } from "@/helpers/bigint";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { CheckIcon, CopyIcon, Github } from "lucide-react";
 import { useCopyToClipboard, useEpochInfo, useVoteDelegation } from "@/hooks";
@@ -12,7 +13,7 @@ import { ProposalDescription } from "../ProposalDescription";
 import { ProposalRefLabel } from "../ProposalRefLabel";
 import { AppButton } from "@/components/ui/AppButton";
 import { useModal } from "@/contexts/ModalContext";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnector } from "@solana/connector/react";
 
 interface ProposalDetailHeaderProps {
   proposal: ProposalRecord | undefined;
@@ -41,7 +42,8 @@ export default function ProposalDetailHeader({
 }: ProposalDetailHeaderProps) {
   const { copied, copyToClipboard } = useCopyToClipboard();
   const { data: epochData } = useEpochInfo();
-  const { publicKey } = useWallet();
+  const { account } = useConnector();
+  const publicKey = account ?? undefined;
   const { openModal } = useModal();
   const { data: voteDelegation } = useVoteDelegation(
     proposal?.voteAccountPubkey
@@ -50,19 +52,18 @@ export default function ProposalDetailHeader({
   if (isLoading) return <ProposalDetailSkeleton />;
   if (!proposal) return <div>No proposal data...</div>;
 
-  const createdAgo = calculateTimeAgo(proposal.creationTimestamp);
+  const createdAgo = calculateTimeAgo(bigintToSafeNumber(proposal.creationTimestamp, "proposal creation timestamp"));
   const votingThrough =
-    proposal.endEpoch > 0 ? proposal.endEpoch - 1 : "-";
+    proposal.endEpoch > 0n ? proposal.endEpoch - 1n : "-";
   // Mirrors the program: an accepted delegation hands editing to the delegate
   // and locks the author out; otherwise only the author may edit.
-  const connectedWallet = publicKey?.toBase58();
   const isUpdateAuthority = voteDelegation?.delegationAccepted
-    ? connectedWallet === voteDelegation.delegate
-    : connectedWallet === proposal.author;
+    ? publicKey === voteDelegation.delegate
+    : publicKey === proposal.author;
   const canUpdateDocument = isUpdateAuthority &&
     (proposal.status === "supporting" ||
       (proposal.voting &&
-        typeof epochData?.epochInfo.epoch === "number" &&
+        epochData !== undefined &&
         epochData.epochInfo.epoch < proposal.startEpoch));
 
   return (
@@ -82,7 +83,7 @@ export default function ProposalDetailHeader({
               text="Update Document"
               onClick={() =>
                 openModal("update-proposal-description", {
-                  proposalId: proposal.publicKey.toBase58(),
+                  proposalId: proposal.publicKey,
                   currentDescription: proposal.description,
                 })
               }

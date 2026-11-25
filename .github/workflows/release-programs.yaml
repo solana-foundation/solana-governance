@@ -223,7 +223,7 @@ jobs:
           multisig: ${{ env.SQUADS_MULTISIG }}
           # uncomment when we want the action to directly create the squads proposal
           # via proposer role and remove export: 'true'
-          # keypair: ${{ env.DEPLOYER_KEYPAIR }} 
+          # keypair: ${{ env.DEPLOYER_KEYPAIR }}
           pda-tx: ${{ steps.export-verify-tx.outputs.pda_tx }}
           export: 'true'
 

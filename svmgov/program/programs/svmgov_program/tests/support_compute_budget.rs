@@ -138,7 +138,7 @@ fn support_at_max_supporters_fits_within_requested_limit() {
         peak_cu < requested,
         "support at the cap consumed {peak_cu} CU but the clients' model requests only \
          {requested}. Adjust the constants in svmgov/cli/src/constants.rs AND \
-         frontend/src/chain/instructions/types.ts (and the mirrors above)."
+         frontend/src/lib/supportComputeBudget.ts (and the mirrors above)."
     );
 }
 

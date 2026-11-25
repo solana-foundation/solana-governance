@@ -5,9 +5,9 @@
 #
 # Two kinds of substitutions are made:
 #
-#   1. Program IDs — `declare_id!`, `pubkey!`, `Anchor.toml`, IDL JSONs, TS
-#      type files. Rewritten from whatever the canonical `lib.rs` files
-#      currently say to the chosen network's IDs.
+#   1. Program IDs — `declare_id!`, `pubkey!`, `Anchor.toml`, IDL JSONs, and
+#      the generated TypeScript clients. Rewritten from whatever the canonical
+#      `lib.rs` files currently say to the chosen network's IDs.
 #
 #   2. RPC URLs — named maps in Rust constants (`DEFAULT_MAINNET_RPC_URL`,
 #      `DEFAULT_TESTNET_RPC_URL`), the TS map in frontend/getRpcUrls.ts, and
@@ -118,10 +118,19 @@ TARGETS=(
   svmgov/cli/idls/svmgov_program.json
   ncn/programs/ncn-snapshot/src/lib.rs
   ncn/Anchor.toml
-  frontend/src/chain/idl/svmgov_program.json
-  frontend/src/chain/idl/gov-v1.json
-  frontend/src/chain/types/svmgov_program.ts
-  frontend/src/chain/types/gov-v1.ts
+  svmgov/idl/codama.json
+  ncn/idl/ncn_snapshot.json
+  ncn/idl/codama.json
+)
+
+# The generated TypeScript clients repeat the program IDs in their program and
+# PDA modules. Rewriting them here keeps the frontend on the chosen network
+# without a program rebuild.
+while IFS= read -r generated; do
+  TARGETS+=("$generated")
+done < <(
+  grep -rlE "$OLD_SVMGOV|$OLD_NCN" \
+    svmgov/generated/clients/ts ncn/generated/clients/ts 2>/dev/null | sort
 )
 
 CHANGED=()

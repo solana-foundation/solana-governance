@@ -13,7 +13,7 @@ export const useVoterWalletSummary = (userPubKey: string | undefined) => {
   return useQuery({
     staleTime: 1000 * 120, // 2 minutes
     enabled: slot !== undefined && !!userPubKey,
-    queryKey: ["vote_wallet_summary", network, userPubKey, ncnApiUrl, slot],
+    queryKey: ["vote_wallet_summary", network, userPubKey, ncnApiUrl, slot?.toString()],
     queryFn: ({ signal }) => {
       if (slot === undefined) {
         throw new Error("Snapshot slot not loaded");

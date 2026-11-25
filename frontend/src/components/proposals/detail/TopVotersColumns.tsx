@@ -18,6 +18,8 @@ const LABELS = {
   abstain: "Abstain",
 };
 
+const compareBigint = (a: bigint, b: bigint) => (a < b ? -1 : a > b ? 1 : 0);
+
 interface TopVoterColumnsOptions {
   /** Number of staker overrides of each validator vote, keyed by `validatorVoteAddress`. */
   overrideCounts: ReadonlyMap<string, number>;
@@ -182,7 +184,7 @@ export const createTopVoterColumns = ({
     },
     {
       id: "voteSplit",
-      accessorFn: (row) => row.voteData.forVotesBp.toNumber(),
+      accessorFn: (row) => Number(row.voteData.forVotesBp),
       header: ({ column }) => (
         <SortableHeaderButton column={column} label="Voter Split" />
       ),
@@ -198,13 +200,13 @@ export const createTopVoterColumns = ({
             />
           </div> */}
             <span className="text-xs font-medium text-primary">
-              <b>{forVotesBp.toNumber() / 100}%</b> {LABELS.for}
+              <b>{Number(forVotesBp) / 100}%</b> {LABELS.for}
             </span>
             <span className="text-xs font-medium text-destructive">
-              <b>{againstVotesBp.toNumber() / 100}%</b> {LABELS.against}
+              <b>{Number(againstVotesBp) / 100}%</b> {LABELS.against}
             </span>
             <span className="text-xs font-medium text-white/30">
-              <b>{abstainVotesBp.toNumber() / 100}%</b> {LABELS.abstain}
+              <b>{Number(abstainVotesBp) / 100}%</b> {LABELS.abstain}
             </span>
           </div>
         );
@@ -213,9 +215,9 @@ export const createTopVoterColumns = ({
         const a = rowA.original.voteData;
         const b = rowB.original.voteData;
         return (
-          a.forVotesBp.cmp(b.forVotesBp) ||
-          a.againstVotesBp.cmp(b.againstVotesBp) ||
-          a.abstainVotesBp.cmp(b.abstainVotesBp)
+          compareBigint(a.forVotesBp, b.forVotesBp) ||
+          compareBigint(a.againstVotesBp, b.againstVotesBp) ||
+          compareBigint(a.abstainVotesBp, b.abstainVotesBp)
         );
       },
     },

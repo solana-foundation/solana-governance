@@ -14,7 +14,7 @@ import { AppButton } from "@/components/ui/AppButton";
 import ErrorMessage from "./shared/ErrorMessage";
 import { toast } from "sonner";
 import { useCreateProposal } from "@/hooks";
-import { useAnchorWallet } from "@solana/wallet-adapter-react";
+import { useConnector } from "@solana/connector/react";
 import { captureException } from "@sentry/nextjs";
 import {
   isWalletSigningCancellation,
@@ -49,7 +49,8 @@ export function CreateProposalModal({
   const [allowUnverified, setAllowUnverified] = React.useState(false);
   const [canSkipVerification, setCanSkipVerification] = React.useState(false);
 
-  const wallet = useAnchorWallet();
+  const { account } = useConnector();
+  const publicKey = account ?? undefined;
   const { mutate: createProposal } = useCreateProposal();
   const { data: config } = useGovernanceConfigContext();
 
@@ -114,7 +115,7 @@ export function CreateProposalModal({
       {
         title: formData.title,
         description: formData.description,
-        wallet,
+        publicKey,
         skipDocumentCheck: allowUnverified,
       },
       {

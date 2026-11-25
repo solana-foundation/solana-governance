@@ -1,46 +1,39 @@
-import { VoteAccount } from "@/chain";
-import { PublicKey } from "@solana/web3.js";
-import BN from "bn.js";
+import type { Address } from "@solana/kit";
 
 export interface VoteAccountData {
-  validator: PublicKey;
-  proposal: PublicKey;
-  forVotesBp: BN;
-  againstVotesBp: BN;
-  abstainVotesBp: BN;
-  forVotesLamports: BN;
-  againstVotesLamports: BN;
-  abstainVotesLamports: BN;
-  stake: BN;
-  overrideLamports: BN;
-  voteTimestamp: BN;
+  validator: Address;
+  proposal: Address;
+  forVotesBp: bigint;
+  againstVotesBp: bigint;
+  abstainVotesBp: bigint;
+  forVotesLamports: bigint;
+  againstVotesLamports: bigint;
+  abstainVotesLamports: bigint;
+  stake: bigint;
+  overrideLamports: bigint;
+  voteTimestamp: bigint;
   bump: number;
 }
 
 export interface OldVoteAccountData {
-  voteAccount: PublicKey;
-  proposal: PublicKey;
-  activeStake: number;
-  identity?: PublicKey;
+  voteAccount: Address;
+  proposal: Address;
+  activeStake: bigint;
+  identity?: Address;
   name?: string;
   commission?: number;
-  lastVote?: number;
+  lastVote?: bigint;
   credits?: number;
-  epochCredits?: number;
-  activatedStake?: number;
-  forVotesBp: BN;
-  againstVotesBp: BN;
-  abstainVotesBp: BN;
-  forVotesLamports: BN;
-  againstVotesLamports: BN;
-  abstainVotesLamports: BN;
-  stake: BN;
-  overrideLamports: BN;
-  voteTimestamp: BN;
+  epochCredits?: bigint;
+  activatedStake?: bigint;
+  forVotesBp: bigint;
+  againstVotesBp: bigint;
+  abstainVotesBp: bigint;
+  forVotesLamports: bigint;
+  againstVotesLamports: bigint;
+  abstainVotesLamports: bigint;
+  stake: bigint;
+  overrideLamports: bigint;
+  voteTimestamp: bigint;
   bump: number;
-}
-
-export interface RawVoteAccountDataAccount {
-  account: VoteAccount;
-  publicKey: PublicKey;
 }

@@ -1,26 +1,26 @@
-import { PublicKey } from "@solana/web3.js";
+import { address } from "@solana/kit";
 import { getProposalPhaseEpochs, getProposalStatus } from "../proposals";
 import type { EpochConstants, GetProposalStatusParams } from "../proposals";
 
 describe("getProposalStatus", () => {
-  const creationEpoch = 800;
-  const totalStakedLamports = 100_000_000_000; // 100M SOL in lamports
+  const creationEpoch = 800n;
+  const totalStakedLamports = 100_000_000_000n; // 100M SOL in lamports
   // 10% threshold (1000 bps), passed through params like the on-chain config
-  const clusterSupportPctMinBps = 1000;
-  const requiredThresholdLamports = totalStakedLamports * 0.1; // 10% = 10M SOL
-  const mockConsensusResult = new PublicKey("11111111111111111111111111111111");
+  const clusterSupportPctMinBps = 1000n;
+  const requiredThresholdLamports = totalStakedLamports / 10n; // 10% = 10M SOL
+  const mockConsensusResult = address("11111111111111111111111111111111");
 
   // Epoch lengths aligned with former testnet defaults used by these tests
   const epochs: EpochConstants = {
-    SUPPORT_EPOCHS: 1,
-    DISCUSSION_EPOCHS: 2,
-    SNAPSHOT_EPOCHS: 1,
-    VOTING_EPOCHS: 4,
+    SUPPORT_EPOCHS: 1n,
+    DISCUSSION_EPOCHS: 2n,
+    SNAPSHOT_EPOCHS: 1n,
+    VOTING_EPOCHS: 4n,
   };
 
   // When support is reached at supportEndEpoch, backend sets startEpoch as:
   // startEpoch = supportEndEpoch + DISCUSSION_EPOCHS + SNAPSHOT_EPOCHS
-  const supportEndEpoch = creationEpoch + epochs.SUPPORT_EPOCHS + 1; // epoch 802
+  const supportEndEpoch = creationEpoch + epochs.SUPPORT_EPOCHS + 1n; // epoch 802
   const startEpochWhenSupportReached =
     supportEndEpoch + epochs.DISCUSSION_EPOCHS + epochs.SNAPSHOT_EPOCHS; // epoch 805
   const endEpochWhenSupportReached =
@@ -54,8 +54,8 @@ describe("getProposalStatus", () => {
           description:
             "should return 'finalized' when finalized is true, regardless of other params",
           params: {
-            currentEpoch: 900,
-            clusterSupportLamports: 0,
+            currentEpoch: 900n,
+            clusterSupportLamports: 0n,
             finalized: true,
             voting: false,
           },
@@ -64,8 +64,8 @@ describe("getProposalStatus", () => {
         {
           description: "should return 'finalized' even if voting flag is true",
           params: {
-            currentEpoch: 900,
-            clusterSupportLamports: 0,
+            currentEpoch: 900n,
+            clusterSupportLamports: 0n,
             finalized: true,
             voting: true,
           },
@@ -81,7 +81,7 @@ describe("getProposalStatus", () => {
             "should return 'supporting' when currentEpoch equals support start epoch (creationEpoch)",
           params: {
             currentEpoch: creationEpoch, // epoch 800, support phase starts
-            clusterSupportLamports: 0,
+            clusterSupportLamports: 0n,
           },
           expected: "supporting" as const,
         },
@@ -89,8 +89,8 @@ describe("getProposalStatus", () => {
           description:
             "should return 'supporting' during support phase (epoch 801)",
           params: {
-            currentEpoch: creationEpoch + 1, // epoch 801, still in support phase
-            clusterSupportLamports: 0,
+            currentEpoch: creationEpoch + 1n, // epoch 801, still in support phase
+            clusterSupportLamports: 0n,
           },
           expected: "supporting" as const,
         },
@@ -103,8 +103,8 @@ describe("getProposalStatus", () => {
           description:
             "should return 'failed' when threshold is not met at support end epoch",
           params: {
-            currentEpoch: creationEpoch + 2, // epoch 802
-            clusterSupportLamports: requiredThresholdLamports - 1, // Just below threshold
+            currentEpoch: creationEpoch + 2n, // epoch 802
+            clusterSupportLamports: requiredThresholdLamports - 1n, // Just below threshold
           },
           expected: "failed" as const,
         },
@@ -112,7 +112,7 @@ describe("getProposalStatus", () => {
           description:
             "should return 'discussion' when threshold is met at support end epoch",
           params: {
-            currentEpoch: creationEpoch + 2, // epoch 802
+            currentEpoch: creationEpoch + 2n, // epoch 802
             clusterSupportLamports: requiredThresholdLamports, // Exactly at threshold
           },
           expected: "discussion" as const,
@@ -121,8 +121,8 @@ describe("getProposalStatus", () => {
           description:
             "should return 'discussion' when threshold is exceeded at support end epoch",
           params: {
-            currentEpoch: creationEpoch + 2, // epoch 802
-            clusterSupportLamports: requiredThresholdLamports + 1_000_000, // Above threshold
+            currentEpoch: creationEpoch + 2n, // epoch 802
+            clusterSupportLamports: requiredThresholdLamports + 1_000_000n, // Above threshold
           },
           expected: "discussion" as const,
         },
@@ -135,7 +135,7 @@ describe("getProposalStatus", () => {
           description:
             "should return 'discussion' at discussion start epoch (epoch 802) when threshold was met",
           params: {
-            currentEpoch: creationEpoch + 2, // epoch 802 - threshold check returns discussion if met
+            currentEpoch: creationEpoch + 2n, // epoch 802 - threshold check returns discussion if met
             clusterSupportLamports: requiredThresholdLamports, // Threshold met
           },
           expected: "discussion" as const,
@@ -144,7 +144,7 @@ describe("getProposalStatus", () => {
           description:
             "should return 'discussion' during middle of discussion phase (epoch 803)",
           params: {
-            currentEpoch: creationEpoch + 3, // epoch 803
+            currentEpoch: creationEpoch + 3n, // epoch 803
             clusterSupportLamports: requiredThresholdLamports, // Threshold was met
             voting: true, // Threshold was met, so voting flag should be true
             startEpoch: startEpochWhenSupportReached, // epoch 805 - when support reached at epoch 802
@@ -156,7 +156,7 @@ describe("getProposalStatus", () => {
           description:
             "should return 'discussion' at discussion end epoch (epoch 804)",
           params: {
-            currentEpoch: creationEpoch + 4, // epoch 804
+            currentEpoch: creationEpoch + 4n, // epoch 804
             clusterSupportLamports: requiredThresholdLamports, // Threshold was met
             voting: true, // Threshold was met, so voting flag should be true
             startEpoch: startEpochWhenSupportReached, // epoch 805 - when support reached at epoch 802
@@ -168,8 +168,8 @@ describe("getProposalStatus", () => {
           description:
             "should return 'failed' during discussion phase (epoch 803) if threshold was not met (voting flag is false)",
           params: {
-            currentEpoch: creationEpoch + 3, // epoch 803 - in discussion phase range
-            clusterSupportLamports: requiredThresholdLamports - 1, // Threshold not met
+            currentEpoch: creationEpoch + 3n, // epoch 803 - in discussion phase range
+            clusterSupportLamports: requiredThresholdLamports - 1n, // Threshold not met
             voting: false, // On-chain flag indicates threshold was not met
           },
           expected: "failed" as const,
@@ -178,8 +178,8 @@ describe("getProposalStatus", () => {
           description:
             "should return 'failed' during discussion phase (epoch 804) if threshold was not met (voting flag is false)",
           params: {
-            currentEpoch: creationEpoch + 4, // epoch 804 - in discussion phase range
-            clusterSupportLamports: requiredThresholdLamports - 1, // Threshold not met
+            currentEpoch: creationEpoch + 4n, // epoch 804 - in discussion phase range
+            clusterSupportLamports: requiredThresholdLamports - 1n, // Threshold not met
             voting: false, // On-chain flag indicates threshold was not met
           },
           expected: "failed" as const,
@@ -193,7 +193,7 @@ describe("getProposalStatus", () => {
           description:
             "should return 'discussion' at snapshot epoch (epoch 805) when threshold was met",
           params: {
-            currentEpoch: creationEpoch + 5, // epoch 805
+            currentEpoch: creationEpoch + 5n, // epoch 805
             clusterSupportLamports: requiredThresholdLamports,
             voting: true, // Threshold was met
             startEpoch: startEpochWhenSupportReached, // epoch 805 - when support reached at epoch 802
@@ -210,8 +210,8 @@ describe("getProposalStatus", () => {
           description:
             "should return 'failed' when voting flag is false after discussion phase (support threshold was not met)",
           params: {
-            currentEpoch: creationEpoch + 6, // epoch 806
-            clusterSupportLamports: requiredThresholdLamports - 1, // Threshold not met
+            currentEpoch: creationEpoch + 6n, // epoch 806
+            clusterSupportLamports: requiredThresholdLamports - 1n, // Threshold not met
             voting: false, // On-chain flag indicates threshold was not met
           },
           expected: "failed" as const,
@@ -220,8 +220,8 @@ describe("getProposalStatus", () => {
           description:
             "should return 'failed' when voting flag is false at epoch 807 (support threshold was not met)",
           params: {
-            currentEpoch: creationEpoch + 7,
-            clusterSupportLamports: requiredThresholdLamports - 1, // Threshold not met
+            currentEpoch: creationEpoch + 7n,
+            clusterSupportLamports: requiredThresholdLamports - 1n, // Threshold not met
             voting: false, // On-chain flag indicates threshold was not met
           },
           expected: "failed" as const,
@@ -230,8 +230,8 @@ describe("getProposalStatus", () => {
           description:
             "should return 'failed' when voting flag is false at snapshot epoch (epoch 805) if threshold was not met",
           params: {
-            currentEpoch: creationEpoch + 5, // epoch 805
-            clusterSupportLamports: requiredThresholdLamports - 1, // Threshold not met
+            currentEpoch: creationEpoch + 5n, // epoch 805
+            clusterSupportLamports: requiredThresholdLamports - 1n, // Threshold not met
             voting: false, // On-chain flag indicates threshold was not met
           },
           expected: "failed" as const,
@@ -241,7 +241,7 @@ describe("getProposalStatus", () => {
             "should return 'failed' when voting flag is false even if currentEpoch >= endEpoch (failed proposals should show as failed, not finalized)",
           params: {
             currentEpoch: defaultEndEpoch, // epoch 809 - equals endEpoch
-            clusterSupportLamports: requiredThresholdLamports - 1, // Threshold not met
+            clusterSupportLamports: requiredThresholdLamports - 1n, // Threshold not met
             voting: false, // On-chain flag indicates threshold was not met
           },
           expected: "failed" as const,
@@ -250,8 +250,8 @@ describe("getProposalStatus", () => {
           description:
             "should return 'failed' when voting flag is false even if currentEpoch > endEpoch (failed proposals should show as failed, not finalized)",
           params: {
-            currentEpoch: defaultEndEpoch + 10, // epoch 819 - past endEpoch
-            clusterSupportLamports: requiredThresholdLamports - 1, // Threshold not met
+            currentEpoch: defaultEndEpoch + 10n, // epoch 819 - past endEpoch
+            clusterSupportLamports: requiredThresholdLamports - 1n, // Threshold not met
             voting: false, // On-chain flag indicates threshold was not met
           },
           expected: "failed" as const,
@@ -278,7 +278,7 @@ describe("getProposalStatus", () => {
           description:
             "should return 'voting' when voting flag is true, consensusResult exists, and past voting start epoch but before end epoch",
           params: {
-            currentEpoch: endEpochWhenSupportReached - 1, // epoch 808 - before end epoch
+            currentEpoch: endEpochWhenSupportReached - 1n, // epoch 808 - before end epoch
             clusterSupportLamports: requiredThresholdLamports,
             consensusResult: mockConsensusResult,
             voting: true,
@@ -305,7 +305,7 @@ describe("getProposalStatus", () => {
           description:
             "should return 'finalized' when currentEpoch exceeds endEpoch (voting has ended)",
           params: {
-            currentEpoch: endEpochWhenSupportReached + 1, // epoch 810 - past endEpoch
+            currentEpoch: endEpochWhenSupportReached + 1n, // epoch 810 - past endEpoch
             clusterSupportLamports: requiredThresholdLamports,
             consensusResult: mockConsensusResult,
             voting: true,
@@ -337,7 +337,7 @@ describe("getProposalStatus", () => {
           description:
             "should return 'discussion' when voting flag is true but consensusResult is undefined past voting start epoch but before end epoch",
           params: {
-            currentEpoch: endEpochWhenSupportReached - 1, // epoch 808 - before end epoch
+            currentEpoch: endEpochWhenSupportReached - 1n, // epoch 808 - before end epoch
             clusterSupportLamports: requiredThresholdLamports,
             consensusResult: undefined,
             voting: true,
@@ -354,9 +354,9 @@ describe("getProposalStatus", () => {
         {
           description: "should handle zero total staked lamports",
           params: {
-            currentEpoch: creationEpoch + 2, // epoch 802
-            totalStakedLamports: 0,
-            clusterSupportLamports: 0,
+            currentEpoch: creationEpoch + 2n, // epoch 802
+            totalStakedLamports: 0n,
+            clusterSupportLamports: 0n,
           },
           expected: "discussion" as const,
           note: "With zero total stake, threshold is 0, so any support should pass",
@@ -365,7 +365,7 @@ describe("getProposalStatus", () => {
           description:
             "should return 'finalized' for very large epoch numbers (past endEpoch)",
           params: {
-            currentEpoch: creationEpoch + 1000,
+            currentEpoch: creationEpoch + 1000n,
             clusterSupportLamports: requiredThresholdLamports,
             consensusResult: mockConsensusResult,
             voting: true, // Threshold was met
@@ -379,7 +379,7 @@ describe("getProposalStatus", () => {
           description:
             "should return 'supporting' as fallback for epoch 801 (during support phase)",
           params: {
-            currentEpoch: creationEpoch + 1, // epoch 801
+            currentEpoch: creationEpoch + 1n, // epoch 801
             clusterSupportLamports: requiredThresholdLamports,
             voting: false,
           },
@@ -395,9 +395,9 @@ describe("getProposalStatus", () => {
           description:
             "should correctly calculate threshold as 10% of total staked - just below threshold",
           params: {
-            currentEpoch: creationEpoch + 2,
-            totalStakedLamports: 1_000_000_000, // 1M SOL
-            clusterSupportLamports: 100_000_000 - 1, // Just below 10% = 100k SOL
+            currentEpoch: creationEpoch + 2n,
+            totalStakedLamports: 1_000_000_000n, // 1M SOL
+            clusterSupportLamports: 100_000_000n - 1n, // Just below 10% = 100k SOL
           },
           expected: "failed" as const,
         },
@@ -405,9 +405,9 @@ describe("getProposalStatus", () => {
           description:
             "should correctly calculate threshold as 10% of total staked - exactly at threshold",
           params: {
-            currentEpoch: creationEpoch + 2,
-            totalStakedLamports: 1_000_000_000, // 1M SOL
-            clusterSupportLamports: 100_000_000, // Exactly 10% = 100k SOL
+            currentEpoch: creationEpoch + 2n,
+            totalStakedLamports: 1_000_000_000n, // 1M SOL
+            clusterSupportLamports: 100_000_000n, // Exactly 10% = 100k SOL
           },
           expected: "discussion" as const,
         },
@@ -439,14 +439,14 @@ describe("getProposalStatus", () => {
       const expectedStartEpoch =
         supportEndEpoch + epochs.DISCUSSION_EPOCHS + epochs.SNAPSHOT_EPOCHS;
       expect(expectedStartEpoch).toBe(startEpochWhenSupportReached);
-      expect(expectedStartEpoch).toBe(805); // Verify the calculation
+      expect(expectedStartEpoch).toBe(805n); // Verify the calculation
 
       const expectedEndEpoch = expectedStartEpoch + epochs.VOTING_EPOCHS;
 
       // Test that before startEpoch, proposal is in discussion phase
       const beforeVotingStart = getProposalStatus({
         ...baseParams,
-        currentEpoch: expectedStartEpoch - 1, // epoch 804
+        currentEpoch: expectedStartEpoch - 1n, // epoch 804
         clusterSupportLamports: requiredThresholdLamports,
         voting: true,
         startEpoch: expectedStartEpoch,
@@ -483,7 +483,7 @@ describe("getProposalStatus", () => {
         {
           description: "threshold check",
           params: {
-            currentEpoch: creationEpoch + 2, // epoch 802 - threshold check
+            currentEpoch: creationEpoch + 2n, // epoch 802 - threshold check
             clusterSupportLamports: requiredThresholdLamports,
           },
           expected: "discussion" as const,
@@ -506,15 +506,15 @@ describe("getProposalStatus", () => {
           description: "support phase",
           params: {
             currentEpoch: creationEpoch, // epoch 800 - support phase
-            clusterSupportLamports: requiredThresholdLamports - 1,
+            clusterSupportLamports: requiredThresholdLamports - 1n,
           },
           expected: "supporting" as const,
         },
         {
           description: "threshold check",
           params: {
-            currentEpoch: creationEpoch + 2, // epoch 802 - threshold check
-            clusterSupportLamports: requiredThresholdLamports - 1,
+            currentEpoch: creationEpoch + 2n, // epoch 802 - threshold check
+            clusterSupportLamports: requiredThresholdLamports - 1n,
           },
           expected: "failed" as const,
         },
@@ -535,16 +535,16 @@ describe("getProposalStatus", () => {
         {
           description: "threshold check",
           params: {
-            currentEpoch: creationEpoch + 2, // epoch 802 - threshold check
-            clusterSupportLamports: requiredThresholdLamports - 1,
+            currentEpoch: creationEpoch + 2n, // epoch 802 - threshold check
+            clusterSupportLamports: requiredThresholdLamports - 1n,
           },
           expected: "failed" as const,
         },
         {
           description: "after support phase",
           params: {
-            currentEpoch: creationEpoch + 6, // epoch 806 - past discussion phase
-            clusterSupportLamports: requiredThresholdLamports - 1,
+            currentEpoch: creationEpoch + 6n, // epoch 806 - past discussion phase
+            clusterSupportLamports: requiredThresholdLamports - 1n,
             voting: false, // Threshold was not met
           },
           expected: "failed" as const,
@@ -566,7 +566,7 @@ describe("getProposalStatus", () => {
         {
           description: "threshold check",
           params: {
-            currentEpoch: creationEpoch + 2, // epoch 802 - threshold check
+            currentEpoch: creationEpoch + 2n, // epoch 802 - threshold check
             clusterSupportLamports: requiredThresholdLamports,
           },
           expected: "discussion" as const,
@@ -574,7 +574,7 @@ describe("getProposalStatus", () => {
         {
           description: "discussion phase",
           params: {
-            currentEpoch: creationEpoch + 3, // epoch 803 - discussion phase
+            currentEpoch: creationEpoch + 3n, // epoch 803 - discussion phase
             clusterSupportLamports: requiredThresholdLamports,
             voting: true, // Threshold was met
             startEpoch: startEpochWhenSupportReached, // epoch 805 - when support reached at epoch 802
@@ -611,28 +611,28 @@ describe("getProposalStatus", () => {
 describe("getProposalPhaseEpochs", () => {
   // Mainnet-shaped constants (GlobalConfig as of epoch 1012)
   const epochs: EpochConstants = {
-    SUPPORT_EPOCHS: 7,
-    DISCUSSION_EPOCHS: 7,
-    SNAPSHOT_EPOCHS: 1,
-    VOTING_EPOCHS: 3,
+    SUPPORT_EPOCHS: 7n,
+    DISCUSSION_EPOCHS: 7n,
+    SNAPSHOT_EPOCHS: 1n,
+    VOTING_EPOCHS: 3n,
   };
-  const creationEpoch = 1011;
+  const creationEpoch = 1011n;
 
   it("projects the worst-case window from creationEpoch while support is in progress", () => {
     const phases = getProposalPhaseEpochs(creationEpoch, epochs);
 
-    expect(phases.supportEndEpoch).toBe(1019); // 1011 + 7 + 1
-    expect(phases.discussionEndEpoch).toBe(1026); // 1019 + 7
-    expect(phases.snapshotEpoch).toBe(1027); // 1019 + 7 + 1
+    expect(phases.supportEndEpoch).toBe(1019n); // 1011 + 7 + 1
+    expect(phases.discussionEndEpoch).toBe(1026n); // 1019 + 7
+    expect(phases.snapshotEpoch).toBe(1027n); // 1019 + 7 + 1
   });
 
   it("ignores on-chain anchors while voting is false", () => {
     const phases = getProposalPhaseEpochs(creationEpoch, epochs, {
       voting: false,
-      startEpoch: 0,
+      startEpoch: 0n,
     });
 
-    expect(phases.discussionEndEpoch).toBe(1026);
+    expect(phases.discussionEndEpoch).toBe(1026n);
   });
 
   it("uses the on-chain startEpoch once support has succeeded", () => {
@@ -640,21 +640,21 @@ describe("getProposalPhaseEpochs", () => {
     // voting for epoch 1021 — 5 epochs earlier than the worst-case 1026.
     const phases = getProposalPhaseEpochs(creationEpoch, epochs, {
       voting: true,
-      startEpoch: 1021,
+      startEpoch: 1021n,
     });
 
-    expect(phases.discussionEndEpoch).toBe(1021);
-    expect(phases.snapshotEpoch).toBe(1021);
+    expect(phases.discussionEndEpoch).toBe(1021n);
+    expect(phases.snapshotEpoch).toBe(1021n);
     // Support window is historical fact, not affected by the early finish
-    expect(phases.supportEndEpoch).toBe(1019);
+    expect(phases.supportEndEpoch).toBe(1019n);
   });
 
   it("falls back to projection when voting is true but startEpoch is unset", () => {
     const phases = getProposalPhaseEpochs(creationEpoch, epochs, {
       voting: true,
-      startEpoch: 0,
+      startEpoch: 0n,
     });
 
-    expect(phases.discussionEndEpoch).toBe(1026);
+    expect(phases.discussionEndEpoch).toBe(1026n);
   });
 });

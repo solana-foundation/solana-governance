@@ -8,3 +8,4 @@ export * from "./validator";
 export * from "./stakeAccounts";
 export * from "./validatorVoteAccounts";
 export * from "./topVoters";
+export * from "./voteDelegations";

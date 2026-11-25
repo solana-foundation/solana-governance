@@ -21,7 +21,7 @@ function neutralizeSpreadsheetFormula(text: string): string {
   return startsWithFormula || CONTROL_PREFIX.test(text) ? `'${text}` : text;
 }
 
-function escapeCsvCell(value: string | number): string {
+function escapeCsvCell(value: string | number | bigint): string {
   const text =
     typeof value === "string"
       ? neutralizeSpreadsheetFormula(value)
@@ -35,7 +35,7 @@ function escapeCsvCell(value: string | number): string {
 function basisPointsToPercentage(
   value: TopVoterRecord["voteData"]["forVotesBp"],
 ): number {
-  return value.toNumber() / 100;
+  return Number(value) / 100;
 }
 
 export function createTopVotersCsv(voters: TopVoterRecord[]): string {

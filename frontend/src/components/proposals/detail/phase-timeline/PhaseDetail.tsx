@@ -7,8 +7,8 @@ interface PhaseDetailProps {
   status: ProposalStatus;
   isLoading?: boolean;
   remainingTime?: string;
-  currentEpoch?: number;
-  activePhaseEndEpoch?: number;
+  currentEpoch?: bigint;
+  activePhaseEndEpoch?: bigint;
 }
 
 export function PhaseDetail({

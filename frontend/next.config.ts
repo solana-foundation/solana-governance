@@ -1,10 +1,15 @@
 import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
-import path from "path";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   cacheComponents: true,
+  turbopack: {
+    resolveAlias: {
+      // The wallet connector imports web3.js only to hand back legacy
+      // transaction objects, which this app never passes it.
+      "@solana/web3.js": "./src/lib/emptyModule.ts",
+    },
+  },
 };
 
 export default withSentryConfig(nextConfig, {

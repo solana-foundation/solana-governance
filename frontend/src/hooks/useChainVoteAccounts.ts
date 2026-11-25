@@ -1,6 +1,5 @@
-import { ChainVoteAccountData } from "@/chain";
 import { useEndpoint } from "@/contexts/EndpointContext";
-import { Connection, VoteAccountInfo } from "@solana/web3.js";
+import { fetchRawVoteAccounts, type ChainVoteAccountData, type RpcVoteAccountData } from "@/lib/rpcVoteAccounts";
 import { useQuery } from "@tanstack/react-query";
 
 export const useChainVoteAccounts = () => {
@@ -9,9 +8,8 @@ export const useChainVoteAccounts = () => {
   return useQuery({
     staleTime: 1000 * 120, // 2 minutes
     queryKey: ["chain_vote_accounts", endpoint],
-    queryFn: async (): Promise<ChainVoteAccountData[]> => {
-      const connection = new Connection(endpoint, "confirmed");
-      const voteAccounts = await connection.getVoteAccounts();
+    queryFn: async ({ signal }): Promise<ChainVoteAccountData[]> => {
+      const voteAccounts = await fetchRawVoteAccounts(endpoint, signal);
 
       const mappedVoteAccounts = voteAccounts.current.map(
         mapChainVoteAccountDto
@@ -22,7 +20,7 @@ export const useChainVoteAccounts = () => {
 };
 
 function mapChainVoteAccountDto(
-  voteAccount: VoteAccountInfo
+  voteAccount: RpcVoteAccountData
 ): ChainVoteAccountData {
   return {
     voteAccount: voteAccount.votePubkey,

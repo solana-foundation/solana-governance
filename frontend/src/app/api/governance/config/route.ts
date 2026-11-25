@@ -1,7 +1,10 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { fetchGovernanceConfigFromChain } from "@/lib/getGovernanceConfig";
+import {
+  fetchGovernanceConfigFromChain,
+  governanceConfigToJson,
+} from "@/lib/getGovernanceConfig";
 import { getRpcUrlForNetwork, type RpcEnvSource } from "@/lib/getRpcUrls";
 import type { RpcNetwork } from "@/types";
 
@@ -18,7 +21,7 @@ async function getCachedGovernanceConfig(network: RpcNetwork) {
   cacheTag("governance-config", network);
   cacheLife({ revalidate: REVALIDATE_SECONDS });
   const rpcUrl = getRpcUrlForNetwork(network, process.env as RpcEnvSource);
-  return fetchGovernanceConfigFromChain(rpcUrl);
+  return governanceConfigToJson(await fetchGovernanceConfigFromChain(rpcUrl));
 }
 
 /**

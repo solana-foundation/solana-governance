@@ -21,5 +21,5 @@ cached. A successful submission invalidates the cluster's cached reads.
 
 Transaction signing remains in the user's wallet. The signed bytes are sent
 through the proxy with `sendTransaction`; confirmation polls
-`getSignatureStatuses` over HTTP so web3.js does not open a direct WebSocket
-connection to an upstream RPC provider.
+`getSignatureStatuses` over HTTP (`src/lib/confirmTransaction.ts`) instead of
+subscribing over a WebSocket, which the proxy does not provide.

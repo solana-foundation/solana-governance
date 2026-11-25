@@ -1,5 +1,6 @@
-import { createProgramWitDummyWallet } from "@/chain";
+import { createSolanaRpc } from "@solana/kit";
 import { useEndpoint } from "@/contexts/EndpointContext";
+import { fetchVotes } from "@/lib/governance/programAccounts";
 import { useQuery } from "@tanstack/react-query";
 
 export const useVotes = () => {
@@ -13,9 +14,7 @@ export const useVotes = () => {
 };
 
 const getAllVotes = async (endpoint: string) => {
-  const program = createProgramWitDummyWallet(endpoint);
-
-  const votes = await program.account.vote.all();
+  const votes = await fetchVotes(createSolanaRpc(endpoint), {});
   if (votes.length === 0) return null;
 
   return votes;

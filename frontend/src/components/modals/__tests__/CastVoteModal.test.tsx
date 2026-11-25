@@ -1,270 +1,95 @@
-import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { captureException } from "@sentry/nextjs";
+import type { Address } from "@solana/kit";
+import { toast } from "sonner";
+import { NCN_PROOF_NOT_FOUND_MESSAGE, NcnApiHttpError } from "@/lib/ncnApi";
+import { TransactionFailedError } from "@/lib/transactionErrors";
+import { WALLET_SIGNING_CANCELLED_MESSAGE } from "@/lib/walletSigning";
 import { CastVoteModal } from "../CastVoteModal";
-import { PublicKey } from "@solana/web3.js";
-import { WalletRole } from "@/types";
 
-// Mock only external dependencies
-jest.mock("@solana/wallet-adapter-react", () => ({
-  useAnchorWallet: jest.fn(),
-  useWallet: jest.fn(() => ({
-    publicKey: { toBase58: () => "test-wallet-address" },
-    connected: true,
-  })),
-}));
-
-const mockHandleOptionChange = jest.fn();
-const mockHandleQuickSelect = jest.fn();
+const mockCastVote = jest.fn();
+// Stable across renders: the modal resets itself whenever this identity changes.
 const mockResetDistribution = jest.fn();
-const mockMutate = jest.fn();
 
 jest.mock("@/hooks", () => ({
-  useHasUserVoted: jest.fn(),
-  useCastVote: jest.fn(() => ({
-    mutate: mockMutate,
-  })),
-  useValidatorVotingPower: jest.fn(() => ({
-    votingPower: 1000000,
-    isLoading: false,
-  })),
-  useVoteDistribution: jest.fn(() => ({
-    distribution: { for: 50, against: 30, abstain: 20 },
-    totalPercentage: 100,
+  useCastVote: () => ({ mutate: mockCastVote }),
+  useHasUserVoted: () => ({ data: false, isLoading: false }),
+  useValidatorVotingPower: () => ({ isLoading: false, votingPower: 1_000_000_000n }),
+  useVoteDistribution: () => ({
+    distribution: { abstain: 0, against: 0, for: 100 },
+    handleOptionChange: jest.fn(),
+    handleQuickSelect: jest.fn(),
     isValidDistribution: true,
-    handleOptionChange: mockHandleOptionChange,
-    handleQuickSelect: mockHandleQuickSelect,
     resetDistribution: mockResetDistribution,
-  })),
-  useWalletRole: jest.fn(() => ({
-    walletRole: WalletRole.VALIDATOR,
-  })),
-  useProposals: jest.fn(() => ({
-    data: [],
-    isLoading: false,
-  })),
+    totalPercentage: 100,
+  }),
+  useWalletRole: () => ({ walletRole: "validator" }),
   VOTE_OPTIONS: ["for", "against", "abstain"],
-  VoteOption: {} as unknown,
-  VoteDistribution: {} as unknown,
 }));
-
+jest.mock("@solana/connector/react", () => ({
+  useConnector: () => ({ account: "SysvarC1ock11111111111111111111111111111111" }),
+}));
+jest.mock("../../VotingProposalsDropdown", () => ({ VotingProposalsDropdown: () => null }));
 jest.mock("sonner", () => ({
-  toast: {
-    success: jest.fn(),
-    error: jest.fn(),
-  },
+  toast: { error: jest.fn(), info: jest.fn(), success: jest.fn() },
 }));
+jest.mock("@sentry/nextjs", () => ({ captureException: jest.fn() }));
 
-jest.mock("@sentry/nextjs", () => ({
-  captureException: jest.fn(),
-}));
-
-jest.mock("@/contexts/EndpointContext", () => ({
-  useEndpoint: jest.fn(() => ({
-    endpointUrl: "https://api.testnet.solana.com",
-  })),
-}));
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { useAnchorWallet } = require("@solana/wallet-adapter-react");
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { useHasUserVoted } = require("@/hooks");
-
-const createWrapper = () => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-        gcTime: 0,
-      },
-    },
-  });
-
-  const Wrapper = ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+/** Submits the vote and has the mutation fail with `error`. */
+function castVoteFailingWith(error: Error) {
+  mockCastVote.mockImplementation((_input, { onError }) => onError(error));
+  render(
+    <CastVoteModal
+      consensusResult={"Config1111111111111111111111111111111111111" as Address}
+      isOpen
+      onClose={jest.fn()}
+      proposalId="SysvarRent111111111111111111111111111111111"
+    />,
   );
+  fireEvent.click(screen.getByRole("button", { name: "Cast Vote" }));
+}
 
-  return Wrapper;
-};
+beforeEach(() => {
+  jest.clearAllMocks();
+  jest.spyOn(console, "log").mockImplementation(() => {});
+});
 
-describe("CastVoteModal - Loading State for hasVoted", () => {
-  const mockWallet = {
-    publicKey: new PublicKey("11111111111111111111111111111111"),
-    signTransaction: jest.fn(),
-    signAllTransactions: jest.fn(),
-  };
-
-  const defaultProps = {
-    isOpen: true,
-    onClose: jest.fn(),
-    proposalId: "test-proposal-id",
-    consensusResult: new PublicKey("11111111111111111111111111111111"),
-  };
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    useAnchorWallet.mockReturnValue(mockWallet);
-    mockHandleOptionChange.mockClear();
-    mockHandleQuickSelect.mockClear();
-    mockResetDistribution.mockClear();
-    mockMutate.mockClear();
-  });
-
-  it("shows loading state in RequirementItem when checking if user has voted", async () => {
-    useHasUserVoted.mockReturnValue({
-      data: undefined,
-      isLoading: true,
-      isPending: true,
-    });
-
-    render(<CastVoteModal {...defaultProps} />, { wrapper: createWrapper() });
-
-    const requirementText = screen.getByText(
-      "You haven't voted on this proposal yet"
+describe("CastVoteModal when the vote fails", () => {
+  it("treats a rejected wallet approval as a cancellation, not an error", () => {
+    // The connector wraps the wallet's rejection in its own signing error,
+    // which used to raise an error toast and a Sentry report.
+    castVoteFailingWith(
+      Object.assign(new Error("Failed to sign transaction 1 of 1"), {
+        code: "SIGNING_FAILED",
+        originalError: Object.assign(new Error("User rejected the request."), { code: 4001 }),
+      }),
     );
-    expect(requirementText).toBeInTheDocument();
 
-    // Check for loading indicator (the pulsing div)
-    const loadingIndicator = requirementText
-      .closest("div")
-      ?.querySelector(".animate-pulse");
-    expect(loadingIndicator).toBeInTheDocument();
+    expect(toast.info).toHaveBeenCalledWith(WALLET_SIGNING_CANCELLED_MESSAGE);
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("disables submit button when loading hasVoted check", () => {
-    useHasUserVoted.mockReturnValue({
-      data: undefined,
-      isLoading: true,
-      isPending: true,
-    });
-
-    render(<CastVoteModal {...defaultProps} />, { wrapper: createWrapper() });
-
-    // When loading, hasVoted defaults to false, but the button should still be enabled
-    // if other conditions are met. However, in practice, we might want to disable it.
-    // For now, we'll test that the loading state is shown in RequirementItem
-    const requirementText = screen.getByText(
-      "You haven't voted on this proposal yet"
+  it("explains that a validator absent from the snapshot cannot vote", () => {
+    castVoteFailingWith(
+      new NcnApiHttpError("vote account proof", 404, {
+        resource: "vote-account-proof",
+        url: "https://ncn.example/proof",
+      }),
     );
-    expect(requirementText).toBeInTheDocument();
 
-    // The button behavior during loading depends on implementation
-    // This test focuses on the RequirementItem loading state
+    expect(toast.info).toHaveBeenCalledWith(NCN_PROOF_NOT_FOUND_MESSAGE);
+    expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("shows requirement as met when user has not voted (loading complete)", async () => {
-    useHasUserVoted.mockReturnValue({
-      data: false,
-      isLoading: false,
-      isPending: false,
-    });
-
-    render(<CastVoteModal {...defaultProps} />, { wrapper: createWrapper() });
-
-    await waitFor(() => {
-      const requirementText = screen.getByText(
-        "You haven't voted on this proposal yet"
-      );
-      expect(requirementText).toBeInTheDocument();
-
-      // Check that loading indicator is not present
-      const loadingIndicator = requirementText
-        .closest("div")
-        ?.querySelector(".animate-pulse");
-      expect(loadingIndicator).not.toBeInTheDocument();
-    });
-  });
-
-  it("shows requirement as not met when user has already voted", async () => {
-    useHasUserVoted.mockReturnValue({
-      data: true,
-      isLoading: false,
-      isPending: false,
-    });
-
-    render(<CastVoteModal {...defaultProps} />, { wrapper: createWrapper() });
-
-    await waitFor(() => {
-      const requirementText = screen.getByText(
-        "You haven't voted on this proposal yet"
-      );
-      expect(requirementText).toBeInTheDocument();
-
-      // When hasVoted is true, met should be false (!hasVoted)
-      // So the check icon should not be present
-      const checkIcon = requirementText.closest("div")?.querySelector("svg");
-      expect(checkIcon).not.toBeInTheDocument();
-    });
-  });
-
-  it("keeps submit button disabled when user has already voted", async () => {
-    useHasUserVoted.mockReturnValue({
-      data: true,
-      isLoading: false,
-      isPending: false,
-    });
-
-    render(<CastVoteModal {...defaultProps} />, { wrapper: createWrapper() });
-
-    await waitFor(() => {
-      const submitButton = screen.getByRole("button", { name: /cast vote/i });
-      expect(submitButton).toBeDisabled();
-    });
-  });
-
-  it("enables submit button when user has not voted and form is valid", async () => {
-    useHasUserVoted.mockReturnValue({
-      data: false,
-      isLoading: false,
-      isPending: false,
-    });
-
-    render(<CastVoteModal {...defaultProps} />, { wrapper: createWrapper() });
-
-    await waitFor(() => {
-      const submitButton = screen.getByRole("button", { name: /cast vote/i });
-      expect(submitButton).not.toBeDisabled();
-    });
-  });
-
-  it("transitions from loading to loaded state correctly", async () => {
-    // Start with loading state
-    useHasUserVoted.mockReturnValue({
-      data: undefined,
-      isLoading: true,
-      isPending: true,
-    });
-
-    const { rerender } = render(<CastVoteModal {...defaultProps} />, {
-      wrapper: createWrapper(),
-    });
-
-    // Check loading state
-    let requirementText = screen.getByText(
-      "You haven't voted on this proposal yet"
+  it("shows the reason a transaction failed and reports it", () => {
+    const failure = new TransactionFailedError(
+      "Transaction failed: Voting on proposal not yet started",
     );
-    let loadingIndicator = requirementText
-      .closest("div")
-      ?.querySelector(".animate-pulse");
-    expect(loadingIndicator).toBeInTheDocument();
 
-    // Update to loaded state
-    useHasUserVoted.mockReturnValue({
-      data: false,
-      isLoading: false,
-      isPending: false,
-    });
+    castVoteFailingWith(failure);
 
-    rerender(<CastVoteModal {...defaultProps} />);
-
-    await waitFor(() => {
-      requirementText = screen.getByText(
-        "You haven't voted on this proposal yet"
-      );
-      loadingIndicator = requirementText
-        .closest("div")
-        ?.querySelector(".animate-pulse");
-      expect(loadingIndicator).not.toBeInTheDocument();
-    });
+    expect(screen.getByText("Transaction failed: Voting on proposal not yet started")).toBeInTheDocument();
+    expect(captureException).toHaveBeenCalledWith(failure);
   });
 });

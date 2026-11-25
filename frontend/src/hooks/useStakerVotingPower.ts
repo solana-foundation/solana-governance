@@ -11,7 +11,7 @@ export function useStakerVotingPower(
   );
 
   const votingPower = useMemo(
-    () => stakeAccounts?.reduce((acc, curr) => acc + curr.activeStake, 0),
+    () => stakeAccounts?.reduce((acc, curr) => acc + curr.activeStake, 0n),
     [stakeAccounts]
   );
 

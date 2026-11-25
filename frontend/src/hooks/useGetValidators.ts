@@ -1,7 +1,7 @@
 import { useEndpoint } from "@/contexts/EndpointContext";
-import { getStakeWizValidators } from "@/data";
+import { getStakeWizValidators, type StakeWizValidator } from "@/data";
+import { fetchRawVoteAccounts } from "@/lib/rpcVoteAccounts";
 import { Validator, Validators } from "@/types";
-import { Connection } from "@solana/web3.js";
 import { useQuery } from "@tanstack/react-query";
 
 export const useGetValidators = () => {
@@ -14,9 +14,11 @@ export const useGetValidators = () => {
   });
 };
 
-const getValidators = async (endpoint: string): Promise<Validators> => {
-  const connection = new Connection(endpoint, "confirmed");
+/** Converts a StakeWiz count to a bigint, treating a missing or fractional value as 0. */
+const toBigInt = (value: unknown): bigint =>
+  typeof value === "number" && Number.isInteger(value) ? BigInt(value) : 0n;
 
+const getValidators = async (endpoint: string): Promise<Validators> => {
   // The RPC is the source of truth for both the validator set and its stake, so
   // a failure here has to surface as a query error — react-query then retries
   // and consumers can render an error instead of a plausible-looking zero.
@@ -25,7 +27,7 @@ const getValidators = async (endpoint: string): Promise<Validators> => {
   // still correct.
   const [stakeWizValidators, voteAccounts] = await Promise.allSettled([
     getStakeWizValidators(),
-    connection.getVoteAccounts(),
+    fetchRawVoteAccounts(endpoint),
   ]);
 
   if (voteAccounts.status === "rejected") {
@@ -41,7 +43,7 @@ const getValidators = async (endpoint: string): Promise<Validators> => {
     );
   }
 
-  const metadataByVoteAccount = new Map<string, Validator>();
+  const metadataByVoteAccount = new Map<string, StakeWizValidator>();
   if (stakeWizValidators.status === "fulfilled") {
     for (const validator of stakeWizValidators.value.data) {
       metadataByVoteAccount.set(validator.vote_identity, validator);
@@ -67,8 +69,10 @@ const getValidators = async (endpoint: string): Promise<Validators> => {
         // SOL figure, so sourcing it here left one array holding two different
         // measurements depending on whether a validator happened to match.
         activated_stake: vote.activatedStake,
+        epoch_credits: toBigInt(metadata.epoch_credits),
+        last_vote: toBigInt(metadata.last_vote),
         identity: metadata.identity ?? vote.nodePubkey,
-      };
+      } satisfies Validator;
     }
 
     unknownCount++;
@@ -81,7 +85,7 @@ const getValidators = async (endpoint: string): Promise<Validators> => {
       vote_identity: vote.votePubkey,
       identity: vote.nodePubkey,
       commission: vote.commission,
-      epoch_credits: vote.epochCredits?.[0]?.[0] || 0,
+      epoch_credits: vote.epochCredits?.[0]?.[0] || 0n,
       last_vote: vote.lastVote,
     };
     return unknownValidator;

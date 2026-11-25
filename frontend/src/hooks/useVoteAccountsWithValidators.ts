@@ -60,12 +60,12 @@ export const useVoteAccountsWithValidators = () => {
       let unmatched = 0;
 
       for (const vote of votes) {
-        const identity = vote.identity?.toBase58();
+        const identity = vote.identity;
         const validator = identity ? validatorByKey[identity] : undefined;
-        const votePk = vote.voteAccount.toBase58();
+        const votePk = vote.voteAccount;
         if (validator) {
           const entry: VoteValidatorEntry = {
-            votePDA: vote.voteAccount.toBase58(),
+            votePDA: vote.voteAccount,
             // enrich vote account info with matched validator data
             voteAccount: {
               ...vote,
@@ -89,7 +89,7 @@ export const useVoteAccountsWithValidators = () => {
         } else {
           unmatched += 1;
           const entry: VoteValidatorEntry = {
-            votePDA: vote.voteAccount.toBase58(),
+            votePDA: vote.voteAccount,
             voteAccount: {
               ...vote,
               identity: vote.identity,

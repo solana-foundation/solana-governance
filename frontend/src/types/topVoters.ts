@@ -1,5 +1,3 @@
-import BN from "bn.js";
-
 export interface TopVoterRecord {
   id: string;
   validatorName: string;
@@ -11,14 +9,14 @@ export interface TopVoterRecord {
    * own vote and every staker override of it share this address.
    */
   validatorVoteAddress: string;
-  stakedLamports: number;
+  stakedLamports: bigint;
   // voteOutcome: VoteOutcome;
   votePercentage: number;
   voteTimestamp: string;
   voteData: {
-    forVotesBp: BN;
-    againstVotesBp: BN;
-    abstainVotesBp: BN;
+    forVotesBp: bigint;
+    againstVotesBp: bigint;
+    abstainVotesBp: bigint;
   };
   accentColor: string;
   walletType: "validator" | "staker";
@@ -30,7 +28,7 @@ export interface TopSupporterRecord {
   validatorIdentity: string;
   validatorImage?: string | null;
   /** `undefined` when validator metadata could not be loaded. */
-  stakedLamports: number | undefined;
+  stakedLamports: bigint | undefined;
   /** `undefined` when total network stake is unknown, so it can render "—". */
   stakePercentage: number | undefined;
   accentColor: string;

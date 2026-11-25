@@ -19,10 +19,10 @@ export const useProposals = (filters?: {
   const governanceConfig = governanceConfigQuery.data;
   const governanceConfigKey = governanceConfig
     ? [
-        governanceConfig.maxSupportEpochs,
-        governanceConfig.discussionEpochs,
-        governanceConfig.snapshotEpochExtension,
-        governanceConfig.votingEpochs,
+        governanceConfig.maxSupportEpochs.toString(),
+        governanceConfig.discussionEpochs.toString(),
+        governanceConfig.snapshotEpochExtension.toString(),
+        governanceConfig.votingEpochs.toString(),
       ]
     : null;
 
@@ -32,7 +32,7 @@ export const useProposals = (filters?: {
       GET_ALL_PROPOSALS,
       endpoint,
       filters,
-      epochData?.epochInfo.epoch,
+      epochData?.epochInfo.epoch.toString(),
       voteAccountsData?.current.length,
       governanceConfigKey,
     ],

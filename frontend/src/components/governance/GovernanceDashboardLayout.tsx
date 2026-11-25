@@ -9,11 +9,10 @@ import { StakerActionPanel } from "@/components/governance/staker/StakerActionPa
 import { VoteAccountsTable } from "@/components/governance/validator/VoteAccountsTable";
 import { StakeAccountsTable } from "@/components/governance/staker/StakeAccountsTable";
 import { SummaryStats } from "@/components/governance/staker/SummaryStats";
-import { PublicKey } from "@solana/web3.js";
 import { useWalletRole } from "@/hooks";
 
 interface Props {
-  userPubKey: PublicKey;
+  userPubKey: string;
 }
 
 export function GovernanceDashboardLayout({ userPubKey }: Props) {
@@ -22,7 +21,7 @@ export function GovernanceDashboardLayout({ userPubKey }: Props) {
     selectedView,
     setSelectedView,
     isLoading: isLoadingView,
-  } = useWalletRole(userPubKey.toBase58());
+  } = useWalletRole(userPubKey);
 
   const hasSelectedView = selectedView !== undefined;
 
@@ -83,7 +82,7 @@ export function GovernanceDashboardLayout({ userPubKey }: Props) {
 
           {showStakerView && (
             <StakerActionPanel
-              userPubKey={userPubKey.toBase58()}
+              userPubKey={userPubKey}
               isLoading={isLoadingView}
             />
           )}
@@ -182,7 +181,7 @@ export function GovernanceDashboardLayout({ userPubKey }: Props) {
               )}
 
               <SummaryStats isLoading={isLoadingView} />
-              <StakeAccountsTable userPubKey={userPubKey.toBase58()} />
+              <StakeAccountsTable userPubKey={userPubKey} />
             </div>
           )}
         </div>

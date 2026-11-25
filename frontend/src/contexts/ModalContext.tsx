@@ -22,7 +22,7 @@ import {
   useState,
 } from "react";
 import { ModifyOverrideVoteModal } from "@/components/modals/ModifyOverrideVoteModal";
-import { PublicKey } from "@solana/web3.js";
+import type { Address } from "@solana/kit";
 
 import { track } from "@vercel/analytics";
 
@@ -55,7 +55,7 @@ interface ModalDataMap {
       }
     | {
         proposalId: string;
-        consensusResult: PublicKey;
+        consensusResult: Address;
       };
   "modify-override-vote":
     | {
@@ -64,7 +64,7 @@ interface ModalDataMap {
       }
     | {
         proposalId: string;
-        consensusResult: PublicKey;
+        consensusResult: Address;
       };
   settings: Record<string, never>;
 }

@@ -9,21 +9,31 @@ export type LamportsDisplay = {
   showRaw: boolean;
 };
 
-export function formatSOL(lamports: number): string {
-  const sol = lamports / LAMPORTS_PER_SOL;
+const LAMPORTS_PER_SOL_BIGINT = 1_000_000_000n;
 
-  // Only use compact notation for amounts >= 10M
-  if (sol >= 1e9) {
-    return `${(sol / 1e9).toFixed(2)}B`;
-  } else if (sol >= 1e7) {
-    return `${(sol / 1e6).toFixed(2)}M`;
+/** `value / unit` rounded half up to two decimals, e.g. "1,234,567.90". */
+function formatHundredths(value: bigint, unit: bigint, group: boolean): string {
+  const hundredths = (value * 100n + unit / 2n) / unit;
+  const whole = hundredths / 100n;
+  const fraction = (hundredths % 100n).toString().padStart(2, "0");
+  return `${group ? whole.toLocaleString("en-US") : whole}.${fraction}`;
+}
+
+const formatGroupedSOL = (lamports: bigint) =>
+  formatHundredths(lamports, LAMPORTS_PER_SOL_BIGINT, true);
+
+/**
+ * Formats lamports as SOL with two decimals. Amounts of 10M SOL or more use
+ * compact notation ("12.35M", "1.20B"); smaller ones are grouped by thousands.
+ */
+export function formatSOL(lamports: bigint): string {
+  if (lamports >= 1_000_000_000n * LAMPORTS_PER_SOL_BIGINT) {
+    return `${formatHundredths(lamports, 1_000_000_000n * LAMPORTS_PER_SOL_BIGINT, false)}B`;
   }
-
-  // For amounts less than 10M, use regular formatting
-  return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(sol);
+  if (lamports >= 10_000_000n * LAMPORTS_PER_SOL_BIGINT) {
+    return `${formatHundredths(lamports, 1_000_000n * LAMPORTS_PER_SOL_BIGINT, false)}M`;
+  }
+  return formatGroupedSOL(lamports);
 }
 
 export function formatPercentage(percentage: number, decimals?: number) {
@@ -43,41 +53,33 @@ export function formatCommission(commission: number | undefined): string {
 }
 
 export function formatOptionalSlot(
-  slot: number | null | undefined,
-): string | number {
-  return isValidNumber(slot) ? slot : "-";
+  slot: bigint | null | undefined,
+): string {
+  return slot === null || slot === undefined ? "-" : slot.toString();
 }
 
 export function formatOptionalCount(
-  count: number | null | undefined,
+  count: number | bigint | null | undefined,
 ): string | number {
+  if (typeof count === "bigint") return count.toString();
   return isValidNumber(count) ? count : "-";
 }
 
 export function formatLamportsDisplay(
-  lamports: number | null | undefined,
+  lamports: bigint | null | undefined,
 ): LamportsDisplay {
-  if (!isValidNumber(lamports)) {
+  if (lamports === null || lamports === undefined) {
     return {
       value: "-",
       showRaw: false,
     };
   }
 
-  const sol = lamports / LAMPORTS_PER_SOL;
-  const compact = formatSOL(lamports);
-  const value = compact.includes("SOL") ? compact : `${compact} SOL`;
-
-  const rawValue = new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(sol);
-
-  const showRaw = sol >= 10_000_000;
+  const showRaw = lamports >= 10_000_000n * LAMPORTS_PER_SOL_BIGINT;
 
   return {
-    value,
-    rawValue: showRaw ? `${rawValue} SOL` : undefined,
+    value: `${formatSOL(lamports)} SOL`,
+    rawValue: showRaw ? `${formatGroupedSOL(lamports)} SOL` : undefined,
     showRaw,
   };
 }

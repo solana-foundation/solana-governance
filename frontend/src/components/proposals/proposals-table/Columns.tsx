@@ -8,20 +8,20 @@ import LifecycleIndicator from "@/components/ui/LifecycleIndicator";
 import { SortableHeaderButton } from "@/components/SortableHeaderButton";
 import { ProposalRefLabel } from "@/components/proposals/ProposalRefLabel";
 import { ProposalRecord } from "@/types";
-import type { NetworkMetaResponse } from "@/chain";
+import type { NetworkMetaResponse } from "@/lib/ncnProofs";
 import {
   getProposalVoteStats,
   ProposalVoteShare,
 } from "@/components/proposals/ProposalVoteStats";
 
 interface ProposalColumnsOptions {
-  snapshotMetasBySlot: Map<number, NetworkMetaResponse>;
+  snapshotMetasBySlot: Map<bigint, NetworkMetaResponse>;
   isLoadingSnapshotMeta: boolean;
 }
 
 function getVoteStats(
   proposal: ProposalRecord,
-  snapshotMetasBySlot: Map<number, NetworkMetaResponse>,
+  snapshotMetasBySlot: Map<bigint, NetworkMetaResponse>,
 ) {
   return getProposalVoteStats(
     proposal,
@@ -121,8 +121,8 @@ export function getProposalColumns({
       cell: ({ row }) => {
         const { startEpoch, endEpoch } = row.original;
         const value =
-          startEpoch > 0 && endEpoch > 0
-            ? `${startEpoch} - ${endEpoch - 1}`
+          startEpoch > 0n && endEpoch > 0n
+            ? `${startEpoch} - ${endEpoch - 1n}`
             : "-";
 
         return (

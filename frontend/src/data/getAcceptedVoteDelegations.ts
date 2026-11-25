@@ -1,9 +1,6 @@
-import {
-  createProgramWitDummyWallet,
-  getAcceptedVoteDelegations,
-  VoteDelegationData,
-} from "@/chain";
-import { PublicKey } from "@solana/web3.js";
+import { address, createSolanaRpc } from "@solana/kit";
+import { fetchAcceptedVoteDelegations } from "@/lib/governance/voteDelegations";
+import type { VoteDelegationData } from "@/types";
 
 /**
  * Fetches the accepted vote delegations that name `delegate`: the SPL vote
@@ -16,15 +13,5 @@ export const getAcceptedVoteDelegationsForDelegate = async (
 ): Promise<VoteDelegationData[]> => {
   if (delegate === undefined) throw new Error("Delegate public key is required");
 
-  const program = createProgramWitDummyWallet(endpoint);
-  const delegations = await getAcceptedVoteDelegations(
-    program,
-    new PublicKey(delegate),
-  );
-
-  return delegations.map(({ account }) => ({
-    subject: account.subject.toBase58(),
-    delegate: account.delegate.toBase58(),
-    delegationAccepted: account.delegationAccepted,
-  }));
+  return fetchAcceptedVoteDelegations(createSolanaRpc(endpoint), address(delegate));
 };

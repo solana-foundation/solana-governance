@@ -4,8 +4,8 @@ describe("estimateSlotTimeMs", () => {
   it("uses the slot-weighted duration from recent performance samples", () => {
     expect(
       estimateSlotTimeMs([
-        { numSlots: 170, samplePeriodSecs: 60 },
-        { numSlots: 160, samplePeriodSecs: 60 },
+        { numSlots: 170n, samplePeriodSecs: 60 },
+        { numSlots: 160n, samplePeriodSecs: 60 },
       ]),
     ).toBeCloseTo(120_000 / 330);
   });
@@ -13,8 +13,8 @@ describe("estimateSlotTimeMs", () => {
   it("ignores empty samples", () => {
     expect(
       estimateSlotTimeMs([
-        { numSlots: 0, samplePeriodSecs: 60 },
-        { numSlots: 165, samplePeriodSecs: 60 },
+        { numSlots: 0n, samplePeriodSecs: 60 },
+        { numSlots: 165n, samplePeriodSecs: 60 },
       ]),
     ).toBeCloseTo(60_000 / 165);
   });
@@ -22,10 +22,10 @@ describe("estimateSlotTimeMs", () => {
   it("falls back to 350ms for missing or implausible samples", () => {
     expect(estimateSlotTimeMs([])).toBe(350);
     expect(
-      estimateSlotTimeMs([{ numSlots: 0, samplePeriodSecs: 0 }]),
+      estimateSlotTimeMs([{ numSlots: 0n, samplePeriodSecs: 0 }]),
     ).toBe(350);
     expect(
-      estimateSlotTimeMs([{ numSlots: 1, samplePeriodSecs: 60 }]),
+      estimateSlotTimeMs([{ numSlots: 1n, samplePeriodSecs: 60 }]),
     ).toBe(350);
   });
 });

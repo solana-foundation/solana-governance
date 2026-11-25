@@ -1067,6 +1067,6 @@ fn activation_cpi_fits_within_the_modelled_compute_limit() {
         "the activating support costs {floor} CU before bump searches, but the clients' model \
          requests only {requested} including its {SUPPORT_CU_BUMP_SEARCH} CU search allowance. \
          Raise SUPPORT_CU_ACTIVATION in tests/common/mod.rs, svmgov/cli/src/constants.rs AND \
-         frontend/src/chain/instructions/types.ts.",
+         frontend/src/lib/supportComputeBudget.ts.",
     );
 }

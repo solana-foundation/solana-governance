@@ -1,48 +1,95 @@
+import { createSolanaRpc } from "@solana/kit";
 import {
-  createProgramWitDummyWallet,
-  deriveGlobalConfigPda,
-  type GlobalConfigAccount,
-} from "@/chain";
+  fetchGlobalConfig,
+  findGlobalConfigPda,
+  type GlobalConfig,
+} from "@solana/svmgov";
 
 export interface GovernanceConfigDto {
   admin: string;
   maxTitleLength: number;
   maxDescriptionLength: number;
-  maxSupportEpochs: number;
-  minProposalStakeLamports: number;
-  clusterSupportPctMinBps: number;
-  discussionEpochs: number;
-  votingEpochs: number;
-  snapshotEpochExtension: number;
-  snapshotSlotOffset: number;
+  maxSupportEpochs: bigint;
+  minProposalStakeLamports: bigint;
+  clusterSupportPctMinBps: bigint;
+  discussionEpochs: bigint;
+  votingEpochs: bigint;
+  snapshotEpochExtension: bigint;
+  snapshotSlotOffset: bigint;
   maxSupporters: number;
   bump: number;
 }
 
+/** JSON-safe representation used at the API and persisted-query boundaries. */
+export type GovernanceConfigJson = Omit<
+  GovernanceConfigDto,
+  | "maxSupportEpochs"
+  | "minProposalStakeLamports"
+  | "clusterSupportPctMinBps"
+  | "discussionEpochs"
+  | "votingEpochs"
+  | "snapshotEpochExtension"
+  | "snapshotSlotOffset"
+> & {
+  maxSupportEpochs: string;
+  minProposalStakeLamports: string;
+  clusterSupportPctMinBps: string;
+  discussionEpochs: string;
+  votingEpochs: string;
+  snapshotEpochExtension: string;
+  snapshotSlotOffset: string;
+};
+
+export function governanceConfigToJson(
+  dto: GovernanceConfigDto,
+): GovernanceConfigJson {
+  return {
+    ...dto,
+    maxSupportEpochs: dto.maxSupportEpochs.toString(),
+    minProposalStakeLamports: dto.minProposalStakeLamports.toString(),
+    clusterSupportPctMinBps: dto.clusterSupportPctMinBps.toString(),
+    discussionEpochs: dto.discussionEpochs.toString(),
+    votingEpochs: dto.votingEpochs.toString(),
+    snapshotEpochExtension: dto.snapshotEpochExtension.toString(),
+    snapshotSlotOffset: dto.snapshotSlotOffset.toString(),
+  };
+}
+
+export function governanceConfigFromJson(
+  json: GovernanceConfigJson,
+): GovernanceConfigDto {
+  return {
+    ...json,
+    maxSupportEpochs: BigInt(json.maxSupportEpochs),
+    minProposalStakeLamports: BigInt(json.minProposalStakeLamports),
+    clusterSupportPctMinBps: BigInt(json.clusterSupportPctMinBps),
+    discussionEpochs: BigInt(json.discussionEpochs),
+    votingEpochs: BigInt(json.votingEpochs),
+    snapshotEpochExtension: BigInt(json.snapshotEpochExtension),
+    snapshotSlotOffset: BigInt(json.snapshotSlotOffset),
+  };
+}
+
 /** Maps chain account to the public DTO. */
 export function toGovernanceConfigDto(
-  account: GlobalConfigAccount,
+  account: GlobalConfig,
 ): GovernanceConfigDto {
-  const n = (v: unknown) =>
-    typeof v === "number"
-      ? v
-      : ((v as { toNumber: () => number })?.toNumber?.() ?? 0);
   return {
-    admin: account.admin.toBase58(),
+    admin: account.admin,
     // TODO: revisit this, once global config account is initialized
     //   we cant simply default to 0, since we will be using this in FE validations
     maxTitleLength: account.maxTitleLength ?? 0,
     // TODO: revisit this, once global config account is initialized
     //   we cant simply default to 0, since we will be using this in FE validations
     maxDescriptionLength: account.maxDescriptionLength ?? 0,
-    maxSupportEpochs: n(account.maxSupportEpochs),
-    minProposalStakeLamports: n(account.minProposalStakeLamports),
-    clusterSupportPctMinBps: n(account.clusterSupportPctMinBps),
-    discussionEpochs: n(account.discussionEpochs),
-    votingEpochs: n(account.votingEpochs),
-    snapshotEpochExtension: n(account.snapshotEpochExtension),
-    snapshotSlotOffset: n(account.snapshotSlotOffset),
-    maxSupporters: n(account.maxSupporters),
+    maxSupportEpochs: account.maxSupportEpochs,
+    minProposalStakeLamports: account.minProposalStakeLamports,
+    clusterSupportPctMinBps: account.clusterSupportPctMinBps,
+    discussionEpochs: account.discussionEpochs,
+    votingEpochs: account.votingEpochs,
+    snapshotEpochExtension: account.snapshotEpochExtension,
+    snapshotSlotOffset: account.snapshotSlotOffset,
+    maxSupporters: account.maxSupporters,
     bump: account.bump,
   };
 }
@@ -53,9 +100,8 @@ export function toGovernanceConfigDto(
 export async function fetchGovernanceConfigFromChain(
   rpcUrl: string,
 ): Promise<GovernanceConfigDto> {
-  const program = createProgramWitDummyWallet(rpcUrl);
-  const pda = deriveGlobalConfigPda(program.programId);
-  console.log("globalConfig pda addr:", pda.toBase58());
-  const account = await program.account.globalConfig.fetch(pda);
-  return toGovernanceConfigDto(account);
+  const rpc = createSolanaRpc(rpcUrl);
+  const [address] = await findGlobalConfigPda();
+  const account = await fetchGlobalConfig(rpc, address);
+  return toGovernanceConfigDto(account.data);
 }

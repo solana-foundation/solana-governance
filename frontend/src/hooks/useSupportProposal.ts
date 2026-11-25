@@ -1,43 +1,56 @@
-import { SupportProposalParams } from "@/chain";
+import { address, createSolanaRpc } from "@solana/kit";
+import { fetchProposal } from "@solana/svmgov";
+import { useMutation } from "@tanstack/react-query";
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { useGovernanceConfigContext } from "@/contexts/GovernanceConfigContext";
-import { supportProposalMutation } from "@/data";
-import { useMutation } from "@tanstack/react-query";
-import { useSnapshotMeta } from "./useSnapshotMeta";
-import { useChainVoteAccount } from "./useChainVoteAccount";
+import { getFirstSlotInEpoch } from "@/helpers/date";
+import {
+  buildSetComputeUnitLimitInstruction,
+  MAX_SUPPORTERS,
+  supportComputeUnitLimit,
+} from "@/lib/supportComputeBudget";
+import { buildSupportProposalInstruction } from "@/lib/transactions";
+import { useResolveSignerVoteAccount } from "./useResolveSignerVoteAccount";
+import { withReadableErrors } from "@/lib/transactionErrors";
+import { useSignTransaction } from "./useSignTransaction";
 
-const SNAPSHOT_SLOT_UNSET_MESSAGE = "No snapshot slot has been set yet";
-
-export function useSupportProposal(userPubKey: string | undefined) {
-  const { endpointUrl: endpoint, network } = useEndpoint();
-  const governanceConfigQuery = useGovernanceConfigContext();
-  const { data: meta } = useSnapshotMeta();
-  const { data: chainVoteAccount } = useChainVoteAccount(userPubKey);
-
+export function useSupportProposal(_userPubKey: string | undefined) {
+  const { endpointUrl } = useEndpoint();
+  const configQuery = useGovernanceConfigContext();
+  const { signAndSend } = useSignTransaction();
+  const resolveSignerVoteAccount = useResolveSignerVoteAccount();
   return useMutation({
-    mutationKey: [
-      "support-proposal",
-      chainVoteAccount,
-      governanceConfigQuery.dataUpdatedAt,
-    ],
-    mutationFn: (params: SupportProposalParams) => {
-      const governanceConfig = governanceConfigQuery.data;
-      if (!governanceConfig) {
-        throw new Error("Governance config not loaded");
-      }
-      if (meta?.slot === undefined) {
-        throw new Error(SNAPSHOT_SLOT_UNSET_MESSAGE);
-      }
-      return supportProposalMutation(
-        params,
-        {
-          endpoint,
-          network,
-        },
-        meta.slot,
-        chainVoteAccount || undefined,
-        governanceConfig,
-      );
-    },
+    mutationKey: ["support-proposal", configQuery.dataUpdatedAt],
+    mutationFn: withReadableErrors(async ({ proposalId, publicKey }: { proposalId: string; publicKey?: string }) => {
+      if (!publicKey) throw new Error("Wallet not connected");
+      const config = configQuery.data;
+      if (!config) throw new Error("Governance config not loaded");
+      const rpc = createSolanaRpc(endpointUrl);
+      const [splVoteAccount, epochInfo, epochSchedule, numSupporters] = await Promise.all([
+        // The wallet is either the validator identity or its accepted vote delegate.
+        resolveSignerVoteAccount(publicKey), rpc.getEpochInfo().send(), rpc.getEpochSchedule().send(),
+        // The handler re-tallies every existing supporter, so the compute
+        // budget is sized from the current list length. A failed read must not
+        // block a support that could still succeed, so fall back to the
+        // program's supporter cap.
+        fetchProposal(rpc, address(proposalId)).then(
+          (proposal) => proposal.data.numSupporters,
+          (error) => {
+            console.warn(
+              `Could not read the supporter count for ${proposalId}; requesting the compute budget for a full ${MAX_SUPPORTERS}-supporter list`,
+              error,
+            );
+            return MAX_SUPPORTERS;
+          },
+        ),
+      ]);
+      const targetEpoch = epochInfo.epoch + BigInt(config.discussionEpochs) + BigInt(config.snapshotEpochExtension);
+      const snapshotSlot = getFirstSlotInEpoch(targetEpoch, epochSchedule) + BigInt(config.snapshotSlotOffset);
+      const signature = await signAndSend(async ({ signer }) => [
+        buildSetComputeUnitLimitInstruction(supportComputeUnitLimit(numSupporters)),
+        await buildSupportProposalInstruction({ proposal: address(proposalId), signer, snapshotSlot, splVoteAccount }),
+      ]);
+      return { signature, success: true };
+    }),
   });
 }

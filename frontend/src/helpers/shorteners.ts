@@ -1,15 +1,11 @@
-import type { PublicKey } from "@solana/web3.js";
-
-export const shortenPublicKey = (pk: PublicKey | string) => {
-  const stringPk = typeof pk === "string" ? pk : pk.toString();
+export const shortenPublicKey = (stringPk: string) => {
 
   return `${stringPk.substring(0, 6)}...${stringPk.substring(
     stringPk.length - 6,
     stringPk.length
   )}`;
 };
-export const shortenMediumPublickKey = (pk: PublicKey | string) => {
-  const stringPk = typeof pk === "string" ? pk : pk.toString();
+export const shortenMediumPublickKey = (stringPk: string) => {
 
   return `${stringPk.substring(0, 10)}...${stringPk.substring(
     stringPk.length - 10,

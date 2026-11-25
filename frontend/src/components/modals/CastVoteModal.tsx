@@ -21,14 +21,14 @@ import {
   VoteDistribution,
 } from "@/hooks";
 import { toast } from "sonner";
-import { useAnchorWallet } from "@solana/wallet-adapter-react";
+import { useConnector } from "@solana/connector/react";
 import { WalletRole } from "@/types";
 import {
   formatAddress,
   formatLamportsDisplay,
 } from "@/lib/governance/formatters";
 import { VotingProposalsDropdown } from "../VotingProposalsDropdown";
-import { PublicKey } from "@solana/web3.js";
+import type { Address } from "@solana/kit";
 import { captureException } from "@sentry/nextjs";
 import RequirementItem from "./shared/RequirementItem";
 import {
@@ -43,7 +43,7 @@ import {
 export type CastVoteModalDataProps =
   | {
       proposalId: string;
-      consensusResult: PublicKey;
+      consensusResult: Address;
       initialVoteDist?: VoteDistribution;
     }
   | {
@@ -80,12 +80,13 @@ export function CastVoteModal({
     resetDistribution,
   } = useVoteDistribution(initialVoteDist);
 
-  const wallet = useAnchorWallet();
+  const { account } = useConnector();
+  const publicKey = account ?? undefined;
 
-  const { walletRole } = useWalletRole(wallet?.publicKey?.toBase58());
+  const { walletRole } = useWalletRole(publicKey);
 
   const { votingPower, isLoading: isLoadingVotingPower } =
-    useValidatorVotingPower(wallet?.publicKey?.toBase58());
+    useValidatorVotingPower(publicKey);
 
   const { data: hasVoted = false, isLoading: isLoadingHasVoted } =
     useHasUserVoted(selectedProposal.id);
@@ -102,7 +103,7 @@ export function CastVoteModal({
 
   const handleProposalChange = (
     proposalId: string,
-    consensusResult: PublicKey
+    consensusResult: Address
   ) => {
     setSelectedProposal({ id: proposalId, consensusResult });
   };
@@ -132,7 +133,7 @@ export function CastVoteModal({
   };
 
   const handleVote = (voteDistribution: VoteDistribution) => {
-    if (!wallet) {
+    if (!publicKey) {
       toast.error("Wallet not connected");
       return;
     }
@@ -154,7 +155,7 @@ export function CastVoteModal({
     ) {
       castVote(
         {
-          wallet,
+          publicKey,
           proposalId: selectedProposal.id,
           forVotesBp: voteDistribution.for * 100,
           againstVotesBp: voteDistribution.against * 100,
@@ -229,7 +230,7 @@ export function CastVoteModal({
               <div className="space-y-4 rounded-lg bg-white/5 p-4">
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-xs text-foreground sm:text-sm">
-                    {formatAddress(wallet?.publicKey?.toBase58() || "", 6)}
+                    {formatAddress(publicKey || "", 6)}
                   </span>
                   <div className="text-right">
                     <p className="text-xs text-white/60">Voting Power</p>

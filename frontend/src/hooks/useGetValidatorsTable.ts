@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useValidatorsVoterSplits } from "./useValidatorsVoterSplits";
 import { Validator } from "@/types";
+import { formatBigintPercentage } from "@/helpers/bigint";
 import { roundDecimals } from "@/lib/helpers";
 import { useGetValidators } from "./useGetValidators";
 
@@ -49,13 +50,13 @@ export const useGetValidatorsTable = (sortBy: SortBy) => {
 
       const totalStake = validators.reduce((acc, curr) => {
         return (acc += curr.activated_stake);
-      }, 0);
+      }, 0n);
 
       return (
         validators?.map((v) => ({
           ...v,
           percentage: roundDecimals(
-            ((v.activated_stake * 100) / totalStake).toString(),
+            formatBigintPercentage(v.activated_stake, totalStake),
           ),
           voterSplits: {
             yes: voterSplits?.[v.vote_identity]
@@ -75,7 +76,12 @@ export const useGetValidatorsTable = (sortBy: SortBy) => {
             ? new Date(votesLatestTimestamp?.[v.vote_identity]).toLocaleString()
             : "-",
         })) || []
-      ).sort((a, b) => +b[sortByProp] - +a[sortByProp]);
+      ).sort((a, b) => {
+        const left = a[sortByProp];
+        const right = b[sortByProp];
+        if (typeof left === "bigint" && typeof right === "bigint") return left === right ? 0 : left > right ? -1 : 1;
+        return String(right).localeCompare(String(left));
+      });
     },
   });
 };

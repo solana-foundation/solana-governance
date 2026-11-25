@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useAnchorWallet } from "@solana/wallet-adapter-react";
+import { useConnector } from "@solana/connector/react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -36,7 +36,8 @@ export function UpdateProposalDescriptionModal({
   proposalId,
   currentDescription,
 }: Props) {
-  const wallet = useAnchorWallet();
+  const { account } = useConnector();
+  const publicKey = account ?? undefined;
   const queryClient = useQueryClient();
   const { mutate: update, isPending } = useUpdateProposalDescription();
   const { data: config } = useGovernanceConfigContext();
@@ -69,7 +70,7 @@ export function UpdateProposalDescriptionModal({
       {
         proposalId,
         description: validation.normalized,
-        wallet,
+        publicKey,
         skipDocumentCheck: allowUnverified,
       },
       {

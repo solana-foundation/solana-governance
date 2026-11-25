@@ -1,9 +1,6 @@
-import {
-  Connection,
-  EpochInfo,
-  EpochSchedule,
-  PerfSample,
-} from "@solana/web3.js";
+import { createSolanaRpc } from "@solana/kit";
+import type { EpochInfoData } from "@/hooks/useEpochInfo";
+import { bigintToSafeNumber } from "./bigint";
 
 const DEFAULT_SLOT_TIME_MS = 350;
 const PERFORMANCE_SAMPLE_LIMIT = 60;
@@ -15,12 +12,12 @@ const MAX_PLAUSIBLE_SLOT_TIME_MS = 1_000;
  * Falls back to the configured 350ms slot time when an RPC omits or returns unusable samples.
  */
 export function estimateSlotTimeMs(
-  samples: Pick<PerfSample, "numSlots" | "samplePeriodSecs">[],
+  samples: ReadonlyArray<{ numSlots: bigint; samplePeriodSecs: number }>,
 ): number {
   const totals = samples.reduce(
     (acc, sample) => {
-      if (sample.numSlots > 0 && sample.samplePeriodSecs > 0) {
-        acc.slots += sample.numSlots;
+      if (sample.numSlots > 0n && sample.samplePeriodSecs > 0) {
+        acc.slots += Number(sample.numSlots);
         acc.seconds += sample.samplePeriodSecs;
       }
       return acc;
@@ -59,12 +56,12 @@ export const getDaysLeft = (futureDate: Date) => {
  * @returns Promise<Date> - The estimated date when the epoch will start
  */
 export async function epochToDate(
-  epoch: number,
-  epochInfo: EpochInfo,
-  epochSchedule: EpochSchedule,
+  epoch: bigint,
+  epochInfo: EpochInfoData["epochInfo"],
+  epochSchedule: EpochInfoData["epochSchedule"],
   endpoint: string
 ): Promise<Date> {
-  const connection = new Connection(endpoint, "confirmed");
+  const rpc = createSolanaRpc(endpoint);
 
   // Calculate the target epoch (creationEpoch + 3)
   const targetEpoch = epoch;
@@ -72,12 +69,12 @@ export async function epochToDate(
   // If target epoch is in the past or current, use current time
   if (targetEpoch <= epochInfo.epoch) {
     // Get the first slot of the target epoch
-    const targetSlot = epochSchedule.getFirstSlotInEpoch(targetEpoch);
+    const targetSlot = getFirstSlotInEpoch(targetEpoch, epochSchedule);
     try {
       // Try to get block time for that slot
-      const blockTime = await connection.getBlockTime(targetSlot);
+      const blockTime = await rpc.getBlockTime(targetSlot).send();
       if (blockTime) {
-        return new Date(blockTime * 1000); // Convert to milliseconds
+        return new Date(bigintToSafeNumber(blockTime, "block time") * 1000); // Convert to milliseconds
       }
     } catch {
       console.warn("Failed to get block time for epoch", targetEpoch);
@@ -87,7 +84,7 @@ export async function epochToDate(
   }
 
   // Get the first slot of the target epoch
-  const targetSlot = epochSchedule.getFirstSlotInEpoch(targetEpoch);
+  const targetSlot = getFirstSlotInEpoch(targetEpoch, epochSchedule);
 
   const slotsUntilTarget = targetSlot - epochInfo.absoluteSlot;
 
@@ -95,13 +92,14 @@ export async function epochToDate(
   // RPC performance samples. Slot production can run materially faster than the 400ms target,
   // shortening epoch phases by hours; a fixed slot duration makes proposal countdowns stale.
   const [blockTimeResult, performanceSamplesResult] = await Promise.allSettled([
-    connection.getBlockTime(epochInfo.absoluteSlot),
-    connection.getRecentPerformanceSamples(PERFORMANCE_SAMPLE_LIMIT),
+    rpc.getBlockTime(epochInfo.absoluteSlot).send(),
+    rpc.getRecentPerformanceSamples(PERFORMANCE_SAMPLE_LIMIT).send(),
   ]);
 
   let currentBlockTime = Date.now();
   if (blockTimeResult.status === "fulfilled" && blockTimeResult.value !== null) {
-    currentBlockTime = blockTimeResult.value * 1_000;
+    currentBlockTime =
+      bigintToSafeNumber(blockTimeResult.value, "block time") * 1_000;
   } else {
     console.warn(
       "Failed to get block time for current epoch",
@@ -120,9 +118,36 @@ export async function epochToDate(
     );
   }
 
-  const estimatedTime = currentBlockTime + slotsUntilTarget * slotTimeMs;
+  const estimatedTime =
+    currentBlockTime +
+    bigintToSafeNumber(slotsUntilTarget, "slot delta") * slotTimeMs;
 
   return new Date(estimatedTime);
+}
+
+/**
+ * Returns the first slot of `epoch` under `schedule`, including the doubling
+ * epochs of a cluster that started with warmup enabled.
+ */
+export function getFirstSlotInEpoch(
+  epoch: bigint,
+  schedule: Pick<
+    EpochInfoData["epochSchedule"],
+    "firstNormalEpoch" | "firstNormalSlot" | "slotsPerEpoch" | "warmup"
+  >,
+): bigint {
+  if (!schedule.warmup || epoch >= schedule.firstNormalEpoch) {
+    return schedule.firstNormalSlot +
+      (epoch - schedule.firstNormalEpoch) * schedule.slotsPerEpoch;
+  }
+
+  let firstSlot = 0n;
+  let slotsInEpoch = 32n;
+  for (let currentEpoch = 0n; currentEpoch < epoch; currentEpoch++) {
+    firstSlot += slotsInEpoch;
+    slotsInEpoch = slotsInEpoch * 2n;
+  }
+  return firstSlot;
 }
 
 export const getHoursLeft = (futureDate: Date) => {

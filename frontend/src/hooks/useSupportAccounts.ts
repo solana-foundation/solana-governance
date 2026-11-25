@@ -1,7 +1,6 @@
 import { useEndpoint } from "@/contexts/EndpointContext";
 import { getSupportAccounts, GetSupportFilters } from "@/data";
 import { GET_WALLET_SUPPORT_ACCOUNTS } from "@/helpers";
-import { PublicKey } from "@solana/web3.js";
 import { useQuery } from "@tanstack/react-query";
 
 /**
@@ -9,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
  */
 export function buildSupportFilters(
   proposalPublicKey: string | undefined,
-  validatorPublicKey: PublicKey | null
+  validatorPublicKey: string | null | undefined
 ): GetSupportFilters {
   const filters: GetSupportFilters = [];
 
@@ -23,7 +22,7 @@ export function buildSupportFilters(
   if (validatorPublicKey) {
     filters.push({
       name: "validator" as const,
-      value: validatorPublicKey.toBase58(),
+      value: validatorPublicKey,
     });
   }
 
