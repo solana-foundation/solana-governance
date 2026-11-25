@@ -1,5 +1,4 @@
 import {
-  buildSetComputeUnitLimitInstruction,
   MAX_SUPPORTERS,
   SUPPORT_CU_BUMP_SEARCH,
   supportComputeUnitLimit,
@@ -57,17 +56,5 @@ describe("supportComputeUnitLimit", () => {
     // the values support_compute_unit_limit() produces.
     expect(supportComputeUnitLimit(0)).toBe(89_125);
     expect(supportComputeUnitLimit(2_000)).toBe(392_725);
-  });
-});
-
-describe("buildSetComputeUnitLimitInstruction", () => {
-  it("encodes the limit the way the Compute Budget program reads it", () => {
-    const instruction = buildSetComputeUnitLimitInstruction(392_725);
-
-    expect(instruction.programAddress).toBe(
-      "ComputeBudget111111111111111111111111111111",
-    );
-    // Discriminator 2 (SetComputeUnitLimit), then the limit as a u32 LE.
-    expect(Array.from(instruction.data ?? [])).toEqual([2, 0x15, 0xfe, 0x05, 0x00]);
   });
 });

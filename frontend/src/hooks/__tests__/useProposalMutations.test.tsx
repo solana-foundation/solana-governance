@@ -71,6 +71,7 @@ jest.mock("@/lib/transactions", () => ({
 }));
 
 let sent: unknown[];
+let sentOptions: { computeUnitLimit?: number } | undefined;
 
 function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>;
@@ -89,8 +90,9 @@ function voteDelegation(delegation: { accepted: boolean } | null) {
 beforeEach(() => {
   jest.clearAllMocks();
   sent = [];
-  mockSignAndSend.mockImplementation(async (build) => {
+  mockSignAndSend.mockImplementation(async (build, options) => {
     sent = await build({ signer: { address: AUTHOR } });
+    sentOptions = options;
     return "signature";
   });
   jest.mocked(fetchGlobalConfig).mockResolvedValue({
@@ -172,7 +174,7 @@ describe("useSupportProposal", () => {
     await support();
 
     // Epoch 900 + 2 discussion epochs + 1 extension, then the configured offset.
-    expect(sent[1]).toEqual({
+    expect(sent[0]).toEqual({
       support: expect.objectContaining({
         snapshotSlot: 903n * 432_000n + 1_000n,
         splVoteAccount: VOTE_ACCOUNT,
@@ -186,8 +188,7 @@ describe("useSupportProposal", () => {
     const limitFor = async (numSupporters: number) => {
       jest.mocked(fetchProposal).mockResolvedValue({ data: { numSupporters } } as never);
       await support();
-      const { data } = sent[0] as { data: Uint8Array };
-      return new DataView(data.buffer, data.byteOffset).getUint32(1, true);
+      return sentOptions?.computeUnitLimit ?? 0;
     };
 
     const few = await limitFor(10);

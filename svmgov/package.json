@@ -10,8 +10,8 @@
     "generate:clients": "node scripts/generate-clients.mjs"
   },
   "dependencies": {
-    "@solana/kit": "^7.0.0",
-    "@solana/program-client-core": "^7.0.0"
+    "@solana/kit": "^8.6.0",
+    "@solana/program-client-core": "^8.6.0"
   },
   "devDependencies": {
     "@codama/nodes-from-anchor": "^1.5.2",
