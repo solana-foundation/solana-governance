@@ -140,7 +140,9 @@ export const useProposalVotes = (proposalPublicKey: Address | undefined) => {
         return {
           id: identity,
           validatorName,
-          validatorIdentity: identity,
+          // An override records the validator's vote account, not its
+          // identity, so take the identity from the matched validator.
+          validatorIdentity: validator?.identity ?? identity,
           validatorImage: validator?.image ?? null,
           stakedLamports,
           votePercentage,
