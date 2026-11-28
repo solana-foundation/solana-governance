@@ -334,6 +334,23 @@ fn get_proposal_status(
     ProposalPhase::new(&PhaseInputs::new(proposal, config), current_epoch).id()
 }
 
+/// `--status` takes a phase id; `active` is kept as the name the docs use for
+/// proposals open for voting.
+fn matches_status_filter(
+    proposal: &Proposal,
+    current_epoch: u64,
+    config: &GlobalConfig,
+    status_filter: &str,
+) -> bool {
+    let status = status_filter.to_lowercase();
+    let status = if status == "active" {
+        ProposalPhase::Voting.id()
+    } else {
+        &status
+    };
+    get_proposal_status(proposal, current_epoch, config) == status
+}
+
 pub async fn list_proposals(
     rpc_url: Option<String>,
     status_filter: Option<String>,
@@ -405,10 +422,8 @@ pub async fn list_proposals(
 
     // Filter by status if provided
     if let Some(status) = status_filter {
-        let status_lower = status.to_lowercase();
         proposals.retain(|(_, proposal)| {
-            let proposal_status = get_proposal_status(proposal, current_epoch, &global_config);
-            proposal_status == status_lower.as_str()
+            matches_status_filter(proposal, current_epoch, &global_config, &status)
         });
     }
 
@@ -533,5 +548,30 @@ mod tests {
         assert_eq!(output["status"], "finalized");
         assert!(output["epochs_remaining"].is_null());
         assert!(output["consensus_result"].is_null());
+    }
+
+    #[test]
+    fn status_filter_active_lists_proposals_open_for_voting() {
+        let mut proposal = Proposal::try_deserialize(
+            &mut [Proposal::DISCRIMINATOR, &[0; 512]].concat().as_slice(),
+        )
+        .unwrap();
+        let config = GlobalConfig::try_deserialize(
+            &mut [GlobalConfig::DISCRIMINATOR, &[0; 256]].concat().as_slice(),
+        )
+        .unwrap();
+        proposal.creation_epoch = 10;
+        proposal.start_epoch = 15;
+        proposal.end_epoch = 18;
+        proposal.voting = true;
+
+        for filter in ["active", "Active", "voting"] {
+            assert!(
+                matches_status_filter(&proposal, 16, &config, filter),
+                "{filter}"
+            );
+        }
+        assert!(!matches_status_filter(&proposal, 18, &config, "active"));
+        assert!(!matches_status_filter(&proposal, 16, &config, "support"));
     }
 }
